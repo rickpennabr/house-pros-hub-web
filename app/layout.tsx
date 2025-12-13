@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import "./apple-theme.css";
 import PageContainer from '@/components/pageslayout/PagesContainer';
 import PageHeader from '@/components/pageslayout/PagesHeader';
 import PagesMenu from '@/components/pageslayout/PagesMenu';
@@ -31,17 +32,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <PageContainer>
-          <PageHeader>
-          </PageHeader>
-          <PagesMenu>
-          </PagesMenu>
-          <PageCategories>
-          </PageCategories>
-          <PageContent>
-            {children}
-          </PageContent>
-        </PageContainer>
+        {children}
       </body>
     </html>
   );
