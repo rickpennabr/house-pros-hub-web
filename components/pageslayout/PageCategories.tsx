@@ -1,6 +1,9 @@
 'use client';
 
 import { ReactNode, useState } from 'react';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useCategory } from '@/contexts/CategoryContext';
+import ExpandableSearchbar from './ExpandableSearchbar';
 import { 
   Grid, 
   TreePine, 
@@ -46,15 +49,29 @@ const serviceCategories: CategoryItem[] = [
 ];
 
 export default function ServiceCategories({ children }: ServiceCategoriesProps) {
-  const [activeCategory, setActiveCategory] = useState<string>('All');
+  const { activeCategory, setActiveCategory, setSearchQuery } = useCategory();
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { getThemeClasses } = useTheme();
+  const categoriesClass = getThemeClasses('categories');
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+  };
+
+  const handleSearchToggle = (isOpen: boolean) => {
+    setIsSearchOpen(isOpen);
+    if (!isOpen) {
+      setSearchQuery(''); // Clear search when closing
+    }
+  };
 
   const categoryClasses = (categoryLabel: string) => {
     // Base classes: same as PagesMenu, with whitespace-nowrap and shrink-0 for horizontal scrolling
-    const baseClasses = 'group h-10 rounded-full border-2 transition-all duration-300 font-medium flex items-center justify-center px-2 md:px-4 gap-1 whitespace-nowrap shrink-0 cursor-pointer hover:scale-110';
-    // Active item: same style as PagesMenu active item - bg-white border-2 border-black
-    const activeClasses = 'bg-white border-black text-black';
-    // Inactive item: same style as PagesMenu inactive item
-    const inactiveClasses = 'bg-transparent border-transparent text-black hover:border-gray-400';
+    const baseClasses = 'group h-10 border-2 transition-all duration-300 font-medium flex items-center justify-center px-1.5 md:px-2 gap-2 whitespace-nowrap shrink-0 cursor-pointer hover:scale-110';
+    // Active item: always use black border (not theme-aware)
+    const activeClasses = 'bg-white border-black text-black rounded-lg';
+    // Inactive item: use rounded-lg to match active shape, including on hover
+    const inactiveClasses = 'bg-transparent border-transparent text-black hover:border-gray-400 rounded-lg';
     
     return activeCategory === categoryLabel 
       ? `${baseClasses} ${activeClasses}`
@@ -62,8 +79,18 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
   };
 
   return (
-    <div className="w-full h-[60px] border-b border-black pt-2 pb-2 px-2 md:p-4 flex items-center">
-      <div className="w-full flex items-center gap-3 overflow-x-auto py-0.5 scrollbar-custom">
+    <div className={`w-full h-[60px] ${categoriesClass} pt-2 pb-2 px-1 md:px-2 md:py-4 flex items-center relative overflow-hidden`}>
+      {/* Search Component */}
+      <ExpandableSearchbar 
+        onSearchChange={handleSearchChange}
+        onSearchToggle={handleSearchToggle}
+        placeholder="Search businesses, services, or keywords..."
+      />
+
+      {/* Categories - Hidden when search is open */}
+      <div className={`w-full flex items-center gap-3 overflow-x-auto scrollbar-custom transition-opacity duration-300 ${
+        isSearchOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+      }`}>
         {serviceCategories.map((category) => {
           const Icon = category.icon;
           return (

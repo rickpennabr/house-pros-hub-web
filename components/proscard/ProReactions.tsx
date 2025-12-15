@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Heart, MessageSquare, Link as LinkIcon, Bookmark } from 'lucide-react';
+import { useProtectedAction } from '@/hooks/useProtectedAction';
 
 interface ProReactionsProps {
   initialReactions?: {
@@ -20,7 +21,7 @@ export default function ProReactions({
   const [reactions, setReactions] = useState(initialReactions);
   const [activeReactions, setActiveReactions] = useState<Set<string>>(new Set());
 
-  const handleReaction = (type: 'love' | 'feedback' | 'link' | 'save') => {
+  const performReaction = (type: 'love' | 'feedback' | 'link' | 'save') => {
     const isActive = activeReactions.has(type);
     
     setActiveReactions(prev => {
@@ -46,6 +47,14 @@ export default function ProReactions({
     }
   };
 
+  // Wrap with protected action check
+  const handleProtectedReaction = useProtectedAction(performReaction);
+
+  const handleReaction = (e: React.MouseEvent, type: 'love' | 'feedback' | 'link' | 'save') => {
+    e.stopPropagation();
+    handleProtectedReaction(type);
+  };
+
   const reactionConfig = [
     { type: 'love' as const, icon: Heart, label: 'Love', count: reactions.love || 0 },
     { type: 'feedback' as const, icon: MessageSquare, label: 'Feedback', count: reactions.feedback || 0 },
@@ -61,8 +70,8 @@ export default function ProReactions({
           return (
             <button
               key={type}
-              onClick={() => handleReaction(type)}
-              className={`flex items-center gap-3 md:gap-2 px-2 py-3 lg:px-1 md:py-2.5 rounded-full border-2 transition-all font-medium cursor-pointer shrink-0 ${
+              onClick={(e) => handleReaction(e, type)}
+              className={`flex items-center gap-3 md:gap-2 px-2 py-3 lg:px-1 md:py-2.5 rounded-lg border-2 transition-all font-medium cursor-pointer shrink-0 ${
                 isActive
                   ? 'bg-white border-black text-black'
                   : 'bg-transparent border-transparent text-black hover:border-gray-400'

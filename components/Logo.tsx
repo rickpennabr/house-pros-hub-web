@@ -9,7 +9,7 @@ interface LogoProps {
 export default function Logo({ className = '', width = 200, height = 50 }: LogoProps) {
   return (
     <Image
-      src="/houseproshub-logo-black.png"
+      src="/hph-logo-2.3.png"
       alt="House Pros Hub Logo"
       width={width}
       height={height}

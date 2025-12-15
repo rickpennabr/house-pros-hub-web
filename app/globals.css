@@ -22,7 +22,7 @@
 }
 
 body {
-  background: var(--background);
+  background: transparent;
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -65,4 +65,106 @@ body {
 
 .scrollbar-custom:hover {
   scrollbar-color: rgba(0, 0, 0, 1) transparent;
+}
+
+/* Smooth color-changing background animation - house colors like wall paint */
+@keyframes colorWallHouse {
+  0% {
+    background: #d4c5b9; /* Light tan */
+  }
+  11.11% {
+    background: #e8dcc6; /* Sand color */
+  }
+  22.22% {
+    background: #d4a574; /* Light brown */
+  }
+  33.33% {
+    background: #8b6f47; /* Dark brown */
+  }
+  44.44% {
+    background: #4a4a4a; /* Graphite */
+  }
+  55.55% {
+    background: #c9a082; /* Tan brown */
+  }
+  66.66% {
+    background: #8b6f47; /* Dark brown */
+  }
+  77.77% {
+    background: #c97d6a; /* Light red/terracotta */
+  }
+  88.88% {
+    background: #d4c5b9; /* Light tan */
+  }
+  100% {
+    background: #d4c5b9; /* Light tan */
+  }
+}
+
+.color-changing-bg {
+  animation: colorWallHouse 40s ease-in-out infinite;
+  transition: background 1.5s ease;
+}
+
+/* Dynamic border color that syncs with background */
+:root {
+  --current-theme-color: #000000;
+}
+
+.theme-colorful {
+  --current-theme-color: #d4c5b9;
+}
+
+.theme-default {
+  --current-theme-color: #000000;
+}
+
+.border-changing {
+  border-color: var(--current-theme-color) !important;
+  transition: border-color 1.5s ease;
+}
+
+/* Welcome back animation */
+@keyframes wave {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  10%, 30% {
+    transform: rotate(14deg);
+  }
+  20% {
+    transform: rotate(-8deg);
+  }
+  40%, 60% {
+    transform: rotate(14deg);
+  }
+  50% {
+    transform: rotate(-8deg);
+  }
+  70%, 90% {
+    transform: rotate(14deg);
+  }
+  80% {
+    transform: rotate(-8deg);
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-wave {
+  animation: wave 2.5s ease-in-out infinite;
+  animation-delay: 0.3s;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out;
 }

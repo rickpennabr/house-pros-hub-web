@@ -9,6 +9,7 @@ import {
   Mail,
   MapPin
 } from 'lucide-react';
+import { useProtectedAction } from '@/hooks/useProtectedAction';
 
 export interface LinkItem {
   type: 'phone' | 'instagram' | 'facebook' | 'website' | 'calendar' | 'email' | 'location';
@@ -36,13 +37,30 @@ export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
   const linkCount = visibleLinks.length;
   const shouldSpaceBetween = linkCount === 7;
 
-  const handleLinkClick = (link: LinkItem) => {
+  // Define which link types require authentication
+  const protectedLinkTypes: LinkItem['type'][] = ['phone', 'email', 'calendar'];
+  const isProtectedLink = (type: LinkItem['type']) => protectedLinkTypes.includes(type);
+
+  const performLinkClick = (link: LinkItem) => {
     if (link.type === 'phone' && link.value) {
       window.location.href = `tel:${link.value}`;
     } else if (link.type === 'email' && link.value) {
       window.location.href = `mailto:${link.value}`;
     } else if (link.url) {
       window.open(link.url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  // Wrap protected actions with auth check
+  const handleProtectedLinkClick = useProtectedAction(performLinkClick);
+
+  const handleLinkClick = (e: React.MouseEvent, link: LinkItem) => {
+    e.stopPropagation();
+    if (isProtectedLink(link.type)) {
+      handleProtectedLinkClick(link);
+    } else {
+      // Public links (website, instagram, facebook, location) don't need auth
+      performLinkClick(link);
     }
   };
 
@@ -66,8 +84,8 @@ export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
           return (
             <button
               key={index}
-              onClick={() => handleLinkClick(link)}
-              className="w-10 h-10 lg:w-9 lg:h-9 rounded-full bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+              onClick={(e) => handleLinkClick(e, link)}
+              className="w-10 h-10 lg:w-9 lg:h-9 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
               aria-label={link.type}
             >
               <Icon className="w-5 h-5 lg:w-[18px] lg:h-[18px] text-black" />
