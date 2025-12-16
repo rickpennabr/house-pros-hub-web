@@ -139,9 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('❌ [checkAuth] Error checking auth:', error);
-      // Only clear if there's an actual error, not just missing data
-      // Don't clear on missing user/token - that's a valid state (not logged in)
-      if (error instanceof Error && error.message.includes('parse') || error.message.includes('JSON')) {
+      // Only clear if there's an actual error, not just missing data   
+      // Don't clear on missing user/token - that's a valid state (not logged in)                                                                       
+      if (error instanceof Error && (error.message.includes('parse') || error.message.includes('JSON'))) {
         console.error('❌ [checkAuth] Storage corruption detected, clearing...');
         authStorage.clear();
         setUser(null);

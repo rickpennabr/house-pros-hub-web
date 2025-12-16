@@ -33,7 +33,7 @@ export default function BusinessDetailsPage() {
       
       // First, try to get from localStorage
       const allBusinesses = businessStorage.getAllBusinesses();
-      let data = allBusinesses.find((b: ProCardData) => b.id === id);
+      let data: ProCardData | null = allBusinesses.find((b: ProCardData) => b.id === id) || null;
       
       // Remove userId from business data if it exists (for display purposes)
       if (data) {
@@ -46,7 +46,7 @@ export default function BusinessDetailsPage() {
         data = await getBusinessData(id);
       }
       
-      setBusiness(data || null);
+      setBusiness(data);
       setLoading(false);
     };
 
@@ -99,7 +99,7 @@ export default function BusinessDetailsPage() {
             onReaction={(type) => {
               // Refresh business data to get updated reactions
               const allBusinesses = businessStorage.getAllBusinesses();
-              const updatedBusiness = allBusinesses.find((b: ProCardData & { userId?: string }) => b.id === business.id);
+              const updatedBusiness = allBusinesses.find((b: ProCardData & { userId?: string }) => b.id === business.id) as (ProCardData & { userId?: string }) | undefined;
               if (updatedBusiness) {
                 const { userId, ...businessData } = updatedBusiness;
                 setBusiness(businessData);

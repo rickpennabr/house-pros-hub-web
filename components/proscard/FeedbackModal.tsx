@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { feedbackStorage, Comment } from '@/lib/storage/feedbackStorage';
 import { businessStorage } from '@/lib/storage/businessStorage';
+import { ProCardData } from './ProCard';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -54,7 +55,7 @@ export default function FeedbackModal({
   const isBusinessOwner = (): boolean => {
     if (!user || !businessId) return false;
     const businesses = businessStorage.getAllBusinesses();
-    const business = businesses.find((b: any) => b.id === businessId);
+    const business = businesses.find((b: ProCardData & { userId?: string }) => b.id === businessId) as (ProCardData & { userId?: string }) | undefined;   
     return business?.userId === user.id;
   };
 

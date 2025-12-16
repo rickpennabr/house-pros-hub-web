@@ -145,21 +145,24 @@ export function BusinessStep4({ formState, updateLink, reorderLinks, personalDat
     console.log(`✏️ Input change for ${link.type} at position ${index}: "${value}" -> URL: "${processed.processedUrl}", Display: "${processed.displayValue}"`);
   };
 
-  const handleLinkSelection = (linkKey: string) => {
+  const handleLinkSelection = (linkKey: LinkItem['type'] | '') => {
     if (!linkKey) return;
+
+    // Type guard: after this check, linkKey is guaranteed to be LinkItem['type']
+    const linkType: LinkItem['type'] = linkKey;
 
     // Clear address modal error when selecting a different link
     if (showAddressModal) {
       setShowAddressModal(false);
     }
 
-    const selectedOption = SOCIAL_MEDIA_OPTIONS.find(option => option.key === linkKey);
+    const selectedOption = SOCIAL_MEDIA_OPTIONS.find(option => option.key === linkType);
     let rawValue = '';
 
     // Set initial value based on link type (like reference component)
-    if ((linkKey === 'phone' || linkKey === 'whatsapp') && phoneNumber) {
+    if ((linkType === 'phone' || linkType === 'whatsapp') && phoneNumber) {
       rawValue = phoneNumber;
-    } else if (linkKey === 'email' && formState.email) {
+    } else if (linkType === 'email' && formState.email) {
       rawValue = formState.email;
     } else if (selectedOption?.useAtSymbol) {
       rawValue = '@';
@@ -184,28 +187,28 @@ export function BusinessStep4({ formState, updateLink, reorderLinks, personalDat
     }
 
     // Process the value using link processor
-    const processed = processLinkValue(linkKey, rawValue);
+    const processed = processLinkValue(linkType, rawValue);
 
     // Add the new link with processed values
     // Based on ProLinks usage:
     // - Phone/email: use value field with tel:/mailto: URL
     // - Other links: use url field with https:// URL, value for display
-    if (linkKey === 'phone' || linkKey === 'email') {
+    if (linkType === 'phone' || linkType === 'email') {
       // Store tel:/mailto: URL in value field (as ProLinks expects)
-      updateLink(linkKey, undefined, processed.processedUrl);
-    } else if (linkKey === 'whatsapp') {
+      updateLink(linkType, undefined, processed.processedUrl);
+    } else if (linkType === 'whatsapp') {
       // WhatsApp: store wa.me URL in url field, display value in value
-      updateLink(linkKey, processed.processedUrl, processed.displayValue);
-    } else if (linkKey === 'location') {
+      updateLink(linkType, processed.processedUrl, processed.displayValue);
+    } else if (linkType === 'location') {
       // Location: store Google Maps URL in url field
-      updateLink(linkKey, processed.processedUrl, undefined);
+      updateLink(linkType, processed.processedUrl, undefined);
     } else {
       // Social links: store processed URL in url, display value in value for UI
-      updateLink(linkKey, processed.processedUrl, processed.displayValue);
+      updateLink(linkType, processed.processedUrl, processed.displayValue);
     }
 
     setSelectedLinkType('');
-    console.log(`➕ Added new link: ${linkKey} with raw: "${rawValue}" -> URL: "${processed.processedUrl}", Display: "${processed.displayValue}"`);
+    console.log(`➕ Added new link: ${linkType} with raw: "${rawValue}" -> URL: "${processed.processedUrl}", Display: "${processed.displayValue}"`);
   };
 
   const getGoogleMapsUrl = (): string => {
@@ -553,7 +556,7 @@ export function BusinessStep4({ formState, updateLink, reorderLinks, personalDat
                                option?.useAtSymbol ? 'Enter User name' :
                                'Enter value')
                             }
-                            disabled={formState.isLoading || link.type === 'location'}
+                            disabled={formState.isLoading}
                             className={`cursor-text ${option?.useAtSymbol || option?.usePhoneIcon || option?.useGlobeIcon ? 'pl-10' : ''}`}
                           />
                         </div>

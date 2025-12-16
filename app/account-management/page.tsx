@@ -171,7 +171,7 @@ export default function AccountManagementPage() {
         name: business.businessName,
         type: 'business',
         isSelected: selectedAccountId === business.id,
-        hasCrown: true, // Show crown for business accounts
+        hasCrown: false, // No crown for business accounts
       };
       accounts.push(businessAccount);
     });

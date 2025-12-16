@@ -16,9 +16,7 @@ import {
   Paintbrush, 
   Layers, 
   RectangleHorizontal, 
-  DoorOpen,
-  Fence,
-  Layout
+  Fence
 } from 'lucide-react';
 
 interface ServiceCategoriesProps {
@@ -33,6 +31,7 @@ type CategoryItem = {
 
 const serviceCategories: CategoryItem[] = [
   { label: 'All', icon: Grid, color: 'text-black' },
+  { label: 'General', icon: Home, color: 'text-gray-700' },
   { label: 'Landscape', icon: TreePine, color: 'text-green-600' },
   { label: 'Pavers', icon: Square, color: 'text-amber-700' },
   { label: 'Tile', icon: Grid3x3, color: 'text-slate-600' },
@@ -43,9 +42,7 @@ const serviceCategories: CategoryItem[] = [
   { label: 'Painting', icon: Paintbrush, color: 'text-purple-600' },
   { label: 'Flooring', icon: Layers, color: 'text-amber-800' },
   { label: 'Windows', icon: RectangleHorizontal, color: 'text-sky-400' },
-  { label: 'Doors', icon: DoorOpen, color: 'text-amber-900' },
   { label: 'Fencing', icon: Fence, color: 'text-gray-600' },
-  { label: 'Decking', icon: Layout, color: 'text-orange-700' },
 ];
 
 export default function ServiceCategories({ children }: ServiceCategoriesProps) {

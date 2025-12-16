@@ -7,7 +7,11 @@ import {
   Globe, 
   Calendar,
   Mail,
-  MapPin
+  MapPin,
+  MessageCircle,
+  Youtube,
+  Linkedin,
+  Send
 } from 'lucide-react';
 import { LinkItem } from '@/components/proscard/ProLinks';
 
@@ -15,7 +19,7 @@ interface BusinessLinksTabProps {
   links: LinkItem[];
 }
 
-const iconMap = {
+const iconMap: Partial<Record<LinkItem['type'], typeof Phone>> = {
   phone: Phone,
   instagram: Instagram,
   facebook: Facebook,
@@ -23,6 +27,11 @@ const iconMap = {
   calendar: Calendar,
   email: Mail,
   location: MapPin,
+  whatsapp: MessageCircle,
+  youtube: Youtube,
+  linkedin: Linkedin,
+  telegram: Send,
+  // For other types (x, tiktok, snapchat, pinterest, discord), default to Globe
 };
 
 const linkLabels: Record<string, string> = {
@@ -59,8 +68,7 @@ export default function BusinessLinksTab({ links }: BusinessLinksTabProps) {
       <h2 className="text-xl font-bold text-black mb-4">Links</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {links.map((link, index) => {
-          const Icon = iconMap[link.type];
-          if (!Icon) return null;
+          const Icon = iconMap[link.type] || Globe;
 
           const displayValue = link.value || link.url || '';
           const label = linkLabels[link.type] || link.type;
