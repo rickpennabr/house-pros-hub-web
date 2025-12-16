@@ -7,9 +7,10 @@ import { SignupFormState } from '../../hooks/useSignupForm';
 interface ContractorStep3Props {
   formState: SignupFormState;
   updateField: <K extends keyof SignupFormState>(field: K, value: SignupFormState[K]) => void;
+  fieldErrors?: { [key: string]: string | undefined };
 }
 
-export function ContractorStep3({ formState, updateField }: ContractorStep3Props) {
+export function ContractorStep3({ formState, updateField, fieldErrors = {} }: ContractorStep3Props) {
   return (
     <div className="space-y-6 flex-1">
       <FormField label="Location Phone">

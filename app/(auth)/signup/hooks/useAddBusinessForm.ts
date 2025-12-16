@@ -5,6 +5,7 @@ import { AddressData } from '@/components/AddressAutocomplete';
 import { LinkItem } from '@/components/proscard/ProLinks';
 
 export interface BusinessFormState {
+  businessLogo: string | null;
   businessName: string;
   licenses: Array<{ license: string; trade: string; licenseNumber: string }>;
   address: string;
@@ -15,9 +16,11 @@ export interface BusinessFormState {
   apartment: string;
   email: string;
   phone: string;
+  mobilePhone: string;
   links: LinkItem[];
   currentStep: number;
   error: string | null;
+  fieldErrors: { [key: string]: string | undefined };
   isLoading: boolean;
 }
 
@@ -30,9 +33,11 @@ export interface PersonalData {
   apartment?: string;
   email?: string;
   phone?: string;
+  mobilePhone?: string;
 }
 
 const initialState: BusinessFormState = {
+  businessLogo: null,
   businessName: '',
   licenses: [{ license: '', trade: '', licenseNumber: '' }],
   address: '',
@@ -43,9 +48,11 @@ const initialState: BusinessFormState = {
   apartment: '',
   email: '',
   phone: '',
+  mobilePhone: '',
   links: [],
   currentStep: 1,
   error: null,
+  fieldErrors: {},
   isLoading: false,
 };
 
@@ -66,9 +73,11 @@ export function useAddBusinessForm(personalData?: PersonalData) {
     field: 'license' | 'trade' | 'licenseNumber',
     value: string
   ) => {
-    const newLicenses = [...formState.licenses];
-    newLicenses[index] = { ...newLicenses[index], [field]: value };
-    updateField('licenses', newLicenses);
+    setFormState(prev => {
+      const newLicenses = [...prev.licenses];
+      newLicenses[index] = { ...newLicenses[index], [field]: value };
+      return { ...prev, licenses: newLicenses };
+    });
   };
 
   const addLicense = () => {
@@ -105,6 +114,15 @@ export function useAddBusinessForm(personalData?: PersonalData) {
   const usePersonalPhone = () => {
     if (personalData?.phone) {
       updateField('phone', personalData.phone);
+    }
+  };
+
+  const usePersonalMobilePhone = () => {
+    // Use mobilePhone if available, otherwise fall back to phone
+    if (personalData?.mobilePhone) {
+      updateField('mobilePhone', personalData.mobilePhone);
+    } else if (personalData?.phone) {
+      updateField('mobilePhone', personalData.phone);
     }
   };
 
@@ -152,8 +170,19 @@ export function useAddBusinessForm(personalData?: PersonalData) {
     updateField('links', newLinks);
   };
 
+  const reorderLinks = (fromIndex: number, toIndex: number) => {
+    const newLinks = [...formState.links];
+    const [movedLink] = newLinks.splice(fromIndex, 1);
+    newLinks.splice(toIndex, 0, movedLink);
+    updateField('links', newLinks);
+  };
+
   const setError = (error: string | null) => {
     setFormState(prev => ({ ...prev, error }));
+  };
+
+  const setFieldErrors = (fieldErrors: { [key: string]: string | undefined }) => {
+    setFormState(prev => ({ ...prev, fieldErrors }));
   };
 
   const setLoading = (isLoading: boolean) => {
@@ -185,6 +214,7 @@ export function useAddBusinessForm(personalData?: PersonalData) {
         ...prev,
         currentStep: prev.currentStep + 1,
         error: null,
+        fieldErrors: {},
       }));
     }
   };
@@ -195,6 +225,7 @@ export function useAddBusinessForm(personalData?: PersonalData) {
         ...prev,
         currentStep: prev.currentStep - 1,
         error: null,
+        fieldErrors: {},
       }));
     }
   };
@@ -208,10 +239,13 @@ export function useAddBusinessForm(personalData?: PersonalData) {
     usePersonalAddress,
     usePersonalEmail,
     usePersonalPhone,
+    usePersonalMobilePhone,
     handleAddressSelect,
     handleAddressChange,
     updateLink,
+    reorderLinks,
     setError,
+    setFieldErrors,
     setLoading,
     getTotalSteps,
     getStepLabel,

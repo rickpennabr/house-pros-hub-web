@@ -76,27 +76,27 @@ export default function BusinessDetailsHeader({
           <Share2 className="w-5 h-5 text-black" />
         </button>
         {logo ? (
-          <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-white shrink-0 overflow-hidden">
+          <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-white shrink-0 overflow-hidden relative aspect-square">
             <Image
               src={logo}
               alt={businessName}
-              width={40}
-              height={40}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
+              sizes="40px"
             />
           </div>
         ) : secondaryLogo ? (
-          <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-white shrink-0 overflow-hidden">
+          <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-white shrink-0 overflow-hidden relative aspect-square">
             <Image
               src={secondaryLogo}
               alt={businessName}
-              width={40}
-              height={40}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
+              sizes="40px"
             />
           </div>
         ) : (
-          <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-black shrink-0 overflow-hidden">
+          <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-black shrink-0 overflow-hidden relative aspect-square">
             <span className="text-sm font-bold text-white">{initials}</span>
           </div>
         )}

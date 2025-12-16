@@ -1,9 +1,11 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
 import { BusinessFormState } from '../../hooks/useAddBusinessForm';
 import { RESIDENTIAL_CONTRACTOR_LICENSES } from '@/lib/constants/contractorLicenses';
+import { Building2 } from 'lucide-react';
 
 interface BusinessStep1Props {
   formState: BusinessFormState;
@@ -18,6 +20,7 @@ interface BusinessStep1Props {
   ) => void;
   addLicense: () => void;
   removeLicense: (index: number) => void;
+  fieldErrors?: { [key: string]: string | undefined };
 }
 
 export function BusinessStep1({
@@ -26,11 +29,71 @@ export function BusinessStep1({
   handleLicenseChange,
   addLicense,
   removeLicense,
+  fieldErrors = {},
 }: BusinessStep1Props) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(formState.businessLogo || null);
+
+  // Sync preview with formState when it changes
+  useEffect(() => {
+    setPreview(formState.businessLogo || null);
+  }, [formState.businessLogo]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setPreview(result);
+        updateField('businessLogo', result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleClick = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className="space-y-6 flex-1">
+      {/* Business Logo Upload */}
+      <div className="flex flex-col items-center gap-2">
+        <div
+          onClick={handleClick}
+          className="w-24 h-24 rounded-lg border-2 border-black flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden"
+        >
+          {preview ? (
+            <img
+              src={preview}
+              alt="Business logo"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Building2 className="w-10 h-10 text-black" />
+          )}
+        </div>
+        <span className="text-sm font-medium text-black">Upload Business Logo</span>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="hidden"
+          disabled={formState.isLoading}
+        />
+      </div>
+
       {/* Business Name */}
-      <FormField label="Business Name" required>
+      <FormField label="Business Name" required error={fieldErrors.businessName}>
         <Input
           id="businessName"
           type="text"
@@ -41,6 +104,7 @@ export function BusinessStep1({
           required
           placeholder="Enter your business name"
           disabled={formState.isLoading}
+          error={fieldErrors.businessName}
         />
       </FormField>
 
@@ -48,8 +112,8 @@ export function BusinessStep1({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contractor License(s) <span className="text-red-500">*</span>
+            <label className={`block text-sm font-medium mb-1 ${fieldErrors.licenses ? 'text-red-600' : 'text-gray-700'}`}>
+              Contractor License(s) {!fieldErrors.licenses && <span className="text-red-500">*</span>}
             </label>
             <span className="text-xs text-gray-500">
               Select all licenses you hold
@@ -64,13 +128,11 @@ export function BusinessStep1({
             + Add License
           </button>
         </div>
+        {fieldErrors.licenses && (
+          <p className="text-sm text-red-600">{fieldErrors.licenses}</p>
+        )}
 
         {formState.licenses.map((licenseItem, index) => {
-          const selectedLicense = RESIDENTIAL_CONTRACTOR_LICENSES.find(
-            l => l.code === licenseItem.license
-          );
-          const isGeneralContractor = licenseItem.license === 'GENERAL';
-
           return (
             <div
               key={index}
@@ -79,17 +141,18 @@ export function BusinessStep1({
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 space-y-3">
                   <FormField
-                    label={`${index + 1}`}
+                    label={`License Classification ${index + 1}`}
                     required
+                    error={fieldErrors[`license_${index}_license`]}
                   >
                     <select
                       key={`license-select-${index}`}
                       value={licenseItem.license || ''}
                       onChange={(e) => {
                         const selectedValue = e.target.value;
-                        handleLicenseChange(index, 'license', selectedValue);
-                        // Auto-populate trade when license is selected
+                        // Auto-populate both license and trade when selection is made
                         if (selectedValue === 'GENERAL') {
+                          handleLicenseChange(index, 'license', selectedValue);
                           handleLicenseChange(
                             index,
                             'trade',
@@ -100,18 +163,24 @@ export function BusinessStep1({
                             l => l.code === selectedValue
                           );
                           if (license) {
+                            handleLicenseChange(index, 'license', selectedValue);
                             handleLicenseChange(index, 'trade', license.name);
                           }
                         } else {
+                          handleLicenseChange(index, 'license', '');
                           handleLicenseChange(index, 'trade', '');
                         }
                       }}
                       required
-                      className="w-full px-2 py-3 border-2 border-black rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={`w-full px-2 py-3 border-2 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                        fieldErrors[`license_${index}_license`]
+                          ? 'border-red-500 focus:ring-red-500'
+                          : 'border-black focus:ring-black'
+                      }`}
                       disabled={formState.isLoading}
                     >
                       <option value="">Select a license classification</option>
-                      <option value="GENERAL">General Contractor License</option>
+                      <option value="GENERAL">GENERAL - General Contractor License</option>
                       {RESIDENTIAL_CONTRACTOR_LICENSES.map((license) => (
                         <option key={license.code} value={license.code}>
                           {license.code} - {license.name}
@@ -120,33 +189,11 @@ export function BusinessStep1({
                     </select>
                   </FormField>
 
-                  {licenseItem.license && !isGeneralContractor && (
-                    <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded border border-gray-200">
-                      <p className="font-medium text-gray-700 mb-1">
-                        Description:
-                      </p>
-                      {selectedLicense?.description}
-                    </div>
-                  )}
-
-                  <FormField label="Trade" required>
-                    <Input
-                      type="text"
-                      value={licenseItem.trade}
-                      onChange={(e) =>
-                        handleLicenseChange(index, 'trade', e.target.value)
-                      }
-                      placeholder={
-                        isGeneralContractor
-                          ? 'General Contractor'
-                          : 'Trade name'
-                      }
-                      disabled={formState.isLoading}
-                      required
-                    />
-                  </FormField>
-
-                  <FormField label="License Number" required>
+                  <FormField 
+                    label="License Number" 
+                    required
+                    error={fieldErrors[`license_${index}_licenseNumber`]}
+                  >
                     <Input
                       type="text"
                       value={licenseItem.licenseNumber}
@@ -160,6 +207,7 @@ export function BusinessStep1({
                       placeholder="Enter your license number"
                       disabled={formState.isLoading}
                       required
+                      error={fieldErrors[`license_${index}_licenseNumber`]}
                     />
                   </FormField>
                 </div>

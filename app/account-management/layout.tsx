@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import ProfileIcon from '@/components/pageslayout/ProfileIcon';
 
 interface AccountManagementLayoutProps {
   children: ReactNode;
@@ -12,23 +13,8 @@ interface AccountManagementLayoutProps {
 
 export default function AccountManagementLayout({ children }: AccountManagementLayoutProps) {
   const { getThemeClasses } = useTheme();
-  const { user } = useAuth();
   const headerClass = getThemeClasses('header');
   const containerClass = getThemeClasses('container');
-
-  // Get business logo or use initials
-  const getInitials = (name: string): string => {
-    const words = name.trim().split(/\s+/);
-    if (words.length === 1) {
-      return words[0].charAt(0).toUpperCase();
-    } else {
-      return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
-    }
-  };
-
-  const businessName = user?.companyName || user?.firstName + ' ' + user?.lastName || 'Business';
-  const businessLogo = null; // TODO: Get from user/business data when available
-  const initials = getInitials(businessName);
 
   return (
     <div className="min-h-screen w-full bg-white">
@@ -61,24 +47,12 @@ export default function AccountManagementLayout({ children }: AccountManagementL
             </h1>
           </div>
 
-          {/* Right: Business Logo */}
+          {/* Right: Profile Icon with Account Menu */}
           <div className="flex items-center flex-shrink-0 ml-auto z-[100]">
-            <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black">
-              {businessLogo ? (
-                <Image
-                  src={businessLogo}
-                  alt={businessName}
-                  width={40}
-                  height={40}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-sm font-bold text-white">{initials}</span>
-              )}
-            </div>
+            <ProfileIcon />
           </div>
-        </div>
-      </header>
+          </div>
+        </header>
 
         {/* Page Content */}
         {children}

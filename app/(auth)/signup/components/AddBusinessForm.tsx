@@ -11,6 +11,8 @@ import { BusinessStep4 } from './steps/BusinessStep4';
 import { useAddBusinessForm, PersonalData } from '../hooks/useAddBusinessForm';
 import { validateBusinessStep } from '../utils/businessStepValidation';
 import { validateBusinessForm } from '../utils/businessValidation';
+import { useBeforeUnloadWarning } from '../hooks/useBeforeUnloadWarning';
+import { LeavePageWarningModal } from './LeavePageWarningModal';
 
 interface AddBusinessFormProps {
   personalData?: PersonalData;
@@ -30,10 +32,13 @@ export function AddBusinessForm({
     usePersonalAddress,
     usePersonalEmail,
     usePersonalPhone,
+    usePersonalMobilePhone,
     handleAddressSelect,
     handleAddressChange,
     updateLink,
+    reorderLinks,
     setError,
+    setFieldErrors,
     setLoading,
     getTotalSteps,
     getStepLabel,
@@ -41,12 +46,15 @@ export function AddBusinessForm({
     handlePrevious,
   } = useAddBusinessForm(personalData);
 
+  // Show warning when user tries to leave on steps 2, 3, or 4
+  const { showModal, handleConfirmLeave, handleCancelLeave } = useBeforeUnloadWarning(formState.currentStep);
+
   const handleStepNext = () => {
     const validation = validateBusinessStep(formState);
     if (validation.isValid) {
       handleNext();
     } else {
-      setError(validation.error);
+      setFieldErrors(validation.fieldErrors);
     }
   };
 
@@ -70,7 +78,7 @@ export function AddBusinessForm({
     }
   };
 
-  const renderStep = () => {
+  const renderStep = (fieldErrors: { [key: string]: string | undefined } = {}) => {
     switch (formState.currentStep) {
       case 1:
         return (
@@ -80,6 +88,7 @@ export function AddBusinessForm({
             handleLicenseChange={handleLicenseChange}
             addLicense={addLicense}
             removeLicense={removeLicense}
+            fieldErrors={fieldErrors}
           />
         );
       case 2:
@@ -91,6 +100,7 @@ export function AddBusinessForm({
             handleAddressChange={handleAddressChange}
             usePersonalAddress={usePersonalAddress}
             personalData={personalData}
+            fieldErrors={fieldErrors}
           />
         );
       case 3:
@@ -100,7 +110,9 @@ export function AddBusinessForm({
             updateField={updateField}
             usePersonalEmail={usePersonalEmail}
             usePersonalPhone={usePersonalPhone}
+            usePersonalMobilePhone={usePersonalMobilePhone}
             personalData={personalData}
+            fieldErrors={fieldErrors}
           />
         );
       case 4:
@@ -108,6 +120,9 @@ export function AddBusinessForm({
           <BusinessStep4
             formState={formState}
             updateLink={updateLink}
+            reorderLinks={reorderLinks}
+            personalData={personalData}
+            fieldErrors={fieldErrors}
           />
         );
       default:
@@ -116,30 +131,37 @@ export function AddBusinessForm({
   };
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col">
-      <div className="md:sticky md:top-0 md:z-20 md:bg-white">
-        <SignupHeader isLoading={formState.isLoading} />
-        <SignupStepsIndicator
-          currentStep={formState.currentStep}
-          totalSteps={getTotalSteps()}
-          stepLabel={getStepLabel()}
-        />
+    <>
+      <LeavePageWarningModal
+        isOpen={showModal}
+        onConfirm={handleConfirmLeave}
+        onCancel={handleCancelLeave}
+      />
+      <div className="w-full max-w-md mx-auto flex flex-col">
+        <div className="md:sticky md:top-0 md:z-20 md:bg-white">
+          <SignupHeader isLoading={formState.isLoading} />
+          <SignupStepsIndicator
+            currentStep={formState.currentStep}
+            totalSteps={getTotalSteps()}
+            stepLabel={getStepLabel()}
+          />
+        </div>
+
+        <ErrorMessage message={formState.error || ''} />
+
+        <div className="space-y-6 flex-1 flex flex-col min-h-[400px]">
+          {renderStep(formState.fieldErrors)}
+
+          <BusinessFormNavigation
+            currentStep={formState.currentStep}
+            totalSteps={getTotalSteps()}
+            isLoading={formState.isLoading}
+            onPrevious={handlePrevious}
+            onNext={handleStepNext}
+            onSubmit={handleFormSubmit}
+          />
+        </div>
       </div>
-
-      <ErrorMessage message={formState.error || ''} />
-
-      <div className="space-y-6 flex-1 flex flex-col min-h-[400px]">
-        {renderStep()}
-
-        <BusinessFormNavigation
-          currentStep={formState.currentStep}
-          totalSteps={getTotalSteps()}
-          isLoading={formState.isLoading}
-          onPrevious={handlePrevious}
-          onNext={handleStepNext}
-          onSubmit={handleFormSubmit}
-        />
-      </div>
-    </div>
+    </>
   );
 }

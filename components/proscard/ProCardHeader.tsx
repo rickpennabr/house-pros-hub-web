@@ -59,16 +59,16 @@ export default function ProCardHeader({
     : null;
   
   return (
-    <div className="relative h-[60px] flex items-center p-2 lg:py-2 lg:px-2 border-b border-black">
+    <div className="relative h-[60px] flex items-center p-2 border-b border-black">
       <div className="flex items-center gap-3 md:gap-2 flex-1 pr-10 min-w-0">
-        <div className="w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black">
+        <div className="w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
           {logo ? (
             <Image
               src={logo}
               alt={businessName}
-              width={48}
-              height={48}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
+              sizes="48px"
             />
           ) : (
             <span className="text-lg font-bold text-white">{initials}</span>

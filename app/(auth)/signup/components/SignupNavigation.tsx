@@ -22,8 +22,10 @@ export function SignupNavigation({
   onAddBusiness,
 }: SignupNavigationProps) {
   const isLastStep = currentStep === totalSteps;
-  // Show Add Business button on last step when terms are agreed and handler is provided
-  const showAddBusiness = isLastStep && onAddBusiness && agreeToTerms;
+  // Note: Add Business button is NOT shown during signup form
+  // It only appears on the success screen after signup is complete
+  // This prevents the error of trying to add business before user is created
+  const showAddBusiness = false; // Always false - button only on success screen
 
   return (
     <div className="flex gap-4 pt-4 mt-auto">
@@ -54,20 +56,12 @@ export function SignupNavigation({
             type="submit"
             variant="primary"
             disabled={isLoading || !agreeToTerms}
-            className="flex-1 whitespace-nowrap order-1 px-2 md:px-4 py-2 md:py-3"
+            className={`flex-1 whitespace-nowrap px-2 md:px-4 py-2 md:py-3 ${
+              agreeToTerms && !isLoading ? 'bg-black text-white' : ''
+            }`}
           >
             {isLoading ? 'Creating account...' : 'Sign Up'}
           </Button>
-          {showAddBusiness && (
-            <button
-              type="button"
-              onClick={onAddBusiness}
-              disabled={isLoading}
-              className="flex-1 whitespace-nowrap order-2 font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed rounded-lg bg-red-600 text-white hover:bg-red-700 active:bg-red-800 border-2 border-red-600 px-2 md:px-4 py-2 md:py-3"
-            >
-              Add Business
-            </button>
-          )}
         </>
       )}
     </div>

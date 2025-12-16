@@ -44,16 +44,29 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         if (element) {
           const computedStyle = window.getComputedStyle(element);
           const bgColor = computedStyle.backgroundColor;
-          document.documentElement.style.setProperty('--current-theme-color', bgColor || '#d4c5b9');
+          if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+            document.documentElement.style.setProperty('--current-theme-color', bgColor);
+          } else {
+            // Fallback to initial color if detection fails
+            document.documentElement.style.setProperty('--current-theme-color', '#d4c5b9');
+          }
+        } else {
+          // If element not found, set initial color
+          document.documentElement.style.setProperty('--current-theme-color', '#d4c5b9');
         }
       };
 
-      // Update immediately
-      updateColor();
+      // Wait a bit for DOM to be ready, then update
+      const timeoutId = setTimeout(() => {
+        updateColor();
+      }, 100);
 
       // Update periodically to sync with animation
       const interval = setInterval(updateColor, 300);
-      return () => clearInterval(interval);
+      return () => {
+        clearTimeout(timeoutId);
+        clearInterval(interval);
+      };
     } else {
       document.documentElement.style.setProperty('--current-theme-color', '#000000');
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import Logo from '@/components/Logo';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,18 +12,71 @@ import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { FormField } from '@/components/ui/FormField';
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout';
 import { AuthNavigationButtons } from '@/components/auth/AuthNavigationButtons';
+import { isValidEmail, isNotEmpty } from '@/lib/validation';
 
-export default function SignInPage() {
+function SignInForm() {
   const { login } = useAuth();
   const { redirectAfterAuth } = useAuthRedirect();
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+
+  const validateField = (field: 'email' | 'password', value: string): string | undefined => {
+    if (field === 'email') {
+      if (!isNotEmpty(value)) {
+        return 'Email is required';
+      }
+      if (!isValidEmail(value)) {
+        return 'Please enter a valid email address';
+      }
+    } else if (field === 'password') {
+      if (!isNotEmpty(value)) {
+        return 'Password is required';
+      }
+    }
+    return undefined;
+  };
+
+  const validateForm = (): boolean => {
+    const errors: { email?: string; password?: string } = {};
+    
+    const emailError = validateField('email', email);
+    if (emailError) errors.email = emailError;
+    
+    const passwordError = validateField('password', password);
+    if (passwordError) errors.password = passwordError;
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    // Clear error when user starts typing
+    if (fieldErrors.email) {
+      setFieldErrors(prev => ({ ...prev, email: undefined }));
+    }
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    // Clear error when user starts typing
+    if (fieldErrors.password) {
+      setFieldErrors(prev => ({ ...prev, password: undefined }));
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    
+    // Validate form before submitting
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -73,17 +126,21 @@ export default function SignInPage() {
 
         {/* Sign In Form */}
         <form onSubmit={handleSignIn} className="space-y-6">
-          <FormField label="Email" required>
+          <FormField label="Email" required error={fieldErrors.email}>
             <Input
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onClear={() => setEmail('')}
+              onChange={(e) => handleEmailChange(e.target.value)}
+              onClear={() => {
+                setEmail('');
+                setFieldErrors(prev => ({ ...prev, email: undefined }));
+              }}
               showClear
               required
               placeholder="Enter your email"
               disabled={isLoading}
+              error={fieldErrors.email}
             />
           </FormField>
 
@@ -91,10 +148,11 @@ export default function SignInPage() {
             id="password"
             label="Password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => handlePasswordChange(e.target.value)}
             required
             placeholder="password"
             disabled={isLoading}
+            error={fieldErrors.password}
           />
 
           {/* Forgot Password */}
@@ -114,5 +172,19 @@ export default function SignInPage() {
         </form>
       </div>
     </AuthPageLayout>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={
+      <AuthPageLayout>
+        <div className="w-full max-w-md mx-auto flex flex-col items-center justify-center min-h-[400px]">
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </AuthPageLayout>
+    }>
+      <SignInForm />
+    </Suspense>
   );
 }

@@ -3,15 +3,17 @@
 import { Input } from '@/components/ui/Input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { FormField } from '@/components/ui/FormField';
+import { Select } from '@/components/ui/Select';
 import { SignupFormState } from '../../hooks/useSignupForm';
 import { RESIDENTIAL_CONTRACTOR_LICENSES } from '@/lib/constants/contractorLicenses';
 
 interface ContractorStep2Props {
   formState: SignupFormState;
   updateField: <K extends keyof SignupFormState>(field: K, value: SignupFormState[K]) => void;
+  fieldErrors?: { [key: string]: string | undefined };
 }
 
-export function ContractorStep2({ formState, updateField }: ContractorStep2Props) {
+export function ContractorStep2({ formState, updateField, fieldErrors = {} }: ContractorStep2Props) {
   const handleLicenseChange = (index: number, field: 'license' | 'trade', value: string) => {
     const newLicenses = [...formState.licenses];
     newLicenses[index] = { ...newLicenses[index], [field]: value };
@@ -31,7 +33,7 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
 
   return (
     <div className="space-y-6 flex-1">
-      <FormField label="Email" required>
+      <FormField label="Email" required error={fieldErrors.email}>
         <Input
           id="signup-email"
           type="email"
@@ -42,6 +44,7 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
           required
           placeholder="Enter your email"
           disabled={formState.isLoading}
+          error={fieldErrors.email}
         />
       </FormField>
 
@@ -53,6 +56,7 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
         required
         placeholder="password"
         disabled={formState.isLoading}
+        error={fieldErrors.password}
       />
 
       <PasswordInput
@@ -63,9 +67,10 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
         required
         placeholder="confirm password"
         disabled={formState.isLoading}
+        error={fieldErrors.confirmPassword}
       />
 
-      <FormField label="Company Name" required>
+      <FormField label="Company Name" required error={fieldErrors.companyName}>
         <Input
           id="companyName"
           type="text"
@@ -76,6 +81,7 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
           required
           placeholder="Company name"
           disabled={formState.isLoading}
+          error={fieldErrors.companyName}
         />
       </FormField>
 
@@ -96,8 +102,8 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contractor License(s) <span className="text-red-500">*</span>
+            <label className={`block text-sm font-medium mb-1 ${fieldErrors.licenses ? 'text-red-600' : 'text-gray-700'}`}>
+              Contractor License(s) {!fieldErrors.licenses && <span className="text-red-500">*</span>}
             </label>
             <span className="text-xs text-gray-500">Select all licenses you hold</span>
           </div>
@@ -110,13 +116,16 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
             + Add License
           </button>
         </div>
+        {fieldErrors.licenses && (
+          <p className="text-sm text-red-600">{fieldErrors.licenses}</p>
+        )}
 
         {formState.licenses.map((licenseItem, index) => (
           <div key={index} className="border-2 border-gray-300 rounded-lg p-4 space-y-3">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 space-y-3">
-                <FormField label={`License Classification ${index + 1}`} required>
-                  <select
+                <FormField label={`License Classification ${index + 1}`} required error={fieldErrors[`license_${index}_license`]}>
+                  <Select
                     value={licenseItem.license}
                     onChange={(e) => {
                       handleLicenseChange(index, 'license', e.target.value);
@@ -126,8 +135,8 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
                       }
                     }}
                     required
-                    className="w-full px-2 py-3 border-2 border-black rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={formState.isLoading}
+                    error={fieldErrors[`license_${index}_license`]}
                   >
                     <option value="">Select a license classification</option>
                     {RESIDENTIAL_CONTRACTOR_LICENSES.map((license) => (
@@ -135,7 +144,7 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
                         {license.code} - {license.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </FormField>
 
                 {licenseItem.license && (
@@ -145,7 +154,7 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
                   </div>
                 )}
 
-                <FormField label="License Number" required>
+                <FormField label="License Number" required error={fieldErrors[`license_${index}_trade`]}>
                   <Input
                     type="text"
                     value={licenseItem.trade || ''}
@@ -153,6 +162,7 @@ export function ContractorStep2({ formState, updateField }: ContractorStep2Props
                     placeholder="Enter your license number"
                     disabled={formState.isLoading}
                     required
+                    error={fieldErrors[`license_${index}_trade`]}
                   />
                 </FormField>
               </div>

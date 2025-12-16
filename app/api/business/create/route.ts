@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
+import { transformBusinessToProCardData } from '@/lib/utils/businessTransform';
 
 /**
  * POST /api/business/create
@@ -19,6 +20,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       businessName,
+      businessLogo,
       licenses,
       address,
       streetAddress,
@@ -113,32 +115,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Mock response (replace with actual business creation in production)
-    // In production:
-    // 1. Check user authentication (from cookies/headers)
-    // 2. Create business in database
-    // 3. Associate business with authenticated user
-    // 4. Return business data
+    // Validate userId is provided (for local testing with localStorage)
+    const { userId } = body;
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
 
-    const mockBusiness = {
-      id: `business_${Date.now()}`,
+    // Create business ID
+    const businessId = `business_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+    // Transform business data to ProCardData format
+    const businessForCard = transformBusinessToProCardData({
+      id: businessId,
       businessName,
+      businessLogo: businessLogo || undefined,
       licenses,
-      address: {
-        streetAddress: streetAddress || address,
-        city,
-        state,
-        zipCode,
-        apartment: apartment || null,
-      },
-      email: email || null,
-      phone: phone || null,
+      email: email || undefined,
+      phone: phone || undefined,
       links: links || [],
-      createdAt: new Date().toISOString(),
-    };
+      userId,
+    });
 
+    // Return transformed business data
+    // Note: In production, this would be stored in database
+    // For local testing, the client will store it in localStorage
     return NextResponse.json(
-      { business: mockBusiness },
+      { business: businessForCard },
       { status: 201 }
     );
   } catch (error) {

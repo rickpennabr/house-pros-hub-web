@@ -5,25 +5,30 @@ import { useState, InputHTMLAttributes } from 'react';
 interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'className'> {
   label?: string;
   showToggle?: boolean;
+  error?: string;
   className?: string;
 }
 
-export function PasswordInput({ label, showToggle = true, className = '', ...props }: PasswordInputProps) {
+export function PasswordInput({ label, showToggle = true, error, className = '', ...props }: PasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false);
+  const hasError = !!error;
+  const borderClass = hasError 
+    ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
+    : 'border-black focus:ring-black';
 
   return (
     <div>
       {label && (
-        <label htmlFor={props.id} className="block text-sm font-medium mb-2">
-          {label}
-          {props.required && <span className="text-red-500 ml-1">*</span>}
+        <label htmlFor={props.id} className={`block text-sm font-medium mb-2 ${hasError ? 'text-red-600' : ''}`}>
+          {error || label}
+          {props.required && !error && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
       <div className="relative">
         <input
           {...props}
           type={showPassword ? 'text' : 'password'}
-          className={`w-full px-3 py-2.5 pr-10 border-2 border-black rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition-all ${className}`}
+          className={`w-full px-3 py-2.5 pr-10 border-2 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all ${borderClass} ${className}`}
         />
         {showToggle && (
           <button

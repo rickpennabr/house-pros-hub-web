@@ -6,7 +6,7 @@ interface PageContentProps {
 
 export default function PageContent({ children }: PageContentProps) {
   return (
-    <div className="w-full h-full p-2 md:p-2">
+    <div className="w-full flex-1 p-2 md:p-2">
       {children}
     </div>
   );

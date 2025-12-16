@@ -51,11 +51,30 @@ export function validateBusinessForm(
     return { isValid: false, error: 'Invalid email format' };
   }
 
-  // Validate phone if provided (basic check - at least 10 digits)
+  // Require at least one phone (land phone or mobile phone)
+  const hasPhone = formState.phone && formState.phone.trim();
+  const hasMobilePhone = formState.mobilePhone && formState.mobilePhone.trim();
+  
+  if (!hasPhone && !hasMobilePhone) {
+    return {
+      isValid: false,
+      error: 'At least one phone number (land phone or mobile phone) is required',
+    };
+  }
+
+  // Validate phone format if provided (basic check - at least 10 digits)
   if (formState.phone) {
     const phoneDigits = formState.phone.replace(/\D/g, '');
     if (phoneDigits.length < 10) {
       return { isValid: false, error: 'Phone number must be at least 10 digits' };
+    }
+  }
+  
+  // Validate mobile phone format if provided
+  if (formState.mobilePhone) {
+    const mobilePhoneDigits = formState.mobilePhone.replace(/\D/g, '');
+    if (mobilePhoneDigits.length < 10) {
+      return { isValid: false, error: 'Mobile phone number must be at least 10 digits' };
     }
   }
 

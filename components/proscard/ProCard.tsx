@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { createSignInUrl } from '@/lib/redirect';
 import ProCardHeader from './ProCardHeader';
 import ProLinks from './ProLinks';
 import ProReactions from './ProReactions';
@@ -33,19 +35,23 @@ interface ProCardProps {
 
 export default function ProCard({ data, onShare, onReaction }: ProCardProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const { isAuthenticated, isLoading } = useAuth();
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const handleCardClick = () => {
-    router.push(`/business/${data.id}`);
-  };
-
-  const handleShare = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onShare) {
-      onShare(data.id);
-    } else {
-      setIsShareModalOpen(true);
+    // Check authentication before navigating to business details
+    if (isLoading) {
+      return;
     }
+    
+    if (!isAuthenticated) {
+      const signInUrl = createSignInUrl(`/business/${data.id}`);
+      router.push(signInUrl);
+      return;
+    }
+    
+    router.push(`/business/${data.id}`);
   };
 
   const handleReaction = (type: 'love' | 'feedback' | 'link' | 'save') => {
@@ -64,12 +70,22 @@ export default function ProCard({ data, onShare, onReaction }: ProCardProps) {
         businessName={data.businessName}
         contractorType={data.contractorType}
         tradeIcon={data.tradeIcon}
-        onShare={handleShare}
+        onShare={() => {
+          if (onShare) {
+            onShare(data.id);
+          } else {
+            setIsShareModalOpen(true);
+          }
+        }}
       />
       <ProLinks links={data.links} maxLinks={7} />
       <ProReactions 
         initialReactions={data.reactions}
         onReaction={handleReaction}
+        businessName={data.businessName}
+        contractorType={data.contractorType}
+        logo={data.logo}
+        businessId={data.id}
       />
       
       <ShareBusinessModal

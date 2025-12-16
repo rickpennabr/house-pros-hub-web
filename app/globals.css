@@ -103,7 +103,15 @@ body {
 
 .color-changing-bg {
   animation: colorWallHouse 40s ease-in-out infinite;
-  transition: background 1.5s ease;
+  transition: background-color 1.5s ease;
+}
+
+/* Override bg-black on desktop when color-changing-bg is present */
+@media (min-width: 768px) {
+  .bg-black.color-changing-bg,
+  .color-changing-bg.bg-black {
+    background-color: transparent !important;
+  }
 }
 
 /* Dynamic border color that syncs with background */

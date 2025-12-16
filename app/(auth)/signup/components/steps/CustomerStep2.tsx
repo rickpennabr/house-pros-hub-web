@@ -10,6 +10,7 @@ interface CustomerStep2Props {
   updateField: <K extends keyof SignupFormState>(field: K, value: SignupFormState[K]) => void;
   onAddressSelect: (addressData: AddressData) => void;
   onAddressChange: (value: string) => void;
+  fieldErrors?: { [key: string]: string | undefined };
 }
 
 export function CustomerStep2({
@@ -17,10 +18,11 @@ export function CustomerStep2({
   updateField,
   onAddressSelect,
   onAddressChange,
+  fieldErrors = {},
 }: CustomerStep2Props) {
   return (
     <div className="space-y-6 flex-1">
-      <FormField label="Search Address (Nevada only)" required>
+      <FormField label="Search Address (Nevada only)" required error={fieldErrors.streetAddress}>
         <p className="text-xs text-gray-600 mb-2">
           Search for your address or fill in the fields below manually
         </p>
@@ -50,7 +52,7 @@ export function CustomerStep2({
       </FormField>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="City" required>
+        <FormField label="City" required error={fieldErrors.city}>
           <Input
             id="city"
             type="text"
@@ -61,10 +63,11 @@ export function CustomerStep2({
             required
             placeholder="City"
             disabled={formState.isLoading}
+            error={fieldErrors.city}
           />
         </FormField>
 
-        <FormField label="State" required>
+        <FormField label="State" required error={fieldErrors.state}>
           <Input
             id="state"
             type="text"
@@ -75,11 +78,12 @@ export function CustomerStep2({
             required
             placeholder="State"
             disabled={formState.isLoading}
+            error={fieldErrors.state}
           />
         </FormField>
       </div>
 
-      <FormField label="ZIP Code" required>
+      <FormField label="ZIP Code" required error={fieldErrors.zipCode}>
         <Input
           id="zipCode"
           type="text"
@@ -90,6 +94,7 @@ export function CustomerStep2({
           required
           placeholder="ZIP Code"
           disabled={formState.isLoading}
+          error={fieldErrors.zipCode}
         />
       </FormField>
 

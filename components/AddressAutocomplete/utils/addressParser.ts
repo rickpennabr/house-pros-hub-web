@@ -1,4 +1,4 @@
-import { AddressData } from '../AddressAutocomplete';
+import { AddressData } from '../../AddressAutocomplete';
 
 export interface PhotonResult {
   properties: {

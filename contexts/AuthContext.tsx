@@ -9,8 +9,19 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
+  phone?: string;
+  referral?: string;
+  referralOther?: string;
+  streetAddress?: string;
+  apartment?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  gateCode?: string;
+  addressNote?: string;
   companyName?: string;
   companyRole?: string;
+  userPicture?: string;
 }
 
 interface AuthContextType {
@@ -18,9 +29,10 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (userData: SignupData) => Promise<void>;
+  signup: (userData: SignupData) => Promise<User>;
   logout: () => void;
   checkAuth: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => Promise<void>;
 }
 
 interface SignupData {
@@ -28,23 +40,22 @@ interface SignupData {
   password: string;
   firstName: string;
   lastName: string;
+  phone?: string;
+  referral?: string;
+  referralOther?: string;
+  streetAddress?: string;
+  apartment?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  gateCode?: string;
+  addressNote?: string;
   companyName?: string;
   companyRole?: string;
+  userPicture?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Default user account
-const DEFAULT_USER: User = {
-  id: 'default_user_rick',
-  email: 'rick.maickcompanies@gmail.com',
-  firstName: 'Rick',
-  lastName: 'Maick',
-  companyName: 'Maick Companies',
-  companyRole: 'Admin',
-};
-
-const DEFAULT_PASSWORD = 'Admin123!';
 
 // Mock delay to simulate API calls
 const mockDelay = (ms: number = 400) => new Promise(resolve => setTimeout(resolve, ms));
@@ -54,19 +65,6 @@ const mockDelay = (ms: number = 400) => new Promise(resolve => setTimeout(resolv
  */
 const generateMockToken = (): string => {
   return `mock_jwt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-};
-
-/**
- * Authenticate the default user
- */
-const authenticateDefaultUser = (email: string, password: string): boolean => {
-  if (email.toLowerCase() === DEFAULT_USER.email.toLowerCase() && password === DEFAULT_PASSWORD) {
-    const mockToken = generateMockToken();
-    authStorage.setUser(DEFAULT_USER);
-    authStorage.setToken(mockToken);
-    return true;
-  }
-  return false;
 };
 
 /**
@@ -121,12 +119,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedUser = authStorage.getUser();
       const storedToken = authStorage.getToken();
 
+      console.log('🔵 [checkAuth] Checking auth state:', {
+        hasStoredUser: !!storedUser,
+        hasStoredToken: !!storedToken,
+        storedUserId: storedUser?.id,
+      });
+
       if (storedUser && storedToken) {
+        console.log('✅ [checkAuth] User and token found, setting user in context');
         setUser(storedUser);
+      } else if (storedUser && !storedToken) {
+        console.warn('⚠️ [checkAuth] User found but no token. User will remain in localStorage but not in context.');
+        // Don't clear - user exists, just missing token (might be a valid state)
+        // Still set user in context so it's available
+        setUser(storedUser);
+      } else {
+        console.log('ℹ️ [checkAuth] No user or token found in localStorage');
+        setUser(null);
       }
     } catch (error) {
-      console.error('Error checking auth:', error);
-      authStorage.clear();
+      console.error('❌ [checkAuth] Error checking auth:', error);
+      // Only clear if there's an actual error, not just missing data
+      // Don't clear on missing user/token - that's a valid state (not logged in)
+      if (error instanceof Error && error.message.includes('parse') || error.message.includes('JSON')) {
+        console.error('❌ [checkAuth] Storage corruption detected, clearing...');
+        authStorage.clear();
+        setUser(null);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -144,13 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Password must be at least 6 characters');
     }
 
-    // Try to authenticate default user first
-    if (authenticateDefaultUser(email, password)) {
-      setUser(DEFAULT_USER);
-      return;
-    }
-
-    // Try to authenticate stored user
+    // Authenticate stored user
     if (authenticateStoredUser(email, password)) {
       const storedUser = authStorage.getUser();
       if (storedUser) {
@@ -163,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     throw new Error('Invalid email or password');
   };
 
-  const signup = async (userData: SignupData): Promise<void> => {
+  const signup = async (userData: SignupData): Promise<User> => {
     await mockDelay();
 
     // Validate input
@@ -194,24 +207,80 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: userData.email,
       firstName: userData.firstName,
       lastName: userData.lastName,
+      phone: userData.phone,
+      referral: userData.referral,
+      referralOther: userData.referralOther,
+      streetAddress: userData.streetAddress,
+      apartment: userData.apartment,
+      city: userData.city,
+      state: userData.state,
+      zipCode: userData.zipCode,
+      gateCode: userData.gateCode,
+      addressNote: userData.addressNote,
       companyName: userData.companyName,
       companyRole: userData.companyRole,
+      userPicture: userData.userPicture,
     };
 
     const mockToken = generateMockToken();
 
-    // Store in localStorage
+    // Store in localStorage (synchronous, immediately available)
     authStorage.setUser(newUser);
     authStorage.setToken(mockToken);
     authStorage.setPassword(userData.email, userData.password);
 
+    // Update React context state (asynchronous, may not be immediately available)
     setUser(newUser);
+
+    // Return user for immediate synchronous access
+    return newUser;
   };
 
   const logout = () => {
     authStorage.clear();
     // Note: We keep passwords stored for future logins (handled by authStorage.clear())
     setUser(null);
+  };
+
+  const updateUser = async (updates: Partial<User>): Promise<void> => {
+    await mockDelay();
+    
+    if (!user) {
+      throw new Error('No user is currently authenticated');
+    }
+
+    // Create updated user object
+    const updatedUser: User = {
+      ...user,
+      ...updates,
+    };
+
+    // Validate required fields
+    if (!isNotEmpty(updatedUser.firstName)) {
+      throw new Error('First name is required');
+    }
+
+    if (!isNotEmpty(updatedUser.lastName)) {
+      throw new Error('Last name is required');
+    }
+
+    if (!isValidEmail(updatedUser.email)) {
+      throw new Error('Invalid email format');
+    }
+
+    // If email changed, update password mapping
+    if (user.email !== updatedUser.email) {
+      const oldPassword = authStorage.getPassword(user.email);
+      if (oldPassword) {
+        authStorage.setPassword(updatedUser.email, oldPassword);
+      }
+    }
+
+    // Update in localStorage
+    authStorage.setUser(updatedUser);
+    setUser(updatedUser);
+    
+    console.log('Profile updated successfully:', updatedUser);
   };
 
   const value: AuthContextType = {
@@ -222,6 +291,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signup,
     logout,
     checkAuth,
+    updateUser,
   };
 
   return (

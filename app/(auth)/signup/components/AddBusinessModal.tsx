@@ -28,8 +28,8 @@ export function AddBusinessModal({ isOpen, onClose }: AddBusinessModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center md:p-4 bg-black/50">
-      <div className="bg-white md:rounded-lg border-2 border-black w-full h-full md:w-full md:h-auto md:max-w-md md:max-h-[90vh] overflow-y-auto flex flex-col">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center md:p-4 bg-black/50">
+      <div className="bg-white md:rounded-lg border-2 border-black w-full h-full md:w-full md:h-auto max-w-md md:max-h-[90vh] overflow-y-auto flex flex-col">
         {/* Content */}
         <div className="flex-1 flex items-center justify-center p-8 text-center">
           <div className="space-y-4">

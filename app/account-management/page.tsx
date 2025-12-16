@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { businessStorage } from '@/lib/storage/businessStorage';
+import { ProCardData } from '@/components/proscard/ProCard';
 import { 
   Building2, 
   Plus, 
@@ -11,7 +14,9 @@ import {
   CreditCard,
   Crown,
   ChevronRight,
-  User
+  User,
+  Bookmark,
+  Edit
 } from 'lucide-react';
 
 interface Account {
@@ -35,42 +40,40 @@ interface QuickAction {
   path: string;
 }
 
-const accounts: Account[] = [
+
+// Personal account actions (for customers)
+const personalActions: QuickAction[] = [
   {
-    id: '1',
-    name: 'Anrley Rick Costa Penna',
-    type: 'personal',
-    isSelected: true,
+    id: 'personal-1',
+    title: 'Edit Profile',
+    description: 'Update Profile',
+    icon: Edit,
+    iconBg: 'bg-black',
+    iconColor: 'text-white',
+    borderColor: 'border-black',
+    path: '/profile/edit',
   },
   {
-    id: '2',
-    name: 'BrazaLink - Utah',
-    type: 'business',
-    hasCrown: true,
-  },
-  {
-    id: '3',
-    name: 'BrazaLink - Las Vegas',
-    type: 'business',
-    isActive: true,
-    hasCrown: true,
-  },
-  {
-    id: '4',
-    name: 'Acaraje Bites',
-    type: 'business',
-    hasCrown: true,
+    id: 'personal-2',
+    title: 'Saved Business',
+    description: 'View Saved',
+    icon: Bookmark,
+    iconBg: 'bg-black',
+    iconColor: 'text-white',
+    borderColor: 'border-black',
+    path: '/saved-businesses',
   },
 ];
 
-const quickActions: QuickAction[] = [
+// Business account actions (for contractors)
+const businessActions: QuickAction[] = [
   {
     id: '1',
     title: 'Edit Business',
     description: 'Update Business',
     icon: Building2,
-    iconBg: 'bg-white',
-    iconColor: 'text-black',
+    iconBg: 'bg-black',
+    iconColor: 'text-white',
     borderColor: 'border-black',
     path: '/businesslist',
   },
@@ -79,8 +82,8 @@ const quickActions: QuickAction[] = [
     title: 'Add Business',
     description: 'New Business',
     icon: Plus,
-    iconBg: 'bg-white',
-    iconColor: 'text-black',
+    iconBg: 'bg-black',
+    iconColor: 'text-white',
     borderColor: 'border-black',
     path: '/businesslist?action=add',
   },
@@ -89,8 +92,8 @@ const quickActions: QuickAction[] = [
     title: 'Manage Shop',
     description: 'Manage Shop Items',
     icon: ShoppingBag,
-    iconBg: 'bg-white',
-    iconColor: 'text-black',
+    iconBg: 'bg-black',
+    iconColor: 'text-white',
     borderColor: 'border-black',
     path: '/shop',
   },
@@ -99,8 +102,8 @@ const quickActions: QuickAction[] = [
     title: 'Manage Events',
     description: 'Curate community events',
     icon: Calendar,
-    iconBg: 'bg-white',
-    iconColor: 'text-black',
+    iconBg: 'bg-black',
+    iconColor: 'text-white',
     borderColor: 'border-black',
     path: '/events',
   },
@@ -109,8 +112,8 @@ const quickActions: QuickAction[] = [
     title: 'Manage Partners',
     description: 'Manage Partnerships',
     icon: UserCheck,
-    iconBg: 'bg-white',
-    iconColor: 'text-black',
+    iconBg: 'bg-black',
+    iconColor: 'text-white',
     borderColor: 'border-black',
     path: '/partners',
   },
@@ -119,8 +122,8 @@ const quickActions: QuickAction[] = [
     title: 'Manage Subscription',
     description: 'Manage Subscription',
     icon: CreditCard,
-    iconBg: 'bg-white',
-    iconColor: 'text-black',
+    iconBg: 'bg-black',
+    iconColor: 'text-white',
     borderColor: 'border-black',
     path: '/subscription',
   },
@@ -128,10 +131,66 @@ const quickActions: QuickAction[] = [
 
 export default function AccountManagementPage() {
   const router = useRouter();
-  const [selectedAccount, setSelectedAccount] = useState<string>('1');
+  const { user } = useAuth();
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const [userBusinesses, setUserBusinesses] = useState<ProCardData[]>([]);
+
+  // Fetch user's businesses from storage
+  useEffect(() => {
+    if (user?.id) {
+      const businesses = businessStorage.getBusinessesByUserId(user.id);
+      setUserBusinesses(businesses);
+      
+      // Set initial selected account to personal account if not already set
+      setSelectedAccountId(prev => prev || user.id);
+    }
+  }, [user?.id]);
+
+  // Check if user is a customer (no companyName)
+  const isCustomer = !user?.companyName;
+  
+  // Generate accounts: personal account first, then business accounts
+  const visibleAccounts = useMemo(() => {
+    const accounts: Account[] = [];
+    
+    // Always add personal account first
+    if (user) {
+      const personalAccount: Account = {
+        id: user.id,
+        name: `${user.firstName} ${user.lastName}`,
+        type: 'personal',
+        isSelected: selectedAccountId === user.id || (selectedAccountId === '' && userBusinesses.length === 0),
+      };
+      accounts.push(personalAccount);
+    }
+    
+    // Add business accounts from storage (appear on the right side)
+    userBusinesses.forEach((business) => {
+      const businessAccount: Account = {
+        id: business.id,
+        name: business.businessName,
+        type: 'business',
+        isSelected: selectedAccountId === business.id,
+        hasCrown: true, // Show crown for business accounts
+      };
+      accounts.push(businessAccount);
+    });
+    
+    return accounts;
+  }, [user, userBusinesses, selectedAccountId]);
+
+  // Filter quick actions based on account type
+  const visibleActions = useMemo(() => {
+    const selectedAccount = visibleAccounts.find(acc => acc.id === selectedAccountId);
+    if (selectedAccount?.type === 'personal') {
+      return personalActions;
+    }
+    // Show business actions for business accounts
+    return businessActions;
+  }, [selectedAccountId, visibleAccounts]);
 
   const handleAccountSelect = (accountId: string) => {
-    setSelectedAccount(accountId);
+    setSelectedAccountId(accountId);
   };
 
   const handleQuickAction = (path: string) => {
@@ -158,11 +217,11 @@ export default function AccountManagementPage() {
       {/* Main Content */}
       <div className="w-full max-w-[960px] mx-auto p-2 md:p-2 py-6 md:py-8">
         {/* Select Account Section */}
-        <div className="mb-8 md:mb-12">
+        <div className="mb-4 md:mb-6">
           <h2 className="text-lg md:text-xl font-bold text-black mb-4">Select Account</h2>
           <div className="relative">
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {accounts.map((account) => (
+              {visibleAccounts.map((account) => (
                 <button
                   key={account.id}
                   onClick={() => handleAccountSelect(account.id)}
@@ -197,38 +256,36 @@ export default function AccountManagementPage() {
         <div>
           <h2 className="text-lg md:text-xl font-bold text-black mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {quickActions.map((action) => {
+            {visibleActions.map((action) => {
               const IconComponent = action.icon;
               return (
                 <div
                   key={action.id}
-                  className="bg-white border-2 border-black rounded-lg p-4 md:p-6 flex flex-col md:flex-row md:items-center gap-4 cursor-pointer hover:shadow-lg transition-shadow"
+                  className="bg-white border-2 border-black rounded-lg p-4 md:p-6 cursor-pointer hover:shadow-lg transition-shadow"
                   onClick={() => handleQuickAction(action.path)}
                 >
-                  {/* Icon */}
-                  <div className={`w-12 h-12 ${action.iconBg} border-2 ${action.borderColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                    <IconComponent className={`w-6 h-6 ${action.iconColor}`} />
-                  </div>
+                  {/* Icon and Text Section */}
+                  <div className="flex items-start gap-4 mb-4">
+                    {/* Icon */}
+                    <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
+                      <IconComponent className="w-6 h-6 text-white" />
+                    </div>
 
-                  {/* Content: Title and Description */}
-                  <div className="flex-1 flex flex-col md:flex-row md:items-center md:gap-3">
+                    {/* Title and Description */}
                     <div className="flex-1">
-                      {/* Title */}
-                      <h3 className="text-lg font-semibold text-black mb-1 md:mb-0">
+                      <h3 className="text-lg font-bold text-gray-800 mb-1">
                         {action.title}
                       </h3>
-
-                      {/* Description */}
-                      <p className="text-sm text-gray-600 md:inline">
+                      <p className="text-sm text-gray-600">
                         {action.description}
                       </p>
                     </div>
-
-                    {/* Access Button */}
-                    <button className="w-full md:w-auto py-2 px-4 border-2 border-black text-black rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm flex-shrink-0">
-                      Access
-                    </button>
                   </div>
+
+                  {/* Access Button - Full width rectangle with rounded corners */}
+                  <button className="w-full py-2.5 px-4 border-2 border-black bg-white text-black rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm">
+                    Access
+                  </button>
                 </div>
               );
             })}

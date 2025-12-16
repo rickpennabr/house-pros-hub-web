@@ -183,9 +183,13 @@ export default function ExpandableSearchbar({
       <button
         ref={searchButtonRef}
         onClick={handleSearchToggle}
-        className={`absolute right-2 md:right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all z-20 ${
+        className={`absolute right-1 md:right-2 h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all z-20 ${
           isSearchOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
+        style={{
+          top: '50%',
+          transform: 'translateY(-50%)',
+        }}
         aria-label="Search (Press S)"
       >
         <div className="relative w-5 h-5 flex items-center justify-center">

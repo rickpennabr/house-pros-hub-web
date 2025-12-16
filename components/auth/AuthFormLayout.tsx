@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
+import Link from 'next/link';
 import Logo from '@/components/Logo';
 import CategoryCarousel from '@/components/CategoryCarousel';
 
@@ -27,7 +28,14 @@ export function AuthFormLayout({ children, title = 'Sign in or Sign Up to find y
             {children}
             <div className="mt-6 pt-6 border-t border-black">
               <p className="text-xs text-center text-gray-500">
-                By signing in or signing up, you agree to our Terms of Service and Privacy Policy
+                By signing in or signing up, you agree to our{' '}
+                <Link href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
+                  Terms of Service
+                </Link>
+                {' '}and{' '}
+                <Link href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
+                  Privacy Policy
+                </Link>
               </p>
             </div>
           </div>

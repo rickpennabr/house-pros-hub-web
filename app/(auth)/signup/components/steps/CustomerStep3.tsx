@@ -9,12 +9,13 @@ import { SignupFormState } from '../../hooks/useSignupForm';
 interface CustomerStep3Props {
   formState: SignupFormState;
   updateField: <K extends keyof SignupFormState>(field: K, value: SignupFormState[K]) => void;
+  fieldErrors?: { [key: string]: string | undefined };
 }
 
-export function CustomerStep3({ formState, updateField }: CustomerStep3Props) {
+export function CustomerStep3({ formState, updateField, fieldErrors = {} }: CustomerStep3Props) {
   return (
     <div className="space-y-6 flex-1">
-      <FormField label="Phone" required>
+      <FormField label="Phone" required error={fieldErrors.phone}>
         <Input
           id="phone"
           type="tel"
@@ -25,10 +26,11 @@ export function CustomerStep3({ formState, updateField }: CustomerStep3Props) {
           required
           placeholder="Enter your phone number"
           disabled={formState.isLoading}
+          error={fieldErrors.phone}
         />
       </FormField>
 
-      <FormField label="Email" required>
+      <FormField label="Email" required error={fieldErrors.email}>
         <Input
           id="signup-email"
           type="email"
@@ -39,6 +41,7 @@ export function CustomerStep3({ formState, updateField }: CustomerStep3Props) {
           required
           placeholder="Enter your email"
           disabled={formState.isLoading}
+          error={fieldErrors.email}
         />
       </FormField>
 
@@ -50,6 +53,7 @@ export function CustomerStep3({ formState, updateField }: CustomerStep3Props) {
         required
         placeholder="password"
         disabled={formState.isLoading}
+        error={fieldErrors.password}
       />
 
       <PasswordInput
@@ -60,6 +64,7 @@ export function CustomerStep3({ formState, updateField }: CustomerStep3Props) {
         required
         placeholder="repeat password"
         disabled={formState.isLoading}
+        error={fieldErrors.confirmPassword}
       />
 
       <div>
@@ -72,14 +77,15 @@ export function CustomerStep3({ formState, updateField }: CustomerStep3Props) {
             disabled={formState.isLoading}
           />
           <span className="ml-2 text-sm text-gray-600">
-            I agree to the{' '}
-            <Link href="/terms" className="underline hover:text-black">
+            By clicking Sign up you agree with the{' '}
+            <Link href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
               Terms of Service
             </Link>
             {' '}and{' '}
-            <Link href="/privacy" className="underline hover:text-black">
+            <Link href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
               Privacy Policy
             </Link>
+            {' '}to create a personal account.
           </span>
         </label>
       </div>

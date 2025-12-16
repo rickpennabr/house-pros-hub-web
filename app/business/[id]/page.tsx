@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
 import BusinessDetailsHeader from '@/components/businessdetails/BusinessDetailsHeader';
 import BusinessHeroImage from '@/components/businessdetails/BusinessHeroImage';
-import BusinessInteractionButtons from '@/components/businessdetails/BusinessInteractionButtons';
+import ProReactions from '@/components/proscard/ProReactions';
 import BusinessDetailsTabs from '@/components/businessdetails/BusinessDetailsTabs';
 import BusinessContactIcons from '@/components/businessdetails/BusinessContactIcons';
 import BusinessContactInfo from '@/components/businessdetails/BusinessContactInfo';
@@ -16,6 +16,7 @@ import { ProCardData } from '@/components/proscard/ProCard';
 type TabType = 'contact' | 'links' | 'about';
 
 import { getBusinessData } from '@/lib/mockData/mockBusinessData';
+import { businessStorage } from '@/lib/storage/businessStorage';
 
 export default function BusinessDetailsPage() {
   const params = useParams();
@@ -29,8 +30,23 @@ export default function BusinessDetailsPage() {
   useEffect(() => {
     const fetchBusiness = async () => {
       setLoading(true);
-      const data = await getBusinessData(id);
-      setBusiness(data);
+      
+      // First, try to get from localStorage
+      const allBusinesses = businessStorage.getAllBusinesses();
+      let data = allBusinesses.find((b: ProCardData) => b.id === id);
+      
+      // Remove userId from business data if it exists (for display purposes)
+      if (data) {
+        const { userId, ...businessData } = data as ProCardData & { userId?: string };
+        data = businessData;
+      }
+      
+      // If not found in localStorage, try mock data
+      if (!data) {
+        data = await getBusinessData(id);
+      }
+      
+      setBusiness(data || null);
       setLoading(false);
     };
 
@@ -71,9 +87,26 @@ export default function BusinessDetailsPage() {
       <BusinessHeroImage businessName={business.businessName} />
       
       <div className={`flex items-center justify-between h-[60px] p-2 bg-white ${tabsBorderClass}`}>
-        <BusinessInteractionButtons
-          initialReactions={business.reactions}
-        />
+        <div className="flex-1">
+          <ProReactions
+            initialReactions={business.reactions}
+            businessName={business.businessName}
+            contractorType={business.contractorType}
+            logo={business.logo}
+            businessId={business.id}
+            layout="around"
+            gap="gap-1"
+            onReaction={(type) => {
+              // Refresh business data to get updated reactions
+              const allBusinesses = businessStorage.getAllBusinesses();
+              const updatedBusiness = allBusinesses.find((b: ProCardData & { userId?: string }) => b.id === business.id);
+              if (updatedBusiness) {
+                const { userId, ...businessData } = updatedBusiness;
+                setBusiness(businessData);
+              }
+            }}
+          />
+        </div>
         <div className="w-px h-8 bg-black"></div>
         <BusinessContactIcons
           phone={phoneLink?.value}

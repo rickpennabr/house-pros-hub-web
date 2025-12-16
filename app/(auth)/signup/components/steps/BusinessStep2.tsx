@@ -1,8 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
-import { Button } from '@/components/ui/Button';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { BusinessFormState } from '../../hooks/useAddBusinessForm';
 import { AddressData } from '@/components/AddressAutocomplete';
@@ -17,8 +17,14 @@ interface BusinessStep2Props {
   handleAddressChange: (value: string) => void;
   usePersonalAddress: () => void;
   personalData?: {
+    address?: string;
     streetAddress?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    apartment?: string;
   };
+  fieldErrors?: { [key: string]: string | undefined };
 }
 
 export function BusinessStep2({
@@ -29,35 +35,40 @@ export function BusinessStep2({
   usePersonalAddress,
   personalData,
 }: BusinessStep2Props) {
+  const [usePersonalAddressChecked, setUsePersonalAddressChecked] = useState(false);
+
+  const handleCheckboxChange = (checked: boolean) => {
+    setUsePersonalAddressChecked(checked);
+    if (checked) {
+      usePersonalAddress();
+    }
+  };
+
   return (
     <div className="space-y-6 flex-1">
       <FormField label="Business Address" required>
-        <p className="text-xs text-gray-600 mb-2">
-          Search for your address or fill in the fields below manually
-        </p>
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <AddressAutocomplete
-              id="business-address"
-              value={formState.address}
-              onChange={handleAddressChange}
-              onAddressSelect={handleAddressSelect}
-              placeholder="Search for your Nevada address"
-              disabled={formState.isLoading}
-            />
+        {personalData && (personalData?.streetAddress || personalData?.address) && (
+          <div className="flex items-center justify-start mb-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-xs text-gray-700">Same as Personal</span>
+              <input
+                type="checkbox"
+                checked={usePersonalAddressChecked}
+                onChange={(e) => handleCheckboxChange(e.target.checked)}
+                disabled={formState.isLoading}
+                className="w-4 h-4 border-2 border-black rounded accent-black focus:ring-2 focus:ring-black focus:ring-offset-2"
+              />
+            </label>
           </div>
-          {personalData?.streetAddress && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={usePersonalAddress}
-              disabled={formState.isLoading}
-              className="whitespace-nowrap"
-            >
-              Use Personal
-            </Button>
-          )}
-        </div>
+        )}
+        <AddressAutocomplete
+          id="business-address"
+          value={formState.address}
+          onChange={handleAddressChange}
+          onAddressSelect={handleAddressSelect}
+          placeholder="Search for your Nevada address"
+          disabled={formState.isLoading}
+        />
       </FormField>
 
       <input type="hidden" value={formState.streetAddress} required />

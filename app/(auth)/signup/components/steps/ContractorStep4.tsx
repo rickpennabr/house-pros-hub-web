@@ -6,9 +6,10 @@ import { SignupFormState } from '../../hooks/useSignupForm';
 interface ContractorStep4Props {
   formState: SignupFormState;
   updateField: <K extends keyof SignupFormState>(field: K, value: SignupFormState[K]) => void;
+  fieldErrors?: { [key: string]: string | undefined };
 }
 
-export function ContractorStep4({ formState, updateField }: ContractorStep4Props) {
+export function ContractorStep4({ formState, updateField, fieldErrors = {} }: ContractorStep4Props) {
   return (
     <div className="space-y-6 flex-1">
       <div>
@@ -21,14 +22,15 @@ export function ContractorStep4({ formState, updateField }: ContractorStep4Props
             disabled={formState.isLoading}
           />
           <span className="ml-2 text-sm text-gray-600">
-            I agree to the{' '}
-            <Link href="/terms" className="underline hover:text-black">
+            By clicking Sign up you agree with the{' '}
+            <Link href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
               Terms of Service
             </Link>
             {' '}and{' '}
-            <Link href="/privacy" className="underline hover:text-black">
+            <Link href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
               Privacy Policy
             </Link>
+            {' '}to create a personal account.
           </span>
         </label>
       </div>

@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { createSignInUrl } from '@/lib/redirect';
+import SettingsModal from '@/components/settings/SettingsModal';
 import { 
   Check, 
   User, 
@@ -25,10 +27,20 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout, user } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  
+  // Check if user is a contractor (has companyName) or has businesses
+  const hasBusiness = !!user?.companyName;
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  
+  // Reset image error when user or picture changes
+  useEffect(() => {
+    setImageError(false);
+  }, [user?.userPicture]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -84,20 +96,33 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
         className={`h-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors px-2 md:px-4 gap-2 ${className}`}
         aria-label="Account"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={2}
-          stroke="currentColor"
-          className="w-5 h-5"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-          />
-        </svg>
+        {isAuthenticated && user?.userPicture && !imageError ? (
+          <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 border border-black relative aspect-square">
+            <Image
+              src={user.userPicture}
+              alt={`${user.firstName} ${user.lastName}`}
+              fill
+              className="object-cover"
+              sizes="28px"
+              onError={() => setImageError(true)}
+            />
+          </div>
+        ) : (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+            className="w-5 h-5"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+            />
+          </svg>
+        )}
         <span className="hidden md:inline font-medium text-black">Account</span>
       </button>
 
@@ -110,27 +135,19 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
           {isAuthenticated ? (
             <>
               <div className="p-2">
-                <button
-                  onClick={() => handleMenuItemClick('/profile')}
-                  className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
-                >
+                <div className="w-full text-left px-4 py-2.5 flex items-center gap-3 font-medium text-black cursor-default">
                   <User className="w-4 h-4" />
-                  <span>My Profile</span>
-                </button>
-                <button
-                  onClick={() => handleMenuItemClick('/businesslist')}
-                  className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
-                >
-                  <Building2 className="w-4 h-4" />
-                  <span>My Business</span>
-                </button>
-                <button
-                  onClick={() => handleMenuItemClick('/settings')}
-                  className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
-                >
-                  <Settings className="w-4 h-4" />
-                  <span>Settings</span>
-                </button>
+                  <span>{user ? `${user.firstName} ${user.lastName}` : 'User'}</span>
+                </div>
+                {hasBusiness && (
+                  <button
+                    onClick={() => handleMenuItemClick('/businesslist')}
+                    className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span>My Business</span>
+                  </button>
+                )}
                 <button
                   onClick={() => handleMenuItemClick('/account-management')}
                   className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
@@ -151,6 +168,25 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                 <span>Sign In</span>
               </button>
             </div>
+          )}
+
+          {/* Settings Section */}
+          {isAuthenticated && (
+            <>
+              <div className="border-t-2 border-black"></div>
+              <div className="p-2">
+                <button
+                  onClick={() => {
+                    setIsDropdownOpen(false);
+                    setIsSettingsModalOpen(true);
+                  }}
+                  className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </button>
+              </div>
+            </>
           )}
 
           {/* Theme Section */}
@@ -181,7 +217,6 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
           </div>
 
           {/* Help Section */}
-          <div className="border-t-2 border-black"></div>
           <div className="p-2">
             <button
               onClick={() => handleMenuItemClick('/help')}
@@ -209,6 +244,12 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
           )}
         </div>
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={isSettingsModalOpen} 
+        onClose={() => setIsSettingsModalOpen(false)} 
+      />
     </div>
   );
 }

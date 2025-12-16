@@ -124,14 +124,14 @@ export default function ShareBusinessModal({
         {/* Business Info */}
         <div className="p-4 border-b-2 border-black">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black">
+            <div className="w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
               {logo ? (
                 <Image
                   src={logo}
                   alt={businessName}
-                  width={48}
-                  height={48}
-                  className="w-full h-full object-cover"
+                  fill
+                  className="object-cover"
+                  sizes="48px"
                 />
               ) : (
                 <span className="text-lg font-bold text-white">{initials}</span>
