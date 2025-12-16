@@ -70,31 +70,39 @@ const generateMockToken = (): string => {
 /**
  * Authenticate a stored user from localStorage
  */
-const authenticateStoredUser = (email: string, password: string): boolean => {
+const authenticateStoredUser = (email: string, password: string): User | null => {
+  // Normalize email for comparison
+  const normalizedEmail = email.trim().toLowerCase();
+  
+  // Get stored user first
   const storedUser = authStorage.getUser();
   
-  if (!storedUser || storedUser.email.toLowerCase() !== email.toLowerCase()) {
-    return false;
+  // Check if stored user exists and email matches
+  if (!storedUser || storedUser.email.trim().toLowerCase() !== normalizedEmail) {
+    return null; // No user or email doesn't match
   }
-
-  const storedPassword = authStorage.getPassword(email);
+  
+  // Check password
+  const storedPassword = authStorage.getPassword(normalizedEmail);
   
   if (storedPassword) {
-    // Password is stored, validate it
+    // Password is stored, validate it (exact match)
     if (storedPassword === password) {
       const mockToken = generateMockToken();
       authStorage.setToken(mockToken);
-      return true;
+      return storedUser;
     }
-    return false;
+    return null; // Password doesn't match
   } else {
     // Legacy user without stored password - accept any password >= 6 chars for backward compatibility
     if (password.length >= 6) {
       const mockToken = generateMockToken();
       authStorage.setToken(mockToken);
-      return true;
+      // Store the password for future logins
+      authStorage.setPassword(normalizedEmail, password);
+      return storedUser;
     }
-    return false;
+    return null; // Password too short
   }
 };
 
@@ -154,8 +162,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<void> => {
     await mockDelay();
 
+    // Normalize email (trim whitespace and convert to lowercase for comparison)
+    const normalizedEmail = email.trim().toLowerCase();
+
     // Validate input
-    if (!isValidEmail(email)) {
+    if (!isValidEmail(normalizedEmail)) {
       throw new Error('Invalid email format');
     }
 
@@ -163,16 +174,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Password must be at least 6 characters');
     }
 
-    // Authenticate stored user
-    if (authenticateStoredUser(email, password)) {
-      const storedUser = authStorage.getUser();
-      if (storedUser) {
-        setUser(storedUser);
-        return;
-      }
+    // Debug: Check what's stored
+    const storedUser = authStorage.getUser();
+    const storedPassword = authStorage.getPassword(normalizedEmail);
+    
+    console.log('🔵 [login] Authentication attempt:', {
+      normalizedEmail,
+      hasStoredUser: !!storedUser,
+      storedUserEmail: storedUser?.email,
+      hasStoredPassword: !!storedPassword,
+      passwordLength: password.length,
+    });
+
+    // Authenticate stored user - returns user if successful, null if failed
+    const authenticatedUser = authenticateStoredUser(normalizedEmail, password);
+    
+    if (authenticatedUser) {
+      // User authenticated and user data available
+      console.log('✅ [login] Authentication successful');
+      setUser(authenticatedUser);
+      return;
     }
 
-    // Authentication failed
+    // Authentication failed - wrong email or password
+    console.log('❌ [login] Authentication failed');
     throw new Error('Invalid email or password');
   };
 
@@ -224,10 +249,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const mockToken = generateMockToken();
 
+    // Normalize email for storage (trim and lowercase)
+    const normalizedEmail = userData.email.trim().toLowerCase();
+    
     // Store in localStorage (synchronous, immediately available)
-    authStorage.setUser(newUser);
+    // Store user with normalized email for consistency
+    const userToStore = { ...newUser, email: normalizedEmail };
+    authStorage.setUser(userToStore);
     authStorage.setToken(mockToken);
-    authStorage.setPassword(userData.email, userData.password);
+    authStorage.setPassword(normalizedEmail, userData.password);
+    
+    // Update the newUser object to use normalized email
+    newUser.email = normalizedEmail;
 
     // Update React context state (asynchronous, may not be immediately available)
     setUser(newUser);
@@ -237,9 +270,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    authStorage.clear();
-    // Note: We keep passwords stored for future logins (handled by authStorage.clear())
+    // Clear token and React state, but keep user and password in localStorage
+    // This allows users to log back in without re-entering their credentials
+    authStorage.setToken('');
     setUser(null);
+    // Note: User data and password remain in localStorage for future logins
   };
 
   const updateUser = async (updates: Partial<User>): Promise<void> => {

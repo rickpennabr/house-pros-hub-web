@@ -80,7 +80,8 @@ function SignInForm() {
     setIsLoading(true);
 
     try {
-      await login(email, password);
+      // Trim email to remove any whitespace
+      await login(email.trim(), password);
       redirectAfterAuth();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in. Please try again.');
