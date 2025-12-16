@@ -86,8 +86,8 @@ export default function BusinessDetailsPage() {
       
       <BusinessHeroImage businessName={business.businessName} />
       
-      <div className={`flex items-center justify-between h-[60px] p-2 bg-white ${tabsBorderClass}`}>
-        <div className="flex-1">
+      <div className={`flex flex-col md:flex-row md:items-center h-auto md:h-[60px] p-2 bg-white ${tabsBorderClass}`}>
+        <div className="w-full md:w-1/2 md:pr-4">
           <ProReactions
             initialReactions={business.reactions}
             businessName={business.businessName}
@@ -107,12 +107,17 @@ export default function BusinessDetailsPage() {
             }}
           />
         </div>
-        <div className="w-px h-8 bg-black"></div>
-        <BusinessContactIcons
-          phone={phoneLink?.value}
-          website={websiteLink?.url}
-          instagram={instagramLink?.url}
-        />
+        {/* Divider: horizontal on mobile, vertical on desktop */}
+        <div className="w-full h-px bg-black my-2 md:hidden"></div>
+
+        {/* On mobile, show icon links under reactions */}
+        <div className="w-full md:w-1/2 flex justify-center md:justify-center md:border-l md:border-black md:pl-4">
+          <BusinessContactIcons
+            phone={phoneLink?.value}
+            website={websiteLink?.url}
+            instagram={instagramLink?.url}
+          />
+        </div>
       </div>
       
       <div className="flex items-center h-[60px]">

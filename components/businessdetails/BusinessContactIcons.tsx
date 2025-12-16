@@ -28,7 +28,7 @@ export default function BusinessContactIcons({ phone, website, instagram }: Busi
   };
 
   return (
-    <div className="w-1/2 flex items-center justify-center gap-4 bg-white">
+    <div className="w-full flex items-center justify-center gap-4 bg-white">
       {phone && (
         <button
           onClick={handlePhoneClick}
