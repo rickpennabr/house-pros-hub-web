@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { createSignInUrl } from '@/lib/redirect';
 
@@ -15,6 +16,7 @@ export function useProtectedAction<T extends (...args: unknown[]) => void | Prom
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const locale = useLocale();
 
   const protectedAction = ((...args: Parameters<T>) => {
     // If still loading auth state, don't do anything
@@ -24,7 +26,7 @@ export function useProtectedAction<T extends (...args: unknown[]) => void | Prom
 
     // If not authenticated, redirect to signin with returnUrl
     if (!isAuthenticated) {
-      const signInUrl = createSignInUrl(pathname);
+      const signInUrl = createSignInUrl(locale as 'en' | 'es', pathname);
       router.push(signInUrl);
       return;
     }

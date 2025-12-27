@@ -13,8 +13,8 @@ export function PasswordInput({ label, showToggle = true, error, className = '',
   const [showPassword, setShowPassword] = useState(false);
   const hasError = !!error;
   const borderClass = hasError 
-    ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
-    : 'border-black focus:ring-black';
+    ? 'border-red-500 focus:border-red-500' 
+    : 'border-black';
 
   return (
     <div>
@@ -28,7 +28,7 @@ export function PasswordInput({ label, showToggle = true, error, className = '',
         <input
           {...props}
           type={showPassword ? 'text' : 'password'}
-          className={`w-full px-3 py-2.5 pr-10 border-2 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all ${borderClass} ${className}`}
+          className={`w-full px-3 py-2.5 pr-10 border-2 rounded-lg bg-white focus:outline-none transition-all ${borderClass} ${className}`}
         />
         {showToggle && (
           <button

@@ -67,6 +67,49 @@ body {
   scrollbar-color: rgba(0, 0, 0, 1) transparent;
 }
 
+/* Category carousel scrollbar - PC only, 1px thicker */
+@media (min-width: 768px) {
+  .scrollbar-category::-webkit-scrollbar {
+    height: 7px;
+  }
+
+  .scrollbar-category::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-category::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 3.5px;
+    transition: background-color 0.2s ease;
+  }
+
+  .scrollbar-category:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 1);
+  }
+
+  /* Firefox */
+  .scrollbar-category {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+  }
+
+  .scrollbar-category:hover {
+    scrollbar-color: rgba(0, 0, 0, 1) transparent;
+  }
+}
+
+/* Hide category scrollbar on mobile */
+@media (max-width: 767px) {
+  .scrollbar-category::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-category {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
 /* Smooth color-changing background animation - house colors like wall paint */
 @keyframes colorWallHouse {
   0% {
@@ -175,4 +218,77 @@ body {
 
 .animate-fade-in {
   animation: fade-in 0.6s ease-out;
+}
+
+@keyframes slide-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-50px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.6s ease-out;
+}
+
+@keyframes slide-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.6s ease-out;
+  animation-delay: 0.2s;
+  animation-fill-mode: both;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.4);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 8px rgba(0, 0, 0, 0);
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s infinite;
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: rotate(-10deg);
+  }
+  20%, 40%, 60%, 80% {
+    transform: rotate(10deg);
+  }
+}
+
+.bell-shake-on-hover:hover svg {
+  animation: shake 0.5s ease-in-out;
 }

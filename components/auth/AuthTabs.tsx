@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 type TabType = 'signin' | 'signup';
 
 interface AuthTabsProps {
@@ -9,6 +11,7 @@ interface AuthTabsProps {
 }
 
 export function AuthTabs({ activeTab, onTabChange, isLoading = false }: AuthTabsProps) {
+  const t = useTranslations('auth.tabs');
   return (
     <div className="flex mb-6 border-b-2 border-black">
       <button
@@ -21,7 +24,7 @@ export function AuthTabs({ activeTab, onTabChange, isLoading = false }: AuthTabs
             : 'bg-white hover:bg-gray-50'
         } disabled:opacity-50`}
       >
-        Sign In
+        {t('signin')}
       </button>
       <button
         type="button"
@@ -33,7 +36,7 @@ export function AuthTabs({ activeTab, onTabChange, isLoading = false }: AuthTabs
             : 'bg-white hover:bg-gray-50'
         } disabled:opacity-50`}
       >
-        Sign Up
+        {t('signup')}
       </button>
     </div>
   );

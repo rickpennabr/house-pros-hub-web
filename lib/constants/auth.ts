@@ -12,6 +12,6 @@ export type UserType = typeof USER_TYPES[keyof typeof USER_TYPES];
 export const STORAGE_KEYS = {
   USER: 'auth_user',
   TOKEN: 'auth_token',
-  PASSWORDS: 'auth_passwords',
+  // PASSWORDS removed - never store passwords in localStorage (security risk)
 } as const;
 

@@ -2,21 +2,22 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
-import { createSignInUrl } from '@/lib/redirect';
+import { createLocalePath, createSignInUrl } from '@/lib/redirect';
 import SettingsModal from '@/components/settings/SettingsModal';
+import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import type { Locale } from '@/i18n';
 import { 
-  Check, 
-  User, 
   Building2, 
   Settings, 
   LogIn, 
   LogOut, 
   HelpCircle,
-  Palette,
-  Users
+  Users,
+  LayoutDashboard
 } from 'lucide-react';
 
 interface ProfileIconProps {
@@ -26,22 +27,33 @@ interface ProfileIconProps {
 export default function ProfileIcon({ className = '' }: ProfileIconProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { theme, setTheme } = useTheme();
+  const locale = useLocale() as Locale;
+  const t = useTranslations('common.account');
   const { isAuthenticated, logout, user } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  const pictureUrl = user?.userPicture;
+  const [imageErrorState, setImageErrorState] = useState<{ url?: string; hasError: boolean }>(() => ({
+    url: pictureUrl,
+    hasError: false,
+  }));
+  const [dropdownImageErrorState, setDropdownImageErrorState] = useState<{ url?: string; hasError: boolean }>(() => ({
+    url: pictureUrl,
+    hasError: false,
+  }));
+  const imageError = imageErrorState.url === pictureUrl ? imageErrorState.hasError : false;
+  const dropdownImageError =
+    dropdownImageErrorState.url === pictureUrl ? dropdownImageErrorState.hasError : false;
   
   // Check if user is a contractor (has companyName) or has businesses
   const hasBusiness = !!user?.companyName;
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  
-  // Reset image error when user or picture changes
-  useEffect(() => {
-    setImageError(false);
-  }, [user?.userPicture]);
 
+  const userInitials = user 
+    ? (user.firstName.charAt(0) + user.lastName.charAt(0)).toUpperCase()
+    : '';
+  
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -61,19 +73,15 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
     }
   }, [isDropdownOpen]);
 
-  const handleThemeChange = (newTheme: 'default' | 'colorful') => {
-    setTheme(newTheme);
-    setIsDropdownOpen(false);
-  };
-
   const handleSignOut = () => {
     logout();
     setIsDropdownOpen(false);
-    router.push('/signin');
+    // User stays on current page after sign out
   };
 
   const handleMenuItemClick = (path: string) => {
-    router.push(path);
+    // Ensure internal navigation stays locale-prefixed
+    router.push(createLocalePath(locale, path));
     setIsDropdownOpen(false);
   };
 
@@ -83,7 +91,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
       setIsDropdownOpen(!isDropdownOpen);
     } else {
       // If not logged in, redirect to sign in with return URL
-      const signInUrl = createSignInUrl(pathname);
+      const signInUrl = createSignInUrl(locale, pathname ?? '/businesslist');
       router.push(signInUrl);
     }
   };
@@ -93,19 +101,37 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
       <button
         ref={buttonRef}
         onClick={handleAccountButtonClick}
-        className={`h-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors px-2 md:px-4 gap-2 ${className}`}
-        aria-label="Account"
+        className={`w-10 h-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden relative ${className}`}
+        aria-label={t('account')}
       >
         {isAuthenticated && user?.userPicture && !imageError ? (
-          <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 border border-black relative aspect-square">
+          user.userPicture.startsWith('data:') ? (
             <Image
               src={user.userPicture}
               alt={`${user.firstName} ${user.lastName}`}
               fill
               className="object-cover"
-              sizes="28px"
-              onError={() => setImageError(true)}
+              sizes="40px"
+              unoptimized
+              onError={() => setImageErrorState({ url: pictureUrl, hasError: true })}
             />
+          ) : (
+            <Image
+              src={user.userPicture}
+              alt={`${user.firstName} ${user.lastName}`}
+              fill
+              className="object-cover"
+              sizes="40px"
+              quality={90}
+              priority={false}
+              onError={() => setImageErrorState({ url: pictureUrl, hasError: true })}
+            />
+          )
+        ) : isAuthenticated ? (
+          <div className="w-full h-full bg-black flex items-center justify-center">
+            <span className="text-xs font-bold text-white leading-none">
+              {userInitials}
+            </span>
           </div>
         ) : (
           <svg
@@ -123,7 +149,6 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
             />
           </svg>
         )}
-        <span className="hidden md:inline font-medium text-black">Account</span>
       </button>
 
       {isDropdownOpen && (
@@ -134,26 +159,73 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
           {/* Account Section */}
           {isAuthenticated ? (
             <>
-              <div className="p-2">
-                <div className="w-full text-left px-4 py-2.5 flex items-center gap-3 font-medium text-black cursor-default">
-                  <User className="w-4 h-4" />
-                  <span>{user ? `${user.firstName} ${user.lastName}` : 'User'}</span>
+              <div className="px-4 py-3 flex items-center gap-3 border-b-2 border-black bg-gray-50">
+                <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
+                  {user?.userPicture && !dropdownImageError ? (
+                    user.userPicture.startsWith('data:') ? (
+                      <Image
+                        src={user.userPicture}
+                        alt={`${user.firstName} ${user.lastName}`}
+                        fill
+                        className="object-cover"
+                        sizes="40px"
+                        unoptimized
+                        onError={() => setDropdownImageErrorState({ url: pictureUrl, hasError: true })}
+                      />
+                    ) : (
+                      <Image
+                        src={user.userPicture}
+                        alt={`${user.firstName} ${user.lastName}`}
+                        fill
+                        className="object-cover"
+                        sizes="40px"
+                        quality={90}
+                        priority={false}
+                        onError={() => setDropdownImageErrorState({ url: pictureUrl, hasError: true })}
+                      />
+                    )
+                  ) : (
+                    <span className="text-sm font-bold text-white">
+                      {userInitials}
+                    </span>
+                  )}
                 </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-bold text-black truncate">
+                    {user ? `${user.firstName} ${user.lastName}` : 'User'}
+                  </span>
+                  <span className="text-[10px] text-gray-600 truncate">
+                    {user?.email}
+                  </span>
+                </div>
+              </div>
+              <div className="p-2">
                 {hasBusiness && (
                   <button
                     onClick={() => handleMenuItemClick('/businesslist')}
                     className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
                   >
                     <Building2 className="w-4 h-4" />
-                    <span>My Business</span>
+                    <span>{t('myBusiness')}</span>
                   </button>
+                )}
+                {/* Admin Dash - Only for specific email */}
+                {user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase() && (
+                  <Link
+                    href="/admin"
+                    className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer mb-1"
+                    onClick={() => setIsDropdownOpen(false)}
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span>Admin Dash</span>
+                  </Link>
                 )}
                 <button
                   onClick={() => handleMenuItemClick('/account-management')}
                   className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
                 >
                   <Users className="w-4 h-4" />
-                  <span>Account Management</span>
+                  <span>{t('accountManagement')}</span>
                 </button>
               </div>
               <div className="border-t-2 border-black"></div>
@@ -165,7 +237,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                 className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Sign In</span>
+                <span>{t('signIn')}</span>
               </button>
             </div>
           )}
@@ -183,38 +255,11 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
                 >
                   <Settings className="w-4 h-4" />
-                  <span>Settings</span>
+                  <span>{t('settings')}</span>
                 </button>
               </div>
             </>
           )}
-
-          {/* Theme Section */}
-          <div className="border-t-2 border-black"></div>
-          <div className="p-2">
-            <div className="px-4 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-2">
-              <Palette className="w-3 h-3" />
-              <span>Theme</span>
-            </div>
-            <button
-              onClick={() => handleThemeChange('default')}
-              className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between font-medium text-black cursor-pointer"
-            >
-              <span>Default</span>
-              {theme === 'default' && (
-                <Check className="w-4 h-4 text-black" />
-              )}
-            </button>
-            <button
-              onClick={() => handleThemeChange('colorful')}
-              className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between font-medium text-black cursor-pointer"
-            >
-              <span>Colorful</span>
-              {theme === 'colorful' && (
-                <Check className="w-4 h-4 text-black" />
-              )}
-            </button>
-          </div>
 
           {/* Help Section */}
           <div className="p-2">
@@ -223,7 +268,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
               className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
             >
               <HelpCircle className="w-4 h-4" />
-              <span>Help & Support</span>
+              <span>{t('helpSupport')}</span>
             </button>
           </div>
 
@@ -237,7 +282,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-3 font-medium text-red-600 cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>Sign Out</span>
+                  <span>{t('signOut')}</span>
                 </button>
               </div>
             </>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 
 interface AuthNavigationButtonsProps {
   isLoading?: boolean;
@@ -13,13 +14,17 @@ interface AuthNavigationButtonsProps {
 export function AuthNavigationButtons({ isLoading = false }: AuthNavigationButtonsProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const isSignInPage = pathname === '/signin';
+  const locale = useLocale();
+  const t = useTranslations('auth.tabs');
+  const signInPath = `/${locale}/signin`;
+  const signUpPath = `/${locale}/signup`;
+  const isSignInPage = pathname === signInPath;
 
   return (
     <div className="flex gap-0 border-2 border-black rounded-lg overflow-hidden w-full">
       <button
         type="button"
-        onClick={() => !isSignInPage && router.push('/signin')}
+        onClick={() => !isSignInPage && router.push(signInPath)}
         disabled={isLoading}
         className={`flex-1 px-4 md:px-5 py-2 md:py-2.5 text-sm md:text-base font-medium transition-all ${
           isSignInPage
@@ -28,11 +33,11 @@ export function AuthNavigationButtons({ isLoading = false }: AuthNavigationButto
         } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
         aria-current={isSignInPage ? 'page' : undefined}
       >
-        Sign In
+        {t('signin')}
       </button>
       <button
         type="button"
-        onClick={() => isSignInPage && router.push('/signup')}
+        onClick={() => isSignInPage && router.push(signUpPath)}
         disabled={isLoading}
         className={`flex-1 px-4 md:px-5 py-2 md:py-2.5 text-sm md:text-base font-medium transition-all ${
           !isSignInPage
@@ -41,7 +46,7 @@ export function AuthNavigationButtons({ isLoading = false }: AuthNavigationButto
         } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
         aria-current={!isSignInPage ? 'page' : undefined}
       >
-        Sign Up
+        {t('signup')}
       </button>
     </div>
   );

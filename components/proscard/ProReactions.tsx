@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Heart, MessageSquare, Handshake, Bookmark } from 'lucide-react';
+import { Heart, MessageSquare, Link, Bookmark } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import { createSignInUrl } from '@/lib/redirect';
 import FeedbackModal from './FeedbackModal';
 import { businessStorage } from '@/lib/storage/businessStorage';
 import { feedbackStorage } from '@/lib/storage/feedbackStorage';
+import { savedBusinessStorage } from '@/lib/storage/savedBusinessStorage';
+import Modal from '@/components/ui/Modal';
 
 interface ProReactionsProps {
   initialReactions?: {
@@ -33,14 +36,27 @@ export default function ProReactions({
   logo,
   businessId = '',
   layout = 'between',
-  gap = 'gap-0'
+  gap = 'gap-0.5'
 }: ProReactionsProps) {
   const [reactions, setReactions] = useState(initialReactions);
   const [activeReactions, setActiveReactions] = useState<Set<string>>(new Set());
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
-  const { isAuthenticated, isLoading } = useAuth();
+  const [isComingSoonModalOpen, setIsComingSoonModalOpen] = useState(false);
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const locale = useLocale();
+  const t = useTranslations('reactions');
+
+  // Check if business is saved by current user on mount
+  useEffect(() => {
+    if (user?.id && businessId && typeof window !== 'undefined') {
+      const isSaved = savedBusinessStorage.isBusinessSaved(user.id, businessId);
+      if (isSaved) {
+        setActiveReactions(prev => new Set(prev).add('save'));
+      }
+    }
+  }, [user?.id, businessId]);
 
   // Update feedback count from actual comments
   const updateFeedbackCount = () => {
@@ -84,10 +100,27 @@ export default function ProReactions({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFeedbackModalOpen, businessId]);
 
+  // Auto-close coming soon modal after 3 seconds
+  useEffect(() => {
+    if (isComingSoonModalOpen) {
+      const timer = setTimeout(() => {
+        setIsComingSoonModalOpen(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isComingSoonModalOpen]);
+
   const performReaction = (type: 'love' | 'feedback' | 'link' | 'save') => {
     // For feedback, just open modal, don't increment count
     if (type === 'feedback') {
       setIsFeedbackModalOpen(true);
+      return;
+    }
+
+    // For link (Connect), show coming soon modal
+    if (type === 'link') {
+      setIsComingSoonModalOpen(true);
       return;
     }
 
@@ -104,6 +137,15 @@ export default function ProReactions({
       }
       return newSet;
     });
+
+    // Handle save action with saved businesses storage
+    if (type === 'save' && user?.id && businessId && typeof window !== 'undefined') {
+      if (isActive) {
+        savedBusinessStorage.removeSavedBusiness(user.id, businessId);
+      } else {
+        savedBusinessStorage.saveBusiness(user.id, businessId);
+      }
+    }
 
     const updatedReactions = {
       ...reactions,
@@ -137,7 +179,7 @@ export default function ProReactions({
     }
     
     if (!isAuthenticated) {
-      const signInUrl = createSignInUrl(pathname);
+      const signInUrl = createSignInUrl(locale as 'en' | 'es', pathname);
       router.push(signInUrl);
       return;
     }
@@ -146,10 +188,10 @@ export default function ProReactions({
   };
 
   const reactionConfig = [
-    { type: 'love' as const, icon: Heart, label: 'Love', count: reactions.love || 0 },
-    { type: 'feedback' as const, icon: MessageSquare, label: 'Feedback', count: reactions.feedback || 0 },
-    { type: 'link' as const, icon: Handshake, label: 'Connect', count: reactions.link || 0 },
-    { type: 'save' as const, icon: Bookmark, label: 'Save', count: reactions.save || 0 },
+    { type: 'love' as const, icon: Heart, label: t('love'), count: reactions.love || 0 },
+    { type: 'feedback' as const, icon: MessageSquare, label: t('feedback'), count: reactions.feedback || 0 },
+    { type: 'link' as const, icon: Link, label: t('link'), count: reactions.link || 0 },
+    { type: 'save' as const, icon: Bookmark, label: t('save'), count: reactions.save || 0 },
   ];
 
   const justifyClass = layout === 'around' ? 'justify-around' : 'justify-between';
@@ -159,23 +201,72 @@ export default function ProReactions({
       <div className={`w-full flex items-center ${justifyClass} ${gap}`}>
         {reactionConfig.map(({ type, icon: Icon, label, count }) => {
           const isActive = activeReactions.has(type);
+          // Special styling for active states
+          const getButtonStyles = () => {
+            if (!isActive) return 'bg-transparent text-black';
+            if (type === 'love') return 'bg-white text-red-500';
+            if (type === 'save') return 'bg-white text-green-500';
+            if (type === 'link') return 'bg-white text-purple-500';
+            return 'bg-white text-black';
+          };
+          
+          const getBorderStyles = () => {
+            if (!isActive) return 'border-black';
+            if (type === 'love') return 'border-red-500';
+            if (type === 'save') return 'border-green-500';
+            if (type === 'link') return 'border-purple-500';
+            return 'border-black';
+          };
+          
+          const getIconStyles = () => {
+            if (type === 'feedback') {
+              // Fill feedback icon when there are comments
+              const feedbackCount = reactions.feedback || 0;
+              return feedbackCount > 0 ? 'fill-black text-black' : '';
+            }
+            if (!isActive) return '';
+            if (type === 'love') return 'fill-red-500 text-red-500';
+            if (type === 'save') return 'fill-green-500 text-green-500';
+            if (type === 'link') return 'fill-purple-500 text-purple-500';
+            return '';
+          };
+          
+          const getTextColor = () => {
+            if (!isActive) return 'text-black';
+            if (type === 'love') return 'text-red-500';
+            if (type === 'save') return 'text-green-500';
+            if (type === 'link') return 'text-purple-500';
+            return 'text-black';
+          };
+          
+          // Reaction label backgrounds: 90px on mobile, original widths on desktop
+          const getButtonWidth = () => {
+            if (type === 'love') return 'w-[90px] md:w-[70px]';
+            if (type === 'feedback') return 'w-[100px] md:w-[75px]';
+            if (type === 'link') return 'w-[80px] md:w-[60px]';
+            if (type === 'save') return 'w-[80px] md:w-[60px]';
+            return 'w-[90px] md:w-[60px]';
+          };
+          
+          // Get padding for reaction label container
+          const getLabelPadding = () => {
+            if (type === 'link' || type === 'save') return 'px-2';
+            return 'px-4';
+          };
+          
           return (
             <button
               key={type}
               onClick={(e) => handleReaction(e, type)}
-              className={`group flex flex-col items-center justify-center gap-1.5 px-0.5 py-1 rounded-lg border-2 border-transparent transition-all font-medium cursor-pointer shrink-0 ${
-                isActive
-                  ? 'bg-white text-black'
-                  : 'bg-transparent text-black'
-              }`}
+              className={`group flex flex-col items-center justify-center gap-1.5 px-0.5 py-1 rounded-lg transition-all font-medium cursor-pointer shrink-0 ${getButtonStyles()}`}
               aria-label={label}
             >
               <div className="flex items-center justify-center gap-1">
-                <Icon className={`w-4 h-4 transition-transform md:group-hover:scale-110 ${isActive && type === 'love' ? 'fill-red-500' : ''}`} />
-                <span className="text-[10px] font-semibold leading-tight">{count}</span>
+                <Icon className={`w-4 h-4 transition-transform md:group-hover:scale-110 ${getIconStyles()}`} />
+                <span className={`text-sm md:text-[10px] font-semibold leading-tight ${getTextColor()}`}>{count}</span>
               </div>
-              <div className="w-[60px] px-2 py-1.5 rounded border-2 border-black flex items-center justify-center">
-                <span className="text-[10px] font-semibold leading-tight whitespace-nowrap">{label}</span>
+              <div className={`${getButtonWidth()} ${getLabelPadding()} py-1.5 rounded border-2 ${getBorderStyles()} bg-white flex items-center justify-center`}>
+                <span className={`text-sm md:text-[10px] font-semibold leading-tight whitespace-nowrap ${getTextColor()}`}>{label}</span>
               </div>
             </button>
           );
@@ -191,6 +282,26 @@ export default function ProReactions({
         businessId={businessId}
         onCommentsChange={updateFeedbackCount}
       />
+
+      <Modal
+        isOpen={isComingSoonModalOpen}
+        onClose={() => setIsComingSoonModalOpen(false)}
+        title="Coming Soon"
+        showHeader={true}
+        maxWidth="sm"
+      >
+        <div className="p-6 text-center">
+          <p className="text-lg text-black mb-4">
+            This feature will come soon.
+          </p>
+          <button
+            onClick={() => setIsComingSoonModalOpen(false)}
+            className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-semibold"
+          >
+            OK
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

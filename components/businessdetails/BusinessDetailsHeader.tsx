@@ -4,8 +4,9 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import ShareBusinessModal from './ShareBusinessModal';
+import ProfileIcon from '@/components/pageslayout/ProfileIcon';
 
 interface BusinessDetailsHeaderProps {
   logo?: string;
@@ -33,9 +34,8 @@ export default function BusinessDetailsHeader({
   secondaryLogo 
 }: BusinessDetailsHeaderProps) {
   const router = useRouter();
-  const { getThemeClasses } = useTheme();
-  const headerBorderClass = getThemeClasses('header');
-  const initials = getInitials(businessName);
+  const { isAuthenticated } = useAuth();
+  const businessInitials = getInitials(businessName);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   
   const handleShare = () => {
@@ -43,7 +43,7 @@ export default function BusinessDetailsHeader({
   };
 
   return (
-    <div className={`relative flex items-center h-[60px] p-2 md:px-2 md:py-4 ${headerBorderClass} bg-white`}>
+    <div className="relative flex items-center h-[60px] p-2 md:px-2 md:py-4 border-b-2 border-black bg-white">
       <div className="flex items-center shrink-0">
         <button
           onClick={() => router.back()}
@@ -75,7 +75,9 @@ export default function BusinessDetailsHeader({
         >
           <Share2 className="w-5 h-5 text-black" />
         </button>
-        {logo ? (
+        {isAuthenticated ? (
+          <ProfileIcon />
+        ) : logo ? (
           <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-white shrink-0 overflow-hidden relative aspect-square">
             <Image
               src={logo}
@@ -97,7 +99,7 @@ export default function BusinessDetailsHeader({
           </div>
         ) : (
           <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-black shrink-0 overflow-hidden relative aspect-square">
-            <span className="text-sm font-bold text-white">{initials}</span>
+            <span className="text-sm font-bold text-white">{businessInitials}</span>
           </div>
         )}
       </div>

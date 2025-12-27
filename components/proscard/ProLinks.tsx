@@ -1,24 +1,38 @@
 'use client';
 
+import { useState } from 'react';
+// Keep lucide-react for generic icons
 import { 
   Phone, 
-  Instagram, 
-  Facebook, 
   Globe, 
   Calendar,
   Mail,
   MapPin,
-  MessageCircle,
-  Youtube,
-  Linkedin,
-  Send
 } from 'lucide-react';
+// Import brand icons from react-icons (Simple Icons)
+import {
+  SiInstagram,
+  SiFacebook,
+  SiX,
+  SiYoutube,
+  SiTiktok,
+  SiLinkedin,
+  SiTelegram,
+  SiDiscord,
+  SiWhatsapp,
+  SiYelp,
+  SiNextdoor,
+} from 'react-icons/si';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { createSignInUrl } from '@/lib/redirect';
+import { LeaveExternalWarningModal } from './LeaveExternalWarningModal';
+import { AngiIcon } from '@/components/ui/icons/AngiIcon';
+import type { LinkType } from '@/lib/constants/linkTypes';
 
 export interface LinkItem {
-  type: 'phone' | 'instagram' | 'facebook' | 'website' | 'calendar' | 'email' | 'location' | 'x' | 'whatsapp' | 'youtube' | 'tiktok' | 'linkedin' | 'snapchat' | 'pinterest' | 'telegram' | 'discord';
+  type: LinkType;
   url?: string;
   value?: string;
 }
@@ -28,19 +42,30 @@ interface ProLinksProps {
   maxLinks?: number;
 }
 
-const iconMap: Partial<Record<LinkItem['type'], typeof Phone>> = {
+// Type for icon components (both lucide-react and react-icons)
+type IconComponent = React.ComponentType<{ className?: string }>;
+
+const iconMap: Partial<Record<LinkItem['type'], IconComponent>> = {
+  // Generic icons from lucide-react
   phone: Phone,
-  instagram: Instagram,
-  facebook: Facebook,
   website: Globe,
   calendar: Calendar,
   email: Mail,
   location: MapPin,
-  whatsapp: MessageCircle,
-  youtube: Youtube,
-  linkedin: Linkedin,
-  telegram: Send,
-  // For other types, default to Globe
+  whatsapp: SiWhatsapp,
+  
+  // Brand icons from react-icons (Simple Icons)
+  instagram: SiInstagram,
+  facebook: SiFacebook,
+  x: SiX,
+  youtube: SiYoutube,
+  tiktok: SiTiktok,
+  linkedin: SiLinkedin,
+  telegram: SiTelegram,
+  discord: SiDiscord,
+  yelp: SiYelp,
+  nextdoor: SiNextdoor,
+  angi: AngiIcon,
 };
 
 export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
@@ -50,6 +75,9 @@ export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const locale = useLocale();
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
 
   // Define which link types require authentication
   const protectedLinkTypes: LinkItem['type'][] = ['phone', 'email', 'calendar'];
@@ -57,12 +85,36 @@ export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
 
   const performLinkClick = (link: LinkItem) => {
     if (link.type === 'phone' && link.value) {
-      window.location.href = `tel:${link.value}`;
+      // Use temporary anchor for navigation to avoid React hooks immutability warning
+      const anchor = document.createElement('a');
+      anchor.href = `tel:${link.value}`;
+      anchor.click();
     } else if (link.type === 'email' && link.value) {
-      window.location.href = `mailto:${link.value}`;
+      // Use temporary anchor for navigation to avoid React hooks immutability warning
+      const anchor = document.createElement('a');
+      anchor.href = `mailto:${link.value}`;
+      anchor.click();
     } else if (link.url) {
-      window.open(link.url, '_blank', 'noopener,noreferrer');
+      if (link.type === 'website') {
+        setPendingUrl(link.url);
+        setIsWarningModalOpen(true);
+      } else {
+        window.open(link.url, '_blank', 'noopener,noreferrer');
+      }
     }
+  };
+
+  const handleConfirmWebsite = () => {
+    if (pendingUrl) {
+      window.open(pendingUrl, '_blank', 'noopener,noreferrer');
+    }
+    setIsWarningModalOpen(false);
+    setPendingUrl(null);
+  };
+
+  const handleCancelWebsite = () => {
+    setIsWarningModalOpen(false);
+    setPendingUrl(null);
   };
 
   const handleLinkClick = (e: React.MouseEvent, link: LinkItem) => {
@@ -75,7 +127,7 @@ export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
       }
       
       if (!isAuthenticated) {
-        const signInUrl = createSignInUrl(pathname);
+        const signInUrl = createSignInUrl(locale as 'en' | 'es', pathname);
         router.push(signInUrl);
         return;
       }
@@ -100,6 +152,10 @@ export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
       <div className={`flex items-center flex-wrap w-full ${gapClass}`}>
         {visibleLinks.map((link, index) => {
           const Icon = iconMap[link.type] || Globe;
+          // Make Angi icon bigger
+          const iconSizeClass = link.type === 'angi' 
+            ? 'w-9 h-9 lg:w-8 lg:h-8' 
+            : 'w-5 h-5 lg:w-[18px] lg:h-[18px]';
 
           return (
             <button
@@ -108,11 +164,18 @@ export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
               className="w-10 h-10 lg:w-9 lg:h-9 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
               aria-label={link.type}
             >
-              <Icon className="w-5 h-5 lg:w-[18px] lg:h-[18px] text-black" />
+              <Icon className={`${iconSizeClass} text-black`} />
             </button>
           );
         })}
       </div>
+
+      <LeaveExternalWarningModal
+        isOpen={isWarningModalOpen}
+        onConfirm={handleConfirmWebsite}
+        onCancel={handleCancelWebsite}
+        websiteUrl={pendingUrl || ''}
+      />
     </div>
   );
 }

@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { X, Send, MessageSquare, User, Reply } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Send, MessageSquare, User, Reply, CheckCircle } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { feedbackStorage, Comment } from '@/lib/storage/feedbackStorage';
 import { businessStorage } from '@/lib/storage/businessStorage';
 import { ProCardData } from './ProCard';
+import Modal from '@/components/ui/Modal';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export default function FeedbackModal({
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState<Record<string, string>>({});
-  const modalRef = useRef<HTMLDivElement>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const initials = getInitials(businessName);
   const MAX_COMMENT_LENGTH = 500;
   
@@ -61,54 +62,32 @@ export default function FeedbackModal({
 
   const isOwner = isBusinessOwner();
 
-  // Close modal when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
-        event.stopPropagation();
-        event.preventDefault();
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      // Use a small delay to prevent immediate propagation
-      setTimeout(() => {
-        document.addEventListener('mousedown', handleClickOutside);
-      }, 0);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, onClose]);
-
-  // Close on Escape key
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [isOpen, onClose]);
 
   // Load comments from storage when modal opens
   useEffect(() => {
     if (isOpen && businessId) {
       const storedComments = feedbackStorage.getFeedback(businessId);
-      setComments(storedComments);
+      const timeoutId = window.setTimeout(() => {
+        setComments(storedComments);
+        // Reset confirmation state when modal opens
+        setShowConfirmation(false);
+      }, 0);
+
+      return () => window.clearTimeout(timeoutId);
     }
   }, [isOpen, businessId]);
+
+  // Auto-close modal after 3 seconds when confirmation is shown
+  useEffect(() => {
+    if (showConfirmation) {
+      const timer = setTimeout(() => {
+        onClose();
+        setShowConfirmation(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showConfirmation, onClose]);
 
   if (!isOpen) return null;
 
@@ -135,6 +114,9 @@ export default function FeedbackModal({
     if (onCommentsChange) {
       onCommentsChange();
     }
+
+    // Show confirmation
+    setShowConfirmation(true);
   };
 
   const handleStartReply = (commentId: string) => {
@@ -201,46 +183,30 @@ export default function FeedbackModal({
     return date.toLocaleDateString();
   };
 
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      e.stopPropagation();
-      e.preventDefault();
-      onClose();
-    }
-  };
-
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center md:p-4 bg-black/50"
-      onClick={handleOverlayClick}
-      onMouseDown={(e) => e.stopPropagation()}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Feedback & Comments"
+      showHeader={true}
+      maxWidth="md"
     >
-      <div 
-        ref={modalRef} 
-        className="bg-white md:rounded-lg border-2 border-black w-full h-full md:w-full md:h-auto md:max-w-md md:max-h-[90vh] overflow-y-auto flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b-2 border-black">
-          <h2 className="text-xl font-bold text-black">Feedback & Comments</h2>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              onClose();
-            }}
-            className="w-8 h-8 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5 text-black" />
-          </button>
-        </div>
+        <div className="relative flex flex-col flex-1">
+          {/* Confirmation Overlay */}
+          {showConfirmation && (
+            <div className="absolute inset-0 bg-white/95 z-50 flex items-center justify-center rounded-lg">
+              <div className="text-center px-6">
+                <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-black mb-2">Feedback Sent!</h3>
+                <p className="text-gray-600">Thank you for your feedback. This window will close automatically.</p>
+              </div>
+            </div>
+          )}
 
-        {/* Business Info */}
-        <div className="p-4 border-b-2 border-black">
+          {/* Business Info */}
+          <div className="p-4 border-b-2 border-black">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
+            <div className={`w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden relative aspect-square ${logo ? 'bg-white' : 'bg-black'}`}>
               {logo ? (
                 <Image
                   src={logo}
@@ -273,13 +239,24 @@ export default function FeedbackModal({
               <div className="flex items-start gap-3 mb-3">
                 <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
                   {user.userPicture ? (
-                    <Image
-                      src={user.userPicture}
-                      alt={userName}
-                      fill
-                      className="object-cover"
-                      sizes="40px"
-                    />
+                    user.userPicture.startsWith('data:') ? (
+                      <Image
+                        src={user.userPicture}
+                        alt={userName}
+                        fill
+                        className="object-cover"
+                        sizes="40px"
+                        unoptimized
+                      />
+                    ) : (
+                      <Image
+                        src={user.userPicture}
+                        alt={userName}
+                        fill
+                        className="object-cover"
+                        sizes="40px"
+                      />
+                    )
                   ) : (
                     <span className="text-sm font-bold text-white">{userInitials}</span>
                   )}
@@ -386,13 +363,24 @@ export default function FeedbackModal({
                         <div className="flex items-start gap-2 mb-2">
                           <div className="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
                             {user.userPicture ? (
-                              <Image
-                                src={user.userPicture}
-                                alt={userName}
-                                fill
-                                className="object-cover"
-                                sizes="32px"
-                              />
+                              user.userPicture.startsWith('data:') ? (
+                                <Image
+                                  src={user.userPicture}
+                                  alt={userName}
+                                  fill
+                                  className="object-cover"
+                                  sizes="32px"
+                                  unoptimized
+                                />
+                              ) : (
+                                <Image
+                                  src={user.userPicture}
+                                  alt={userName}
+                                  fill
+                                  className="object-cover"
+                                  sizes="32px"
+                                />
+                              )
                             ) : (
                               <span className="text-xs font-bold text-white">{userInitials}</span>
                             )}
@@ -478,8 +466,8 @@ export default function FeedbackModal({
             </div>
           )}
         </div>
-      </div>
-    </div>
+        </div>
+    </Modal>
   );
 }
 

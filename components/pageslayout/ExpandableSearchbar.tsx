@@ -2,18 +2,25 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface ExpandableSearchbarProps {
   onSearchChange?: (query: string) => void;
   onSearchToggle?: (isOpen: boolean) => void;
   placeholder?: string;
+  placeholderKey?: 'categories' | 'businesses' | 'suppliers' | 'address';
+  shiftRight?: boolean; // Shift search button to the left to make room for filter button
 }
 
 export default function ExpandableSearchbar({ 
   onSearchChange,
   onSearchToggle,
-  placeholder = 'Search categories...'
+  placeholder,
+  placeholderKey = 'categories',
+  shiftRight = false
 }: ExpandableSearchbarProps) {
+  const t = useTranslations('common.search');
+  const displayPlaceholder = placeholder || t(placeholderKey);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showLetterS, setShowLetterS] = useState(false);
@@ -26,7 +33,8 @@ export default function ExpandableSearchbar({
 
   // Set mounted flag after hydration to prevent hydration mismatches
   useEffect(() => {
-    setIsMounted(true);
+    const timeoutId = window.setTimeout(() => setIsMounted(true), 0);
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   // Check if mobile on mount and resize (only after mount to prevent hydration issues)
@@ -47,8 +55,10 @@ export default function ExpandableSearchbar({
     if (!isMounted) return;
     
     if (isMobile) {
-      setShowLetterS(false); // Always show icon on mobile
-      return;
+      const timeoutId = window.setTimeout(() => {
+        setShowLetterS(false); // Always show icon on mobile
+      }, 0);
+      return () => window.clearTimeout(timeoutId);
     }
 
     const interval = setInterval(() => {
@@ -89,17 +99,30 @@ export default function ExpandableSearchbar({
 
     document.addEventListener('keydown', handleKeyDown);
 
-    if (isSearchOpen) {
-      // Focus input when search opens
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 100);
-    }
-
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isSearchOpen, onSearchToggle]);
+
+  // Focus input when search opens (after DOM updates)
+  useEffect(() => {
+    if (isSearchOpen && searchInputRef.current) {
+      // For mobile: Use setTimeout to ensure DOM has updated, then focus
+      // This is critical for mobile browsers to trigger the keyboard
+      if (isMobile) {
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 100);
+      } else {
+        // Desktop: Use requestAnimationFrame approach
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            searchInputRef.current?.focus();
+          });
+        });
+      }
+    }
+  }, [isSearchOpen, isMobile]);
 
   // Handle click outside to close search
   useEffect(() => {
@@ -183,30 +206,27 @@ export default function ExpandableSearchbar({
       <button
         ref={searchButtonRef}
         onClick={handleSearchToggle}
-        className={`absolute right-1 md:right-2 h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all z-20 ${
+        className={`absolute ${shiftRight ? 'right-[calc(0.25rem+2.5rem+0.5rem)] md:right-[calc(0.5rem+2.5rem+0.5rem)]' : 'right-1 md:right-2'} h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all z-20 md:top-[calc(50%-0.25rem)] md:-translate-y-1/2 mr-1 md:mr-0 ${
           isSearchOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
-        style={{
-          top: '50%',
-          transform: 'translateY(-50%)',
-        }}
         aria-label="Search (Press S)"
       >
         <div className="relative w-5 h-5 flex items-center justify-center">
           <Search 
             className={`w-5 h-5 text-white absolute transition-opacity duration-300 ${
               isMounted && showLetterS ? 'opacity-0' : 'opacity-100'
-            }`} 
+            }`}
+            suppressHydrationWarning
           />
-          {isMounted && (
-            <span 
-              className={`text-white font-bold text-lg absolute transition-opacity duration-300 ${
-                showLetterS ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              S
-            </span>
-          )}
+          {/* Always render the span to maintain consistent DOM structure - prevents hydration mismatch */}
+          <span 
+            className={`text-white font-bold text-lg absolute transition-opacity duration-300 ${
+              isMounted && showLetterS ? 'opacity-100' : 'opacity-0'
+            }`}
+            suppressHydrationWarning
+          >
+            S
+          </span>
         </div>
       </button>
 
@@ -226,9 +246,10 @@ export default function ExpandableSearchbar({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={placeholder}
-              className="w-full h-10 px-4 pr-10 border-2 border-black rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition-all text-black placeholder-gray-500"
+              placeholder={displayPlaceholder}
+              className="w-full h-10 pl-10 pr-10 border-2 border-black rounded-lg bg-white focus:outline-none transition-all text-black placeholder-gray-500"
             />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-red-500 pointer-events-none" size={20} />
             {searchQuery && (
               <button
                 onClick={handleClear}
@@ -241,10 +262,10 @@ export default function ExpandableSearchbar({
           </div>
           <button
             onClick={handleSearchToggle}
-            className="h-10 w-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
+            className="h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-colors"
             aria-label="Close search"
           >
-            <X className="w-5 h-5 text-black" />
+            <X className="w-5 h-5 text-white" />
           </button>
         </div>
       </div>

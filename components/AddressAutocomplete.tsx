@@ -101,7 +101,7 @@ export default function AddressAutocomplete({
           }
         }}
         required={required}
-        className="w-full px-2 py-3 pr-8 border-2 border-black rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition-all"
+        className="w-full px-2 py-3 pr-8 border-2 border-black rounded-lg bg-white focus:outline-none transition-all"
         placeholder={placeholder}
         disabled={disabled}
       />

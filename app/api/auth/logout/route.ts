@@ -1,33 +1,37 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * POST /api/auth/logout
- * Logout endpoint
+ * Logout endpoint using Supabase
  * 
- * In production, this will:
- * - Clear httpOnly cookie
- * - Optionally invalidate token on server
- * 
- * For now, clears cookie if it exists
+ * Signs out the user and clears the session
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
-    // In production, clear the httpOnly cookie
-    // cookies().delete('auth_token');
+    const supabase = await createClient();
+    
+    const { error } = await supabase.auth.signOut();
 
-    // For now, just return success
-    // In development with localStorage, the client will handle clearing
+    if (error) {
+      return NextResponse.json(
+        { error: error.message || 'Failed to sign out' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       { message: 'Logged out successfully' },
       { status: 200 }
     );
   } catch (error) {
-    console.error('Logout error:', error);
+    // Log error server-side (in production, use proper logging service)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Logout error:', error);
+    }
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
-

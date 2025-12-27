@@ -1,25 +1,29 @@
 'use client';
 
 import { ReactNode } from 'react';
+import { TipModal } from './TipModal';
 
 interface FormFieldProps {
-  label: string;
+  label: string | ReactNode;
   error?: string;
   required?: boolean;
   children: ReactNode;
   className?: string;
+  /** Optional tip message to display in the info icon tooltip */
+  tip?: string;
 }
 
-export function FormField({ label, error, required, children, className = '' }: FormFieldProps) {
+export function FormField({ label, error, required, children, className = '', tip }: FormFieldProps) {
   // When there's an error, replace the label with the error message styled as a warning
   const displayLabel = error || label;
   const isError = !!error;
 
   return (
     <div className={className}>
-      <label className={`block text-sm font-medium mb-2 ${isError ? 'text-red-600' : ''}`}>
-        {displayLabel}
-        {required && !error && <span className="text-red-500 ml-1">*</span>}
+      <label className={`flex items-center gap-2 text-sm font-medium mb-2 ${isError ? 'text-red-600' : ''}`}>
+        <span>{displayLabel}</span>
+        {required && !error && <span className="text-red-500">*</span>}
+        {tip && !error && <TipModal message={tip} />}
       </label>
       {children}
     </div>

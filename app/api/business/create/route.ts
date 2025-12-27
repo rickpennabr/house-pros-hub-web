@@ -1,26 +1,81 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
-import { transformBusinessToProCardData } from '@/lib/utils/businessTransform';
+import { transformBusinessToProCardData, generateSlug } from '@/lib/utils/businessTransform';
+import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { normalizeLinks } from '@/lib/utils/normalizeLinks';
+import { handleError } from '@/lib/utils/errorHandler';
+import { logger } from '@/lib/utils/logger';
+import { hasRole } from '@/lib/utils/roles';
+
+/**
+ * Convert base64 string to Buffer for server-side file handling
+ */
+function base64ToBuffer(base64String: string): Buffer {
+  const base64Data = base64String.includes(',') 
+    ? base64String.split(',')[1] 
+    : base64String;
+  return Buffer.from(base64Data, 'base64');
+}
+
+/**
+ * Upload base64 image to Supabase Storage
+ */
+async function uploadBase64Image(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  bucket: string,
+  filePath: string,
+  base64String: string,
+  contentType: string = 'image/jpeg'
+): Promise<string | null> {
+  try {
+    const buffer = base64ToBuffer(base64String);
+    // Supabase storage accepts Buffer directly (it extends Uint8Array)
+
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, buffer, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: contentType,
+      });
+
+    if (error) {
+      logger.error(`Error uploading to ${bucket}`, { endpoint: '/api/business/create', bucket, filePath }, error as Error);
+      return null;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(data.path);
+
+    return publicUrl;
+  } catch (error) {
+    logger.error(`Error in uploadBase64Image to ${bucket}`, { endpoint: '/api/business/create', bucket, filePath }, error as Error);
+    return null;
+  }
+}
 
 /**
  * POST /api/business/create
  * Business creation endpoint
  * 
- * In production, this will:
- * - Validate business data
- * - Check user authentication
- * - Create business in database
- * - Associate business with user
- * - Return business data
- * 
- * For now, returns mock response
+ * Creates a business in Supabase with:
+ * - Business record in businesses table
+ * - Business address in addresses table
+ * - Licenses in licenses table
+ * - Returns business data in ProCardData format
  */
-export async function POST(request: NextRequest) {
+async function handleCreateBusiness(request: AuthenticatedRequest) {
   try {
-    const body = await request.json();
+    // Use cached body from middleware to avoid re-reading
+    const body = request._body || await request.json();
     const {
       businessName,
       businessLogo,
+      businessBackground,
+      slug,
+      companyDescription,
       licenses,
       address,
       streetAddress,
@@ -30,7 +85,9 @@ export async function POST(request: NextRequest) {
       apartment,
       email,
       phone,
+      mobilePhone,
       links,
+      operatingHours,
     } = body;
 
     // Validate required fields
@@ -97,61 +154,302 @@ export async function POST(request: NextRequest) {
     if (links && Array.isArray(links)) {
       for (const link of links) {
         if (link.url && link.url.trim()) {
+          // Skip validation for phone, email, and location links (they use special protocols)
+          if (link.type === 'phone' || link.type === 'email' || link.type === 'location') {
+            continue;
+          }
+          
           try {
-            if (!link.url.startsWith('http://') && !link.url.startsWith('https://')) {
-              return NextResponse.json(
-                { error: `Invalid URL format for ${link.type}. URLs must start with http:// or https://` },
-                { status: 400 }
-              );
+            let urlToValidate = link.url.trim();
+            
+            // Normalize URLs: add https:// if missing and it looks like a domain
+            if (!urlToValidate.startsWith('http://') && 
+                !urlToValidate.startsWith('https://') && 
+                !urlToValidate.startsWith('tel:') &&
+                !urlToValidate.startsWith('mailto:')) {
+              // If it contains a dot and doesn't start with @, assume it's a domain
+              if (urlToValidate.includes('.') && !urlToValidate.startsWith('@')) {
+                urlToValidate = `https://${urlToValidate}`;
+              } else {
+                // For social media handles or invalid formats, let it pass
+                // The link processor will handle it
+                continue;
+              }
             }
-            new URL(link.url);
+            
+            // Validate the URL format
+            new URL(urlToValidate);
           } catch {
-            return NextResponse.json(
-              { error: `Invalid URL format for ${link.type}` },
-              { status: 400 }
-            );
+            // If URL validation fails, don't block - let the link processor handle it
+            // This allows for flexible input formats
+            continue;
           }
         }
       }
     }
 
-    // Validate userId is provided (for local testing with localStorage)
-    const { userId } = body;
+    // Get userId from authenticated request (set by middleware)
+    const userId = request.userId;
     if (!userId) {
       return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
+        { error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
-    // Create business ID
-    const businessId = `business_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const supabase = await createClient();
+    const serviceRoleClient = createServiceRoleClient();
 
-    // Transform business data to ProCardData format
+    // Automatically grant contractor role if user doesn't have it
+    // Creating a business implies the user is a contractor
+    const userHasContractorRole = await hasRole(userId, 'contractor');
+    if (!userHasContractorRole) {
+      logger.info('Auto-granting contractor role to user creating business', { userId });
+      // Use service role client to bypass RLS restrictions
+      try {
+        const { error: roleError } = await serviceRoleClient
+          .from('user_roles')
+          .upsert({
+            user_id: userId,
+            role: 'contractor',
+            is_active: true,
+            activated_at: new Date().toISOString(),
+            deactivated_at: null,
+          }, { onConflict: 'user_id,role' });
+
+        if (roleError) {
+          logger.warn('Failed to auto-grant contractor role, but continuing with business creation', { userId, error: roleError });
+          // Continue anyway - the business creation should still work
+        } else {
+          logger.info('Successfully auto-granted contractor role', { userId });
+        }
+      } catch (error) {
+        logger.warn('Error auto-granting contractor role, but continuing with business creation', { userId, error });
+        // Continue anyway - the business creation should still work
+      }
+    }
+
+    // Generate slug if not provided
+    let businessSlug = slug || generateSlug(businessName);
+
+    // Check if slug already exists and make it unique
+    let counter = 1;
+    let uniqueSlug = businessSlug;
+    while (true) {
+      const { data: existingBusiness } = await supabase
+        .from('businesses')
+        .select('id')
+        .eq('slug', uniqueSlug)
+        .single();
+
+      if (!existingBusiness) {
+        businessSlug = uniqueSlug;
+        break;
+      }
+      
+      uniqueSlug = `${businessSlug}-${counter}`;
+      counter++;
+      
+      // Safety check to prevent infinite loop
+      if (counter > 1000) {
+        // Fallback to timestamp-based slug
+        businessSlug = `${businessSlug}-${Date.now()}`;
+        break;
+      }
+    }
+
+    // Create business address
+    const { data: addressData, error: addressError } = await supabase
+      .from('addresses')
+      .insert({
+        user_id: userId,
+        address_type: 'business',
+        street_address: streetAddress || address,
+        apartment: apartment || null,
+        city: city,
+        state: state,
+        zip_code: zipCode,
+        is_public: true, // Business addresses are public
+      })
+      .select()
+      .single();
+
+    if (addressError) {
+      logger.error('Error creating business address', { endpoint: '/api/business/create' }, addressError as Error);
+      return NextResponse.json(
+        { error: 'Failed to create business address' },
+        { status: 500 }
+      );
+    }
+
+    // Create business record first (without images, we'll update after upload)
+    const { data: businessData, error: businessError } = await supabase
+      .from('businesses')
+      .insert({
+        owner_id: userId,
+        business_name: businessName,
+        slug: businessSlug,
+        business_logo: null, // Will be updated after upload
+        business_background: null, // Will be updated after upload
+        company_description: companyDescription || null,
+        email: email || null,
+        phone: phone || null,
+        mobile_phone: mobilePhone || null,
+        business_address_id: addressData.id,
+        links: links || null,
+        operating_hours: operatingHours || null,
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    if (businessError) {
+      logger.error('Error creating business', { endpoint: '/api/business/create' }, businessError as Error);
+      // Clean up address if business creation fails
+      await supabase.from('addresses').delete().eq('id', addressData.id);
+      return NextResponse.json(
+        { error: 'Failed to create business' },
+        { status: 500 }
+      );
+    }
+
+    // Upload images to storage if provided
+    let logoUrl: string | null = null;
+    let backgroundUrl: string | null = null;
+
+    if (businessLogo && typeof businessLogo === 'string' && businessLogo.startsWith('data:image')) {
+      const fileExt = businessLogo.includes('image/png') ? 'png' : 'jpg';
+      // Path should be relative to bucket root (bucket is specified in uploadBase64Image)
+      // Format: businessId/logo-timestamp.ext (same pattern as profile pictures: userId/timestamp.ext)
+      const filePath = `${businessData.id}/logo-${Date.now()}.${fileExt}`;
+      logoUrl = await uploadBase64Image(
+        serviceRoleClient,
+        'business-logos',
+        filePath,
+        businessLogo,
+        businessLogo.includes('image/png') ? 'image/png' : 'image/jpeg'
+      );
+    }
+
+    if (businessBackground && typeof businessBackground === 'string' && businessBackground.startsWith('data:image')) {
+      const fileExt = businessBackground.includes('image/png') ? 'png' : 'jpg';
+      // Sanitize company name for filename
+      const sanitizedName = businessData.business_name
+        .replace(/[^a-zA-Z0-9]/g, '') // Remove special characters
+        .replace(/\s+/g, '') // Remove spaces
+        .substring(0, 50); // Limit length
+      const fileName = sanitizedName ? `Background-${sanitizedName}.${fileExt}` : `Background-${Date.now()}.${fileExt}`;
+      const filePath = `${businessData.id}/${fileName}`;
+      backgroundUrl = await uploadBase64Image(
+        serviceRoleClient,
+        'business-backgrounds',
+        filePath,
+        businessBackground,
+        businessBackground.includes('image/png') ? 'image/png' : 'image/jpeg'
+      );
+    }
+
+    // Update business with image URLs if uploaded
+    if (logoUrl || backgroundUrl) {
+      const updateData: Record<string, string> = {};
+      if (logoUrl) updateData.business_logo = logoUrl;
+      if (backgroundUrl) updateData.business_background = backgroundUrl;
+
+      await supabase
+        .from('businesses')
+        .update(updateData)
+        .eq('id', businessData.id);
+    }
+
+    // Create licenses
+    const licenseInserts = licenses.map((license: { license: string; licenseNumber: string; trade?: string }) => ({
+      business_id: businessData.id,
+      license_number: license.licenseNumber,
+      license_type: license.license,
+      license_name: license.trade || null,
+      is_active: true,
+    }));
+
+    const { error: licensesError } = await supabase
+      .from('licenses')
+      .insert(licenseInserts);
+
+    if (licensesError) {
+      logger.error('Error creating licenses', { endpoint: '/api/business/create' }, licensesError as Error);
+      // Don't fail - licenses can be added later
+      // But log the error for debugging
+    }
+
+    // Fetch complete business data with relationships
+    const { data: completeBusiness, error: fetchError } = await supabase
+      .from('businesses')
+      .select(`
+        *,
+        addresses (
+          street_address,
+          apartment,
+          city,
+          state,
+          zip_code,
+          gate_code,
+          address_note
+        ),
+        licenses (
+          license_number,
+          license_type,
+          license_name
+        )
+      `)
+      .eq('id', businessData.id)
+      .single();
+
+    if (fetchError) {
+      logger.error('Error fetching complete business', { endpoint: '/api/business/create' }, fetchError as Error);
+      // Return what we have
+    }
+
+    // Transform to ProCardData format for response
+    // Use uploaded URLs if available, otherwise use completeBusiness data, otherwise use businessData
+    const finalLogoUrl = logoUrl || completeBusiness?.business_logo || businessData.business_logo;
+    const finalBackgroundUrl = backgroundUrl || completeBusiness?.business_background || businessData.business_background;
+    
     const businessForCard = transformBusinessToProCardData({
-      id: businessId,
-      businessName,
-      businessLogo: businessLogo || undefined,
-      licenses,
-      email: email || undefined,
-      phone: phone || undefined,
-      links: links || [],
+      id: businessData.id,
+      businessName: businessData.business_name,
+      businessLogo: finalLogoUrl || undefined,
+      businessBackground: finalBackgroundUrl || undefined,
+      slug: businessData.slug || undefined,
+      companyDescription: businessData.company_description || undefined,
+      licenses:
+        completeBusiness?.licenses?.map(
+          (l: { license_type: string | null; license_number: string | null; license_name: string | null }) => ({
+            license: l.license_type || 'GENERAL',
+            licenseNumber: l.license_number || '',
+            trade: l.license_name || '',
+          })
+        ) || licenses,
+      address: completeBusiness?.addresses?.street_address || streetAddress || address,
+      streetAddress: completeBusiness?.addresses?.street_address || streetAddress,
+      city: completeBusiness?.addresses?.city || city,
+      state: completeBusiness?.addresses?.state || state,
+      zipCode: completeBusiness?.addresses?.zip_code || zipCode,
+      apartment: completeBusiness?.addresses?.apartment || apartment,
+      email: businessData.email || undefined,
+      phone: businessData.phone || undefined,
+      mobilePhone: businessData.mobile_phone || undefined,
+      links: normalizeLinks(businessData.links ?? links),
       userId,
     });
 
-    // Return transformed business data
-    // Note: In production, this would be stored in database
-    // For local testing, the client will store it in localStorage
     return NextResponse.json(
       { business: businessForCard },
       { status: 201 }
     );
   } catch (error) {
-    console.error('Business creation error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Error in POST /api/business/create', { endpoint: '/api/business/create' }, error as Error);
+    return handleError(error, { endpoint: '/api/business/create' });
   }
 }
 
+// Export with authentication (role is auto-granted inside handler)
+export const POST = requireAuth(handleCreateBusiness);

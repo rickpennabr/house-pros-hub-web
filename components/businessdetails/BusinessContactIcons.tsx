@@ -1,6 +1,7 @@
 'use client';
 
-import { Phone, Globe, Instagram } from 'lucide-react';
+import { Phone, Globe } from 'lucide-react';
+import { SiInstagram } from 'react-icons/si';
 
 interface BusinessContactIconsProps {
   phone?: string;
@@ -53,7 +54,7 @@ export default function BusinessContactIcons({ phone, website, instagram }: Busi
           className="w-10 h-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
           aria-label="Instagram"
         >
-          <Instagram className="w-5 h-5 text-black" />
+          <SiInstagram className="w-5 h-5 text-black" />
         </button>
       )}
     </div>

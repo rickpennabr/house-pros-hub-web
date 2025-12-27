@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
-import { createSignInUrl } from '@/lib/redirect';
+import { createSignInUrl, createLocalePath } from '@/lib/redirect';
 import ProCardHeader from './ProCardHeader';
 import ProLinks from './ProLinks';
 import ProReactions from './ProReactions';
@@ -13,11 +14,29 @@ import { LinkItem } from './ProLinks';
 
 export interface ProCardData {
   id: string;
+  slug?: string;
   logo?: string;
+  businessLogo?: string; // Form-sync field
+  businessBackground?: string;
   businessName: string;
   contractorType: string;
-  tradeIcon?: string; // Icon name from lucide-react
+  tradeIcon?: string; // Icon name from lucide-react (deprecated - use licenses array)
   category?: string; // Category for filtering (e.g., 'Roofing', 'Plumbing', 'Tile', etc.)
+  licenses?: Array<{ license: string; licenseNumber: string; tradeName?: string; tradeIcon?: string }>;
+  streetAddress?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  apartment?: string;
+  address?: string;
+  email?: string;
+  phone?: string;
+  mobilePhone?: string;
+  ownerImage?: string;
+  ownerName?: string;
+  ownerTitle?: string;
+  ownerDescription?: string;
+  companyDescription?: string;
   links: LinkItem[];
   reactions?: {
     love?: number;
@@ -31,11 +50,12 @@ interface ProCardProps {
   data: ProCardData;
   onShare?: (id: string) => void;
   onReaction?: (id: string, type: 'love' | 'feedback' | 'link' | 'save') => void;
+  isListMode?: boolean;
 }
 
-export default function ProCard({ data, onShare, onReaction }: ProCardProps) {
+export default function ProCard({ data, onShare, onReaction, isListMode = false }: ProCardProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const locale = useLocale();
   const { isAuthenticated, isLoading } = useAuth();
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
@@ -45,13 +65,16 @@ export default function ProCard({ data, onShare, onReaction }: ProCardProps) {
       return;
     }
     
+    const slug = data.slug || data.id;
+    const businessPath = `/business/${slug}`;
+    
     if (!isAuthenticated) {
-      const signInUrl = createSignInUrl(`/business/${data.id}`);
+      const signInUrl = createSignInUrl(locale as 'en' | 'es', businessPath);
       router.push(signInUrl);
       return;
     }
     
-    router.push(`/business/${data.id}`);
+    router.push(createLocalePath(locale as 'en' | 'es', businessPath));
   };
 
   const handleReaction = (type: 'love' | 'feedback' | 'link' | 'save') => {
@@ -60,9 +83,49 @@ export default function ProCard({ data, onShare, onReaction }: ProCardProps) {
     }
   };
 
+  // In list mode, only show the header
+  if (isListMode) {
+    // Get phone from direct props or from links array
+    const phoneLink = data.links?.find(link => link.type === 'phone');
+    const phoneNumber = data.phone || data.mobilePhone || phoneLink?.value || phoneLink?.url?.replace('tel:', '');
+    
+    return (
+      <div 
+        className="border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
+        onClick={handleCardClick}
+      >
+        <ProCardHeader
+          logo={data.logo}
+          businessName={data.businessName}
+          contractorType={data.contractorType}
+          tradeIcon={data.tradeIcon}
+          category={data.category}
+          licenses={data.licenses}
+          phone={phoneNumber}
+          isListMode={true}
+          onShare={() => {
+            if (onShare) {
+              onShare(data.id);
+            } else {
+              setIsShareModalOpen(true);
+            }
+          }}
+        />
+        <ShareBusinessModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          businessName={data.businessName}
+          contractorType={data.contractorType}
+          logo={data.logo}
+          businessUrl={typeof window !== 'undefined' ? `${window.location.origin}/business/${data.slug || data.id}` : ''}
+        />
+      </div>
+    );
+  }
+
   return (
     <div 
-      className="border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+      className="border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
       onClick={handleCardClick}
     >
       <ProCardHeader
@@ -70,6 +133,8 @@ export default function ProCard({ data, onShare, onReaction }: ProCardProps) {
         businessName={data.businessName}
         contractorType={data.contractorType}
         tradeIcon={data.tradeIcon}
+        category={data.category}
+        licenses={data.licenses}
         onShare={() => {
           if (onShare) {
             onShare(data.id);
@@ -94,7 +159,7 @@ export default function ProCard({ data, onShare, onReaction }: ProCardProps) {
         businessName={data.businessName}
         contractorType={data.contractorType}
         logo={data.logo}
-        businessUrl={typeof window !== 'undefined' ? `${window.location.origin}/business/${data.id}` : ''}
+        businessUrl={typeof window !== 'undefined' ? `${window.location.origin}/business/${data.slug || data.id}` : ''}
       />
     </div>
   );

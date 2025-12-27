@@ -90,25 +90,6 @@ export function processLinkValue(linkName: string, value: string): { processedUr
         return { processedUrl: `https://linkedin.com/in/${username}`, displayValue: `@${username}` };
       }
 
-    case 'snapchat':
-      if (value.startsWith('@')) {
-        const username = value.substring(1);
-        return { processedUrl: `https://snapchat.com/add/${username}`, displayValue: value };
-      } else {
-        return { processedUrl: `https://snapchat.com/add/${value}`, displayValue: `@${value}` };
-      }
-
-    case 'pinterest':
-      if (value.includes('pinterest.com')) {
-        // Already a URL - extract username for display
-        const username = value.split('/').pop()?.split('?')[0] || '';
-        return { processedUrl: value, displayValue: `@${username}` };
-      } else {
-        // Username format - remove @ if present and create URL
-        const username = value.startsWith('@') ? value.substring(1) : value;
-        return { processedUrl: `https://pinterest.com/${username}`, displayValue: `@${username}` };
-      }
-
     case 'telegram':
       if (value.startsWith('@')) {
         const username = value.substring(1);
@@ -133,6 +114,35 @@ export function processLinkValue(linkName: string, value: string): { processedUr
       const phoneNumber = value.replace(/\D/g, '');
       if (phoneNumber.length >= 10) {
         return { processedUrl: `https://wa.me/${phoneNumber}`, displayValue: value };
+      }
+      return { processedUrl: value, displayValue: value };
+
+    case 'yelp':
+      if (value.includes('yelp.com')) {
+        const username = value.split('/').pop()?.split('?')[0] || '';
+        return { processedUrl: value, displayValue: username };
+      }
+      return { processedUrl: value ? `https://yelp.com/biz/${value}` : '', displayValue: value };
+
+    case 'nextdoor':
+      if (value.includes('nextdoor.com')) {
+        const username = value.split('/').pop()?.split('?')[0] || '';
+        return { processedUrl: value, displayValue: username };
+      }
+      return { processedUrl: value ? `https://nextdoor.com/pages/${value}` : '', displayValue: value };
+
+    case 'angi':
+    case 'angie':
+      if (value.includes('angi.com')) {
+        // Extract business name/id from Angi URL if possible, or just show 'Angi Profile'
+        return { processedUrl: value, displayValue: 'Angi Profile' };
+      }
+      // If it doesn't look like a URL and has a value, it might be a partial path or name
+      if (value && !value.startsWith('http')) {
+        // Angi doesn't have a consistent single-slug URL, but we can try to make it a URL if it looks like a domain
+        if (value.includes('.')) {
+          return { processedUrl: `https://${value}`, displayValue: value };
+        }
       }
       return { processedUrl: value, displayValue: value };
 

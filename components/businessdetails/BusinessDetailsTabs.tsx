@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { CheckSquare, Link as LinkIcon, Building2 } from 'lucide-react';
 
 type TabType = 'contact' | 'links' | 'about';

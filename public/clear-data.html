@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clear Local Data</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      margin-top: 0;
+    }
+    button {
+      background: #000;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+      width: 100%;
+    }
+    button:hover {
+      background: #333;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .status {
+      margin: 20px 0;
+      padding: 15px;
+      border-radius: 6px;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 6px;
+    }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Clear Local Storage Data</h1>
+    <p>This page will clear all localStorage and sessionStorage data from your browser.</p>
+    
+    <div id="status"></div>
+    
+    <button onclick="clearAllData()">Clear All Local Data</button>
+    <button onclick="clearAuthData()">Clear Auth Data Only</button>
+    <button onclick="clearBusinessData()">Clear Business Data Only</button>
+    
+    <div class="info">
+      <strong>What gets cleared:</strong>
+      <ul>
+        <li>Authentication data (user, token)</li>
+        <li>Business data</li>
+        <li>Saved businesses</li>
+        <li>Partner data</li>
+        <li>Feedback data</li>
+        <li>All other localStorage items</li>
+        <li>All sessionStorage items</li>
+      </ul>
+      <p><strong>After clearing:</strong> You'll need to sign up again using Supabase authentication.</p>
+    </div>
+  </div>
+
+  <script>
+    function showStatus(message, type = 'success') {
+      const statusDiv = document.getElementById('status');
+      statusDiv.className = `status ${type}`;
+      statusDiv.textContent = message;
+    }
+
+    function clearAllData() {
+      if (!confirm('Are you sure you want to clear ALL local data? This cannot be undone.')) {
+        return;
+      }
+
+      try {
+        // Clear all localStorage
+        localStorage.clear();
+        
+        // Clear all sessionStorage
+        sessionStorage.clear();
+        
+        showStatus('✅ All local data cleared successfully!', 'success');
+        console.log('All local storage cleared');
+      } catch (error) {
+        showStatus('❌ Error: ' + error.message, 'error');
+        console.error('Error clearing data:', error);
+      }
+    }
+
+    function clearAuthData() {
+      if (!confirm('Clear authentication data?')) {
+        return;
+      }
+
+      try {
+        localStorage.removeItem('auth_user');
+        localStorage.removeItem('auth_token');
+        showStatus('✅ Authentication data cleared!', 'success');
+        console.log('Auth data cleared');
+      } catch (error) {
+        showStatus('❌ Error: ' + error.message, 'error');
+      }
+    }
+
+    function clearBusinessData() {
+      if (!confirm('Clear business data?')) {
+        return;
+      }
+
+      try {
+        localStorage.removeItem('businesses');
+        localStorage.removeItem('savedBusinesses');
+        localStorage.removeItem('partnerships');
+        localStorage.removeItem('business_feedback');
+        showStatus('✅ Business data cleared!', 'success');
+        console.log('Business data cleared');
+      } catch (error) {
+        showStatus('❌ Error: ' + error.message, 'error');
+      }
+    }
+  </script>
+</body>
+</html>
+

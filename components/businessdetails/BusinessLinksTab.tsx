@@ -2,36 +2,55 @@
 
 import { 
   Phone, 
-  Instagram, 
-  Facebook, 
   Globe, 
   Calendar,
   Mail,
   MapPin,
-  MessageCircle,
-  Youtube,
-  Linkedin,
-  Send
 } from 'lucide-react';
+import {
+  SiInstagram,
+  SiFacebook,
+  SiX,
+  SiYoutube,
+  SiTiktok,
+  SiLinkedin,
+  SiTelegram,
+  SiDiscord,
+  SiWhatsapp,
+  SiYelp,
+  SiNextdoor,
+} from 'react-icons/si';
 import { LinkItem } from '@/components/proscard/ProLinks';
+import { AngiIcon } from '@/components/ui/icons/AngiIcon';
 
 interface BusinessLinksTabProps {
   links: LinkItem[];
 }
 
-const iconMap: Partial<Record<LinkItem['type'], typeof Phone>> = {
+// Type for icon components (both lucide-react and react-icons)
+type IconComponent = React.ComponentType<{ className?: string }>;
+
+const iconMap: Partial<Record<LinkItem['type'], IconComponent>> = {
+  // Generic icons from lucide-react
   phone: Phone,
-  instagram: Instagram,
-  facebook: Facebook,
   website: Globe,
   calendar: Calendar,
   email: Mail,
   location: MapPin,
-  whatsapp: MessageCircle,
-  youtube: Youtube,
-  linkedin: Linkedin,
-  telegram: Send,
-  // For other types (x, tiktok, snapchat, pinterest, discord), default to Globe
+  whatsapp: SiWhatsapp,
+  
+  // Brand icons from react-icons (Simple Icons)
+  instagram: SiInstagram,
+  facebook: SiFacebook,
+  x: SiX,
+  youtube: SiYoutube,
+  tiktok: SiTiktok,
+  linkedin: SiLinkedin,
+  telegram: SiTelegram,
+  discord: SiDiscord,
+  yelp: SiYelp,
+  nextdoor: SiNextdoor,
+  angi: AngiIcon,
 };
 
 const linkLabels: Record<string, string> = {
@@ -47,9 +66,9 @@ const linkLabels: Record<string, string> = {
 export default function BusinessLinksTab({ links }: BusinessLinksTabProps) {
   const handleLinkClick = (link: LinkItem) => {
     if (link.type === 'phone' && link.value) {
-      window.location.href = `tel:${link.value}`;
+      window.location.assign(`tel:${link.value}`);
     } else if (link.type === 'email' && link.value) {
-      window.location.href = `mailto:${link.value}`;
+      window.location.assign(`mailto:${link.value}`);
     } else if (link.url) {
       window.open(link.url, '_blank', 'noopener,noreferrer');
     }
@@ -81,7 +100,7 @@ export default function BusinessLinksTab({ links }: BusinessLinksTabProps) {
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-lg bg-white border-2 border-black flex items-center justify-center shrink-0">
-                  <Icon className="w-6 h-6 text-black" />
+                  <Icon className={link.type === 'angi' ? 'w-8 h-8 text-black' : 'w-6 h-6 text-black'} />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm text-gray-600 mb-1">{label}</p>

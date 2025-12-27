@@ -4,9 +4,11 @@
 
 import { ProCardData } from '@/components/proscard/ProCard';
 import { LinkItem } from '@/components/proscard/ProLinks';
+import { RESIDENTIAL_CONTRACTOR_LICENSES } from '@/lib/constants/contractorLicenses';
 
 /**
  * Maps license codes to categories
+ * These should match the labels in SERVICE_CATEGORIES from @/lib/constants/categories
  */
 const licenseToCategoryMap: Record<string, string> = {
   'B-2': 'General',
@@ -21,7 +23,7 @@ const licenseToCategoryMap: Record<string, string> = {
   'C-15': 'Roofing',
   'C-16': 'Flooring',
   'C-17': 'General',
-  'C-18': 'General',
+  'C-18': 'Masonry',
   'C-19': 'Tile',
   'C-20': 'Tile',
   'C-21': 'HVAC',
@@ -39,15 +41,15 @@ const licenseToIconMap: Record<string, string> = {
   'B-7': 'Home',
   'C-1': 'Droplet',
   'C-2': 'Zap',
-  'C-3': 'Wrench',
+  'C-3': 'Home',
   'C-4': 'Paintbrush',
   'C-5': 'Square',
   'C-8': 'RectangleHorizontal',
   'C-10': 'TreePine',
   'C-15': 'Home',
   'C-16': 'Layers',
-  'C-17': 'Wrench',
-  'C-18': 'Wrench',
+  'C-17': 'Home',
+  'C-18': 'Home',
   'C-19': 'Grid3x3',
   'C-20': 'Grid3x3',
   'C-21': 'Wind',
@@ -72,6 +74,18 @@ function getTradeIconFromLicense(licenseCode: string): string {
 }
 
 /**
+ * Generate a URL-friendly slug from a string
+ */
+export function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
  * Transform business form data to ProCardData format
  */
 export function transformBusinessToProCardData(
@@ -79,48 +93,142 @@ export function transformBusinessToProCardData(
     id: string;
     businessName: string;
     businessLogo?: string | null;
-    licenses: Array<{ license: string; trade: string; licenseNumber: string }>;
+    businessBackground?: string | null;
+    slug?: string;
+    reactions?: ProCardData['reactions'];
+    companyDescription?: string;
+    licenses: Array<{ license: string; trade?: string; licenseNumber: string }>;
+    streetAddress?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    apartment?: string;
+    address?: string;
     email?: string;
     phone?: string;
+    mobilePhone?: string;
     links?: LinkItem[];
     userId: string;
   }
 ): ProCardData & { userId: string } {
-  // Use the first license to determine category and trade icon
-  const primaryLicense = businessData.licenses[0];
+  // Ensure licenses array exists and has at least one license
+  const licenses = businessData.licenses || [];
+  const primaryLicense = licenses[0];
   const licenseCode = primaryLicense?.license || 'GENERAL';
-  const contractorType = primaryLicense?.trade || 'General Contractor';
+  
+  // Find trade name from constants
+  let contractorType = '';
+  
+  // Logic to determine contractor type:
+  // 1. If it's a known license code, get the name from RESIDENTIAL_CONTRACTOR_LICENSES
+  // 2. If it's 'GENERAL', use 'General Contractor'
+  // 3. If primaryLicense.trade exists and isn't just a number (license number), use it
+  
+  if (licenseCode === 'GENERAL') {
+    contractorType = 'General Contractor';
+  } else {
+    const licenseInfo = RESIDENTIAL_CONTRACTOR_LICENSES.find(l => l.code === licenseCode);
+    contractorType = licenseInfo ? licenseInfo.name : 'General Contractor';
+  }
+
+  // If we have a trade string that isn't just numbers, it might be a custom trade name
+  const tradeValue = primaryLicense?.trade;
+  if (tradeValue && typeof tradeValue === 'string' && !/^\d+$/.test(tradeValue.trim())) {
+    contractorType = tradeValue;
+  }
+
+  // Calculate category from license code - always ensure a category is set
   const category = getCategoryFromLicense(licenseCode);
   const tradeIcon = getTradeIconFromLicense(licenseCode);
+
+  // Process all licenses to include trade name and icon
+  const processedLicenses = businessData.licenses.map(license => {
+    const licenseCodeForLicense = license.license || 'GENERAL';
+    let tradeName = '';
+    
+    if (licenseCodeForLicense === 'GENERAL') {
+      tradeName = 'General Contractor';
+    } else {
+      const licenseInfo = RESIDENTIAL_CONTRACTOR_LICENSES.find(l => l.code === licenseCodeForLicense);
+      tradeName = licenseInfo ? licenseInfo.name.replace(/\s*Contractor\s*/gi, '').trim() : 'General Contractor';
+    }
+
+    // If we have a trade string that isn't just numbers, use it
+    const tradeValue = license.trade;
+    if (tradeValue && typeof tradeValue === 'string' && !/^\d+$/.test(tradeValue.trim())) {
+      tradeName = tradeValue.replace(/\s*Contractor\s*/gi, '').trim();
+    }
+
+    const tradeIconForLicense = getTradeIconFromLicense(licenseCodeForLicense);
+    
+    return {
+      license: license.license,
+      licenseNumber: license.licenseNumber,
+      tradeName,
+      tradeIcon: tradeIconForLicense,
+    };
+  });
 
   // Build links array
   const links: LinkItem[] = [...(businessData.links || [])];
 
-  // Add phone if provided and not already in links
-  if (businessData.phone && !links.find(l => l.type === 'phone')) {
-    links.push({
-      type: 'phone',
-      value: businessData.phone,
-    });
+  // Sync phone in links
+  // We prioritize land phone, then mobile phone for the primary phone link
+  const contactPhone = businessData.phone || businessData.mobilePhone;
+  if (contactPhone) {
+    const existingPhoneIndex = links.findIndex(l => l.type === 'phone');
+    if (existingPhoneIndex >= 0) {
+      links[existingPhoneIndex] = { ...links[existingPhoneIndex], value: contactPhone };
+    } else {
+      links.push({
+        type: 'phone',
+        value: contactPhone,
+      });
+    }
   }
 
-  // Add email if provided and not already in links
-  if (businessData.email && !links.find(l => l.type === 'email')) {
-    links.push({
-      type: 'email',
-      value: businessData.email,
-    });
+  // Sync email in links
+  if (businessData.email) {
+    const existingEmailIndex = links.findIndex(l => l.type === 'email');
+    if (existingEmailIndex >= 0) {
+      links[existingEmailIndex] = { ...links[existingEmailIndex], value: businessData.email };
+    } else {
+      links.push({
+        type: 'email',
+        value: businessData.email,
+      });
+    }
   }
+
+  // Generate a better slug from the business name if not provided
+  // Append a short random string or ID part to ensure uniqueness ONLY if slug is not provided
+  const baseSlug = generateSlug(businessData.businessName);
+  const shortId = businessData.id.split('_').pop() || Math.random().toString(36).substring(7);
+  const slug = businessData.slug?.trim() || `${baseSlug}-${shortId}`;
 
   return {
     id: businessData.id,
     logo: businessData.businessLogo || undefined,
+    businessLogo: businessData.businessLogo || undefined,
+    businessBackground: businessData.businessBackground || undefined,
     businessName: businessData.businessName,
     contractorType,
     category,
     tradeIcon,
+    licenses: processedLicenses,
+    streetAddress: businessData.streetAddress,
+    city: businessData.city,
+    state: businessData.state,
+    zipCode: businessData.zipCode,
+    apartment: businessData.apartment,
+    address: businessData.address,
+    email: businessData.email,
+    phone: businessData.phone,
+    mobilePhone: businessData.mobilePhone,
     links,
-    reactions: {
+    slug,
+    companyDescription: businessData.companyDescription,
+    reactions: businessData.reactions ?? {
       love: 0,
       feedback: 0,
       link: 0,

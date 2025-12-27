@@ -10,7 +10,7 @@ export interface PhotonResult {
     postcode?: string;
     zipcode?: string;
     country?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   geometry: {
     coordinates: [number, number];

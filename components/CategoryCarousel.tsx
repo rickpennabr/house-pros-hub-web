@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { 
   TreePine, 
   Square, 
@@ -38,6 +39,119 @@ const serviceCategories: CategoryItem[] = [
   { label: 'Fencing', icon: Fence, color: 'text-gray-600' },
   { label: 'Decking', icon: Layout, color: 'text-orange-700' },
 ];
+
+// Pro pictures from public/thepros directory
+const proPictures = [
+  '/thepros/pro-1.jpg',
+  '/thepros/ai_model_1.png',
+  '/thepros/ai_model_2.png',
+  '/thepros/pro-gemini-1.png',
+  '/thepros/pro-gemini-2.png',
+  '/thepros/pro-gemini-3.png',
+  '/thepros/pro-gemini-4.png',
+  '/thepros/pro-grok-1.png',
+  '/thepros/pro-grok-2.png',
+  '/thepros/pro-grok-3.png',
+];
+
+// Helper function to get a deterministic pro picture based on seed (index)
+const getProPictureBySeed = (seed: number): string => {
+  // Simple seeded "random" function for deterministic selection
+  const pseudoRandom = (seed: number) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+  const index = Math.floor(pseudoRandom(seed) * proPictures.length);
+  return proPictures[index];
+};
+
+// Helper function to get a random pro picture (for client-side updates)
+const getRandomProPicture = (): string => {
+  const picture = proPictures[Math.floor(Math.random() * proPictures.length)];
+  return picture;
+};
+
+interface TradeCardProps {
+  category: CategoryItem;
+  index: number;
+}
+
+function TradeCard({ category, index }: TradeCardProps) {
+  // Use deterministic values based on index for SSR/hydration consistency
+  // Simple seeded "random" function for deterministic boolean
+  const seededRandom = (seed: number) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+  
+  // Deterministic initial state based on index to prevent hydration mismatch
+  const [showProPicture, setShowProPicture] = useState(() => seededRandom(index) > 0.5);
+  const [currentProPicture, setCurrentProPicture] = useState<string>(() => getProPictureBySeed(index));
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Deterministic delay based on index (0-10 seconds)
+  const initialDelayRef = useRef<number>(seededRandom(index * 2) * 10000);
+
+  useEffect(() => {
+    // Set initial random delay for this card
+    const initialTimeout = setTimeout(() => {
+      // Start alternating every 10 seconds after initial delay
+      intervalRef.current = setInterval(() => {
+        setShowProPicture((prev) => {
+          const newState = !prev;
+          // When switching to pro picture, get a new random one from thepros directory
+          if (newState) {
+            setCurrentProPicture(getRandomProPicture());
+          }
+          return newState;
+        });
+      }, 10000);
+    }, initialDelayRef.current);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
+
+  const Icon = category.icon;
+
+  return (
+    <div
+      className="flex-shrink-0 flex flex-col items-center justify-center w-32 h-32 rounded-lg border-2 border-black bg-white relative overflow-hidden"
+    >
+      <div
+        className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-500 ${
+          showProPicture ? 'opacity-0' : 'opacity-100'
+        }`}
+      >
+        <Icon className={`w-10 h-10 mb-2 ${category.color}`} />
+        <span className="text-sm font-medium text-black text-center px-2">
+          {category.label}
+        </span>
+      </div>
+      <div
+        className={`absolute inset-0 h-full w-full transition-opacity duration-500 ${
+          showProPicture ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <Image
+          src={currentProPicture}
+          alt="Professional"
+          fill
+          className="object-cover"
+          sizes="128px"
+          unoptimized
+          onError={() => {
+            // If image fails to load, try another random one from thepros directory
+            setCurrentProPicture(getRandomProPicture());
+          }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function CategoryCarousel({ direction = 'right' }: { direction?: 'left' | 'right' }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -103,27 +217,16 @@ export default function CategoryCarousel({ direction = 'right' }: { direction?: 
   return (
     <div
       ref={scrollRef}
-      className="overflow-x-auto overflow-y-hidden scrollbar-hide mb-3"
+      className="overflow-x-auto overflow-y-hidden scrollbar-category mb-3"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       style={{ scrollBehavior: 'auto' }}
     >
       <div ref={contentRef} className="flex gap-8 w-max">
-        {/* Render items twice for seamless infinite scroll, excluding "All" */}
-        {[...serviceCategories, ...serviceCategories].map((category, index) => {
-          const Icon = category.icon;
-          return (
-            <div
-              key={`${category.label}-${index}`}
-              className="flex-shrink-0 flex flex-col items-center justify-center w-32 h-32 rounded-lg border-2 border-black bg-white"
-            >
-              <Icon className={`w-10 h-10 mb-2 ${category.color}`} />
-              <span className="text-sm font-medium text-black text-center px-2">
-                {category.label}
-              </span>
-            </div>
-          );
-        })}
+        {/* Render items twice for seamless infinite scroll */}
+        {[...serviceCategories, ...serviceCategories].map((category, index) => (
+          <TradeCard key={`${category.label}-${index}`} category={category} index={index} />
+        ))}
       </div>
     </div>
   );

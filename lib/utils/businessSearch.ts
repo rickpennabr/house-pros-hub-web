@@ -1,6 +1,56 @@
 import { ProCardData } from '@/components/proscard/ProCard';
 
 /**
+ * Maps license codes to categories
+ * These should match the labels in SERVICE_CATEGORIES from @/lib/constants/categories
+ */
+const licenseToCategoryMap: Record<string, string> = {
+  'B-2': 'General',
+  'B-7': 'General',
+  'C-1': 'Plumbing',
+  'C-2': 'Electrical',
+  'C-3': 'General',
+  'C-4': 'Painting',
+  'C-5': 'Pavers',
+  'C-8': 'Windows',
+  'C-10': 'Landscape',
+  'C-15': 'Roofing',
+  'C-16': 'Flooring',
+  'C-17': 'General',
+  'C-18': 'Masonry',
+  'C-19': 'Tile',
+  'C-20': 'Tile',
+  'C-21': 'HVAC',
+  'C-25': 'Fencing',
+  'A-7': 'General',
+  'A-10': 'General',
+  'GENERAL': 'General',
+};
+
+/**
+ * Get all categories from a business's licenses
+ */
+export function getBusinessCategories(business: ProCardData): string[] {
+  const categories = new Set<string>();
+  
+  // Add the primary category if it exists
+  if (business.category) {
+    categories.add(business.category);
+  }
+  
+  // Extract categories from all licenses
+  if (business.licenses && business.licenses.length > 0) {
+    business.licenses.forEach(license => {
+      const licenseCode = license.license || 'GENERAL';
+      const category = licenseToCategoryMap[licenseCode] || 'General';
+      categories.add(category);
+    });
+  }
+  
+  return Array.from(categories);
+}
+
+/**
  * Normalizes a search query by trimming whitespace and converting to lowercase
  */
 export function normalizeSearchQuery(query: string): string {
@@ -71,9 +121,12 @@ export function filterBusinesses(
 ): ProCardData[] {
   let filtered = businesses;
 
-  // Filter by category
+  // Filter by category - check all licenses, not just primary category
   if (category && category !== 'All') {
-    filtered = filtered.filter(business => business.category === category);
+    filtered = filtered.filter(business => {
+      const businessCategories = getBusinessCategories(business);
+      return businessCategories.includes(category);
+    });
   }
 
   // Filter by search query

@@ -13,12 +13,35 @@ export const isValidEmail = (email: string): boolean => {
 
 /**
  * Validates password meets minimum requirements
+ * Requirements:
+ * - Minimum 8 characters
+ * - At least one uppercase letter
+ * - At least one lowercase letter
+ * - At least one number
  * @param password - Password to validate
- * @param minLength - Minimum password length (default: 6)
  * @returns true if password meets requirements
  */
-export const isValidPassword = (password: string, minLength: number = 6): boolean => {
-  return password.length >= minLength;
+export const isValidPassword = (password: string): boolean => {
+  if (password.length < 8) {
+    return false;
+  }
+  
+  // Check for at least one uppercase letter
+  if (!/[A-Z]/.test(password)) {
+    return false;
+  }
+  
+  // Check for at least one lowercase letter
+  if (!/[a-z]/.test(password)) {
+    return false;
+  }
+  
+  // Check for at least one number
+  if (!/[0-9]/.test(password)) {
+    return false;
+  }
+  
+  return true;
 };
 
 /**

@@ -1,48 +1,75 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/auth/me
- * Get current user endpoint
+ * Get current user endpoint using Supabase
  * 
- * In production, this will:
- * - Read JWT token from httpOnly cookie
- * - Validate token signature and expiration
- * - Query database for user
- * - Return user data
- * 
- * For now, returns mock response
+ * Returns the current authenticated user's data
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // In production:
-    // 1. Get token from cookie: const token = cookies().get('auth_token')?.value;
-    // 2. Verify JWT signature and expiration
-    // 3. Extract user ID from token payload
-    // 4. Query database for user
-    // 5. Return user data (without password)
+    const supabase = await createClient();
+    
+    // Get current session
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-    // Mock: Check for token in cookie (for production structure)
-    // const token = cookies().get('auth_token')?.value;
-    // if (!token) {
-    //   return NextResponse.json(
-    //     { error: 'Not authenticated' },
-    //     { status: 401 }
-    //   );
-    // }
+    if (sessionError || !session || !session.user) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
 
-    // For now, return mock user
-    // In development, client-side AuthContext handles auth state
+    // Fetch user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profileError && profileError.code !== 'PGRST116') {
+      // PGRST116 is "not found" - profile might not exist yet
+      console.error('Error fetching profile:', profileError);
+    }
+
+    // Return user data
+    const user = {
+      id: session.user.id,
+      email: session.user.email,
+      firstName: profile?.first_name || session.user.user_metadata?.firstName || '',
+      lastName: profile?.last_name || session.user.user_metadata?.lastName || '',
+      phone: profile?.phone || session.user.user_metadata?.phone || null,
+      referral: profile?.referral || session.user.user_metadata?.referral || null,
+      referralOther: profile?.referral_other || session.user.user_metadata?.referralOther || null,
+      streetAddress: profile?.street_address || session.user.user_metadata?.streetAddress || null,
+      apartment: profile?.apartment || session.user.user_metadata?.apartment || null,
+      city: profile?.city || session.user.user_metadata?.city || null,
+      state: profile?.state || session.user.user_metadata?.state || null,
+      zipCode: profile?.zip_code || session.user.user_metadata?.zipCode || null,
+      gateCode: profile?.gate_code || session.user.user_metadata?.gateCode || null,
+      addressNote: profile?.address_note || session.user.user_metadata?.addressNote || null,
+      companyName: profile?.company_name || session.user.user_metadata?.companyName || null,
+      companyRole: profile?.company_role || session.user.user_metadata?.companyRole || null,
+      companyRoleOther: profile?.company_role_other || session.user.user_metadata?.companyRoleOther || null,
+      userPicture: profile?.user_picture || session.user.user_metadata?.userPicture || null,
+    };
+
     return NextResponse.json(
-      { error: 'Not authenticated' },
-      { status: 401 }
+      { user },
+      { status: 200 }
     );
   } catch (error) {
-    console.error('Get user error:', error);
+    // Log error server-side (in production, use proper logging service)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Get user error:', error);
+    }
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
-

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { X, Copy, MessageSquare, Mail, Share2 } from 'lucide-react';
+import { useState } from 'react';
+import { Copy, MessageSquare, Mail } from 'lucide-react';
 import Image from 'next/image';
+import Modal from '@/components/ui/Modal';
 
 interface ShareBusinessModalProps {
   isOpen: boolean;
@@ -34,46 +35,7 @@ export default function ShareBusinessModal({
   businessUrl,
 }: ShareBusinessModalProps) {
   const [copied, setCopied] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
   const initials = getInitials(businessName);
-
-  // Close modal when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, onClose]);
-
-  // Close on Escape key
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
 
   const handleCopyLink = async () => {
     try {
@@ -96,7 +58,6 @@ export default function ShareBusinessModal({
       twitter: `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,
       telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`,
       linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
-      pinterest: `https://pinterest.com/pin/create/button/?url=${encodedUrl}&description=${encodedText}`,
       email: `mailto:?subject=${encodeURIComponent(businessName)}&body=${encodedText}%20${encodedUrl}`,
     };
 
@@ -107,24 +68,18 @@ export default function ShareBusinessModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center md:p-4 bg-black/50">
-      <div ref={modalRef} className="bg-white md:rounded-lg border-2 border-black w-full h-full md:w-full md:h-auto md:max-w-md md:max-h-[90vh] overflow-y-auto flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b-2 border-black">
-          <h2 className="text-xl font-bold text-black">Share Business</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5 text-black" />
-          </button>
-        </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Share Business"
+      showHeader={true}
+      maxWidth="md"
+    >
 
         {/* Business Info */}
         <div className="p-4 border-b-2 border-black">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
+            <div className={`w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden relative aspect-square ${logo ? 'bg-white' : 'bg-black'}`}>
               {logo ? (
                 <Image
                   src={logo}
@@ -241,19 +196,6 @@ export default function ShareBusinessModal({
               <span className="text-xs font-medium text-black text-center">LinkedIn</span>
             </button>
 
-            {/* Pinterest */}
-            <button
-              onClick={() => handleShare('pinterest')}
-              className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 border-black bg-white hover:bg-gray-50 transition-colors cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-white">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#BD081C">
-                  <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.174-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.402.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.357-.629-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24.009 12.017 24.009c6.624 0 11.99-5.367 11.99-11.988C24.007 5.367 18.641.001 12.017.001z"/>
-                </svg>
-              </div>
-              <span className="text-xs font-medium text-black text-center">Pinterest</span>
-            </button>
-
             {/* Email */}
             <button
               onClick={() => handleShare('email')}
@@ -266,8 +208,7 @@ export default function ShareBusinessModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

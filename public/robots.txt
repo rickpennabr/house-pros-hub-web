@@ -1,0 +1,20 @@
+# robots.txt for House Pros Hub
+# https://houseproshub.com/robots.txt
+
+User-agent: *
+Allow: /
+
+# Disallow admin and API routes
+Disallow: /admin/
+Disallow: /api/
+
+# Allow important pages
+Allow: /businesslist
+Allow: /business/
+Allow: /legal/
+
+# Sitemap location
+Sitemap: https://houseproshub.com/sitemap.xml
+
+# Crawl delay (optional - adjust based on server capacity)
+Crawl-delay: 1
