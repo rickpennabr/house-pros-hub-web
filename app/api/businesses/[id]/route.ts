@@ -58,7 +58,7 @@ async function handleGetBusiness(
     
     // Build query - try by ID if it's a UUID, otherwise try by slug
     // Note: For edit pages, we should allow inactive businesses too
-    let query = supabase
+    const baseQuery = supabase
       .from('businesses')
       .select(`
         *,
@@ -78,13 +78,9 @@ async function handleGetBusiness(
         )
       `);
     
-    if (isUUID) {
-      query = query.eq('id', businessId);
-    } else {
-      query = query.eq('slug', businessId);
-    }
-    
-    query = query.single();
+    const query = isUUID
+      ? baseQuery.eq('id', businessId).single()
+      : baseQuery.eq('slug', businessId).single();
 
     const { data: business, error } = await query;
 

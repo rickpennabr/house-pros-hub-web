@@ -92,7 +92,7 @@
       "emailLabel": "Email",
       "emailPlaceholder": "Enter your email",
       "passwordLabel": "Password",
-      "passwordPlaceholder": "Password",
+      "passwordPlaceholder": "Enter your password",
       "forgotPassword": "Forgot password?",
       "submit": "Sign In",
       "submitting": "Signing in...",
@@ -150,7 +150,7 @@
     },
     "signup": {
       "roleSelection": {
-        "title": "How would you like to use House Pros Hub?",
+        "title": "How would you like to use The Hub?",
         "subtitle": "Choose the option that best describes you",
         "customer": {
           "title": "I'm a Customer",
@@ -168,14 +168,14 @@
         "signInLink": "Sign in"
       },
       "authMethod": {
-        "title": "Create your account",
+        "title": "How would you like to create your HPH account?",
         "subtitle": "Continue as {role}",
         "roleText": {
           "customer": "a customer",
           "contractor": "a contractor",
           "both": "both a customer and contractor"
         },
-        "emailButton": "Continue with Email",
+        "emailButton": "Sign up with form",
         "googleButton": "Sign up with Google",
         "divider": "Or continue with",
         "backButton": "← Back"
@@ -226,7 +226,7 @@
         "emailLabel": "Email",
         "emailPlaceholder": "Enter your email",
         "passwordLabel": "Password",
-        "passwordPlaceholder": "Password",
+        "passwordPlaceholder": "Enter your password",
         "repeatPasswordLabel": "Repeat Password",
         "repeatPasswordPlaceholder": "Repeat password",
         "confirmPasswordLabel": "Confirm Password",
@@ -279,6 +279,22 @@
         "continueButton": "Continue with Google",
         "backButton": "← Back"
       }
+    },
+    "welcomeEmail": {
+      "subject": "Welcome to House Pros Hub!",
+      "greeting": "Hello",
+      "customerWelcomeMessage": "Thank you for joining House Pros Hub! We're excited to have you as part of our community. We're here to help you find trusted contractors and service providers for all your home improvement needs.",
+      "contractorWelcomeMessage": "Thank you for joining House Pros Hub! We're excited to have you as part of our community. We're here to help you connect with customers and grow your business.",
+      "bothWelcomeMessage": "Thank you for joining House Pros Hub! We're excited to have you as part of our community. Whether you're looking for home improvement services or providing them, we're here to help connect you with the right people.",
+      "nextSteps": "Next Steps",
+      "customerNextSteps": "<p style=\"margin: 0 0 15px 0;\">As a customer, you can now:</p><ul style=\"margin: 0; padding-left: 20px; color: #333;\"><li style=\"margin-bottom: 10px;\">Browse our directory of trusted contractors and service providers</li><li style=\"margin-bottom: 10px;\">Request free estimates for your home improvement projects</li><li style=\"margin-bottom: 10px;\">Save your favorite businesses for easy access later</li><li style=\"margin-bottom: 10px;\">Connect directly with professionals in your area</li></ul><p style=\"margin: 15px 0 0 0;\">Get started by exploring our categories or requesting a free estimate today!</p>",
+      "contractorNextSteps": "<p style=\"margin: 0 0 15px 0;\">As a contractor, you can now:</p><ul style=\"margin: 0; padding-left: 20px; color: #333;\"><li style=\"margin-bottom: 10px;\">Create and manage your business profile</li><li style=\"margin-bottom: 10px;\">Connect with potential customers in your area</li><li style=\"margin-bottom: 10px;\">Showcase your services and expertise</li><li style=\"margin-bottom: 10px;\">Build your reputation through customer interactions</li></ul><p style=\"margin: 15px 0 0 0;\">Complete your business profile to start connecting with customers!</p>",
+      "bothNextSteps": "<p style=\"margin: 0 0 15px 0;\">As both a customer and contractor, you have access to:</p><ul style=\"margin: 0; padding-left: 20px; color: #333;\"><li style=\"margin-bottom: 10px;\">Browse and connect with other professionals</li><li style=\"margin-bottom: 10px;\">Request estimates for your projects</li><li style=\"margin-bottom: 10px;\">Create and manage your business profile</li><li style=\"margin-bottom: 10px;\">Save favorite businesses and suppliers</li></ul><p style=\"margin: 15px 0 0 0;\">Complete your business profile and start exploring our platform!</p>",
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "If you have any questions, please contact us.",
+        "unsubscribe": "You are receiving this email because you created an account with House Pros Hub."
+      }
     }
   },
   "businessForm": {
@@ -303,6 +319,7 @@
       "removeLogoTitle": "Remove logo",
       "removeBackgroundTitle": "Remove background",
       "imageTypeError": "Please select an image file",
+      "imageSizeError": "Image size must be less than 2MB",
       "businessNameLabel": "Business Name",
       "businessNamePlaceholder": "Enter your business name",
       "userNameLabel": "User Name",
@@ -369,7 +386,7 @@
       "position": "Position",
       "links": "Links",
       "noLinks": "No links added yet.",
-      "addLinkLabel": "Add Link",
+      "addLinkLabel": "Select links for your Business Card",
       "maxReached": "(Max 15 reached)",
       "maxLinksReached": "Maximum links reached",
       "choosePlatform": "Choose platform...",
@@ -407,13 +424,22 @@
       "projectAddress": "Project Address",
       "projectInfo": "Project Information",
       "projectType": "Project Type",
-      "trades": "Trades/Services Needed",
-      "description": "Project Description",
+      "trades": "Select Trades/Services Needed*",
+      "description": "Project Description & Images",
       "budgetTimeline": "Budget Range & Timeline",
       "preferredContact": "Preferred Contact Method",
       "additionalNotes": "Additional Notes",
       "selectedPrefix": "Selected:",
       "missingRequiredInfo": "Missing Required Information"
+    },
+    "tips": {
+      "customerInfo": "Please provide your contact information so contractors can reach out to you.",
+      "projectType": "Select the type of project you're planning. This helps us match you with the right contractors.",
+      "trades": "Select all the trades or services you need for your project. You can select multiple options.",
+      "description": "Describe your project in detail. Include any specific requirements, materials, or preferences.",
+      "budgetTimeline": "Provide your budget range and timeline to help contractors understand your project scope.",
+      "preferredContact": "Choose how you'd like contractors to contact you.",
+      "additionalNotes": "Add any additional information that might be helpful for contractors."
     },
     "sections": {
       "customer": "Your Information",
@@ -444,10 +470,19 @@
       "projectTypeOtherLabel": "Please specify your project type",
       "projectTypeOtherPlaceholder": "Enter project type...",
       "requiresHoaApprovalLabel": "My project required HOA approval",
-      "wants3DLabel": "I would love a 3D for my project",
-      "tradesLabel": "Trade(s) / Service(s)",
+      "wants3DLabel": "I would love to have a 3D design for my project",
+      "tradesLabel": "Select Trades/Services Needed*",
       "projectDescriptionLabel": "Project Description",
       "projectDescriptionPlaceholder": "Describe what you need...",
+      "projectImagesLabel": "Project Images (Optional)",
+      "projectImagesHelp": "Upload up to 5 images to help contractors understand your project better. Accepted formats: JPEG, PNG, WebP. Max size: 2MB per image.",
+      "uploadImages": "Upload Images",
+      "uploading": "Uploading...",
+      "removeImage": "Remove image",
+      "maxImagesError": "You can only upload up to 5 images.",
+      "imageTypeError": "Invalid file type. Only JPEG, PNG, and WebP images are allowed.",
+      "imageSizeError": "File size must be less than 2MB.",
+      "uploadError": "Failed to upload image. Please try again.",
       "budgetRangeLabel": "Budget Range",
       "budgetRangePlaceholder": "Select a budget range",
       "timelineLabel": "Timeline",
@@ -489,19 +524,27 @@
         "either": "Either"
       },
       "trades": {
-        "general": "General",
+        "general": "General Contractor",
+        "general contractor": "General Contractor",
+        "handyman": "Handyman",
         "landscape": "Landscape",
         "pavers": "Pavers",
+        "concrete": "Concrete",
         "tile": "Tile",
         "roofing": "Roofing",
+        "siding": "Siding",
+        "gutters": "Gutters",
+        "garage doors": "Garage Doors",
         "plumbing": "Plumbing",
         "electrical": "Electrical",
+        "smart home": "Smart Home",
         "hvac": "HVAC",
         "painting": "Painting",
         "flooring": "Flooring",
         "windows": "Windows",
         "doors": "Doors",
         "fencing": "Fencing",
+        "ornamental iron": "Ornamental Iron",
         "decking": "Decking",
         "masonry": "Masonry",
         "finishingFloors": "Finishing Floors",
@@ -524,7 +567,15 @@
         "fencingAndEquippingPlaygrounds": "Fencing and Equipping Playgrounds",
         "excavatingAndGrading": "Excavating and Grading",
         "commercialAndResidentialPools": "Commercial and Residential Pools",
-        "foundation": "Foundation"
+        "foundation": "Foundation",
+        "pools & spas": "Pools & Spas",
+        "solar": "Solar",
+        "fire protection": "Fire Protection",
+        "individualSewerage": "Individual Sewerage",
+        "waterTreatment": "Water Treatment",
+        "solarContracting": "Solar Contracting",
+        "heaters": "Heaters",
+        "fireProtection": "Fire Protection"
       }
     },
     "buttons": {
@@ -535,6 +586,44 @@
     "success": {
       "title": "Request sent",
       "body": "Thank you! Our network of trusted contractors will reach out to provide you with a free estimate."
+    },
+    "email": {
+      "subject": "Your Estimate Request - House Pros Hub",
+      "subjectAdmin": "New Estimate Request Received",
+      "greeting": "Hello",
+      "thankYou": "Thank you for your estimate request!",
+      "thankYouAdmin": "A new estimate request has been submitted.",
+      "copyBelow": "A copy of your estimate details is below:",
+      "sections": {
+        "customerInfo": "Customer Information",
+        "projectAddress": "Project Address",
+        "projectDetails": "Project Details",
+        "projectType": "Project Type",
+        "trades": "Trades/Services Needed",
+        "description": "Project Description",
+        "images": "Project Images",
+        "budget": "Budget Range",
+        "timeline": "Timeline",
+        "contactPreference": "Preferred Contact Method",
+        "additionalNotes": "Additional Notes",
+        "hoaApproval": "Requires HOA Approval",
+        "wants3D": "Wants 3D Design"
+      },
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "If you have any questions, please contact us.",
+        "unsubscribe": "You are receiving this email because you submitted an estimate request."
+      },
+      "admin": {
+        "estimateId": "Estimate ID",
+        "submittedAt": "Submitted At",
+        "userId": "User ID",
+        "anonymous": "Anonymous Submission"
+      },
+      "yes": "Yes",
+      "no": "No",
+      "noneSelected": "None selected",
+      "noImagesProvided": "No images provided"
     },
     "validation": {
       "firstNameRequired": "First name is required",
@@ -549,6 +638,7 @@
       "projectTypeOtherRequired": "Please specify your project type",
       "tradesMin": "Please select at least one trade/service",
       "projectDescriptionMin": "Please provide a description (at least 10 characters)",
+      "projectImagesMax": "You can only upload up to 5 images",
       "budgetRangeRequired": "Please select a budget range",
       "timelineRequired": "Please select a timeline",
       "preferredContactRequired": "Please select a preferred contact method",
@@ -563,14 +653,21 @@
   },
   "categories": {
     "all": "All",
-    "general": "General",
+    "general": "General Contractor",
+    "general contractor": "General Contractor",
+    "handyman": "Handyman",
     "landscape": "Landscape",
     "pavers": "Pavers",
+    "concrete": "Concrete",
     "tile": "Tile",
     "masonry": "Masonry",
     "roofing": "Roofing",
+    "siding": "Siding",
+    "gutters": "Gutters",
+    "garage doors": "Garage Doors",
     "plumbing": "Plumbing",
     "electrical": "Electrical",
+    "smart home": "Smart Home",
     "hvac": "HVAC",
     "painting": "Painting",
     "flooring": "Flooring",
@@ -582,7 +679,12 @@
     "patio cover": "Patio Cover",
     "custom outdoor living": "Custom Outdoor Living",
     "fencing": "Fencing",
-    "decking": "Decking"
+    "ornamental iron": "Ornamental Iron",
+    "decking": "Decking",
+    "carpentry": "Carpentry",
+    "pools & spas": "Pools & Spas",
+    "solar": "Solar",
+    "fire protection": "Fire Protection"
   },
   "businessList": {
     "noBusinessesYet": "No businesses yet. Sign up and add your first business!",
@@ -677,6 +779,7 @@
     },
     "errors": {
       "imageFile": "Please select an image file",
+      "imageSizeError": "Image size must be less than 2MB",
       "mustBeLoggedIn": "You must be logged in to upload images",
       "firstNameRequired": "First name is required",
       "lastNameRequired": "Last name is required",

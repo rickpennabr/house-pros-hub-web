@@ -1,11 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useFormContext } from 'react-hook-form';
 import AddressAutocomplete, { AddressData } from '@/components/AddressAutocomplete';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
 import { SignupSchema } from '@/lib/schemas/auth';
 import { useTranslations } from 'next-intl';
+import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 
 interface CustomerStep2Props {
   onAddressSelect: (addressData: AddressData) => void;
@@ -22,18 +24,43 @@ export function CustomerStep2({
   const address = watch('address');
   const addressNote = watch('addressNote');
 
+  // Typing animation for placeholder
+  const searchAddressPlaceholder = tFields('searchAddressPlaceholder');
+  const placeholders = useMemo(
+    () => [searchAddressPlaceholder],
+    [searchAddressPlaceholder]
+  );
+  const animatedPlaceholders = useTypingPlaceholder({
+    placeholders,
+    typingSpeed: 100,
+    delayBetweenFields: 300,
+    startDelay: 500,
+  });
+
   return (
     <div className="space-y-6 flex-1 animate-fade-in">
-      <FormField label={tFields('searchAddressLabel')} required error={errors.streetAddress?.message}>
-        <p className="text-xs text-gray-600 mb-2">
-          {tFields('searchAddressHelp')}
-        </p>
+      <FormField 
+        label={
+          <span className="flex items-center">
+            <span className="animate-icon-slide-in-email">
+              <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </span>
+            <span>{tFields('searchAddressLabel')}</span>
+          </span>
+        } 
+        required 
+        error={errors.streetAddress?.message}
+        tip="Address where services will be provided."
+      >
         <AddressAutocomplete
           id="address"
           value={address || ''}
           onChange={onAddressChange}
           onAddressSelect={onAddressSelect}
-          placeholder={tFields('searchAddressPlaceholder')}
+          placeholder={animatedPlaceholders[0]}
           disabled={isSubmitting}
         />
       </FormField>

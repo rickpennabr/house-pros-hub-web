@@ -139,7 +139,18 @@ export function useBusinesses(): UseBusinessesResult {
   }, []);
 
   useEffect(() => {
-    fetchBusinesses();
+    const isBusinessListPage = pathname?.includes('/businesslist');
+    
+    // If we're on the businesslist page, always fetch fresh data
+    if (isBusinessListPage) {
+      // Clear cache to ensure fresh data
+      cacheTimestamps.clear();
+      requestCache.clear();
+      fetchBusinesses(true);
+    } else {
+      // For other pages, use normal fetch (may use cache)
+      fetchBusinesses();
+    }
 
     // Reload when window gains focus (useful if business was created in another tab/window)
     // Use a debounce to prevent rapid refetches
@@ -160,7 +171,7 @@ export function useBusinesses(): UseBusinessesResult {
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchBusinesses]);
+  }, [fetchBusinesses, pathname]);
 
   // Refresh businesses when navigating to businesslist page (e.g., from account-management)
   useEffect(() => {

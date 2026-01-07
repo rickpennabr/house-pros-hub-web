@@ -14,7 +14,8 @@ import {
   Crown,
   ChevronRight,
   Bookmark,
-  Edit
+  Edit,
+  Trash2
 } from 'lucide-react';
 
 interface Account {
@@ -45,7 +46,7 @@ function AccountManagementContent() {
   const locale = useLocale();
   const searchParams = useSearchParams();
   const t = useTranslations('accountManagement');
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const userId = user?.id ?? '';
   const [accountSelection, setAccountSelection] = useState<{
     userId: string;
@@ -54,6 +55,8 @@ function AccountManagementContent() {
     userId,
     accountId: '',
   }));
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const selectedAccountId = accountSelection.userId === userId ? accountSelection.accountId : '';
   const effectiveSelectedAccountId = selectedAccountId || userId;
 
@@ -408,6 +411,90 @@ function AccountManagementContent() {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Dangerous Actions Section */}
+        <div className="mt-8 md:mt-12 pt-6 md:pt-8 border-t-2 border-gray-300">
+          <h2 className="text-lg md:text-xl font-bold text-black mb-4">Dangerous Actions</h2>
+          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 md:p-6">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-red-900 mb-1">
+                  Delete Account
+                </h3>
+                <p className="text-sm text-red-800 mb-4">
+                  Permanently delete your account and all associated data. This action cannot be undone. Some data may be retained for legal compliance purposes as stated in our Privacy Policy.
+                </p>
+                {!showDeleteConfirm ? (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={isDeleting}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Delete My Account
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-red-900">
+                      Are you absolutely sure? This will permanently delete:
+                    </p>
+                    <ul className="text-sm text-red-800 list-disc list-inside space-y-1">
+                      <li>Your profile and personal information</li>
+                      <li>All your businesses</li>
+                      <li>All your saved businesses</li>
+                      <li>Your account access</li>
+                    </ul>
+                    <div className="flex gap-3 mt-4">
+                      <button
+                        onClick={async () => {
+                          setIsDeleting(true);
+                          try {
+                            const response = await fetch('/api/profile/delete', {
+                              method: 'DELETE',
+                              credentials: 'include',
+                            });
+                            
+                            if (response.ok) {
+                              // Clear local storage
+                              localStorage.clear();
+                              sessionStorage.clear();
+                              // Logout and redirect
+                              await logout();
+                              router.push(`/${locale}`);
+                            } else {
+                              const data = await response.json();
+                              alert(data.error || 'Failed to delete account. Please contact support.');
+                              setShowDeleteConfirm(false);
+                            }
+                          } catch (error) {
+                            console.error('Error deleting account:', error);
+                            alert('An error occurred. Please try again or contact support.');
+                            setShowDeleteConfirm(false);
+                          } finally {
+                            setIsDeleting(false);
+                          }
+                        }}
+                        disabled={isDeleting}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isDeleting ? 'Deleting...' : 'Yes, Delete My Account'}
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        disabled={isDeleting}
+                        className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import Logo from '@/components/Logo';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAuthRedirect } from '@/hooks/useAuthRedirect';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Button } from '@/components/ui/Button';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
-import { FormField } from '@/components/ui/FormField';
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout';
 import { isValidPassword, isNotEmpty } from '@/lib/validation';
 import { createClient } from '@/lib/supabase/client';
+import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
+import { getReturnUrl, getRedirectPath } from '@/lib/redirect';
 
 function ResetPasswordForm() {
   const locale = useLocale();
@@ -21,13 +21,26 @@ function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const t = useTranslations('auth.resetPassword');
   const { resetPassword } = useAuth();
-  const { redirectAfterAuth } = useAuthRedirect();
   const [error, setError] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isValidatingToken, setIsValidatingToken] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<{ password?: string; confirmPassword?: string }>({});
+
+  // Typing animation for placeholders
+  const passwordPlaceholder = t('passwordPlaceholder');
+  const confirmPasswordPlaceholder = t('confirmPasswordPlaceholder');
+  const placeholders = useMemo(
+    () => [passwordPlaceholder, confirmPasswordPlaceholder],
+    [passwordPlaceholder, confirmPasswordPlaceholder]
+  );
+  const animatedPlaceholders = useTypingPlaceholder({
+    placeholders,
+    typingSpeed: 100,
+    delayBetweenFields: 300,
+    startDelay: 500,
+  });
 
   // Check if user has a valid session (created by Supabase when clicking reset link)
   // Supabase automatically processes hash tokens when the client is created
@@ -133,8 +146,10 @@ function ResetPasswordForm() {
       // Get token from URL hash (Supabase puts it there)
       // But actually, Supabase already created a session, so we don't need the token
       await resetPassword(password);
-      // Redirect will happen automatically via useAuthRedirect
-      redirectAfterAuth();
+      // Redirect after successful password reset
+      const returnUrl = getReturnUrl(searchParams);
+      const redirectPath = getRedirectPath(returnUrl, locale as 'en' | 'es');
+      router.push(redirectPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errors.generic'));
     } finally {
@@ -183,7 +198,7 @@ function ResetPasswordForm() {
             value={password}
             onChange={(e) => handlePasswordChange(e.target.value)}
             required
-            placeholder={t('passwordPlaceholder')}
+            placeholder={animatedPlaceholders[0]}
             disabled={isLoading}
             error={fieldErrors.password}
             autoFocus
@@ -195,7 +210,7 @@ function ResetPasswordForm() {
             value={confirmPassword}
             onChange={(e) => handleConfirmPasswordChange(e.target.value)}
             required
-            placeholder={t('confirmPasswordPlaceholder')}
+            placeholder={animatedPlaceholders[1]}
             disabled={isLoading}
             error={fieldErrors.confirmPassword}
           />

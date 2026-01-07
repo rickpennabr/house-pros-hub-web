@@ -21,10 +21,12 @@ export interface User {
   zipCode?: string;
   gateCode?: string;
   addressNote?: string;
+  businessId?: string;
   companyName?: string;
   companyRole?: string;
   companyRoleOther?: string;
   userPicture?: string;
+  preferredLocale?: string;
 }
 
 interface AuthContextType {
@@ -67,7 +69,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 /**
  * Map Supabase user and profile to our User interface
  */
-function mapSupabaseUserToUser(supabaseUser: SupabaseUser, profile: Profile | null): User {
+function mapSupabaseUserToUser(supabaseUser: SupabaseUser, profile: Profile | null, companyName?: string | null): User {
   // Get basic info from user metadata (set during signup)
   const metadata = supabaseUser.user_metadata || {};
   
@@ -86,10 +88,12 @@ function mapSupabaseUserToUser(supabaseUser: SupabaseUser, profile: Profile | nu
     zipCode: profile?.zip_code || metadata.zipCode,
     gateCode: profile?.gate_code || metadata.gateCode,
     addressNote: profile?.address_note || metadata.addressNote,
-    companyName: profile?.company_name || metadata.companyName,
+    businessId: profile?.business_id || metadata.businessId || undefined,
+    companyName: companyName || metadata.companyName || undefined,
     companyRole: profile?.company_role || metadata.companyRole,
     companyRoleOther: profile?.company_role_other || metadata.companyRoleOther,
     userPicture: profile?.user_picture || metadata.userPicture,
+    preferredLocale: profile?.preferred_locale || metadata.preferredLocale,
   };
 }
 
@@ -162,8 +166,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Error fetching profile:', profileError);
       }
 
+      // Fetch business name if business_id exists
+      let companyName: string | null = null;
+      if (profile?.business_id) {
+        const { data: business } = await supabase
+          .from('businesses')
+          .select('business_name')
+          .eq('id', profile.business_id)
+          .single();
+        companyName = business?.business_name || null;
+      }
+
       // Map Supabase user and profile to our User interface
-      const mappedUser = mapSupabaseUserToUser(session.user, profile);
+      const mappedUser = mapSupabaseUserToUser(session.user, profile, companyName);
       setUser(mappedUser);
     } catch (error) {
       console.error('Error loading user from session:', error);
@@ -182,19 +197,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession();
+      // Try client-side session first (faster for normal cases)
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
 
-      if (error) {
-        console.error('Error getting session:', error);
-        setUser(null);
-        setIsLoading(false);
-        return;
+        if (!error && session) {
+          await loadUserFromSession(session);
+          return;
+        }
+      } catch (clientError) {
+        // If client-side fails, fall through to API check
+        console.warn('Client-side session check failed, trying API:', clientError);
       }
 
-      await loadUserFromSession(session);
+      // Fallback: Use API endpoint for OAuth cases where cookies might not be immediately available
+      // This is more reliable after OAuth redirects
+      try {
+        const response = await fetch('/api/auth/me', {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const { user: apiUser } = await response.json();
+          if (apiUser) {
+            // Map API user response to our User interface
+            setUser({
+              id: apiUser.id,
+              email: apiUser.email,
+              firstName: apiUser.firstName || '',
+              lastName: apiUser.lastName || '',
+              phone: apiUser.phone,
+              referral: apiUser.referral,
+              referralOther: apiUser.referralOther,
+              streetAddress: apiUser.streetAddress,
+              apartment: apiUser.apartment,
+              city: apiUser.city,
+              state: apiUser.state,
+              zipCode: apiUser.zipCode,
+              gateCode: apiUser.gateCode,
+              addressNote: apiUser.addressNote,
+              businessId: apiUser.businessId,
+              companyName: apiUser.companyName,
+              companyRole: apiUser.companyRole,
+              companyRoleOther: apiUser.companyRoleOther,
+              userPicture: apiUser.userPicture,
+              preferredLocale: apiUser.preferredLocale,
+            });
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (apiError) {
+        console.warn('API auth check failed:', apiError);
+      }
+
+      // If both methods fail, user is not authenticated
+      setUser(null);
+      setIsLoading(false);
     } catch (error) {
       console.error('Error checking auth:', error);
       setUser(null);
@@ -410,7 +473,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .select('*')
           .eq('id', session.user.id)
           .single();
-        mappedUser = mapSupabaseUserToUser(session.user, profile);
+        
+        // Fetch business name if business_id exists
+        let companyName: string | null = null;
+        if (profile?.business_id) {
+          const { data: business } = await supabase
+            .from('businesses')
+            .select('business_name')
+            .eq('id', profile.business_id)
+            .single();
+          companyName = business?.business_name || null;
+        }
+        
+        mappedUser = mapSupabaseUserToUser(session.user, profile, companyName);
       } else {
         throw new Error('Failed to get session after signup');
       }
@@ -422,7 +497,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', authData.user.id)
         .single();
 
-      mappedUser = mapSupabaseUserToUser(authData.user, profile);
+      // Fetch business name if business_id exists
+      let companyName: string | null = null;
+      if (profile?.business_id) {
+        const { data: business } = await supabase
+          .from('businesses')
+          .select('business_name')
+          .eq('id', profile.business_id)
+          .single();
+        companyName = business?.business_name || null;
+      }
+
+      mappedUser = mapSupabaseUserToUser(authData.user, profile, companyName);
       setUser(mappedUser);
     }
 
@@ -516,10 +602,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       phone: updatedProfile?.phone ?? updates.phone ?? user.phone,
       referral: updatedProfile?.referral ?? updates.referral ?? user.referral,
       referralOther: updatedProfile?.referralOther ?? updates.referralOther ?? user.referralOther,
+      businessId: updatedProfile?.businessId ?? updates.businessId ?? user.businessId,
       companyName: updatedProfile?.companyName ?? updates.companyName ?? user.companyName,
       companyRole: updatedProfile?.companyRole ?? updates.companyRole ?? user.companyRole,
       companyRoleOther: updatedProfile?.companyRoleOther ?? updates.companyRoleOther ?? user.companyRoleOther,
       userPicture: updatedProfile?.userPicture || updates.userPicture || user.userPicture,
+      preferredLocale: updatedProfile?.preferredLocale ?? updates.preferredLocale ?? user.preferredLocale,
     });
 
     // Try to refresh session in the background (completely non-blocking)
@@ -646,13 +734,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('id', result.user.id)
           .single();
         
+        // Fetch business name if business_id exists
+        let companyName: string | null = null;
+        if (profile?.business_id) {
+          const { data: business } = await supabase
+            .from('businesses')
+            .select('business_name')
+            .eq('id', profile.business_id)
+            .single();
+          companyName = business?.business_name || null;
+        }
+        
         const mappedUser = mapSupabaseUserToUser(
           { 
             id: result.user.id, 
             email: result.user.email || '', 
             user_metadata: {} 
           } as SupabaseUser,
-          profile
+          profile,
+          companyName
         );
         setUser(mappedUser);
       }

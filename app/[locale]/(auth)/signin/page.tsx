@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense, useEffect, useRef } from 'react';
+import { useState, Suspense, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import Logo from '@/components/Logo';
@@ -14,6 +14,7 @@ import { FormField } from '@/components/ui/FormField';
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout';
 import { AuthNavigationButtons } from '@/components/auth/AuthNavigationButtons';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
+import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 
 function SignInForm() {
   const locale = useLocale();
@@ -26,6 +27,20 @@ function SignInForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Typing animation for placeholders
+  const emailPlaceholder = t('emailPlaceholder');
+  const passwordPlaceholder = t('passwordPlaceholder');
+  const placeholders = useMemo(
+    () => [emailPlaceholder, passwordPlaceholder],
+    [emailPlaceholder, passwordPlaceholder]
+  );
+  const animatedPlaceholders = useTypingPlaceholder({
+    placeholders,
+    typingSpeed: 100,
+    delayBetweenFields: 300,
+    startDelay: 500,
+  });
 
   const validateField = (field: 'email' | 'password', value: string): string | undefined => {
     if (field === 'email') {
@@ -151,15 +166,18 @@ function SignInForm() {
       <div className="w-full max-w-md mx-auto flex flex-col text-black">
         {/* Header with Logo and Navigation */}
         <div className="md:sticky md:top-0 md:z-20 md:bg-white">
-          <div className="flex flex-col mb-2 gap-4 py-4 md:py-0">
-            <div className="flex items-center justify-center h-[40px] md:h-[95px] mt-6 md:mt-4 mb-4 md:mb-0 pb-4 md:pb-0 animate-slide-down">
-              <Link href={`/${locale}/businesslist`} className="cursor-pointer flex-shrink-0 w-full md:w-auto">
-                <Logo width={400} height={100} className="h-full w-full md:w-auto max-w-full object-contain" />
+          <div className="flex flex-col py-4 md:pt-12 md:pb-0 md:mb-2">
+            {/* Logo Section */}
+            <section className="flex items-center justify-center md:pt-0 pb-4 md:pb-2 w-full animate-slide-down">
+              <Link href={`/${locale}/businesslist`} className="cursor-pointer flex-shrink-0 w-full">
+                <Logo width={400} height={100} className="h-full w-full max-w-full object-contain" />
               </Link>
-            </div>
-            <div className="animate-slide-in-right">
+            </section>
+            
+            {/* Navigation Buttons Section */}
+            <section className="animate-slide-in-right">
               <AuthNavigationButtons isLoading={isLoading} />
-            </div>
+            </section>
           </div>
         </div>
 
@@ -192,7 +210,7 @@ function SignInForm() {
             disabled={isLoading}
             className="w-full flex items-center justify-center gap-2"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 animate-google-logo" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -222,7 +240,20 @@ function SignInForm() {
             </div>
           </div>
 
-          <FormField label={t('emailLabel')} required error={fieldErrors.email}>
+          <FormField 
+            label={
+              <span className="flex items-center">
+                <span className="animate-icon-slide-in-email">
+                  <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </span>
+                <span>{t('emailLabel')}</span>
+              </span>
+            } 
+            required 
+            error={fieldErrors.email}
+          >
             <Input
               id="email"
               type="email"
@@ -234,7 +265,7 @@ function SignInForm() {
               }}
               showClear
               required
-              placeholder={t('emailPlaceholder')}
+              placeholder={animatedPlaceholders[0]}
               disabled={isLoading}
               error={fieldErrors.email}
             />
@@ -242,11 +273,20 @@ function SignInForm() {
 
           <PasswordInput
             id="password"
-            label={t('passwordLabel')}
+            label={
+              <span className="flex items-center">
+                <span className="animate-icon-slide-in-password">
+                  <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                </span>
+                <span>{t('passwordLabel')}</span>
+              </span>
+            }
             value={password}
             onChange={(e) => handlePasswordChange(e.target.value)}
             required
-            placeholder={t('passwordPlaceholder')}
+            placeholder={animatedPlaceholders[1]}
             disabled={isLoading}
             error={fieldErrors.password}
           />

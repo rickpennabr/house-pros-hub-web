@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit, getRateLimitType } from '@/lib/middleware/rateLimit';
 import { checkCsrfToken } from '@/lib/middleware/csrf';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * Authentication middleware for API routes
@@ -44,15 +45,19 @@ export function requireAuth(
         error: userError,
       } = await supabase.auth.getUser();
 
-      console.log('[AUTH] User authentication:', {
+      // Development-only debug logging (no sensitive data in production)
+      logger.debug('User authentication attempt', {
         hasUser: !!user,
-        userId: user?.id,
-        userError: userError?.message,
         path: request.nextUrl.pathname,
         method: request.method,
       });
 
       if (userError || !user) {
+        logger.warn('Authentication failed', {
+          path: request.nextUrl.pathname,
+          method: request.method,
+          error: userError?.message,
+        });
         return NextResponse.json(
           { error: 'Authentication required' },
           { status: 401 }
@@ -78,8 +83,7 @@ export function requireAuth(
       }
 
       // Check CSRF token for state-changing operations (pass parsed body to avoid re-reading)
-      console.log('[AUTH] About to check CSRF token:', {
-        userId: user.id,
+      logger.debug('Checking CSRF token', {
         method: request.method,
         path: request.nextUrl.pathname,
       });

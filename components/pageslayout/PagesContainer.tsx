@@ -73,8 +73,8 @@ export default function PageContainer({ children }: PageContainerProps) {
     <div 
       ref={containerRef}
       className="w-full max-w-[960px] mx-auto bg-white flex flex-col min-h-0
-      border-2 border-black rounded-lg h-[calc(100vh-1rem)] overflow-y-auto overflow-x-hidden
-      md:rounded-none md:min-h-screen md:h-auto md:overflow-visible">
+      border-2 border-black h-[calc(100vh-1rem)] overflow-y-auto overflow-x-hidden
+      md:mt-2 md:rounded-lg md:min-h-screen md:h-auto md:overflow-visible">
       {children}
     </div>
   );

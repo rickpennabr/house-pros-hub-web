@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { locales } from '@/i18n';
 
 const phoneRegex = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
 const zipRegex = /^\d{5}(-\d{4})?$/;
@@ -25,10 +26,11 @@ export const profileUpdateSchema = z.object({
   zipCode: z.string().trim().regex(zipRegex, 'Invalid ZIP code').or(z.literal('')).optional(),
   gateCode: z.string().trim().optional(),
   addressNote: z.string().trim().optional(),
-  companyName: z.string().trim().optional(),
+  businessId: z.string().uuid('Invalid business ID format').optional().nullable(),
   companyRole: z.string().trim().optional(),
   companyRoleOther: z.string().trim().max(100, 'Company role must be less than 100 characters').optional(),
   userPicture: z.string().trim().optional(),
+  preferredLocale: z.enum(locales).optional(),
 }).refine((data) => {
   // If email is provided, it must be valid (already validated by zod)
   return true;

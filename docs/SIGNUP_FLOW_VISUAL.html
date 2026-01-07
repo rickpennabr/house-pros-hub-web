@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signup Process Flow - House Pros Hub</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #0066cc;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #0066cc;
+            margin-top: 40px;
+            border-left: 4px solid #0066cc;
+            padding-left: 15px;
+        }
+        .diagram-container {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+        .legend {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .legend h3 {
+            margin-top: 0;
+            color: #0066cc;
+        }
+        .legend-item {
+            margin: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+        .legend-item::before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: #0066cc;
+            font-weight: bold;
+        }
+        .note {
+            background: #fff9e6;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .note strong {
+            color: #e65100;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏠 House Pros Hub - Signup Process Flow</h1>
+
+    <div class="legend">
+        <h3>Legend</h3>
+        <div class="legend-item"><strong>User Action</strong> - What the user does</div>
+        <div class="legend-item"><strong>Frontend</strong> - React components and hooks</div>
+        <div class="legend-item"><strong>API Route</strong> - Next.js server-side endpoints</div>
+        <div class="legend-item"><strong>Supabase</strong> - Authentication, Database, Storage</div>
+        <div class="legend-item"><strong>Database</strong> - PostgreSQL tables and triggers</div>
+    </div>
+
+    <h2>1. Email/Password Signup Flow</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+sequenceDiagram
+    participant User
+    participant Form as Signup Form<br/>(React Hook Form)
+    participant API as /api/auth/signup<br/>(Next.js API Route)
+    participant SupabaseAuth as Supabase Auth
+    participant ServiceRole as Service Role Client<br/>(Bypasses RLS)
+    participant DB as PostgreSQL<br/>(profiles, addresses, user_roles)
+    participant Storage as Supabase Storage<br/>(profile-pictures)
+    participant EmailService as Email Service
+
+    User->>Form: Fill signup form<br/>(3 steps: Personal, Address, Credentials)
+    Form->>Form: Validate with Zod schema
+    Form->>API: POST /api/auth/signup<br/>{email, password, firstName, lastName, ...}
+    
+    API->>API: Rate limit check
+    API->>API: Validate input fields
+    API->>SupabaseAuth: supabase.auth.signUp()<br/>{email, password, metadata}
+    
+    Note over SupabaseAuth,DB: Database trigger fires automatically
+    SupabaseAuth->>DB: INSERT INTO auth.users
+    DB->>DB: Trigger: on_auth_user_created<br/>(SECURITY DEFINER)
+    DB->>DB: INSERT INTO profiles<br/>(id, first_name, last_name)
+    
+    SupabaseAuth-->>API: Returns {user, session?}
+    
+    alt Profile picture provided
+        API->>API: Validate base64 image<br/>(magic bytes check)
+        API->>Storage: Upload to profile-pictures/<br/>{userId}/{timestamp}.ext
+        Storage-->>API: Returns publicUrl
+    end
+    
+    API->>ServiceRole: Upsert profile<br/>(bypasses RLS)
+    ServiceRole->>DB: UPSERT profiles<br/>{first_name, last_name, phone, referral, user_picture, ...}
+    DB-->>API: Profile saved
+    
+    alt Address provided
+        API->>ServiceRole: Insert address
+        ServiceRole->>DB: INSERT INTO addresses<br/>{user_id, address_type, street_address, city, state, ...}
+        DB-->>API: Address saved
+    end
+    
+    alt User type provided
+        API->>ServiceRole: Insert user roles
+        loop For each role (customer/contractor/both)
+            ServiceRole->>DB: INSERT INTO user_roles<br/>{user_id, role, is_active, activated_at}
+            DB-->>API: Role assigned
+        end
+    end
+    
+    API->>EmailService: Send welcome email<br/>(non-blocking)
+    EmailService-->>API: Email queued
+    
+    API-->>Form: Return {user} (201 Created)
+    
+    Form->>Form: Auto-login user<br/>(supabase.auth.signInWithPassword)
+    Form->>Form: Check auth status<br/>(checkAuth())
+    Form->>User: Show success message<br/>OR business form (contractors)
+        </div>
+    </div>
+
+    <div class="note">
+        <strong>Key Steps:</strong>
+        <ol>
+            <li>User fills 3-step form (Personal Info → Address → Credentials)</li>
+            <li>Form validates with Zod schema</li>
+            <li>API creates user in Supabase Auth (triggers profile creation)</li>
+            <li>API uploads profile picture to Supabase Storage (if provided)</li>
+            <li>API saves full profile, address, and roles using Service Role Client</li>
+            <li>Welcome email sent (non-blocking)</li>
+            <li>User auto-logged in and redirected to success/business form</li>
+        </ol>
+    </div>
+
+    <h2>2. OAuth (Google) Signup Flow</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+sequenceDiagram
+    participant User
+    participant Form as Signup Page
+    participant AuthContext as AuthContext<br/>(signInWithGoogle)
+    participant SupabaseAuth as Supabase Auth<br/>(OAuth)
+    participant Google as Google OAuth
+    participant Callback as /api/auth/callback<br/>(OAuth Callback)
+    participant ServiceRole as Service Role Client
+    participant DB as PostgreSQL
+    participant Storage as Supabase Storage<br/>(profile-pictures)
+
+    User->>Form: Click "Sign up with Google"
+    Form->>AuthContext: signInWithGoogle(role)
+    AuthContext->>SupabaseAuth: signInWithOAuth({provider: 'google'})
+    SupabaseAuth->>Google: Redirect to Google OAuth
+    User->>Google: Authenticate & consent
+    Google->>Callback: Redirect with code<br/>& role parameter
+    Callback->>SupabaseAuth: exchangeCodeForSession(code)
+    SupabaseAuth-->>Callback: Returns {user, session}
+    
+    Callback->>Callback: Extract metadata<br/>(name, picture from OAuth)
+    Callback->>Callback: Parse firstName/lastName<br/>from full name
+    
+    alt Google profile picture exists
+        Callback->>Callback: Download image from Google
+        Callback->>Callback: Validate image<br/>(size, magic bytes)
+        Callback->>Storage: Upload to profile-pictures/<br/>{userId}/{timestamp}.ext
+        Storage-->>Callback: Returns publicUrl
+    end
+    
+    Callback->>ServiceRole: Upsert profile<br/>{first_name, last_name, user_picture}
+    ServiceRole->>DB: UPSERT profiles
+    DB-->>Callback: Profile saved
+    
+    alt Role provided
+        Callback->>ServiceRole: Insert/Reactivate roles
+        loop For each role
+            ServiceRole->>DB: INSERT/UPDATE user_roles
+            DB-->>Callback: Role assigned
+        end
+    end
+    
+    alt Contractor/Both role
+        Callback->>User: Redirect to /signup/complete-profile
+    else Customer role
+        Callback->>User: Redirect to /signup/success
+    end
+    
+    User->>Form: Success page loads
+    Form->>Form: checkAuth()<br/>(multiple retries)
+    Form->>User: Display success message
+        </div>
+    </div>
+
+    <div class="note">
+        <strong>Key Differences from Email Signup:</strong>
+        <ul>
+            <li>No form submission - redirects to Google for authentication</li>
+            <li>Profile data extracted from Google OAuth metadata</li>
+            <li>Profile picture downloaded from Google and re-uploaded to Supabase Storage</li>
+            <li>Contractors redirected to profile completion, customers to success page</li>
+        </ul>
+    </div>
+
+    <h2>3. Database Schema Relationships</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+erDiagram
+    auth_users ||--|| profiles : "1:1"
+    profiles ||--o{ addresses : "1:many"
+    profiles ||--o{ user_roles : "1:many"
+    profiles ||--o| businesses : "1:1 (optional)"
+    
+    auth_users {
+        uuid id PK
+        string email
+        string encrypted_password
+        jsonb user_metadata
+    }
+    
+    profiles {
+        uuid id PK "FK to auth.users"
+        string first_name
+        string last_name
+        string phone
+        string referral
+        string referral_other
+        string company_role
+        string user_picture "URL from storage"
+        uuid business_id FK "Optional"
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    addresses {
+        uuid id PK
+        uuid user_id FK
+        string address_type "personal"
+        string street_address
+        string apartment
+        string city
+        string state
+        string zip_code
+        string gate_code
+        string address_note
+        boolean is_public
+        boolean is_verified
+    }
+    
+    user_roles {
+        uuid id PK
+        uuid user_id FK
+        string role "customer|contractor"
+        boolean is_active
+        timestamp activated_at
+        timestamp deactivated_at
+    }
+    
+    businesses {
+        uuid id PK
+        string business_name
+    }
+        </div>
+    </div>
+
+    <h2>4. Component Architecture</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+graph TD
+    A[User] -->|Fills Form| B[Signup Page<br/>app/[locale]/(auth)/signup/page.tsx]
+    B -->|Uses| C[useSignupForm Hook<br/>app/[locale]/(auth)/signup/hooks/useSignupForm.ts]
+    C -->|Validates with| D[Zod Schema<br/>lib/schemas/auth.ts]
+    C -->|Submits to| E[POST /api/auth/signup<br/>app/api/auth/signup/route.ts]
+    
+    E -->|Creates| F[Supabase Auth User]
+    E -->|Uploads to| G[Supabase Storage<br/>profile-pictures bucket]
+    E -->|Uses| H[Service Role Client<br/>lib/supabase/server.ts]
+    H -->|Updates| I[PostgreSQL Database]
+    
+    I -->|Triggers| J[handle_new_user() Function<br/>Creates basic profile]
+    I -->|Contains| K[profiles table]
+    I -->|Contains| L[addresses table]
+    I -->|Contains| M[user_roles table]
+    
+    E -->|Returns| C
+    C -->|Auto-login| N[AuthContext<br/>contexts/AuthContext.tsx]
+    N -->|Checks| O[Supabase Session]
+    O -->|Updates| P[User State]
+    
+    Q[OAuth Flow] -->|Redirects to| R[/api/auth/callback<br/>app/api/auth/callback/route.ts]
+    R -->|Processes| S[Google OAuth Response]
+    R -->|Creates| F
+    R -->|Updates| I
+        </div>
+    </div>
+
+    <h2>5. Data Flow Diagram</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+flowchart LR
+    subgraph "Client Side"
+        A[Signup Form] -->|Submit| B[API Request]
+    end
+    
+    subgraph "Server Side API"
+        B -->|1. Validate| C[Input Validation]
+        C -->|2. Create Auth| D[Supabase Auth]
+        C -->|3. Upload Image| E[Supabase Storage]
+        C -->|4. Save Data| F[Database Operations]
+    end
+    
+    subgraph "Supabase Services"
+        D -->|Creates User| G[auth.users]
+        G -->|Triggers| H[Profile Creation<br/>Trigger Function]
+        E -->|Returns URL| I[Profile Picture URL]
+        F -->|Updates| J[profiles table]
+        F -->|Inserts| K[addresses table]
+        F -->|Inserts| L[user_roles table]
+    end
+    
+    subgraph "Response"
+        J -->|Returns| M[User Object]
+        K -->|Returns| M
+        L -->|Returns| M
+        M -->|To Client| N[Success Page]
+    end
+    
+    style A fill:#e1f5ff
+    style D fill:#ffecb3
+    style E fill:#ffecb3
+    style F fill:#ffecb3
+    style N fill:#c8e6c9
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#0066cc',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#0052a3',
+                lineColor: '#0066cc',
+                secondaryColor: '#e1f5ff',
+                tertiaryColor: '#f5f5f5'
+            }
+        });
+    </script>
+</body>
+</html>

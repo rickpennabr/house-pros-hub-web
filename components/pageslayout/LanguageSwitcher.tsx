@@ -2,18 +2,32 @@
 
 import { useLocale } from 'next-intl';
 import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Locale } from '@/i18n';
 
 interface LanguageSwitcherProps {
   className?: string;
 }
 
 export default function LanguageSwitcher({ className = '' }: LanguageSwitcherProps) {
-  const locale = useLocale();
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const pathname = usePathname();
+  const { user, updateUser, isAuthenticated } = useAuth();
 
-  const toggleLanguage = () => {
-    const newLocale = locale === 'es' ? 'en' : 'es';
+  const toggleLanguage = async () => {
+    const newLocale: Locale = locale === 'es' ? 'en' : 'es';
+    
+    // Save preference to user account if authenticated
+    if (isAuthenticated && user) {
+      try {
+        await updateUser({ preferredLocale: newLocale });
+      } catch (error) {
+        console.error('Error saving language preference:', error);
+        // Continue with navigation even if save fails
+      }
+    }
+    
     // Remove current locale from pathname and add new locale
     let pathWithoutLocale = pathname;
     if (pathname.startsWith(`/${locale}`)) {

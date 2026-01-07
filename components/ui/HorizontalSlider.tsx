@@ -19,7 +19,7 @@ export function HorizontalSlider({ initialPosition = 50, onPositionChange, class
   const [isDragging, setIsDragging] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
 
-  const updatePosition = useCallback((e: MouseEvent | React.MouseEvent | TouchEvent) => {
+  const updatePosition = useCallback((e: MouseEvent | React.MouseEvent | TouchEvent | React.TouchEvent) => {
     if (!sliderRef.current) return;
 
     const rect = sliderRef.current.getBoundingClientRect();

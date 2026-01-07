@@ -17,6 +17,7 @@ interface TradesSelectorProps {
   tAccordion: (key: string) => string;
   tCategories: (key: string) => string;
   tHelp: (key: string) => string;
+  tTips: (key: string) => string;
 }
 
 export default function TradesSelector({
@@ -29,6 +30,7 @@ export default function TradesSelector({
   tAccordion,
   tCategories,
   tHelp,
+  tTips,
 }: TradesSelectorProps) {
   return (
     <Accordion
@@ -38,6 +40,7 @@ export default function TradesSelector({
       isComplete={isComplete}
       error={errors.trades ? tHelp('tradesRequiredHint') : undefined}
       required
+      tip={tTips('trades')}
     >
       <FormField label="" error={undefined}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">

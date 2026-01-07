@@ -408,6 +408,31 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       // Return what we have
     }
 
+    // Link this business to the user's profile (set as primary business)
+    // Only update if profile doesn't already have a business_id
+    const { data: currentProfile } = await supabase
+      .from('profiles')
+      .select('business_id')
+      .eq('id', userId)
+      .single();
+
+    if (!currentProfile?.business_id) {
+      const { error: linkError } = await supabase
+        .from('profiles')
+        .update({ business_id: businessData.id })
+        .eq('id', userId);
+
+      if (linkError) {
+        logger.warn('Failed to link business to profile', { 
+          endpoint: '/api/business/create',
+          userId,
+          businessId: businessData.id,
+          error: linkError 
+        });
+        // Don't fail - business was created successfully, link can be updated later
+      }
+    }
+
     // Transform to ProCardData format for response
     // Use uploaded URLs if available, otherwise use completeBusiness data, otherwise use businessData
     const finalLogoUrl = logoUrl || completeBusiness?.business_logo || businessData.business_logo;

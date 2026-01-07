@@ -30,24 +30,48 @@ export function SignupSuccessMessage({ userType, onAddBusiness }: SignupSuccessM
     
     try {
       // Ensure user data is refreshed from database before navigating
-      // This is especially important after signup to get the latest profile data including address
-      // Add a timeout to prevent hanging
-      const checkAuthPromise = checkAuth();
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Auth check timeout')), 3000)
-      );
+      // This is especially important after OAuth signup to ensure session is loaded
+      // checkAuth now has a fallback to API endpoint, so it should be more reliable
+      const maxRetries = 3;
       
-      try {
-        await Promise.race([checkAuthPromise, timeoutPromise]);
-      } catch (authError) {
-        // If checkAuth times out or fails, continue anyway - user data might still be available
-        console.warn('Auth check timed out or failed, continuing with navigation:', authError);
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          // Call checkAuth - it will try client-side first, then fall back to API
+          // Use a reasonable timeout (API calls should be faster than client-side getSession)
+          const checkAuthPromise = checkAuth();
+          const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Auth check timeout')), 5000)
+          );
+          
+          await Promise.race([checkAuthPromise, timeoutPromise]);
+          
+          // Wait a bit for state to update after checkAuth
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // If we got here without error, session should be loaded
+          break;
+        } catch (authError) {
+          const errorMessage = authError instanceof Error ? authError.message : 'Unknown auth error';
+          console.warn(`Auth check attempt ${attempt + 1}/${maxRetries} failed:`, errorMessage);
+          
+          if (attempt < maxRetries - 1) {
+            // Wait before retrying
+            const delay = 800 * (attempt + 1); // 800ms, 1600ms
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
       }
       
-      // Add a small delay to ensure state updates complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Final check - call checkAuth one more time to ensure session is loaded
+      try {
+        await checkAuth();
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (finalError) {
+        console.warn('Final auth check failed, but continuing with navigation:', finalError);
+      }
       
       // Navigate to the path
+      // Even if auth check had issues, navigate anyway - the destination page will handle auth
       const targetPath = createLocalePath(locale as 'en' | 'es', path);
       router.push(targetPath);
       
@@ -58,7 +82,8 @@ export function SignupSuccessMessage({ userType, onAddBusiness }: SignupSuccessM
     } catch (error) {
       console.error('Error navigating:', error);
       // Still navigate - the destination page will handle auth check
-      router.push(createLocalePath(locale as 'en' | 'es', path));
+      const targetPath = createLocalePath(locale as 'en' | 'es', path);
+      router.push(targetPath);
       setIsNavigating(false);
     }
   };
@@ -94,7 +119,7 @@ export function SignupSuccessMessage({ userType, onAddBusiness }: SignupSuccessM
           <p className="text-gray-700">
             {isBusinessSignup
               ? "Welcome to House Pros Hub! Your business account has been created. You can now manage your business profile and connect with customers."
-              : "Now you can contact your pro. But if you are an invited contractor, feel free to create a business account."}
+              : "Now you can contact your pro."}
           </p>
         </div>
       </div>
@@ -119,16 +144,6 @@ export function SignupSuccessMessage({ userType, onAddBusiness }: SignupSuccessM
             >
               {isNavigating ? 'Loading...' : 'Get Free Estimate'}
             </Button>
-            {onAddBusiness && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => void onAddBusiness()}
-                className="flex-1 whitespace-nowrap px-2 md:px-4 py-2 md:py-3"
-              >
-                Add Business
-              </Button>
-            )}
           </>
         ) : (
           <>

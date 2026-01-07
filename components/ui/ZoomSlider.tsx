@@ -19,7 +19,7 @@ export function ZoomSlider({ initialZoom = 50, onZoomChange, className = '' }: Z
   const [isDragging, setIsDragging] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
 
-  const updateZoom = useCallback((e: MouseEvent | React.MouseEvent | TouchEvent) => {
+  const updateZoom = useCallback((e: MouseEvent | React.MouseEvent | TouchEvent | React.TouchEvent) => {
     if (!sliderRef.current) return;
 
     const rect = sliderRef.current.getBoundingClientRect();

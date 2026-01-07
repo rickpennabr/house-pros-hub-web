@@ -42,7 +42,7 @@ export default function ViewToggle({ currentView, onViewChange }: ViewToggleProp
       className={`fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${
         isAtBottom && isDesktop 
           ? 'bottom-[90px]' // Move up 100px from original 80px (80 + 100 = 180) + 100px more = 280
-          : 'bottom-[90px] md:bottom-[75px]'
+          : 'bottom-[65px] md:bottom-[75px]'
       }`}
     >
       <div className="

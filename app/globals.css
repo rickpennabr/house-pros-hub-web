@@ -6,6 +6,7 @@
   --color-black: #000000;
 }
 
+/* stylelint-disable-next-line */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -291,4 +292,95 @@ body {
 
 .bell-shake-on-hover:hover svg {
   animation: shake 0.5s ease-in-out;
+}
+
+@keyframes google-logo-enter {
+  0% {
+    transform: rotate(0deg) scale(0);
+  }
+  100% {
+    transform: rotate(760deg) scale(1);
+  }
+}
+
+.animate-google-logo {
+  animation: google-logo-enter 1s ease-out;
+  transform-origin: center;
+}
+
+@keyframes slide-in-icon {
+  0% {
+    transform: translateX(-20px);
+    opacity: 0;
+    margin-right: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+    margin-right: 8px;
+  }
+}
+
+.animate-icon-slide-in-email {
+  animation: slide-in-icon 0.4s ease-out forwards;
+  animation-delay: 500ms;
+  margin-right: 0;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.animate-icon-slide-in-password {
+  animation: slide-in-icon 0.4s ease-out forwards;
+  animation-delay: 2500ms;
+  margin-right: 0;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+/* Additional delays for sign-up form fields */
+/* lastName starts after firstName (500ms + "First name" 10 chars * 100ms + 300ms = 1800ms) */
+.animate-icon-slide-in-lastname {
+  animation: slide-in-icon 0.4s ease-out forwards;
+  animation-delay: 1800ms;
+  margin-right: 0;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+/* email in step 3 starts after phone (500ms + "Enter your phone number" 23 chars * 100ms + 300ms = 3100ms) */
+.animate-icon-slide-in-email-step3 {
+  animation: slide-in-icon 0.4s ease-out forwards;
+  animation-delay: 3100ms;
+  margin-right: 0;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+/* password in step 3 starts after email (3100ms + "Enter your email" 17 chars * 100ms + 300ms = 5100ms) */
+.animate-icon-slide-in-password-step3 {
+  animation: slide-in-icon 0.4s ease-out forwards;
+  animation-delay: 5100ms;
+  margin-right: 0;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: visible;
+  flex-shrink: 0;
 }

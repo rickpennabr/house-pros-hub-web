@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import { COMPANY_INFO } from '@/lib/constants/company';
 
 export async function generateMetadata({
   params,
@@ -148,7 +149,7 @@ export default async function PrivacyPolicyPage({
 
               <h3 className="text-xl font-semibold text-black mt-4 mb-2">6.3 Opt-Out of Marketing</h3>
               <p>
-                You can opt-out of receiving marketing communications from us by following the unsubscribe instructions in our emails or by contacting us directly.
+                You can opt-out of receiving marketing communications from us by contacting us directly at {COMPANY_INFO.email.privacy}. Please note that we may still send you transactional and service-related communications (such as account updates, estimate confirmations, and important service notifications) that are necessary for the Platform to function.
               </p>
 
               <h3 className="text-xl font-semibold text-black mt-4 mb-2">6.4 Cookies</h3>
@@ -220,6 +221,9 @@ export default async function PrivacyPolicyPage({
               <p>
                 We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the updated Privacy Policy on the Platform and updating the &quot;Last Updated&quot; date. Your continued use of the Platform after such changes constitutes your acceptance of the updated Privacy Policy.
               </p>
+              <p className="mt-2 text-sm text-gray-600">
+                <strong>Last Updated:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
             </section>
 
             <section>
@@ -228,8 +232,8 @@ export default async function PrivacyPolicyPage({
                 If you have any questions, concerns, or requests regarding this Privacy Policy or our privacy practices, please contact us at:
               </p>
               <p className="mt-2">
-                <strong>Email:</strong> privacy@houseproshub.com<br />
-                <strong>Address:</strong> [Your Business Address]
+                <strong>Email:</strong> {COMPANY_INFO.email.privacy}<br />
+                <strong>Address:</strong> {COMPANY_INFO.address}
               </p>
             </section>
           </div>

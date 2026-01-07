@@ -1,7 +1,7 @@
 /**
- * Proxy for next-intl internationalization routing (Next.js 16+).
- *
- * Next.js 16 deprecated `middleware.ts` in favor of `proxy.ts`.
+ * Middleware for next-intl internationalization routing.
+ * 
+ * Handles locale detection and routing for all non-admin routes.
  * next-intl's request-locale resolution relies on this request interception.
  */
 import createMiddleware from 'next-intl/middleware';
@@ -33,3 +33,7 @@ export const config = {
   // - Routes starting with `/admin` (handled separately, no locale prefix)
   matcher: ['/((?!api|_next|_vercel|admin|.*\\..*).*)']
 };
+
+
+
+

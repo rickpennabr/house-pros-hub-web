@@ -133,7 +133,6 @@ export async function POST(request: NextRequest) {
         endpoint: '/api/storage/upload-business-logo',
         businessId,
         errorMessage: error.message,
-        errorCode: error.statusCode || error.code,
       }, error as Error);
       
       // Provide more specific error messages

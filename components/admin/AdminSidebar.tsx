@@ -8,6 +8,7 @@ import {
   Building2, 
   Eraser, 
   Package,
+  Folder,
   LucideIcon 
 } from 'lucide-react';
 
@@ -22,6 +23,7 @@ export const navItems: NavItem[] = [
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/businesses', label: 'Businesses', icon: Building2 },
   { href: '/admin/suppliers', label: 'Suppliers', icon: Package },
+  { href: '/admin/storage', label: 'Storage', icon: Folder },
   { href: '/admin/clear-data', label: 'Clear Data', icon: Eraser },
 ];
 

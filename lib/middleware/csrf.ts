@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import crypto from 'crypto';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * CSRF token expiration time (1 hour)
@@ -21,17 +22,16 @@ function generateCsrfToken(): string {
 async function cleanupExpiredTokens(supabase: Awaited<ReturnType<typeof createClient>>): Promise<void> {
   try {
     const now = new Date().toISOString();
-    // @ts-ignore - csrf_tokens table exists but not in types yet (run migration first)
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from('csrf_tokens')
       .delete()
       .lt('expires_at', now);
 
     if (error) {
-      console.error('[CSRF] Error cleaning up expired tokens:', error);
+      logger.error('Error cleaning up expired CSRF tokens', { endpoint: 'csrf-cleanup' }, error as Error);
     }
   } catch (error) {
-    console.error('[CSRF] Exception during token cleanup:', error);
+    logger.error('Exception during CSRF token cleanup', { endpoint: 'csrf-cleanup' }, error as Error);
   }
 }
 
@@ -47,8 +47,7 @@ export async function getCsrfToken(userId: string): Promise<string> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + CSRF_TOKEN_EXPIRY);
 
-  console.log('[CSRF] getCsrfToken called:', {
-    userId,
+  logger.debug('Getting CSRF token', {
     expiresAt: expiresAt.toISOString(),
   });
 
@@ -57,8 +56,7 @@ export async function getCsrfToken(userId: string): Promise<string> {
     await cleanupExpiredTokens(supabase);
 
     // Check for existing valid token
-    // @ts-ignore - csrf_tokens table exists but not in types yet (run migration first)
-    const { data: existingTokens, error: fetchError } = await (supabase as any)
+    const { data: existingTokens, error: fetchError } = await supabase
       .from('csrf_tokens')
       .select('token, expires_at')
       .eq('user_id', userId)
@@ -67,11 +65,11 @@ export async function getCsrfToken(userId: string): Promise<string> {
       .limit(1);
 
     if (fetchError) {
-      console.error('[CSRF] Error fetching existing token:', fetchError);
+      logger.error('Error fetching existing CSRF token', { endpoint: 'csrf-get-token' }, fetchError as Error);
       // Continue to generate new token
     } else if (existingTokens && existingTokens.length > 0) {
       const existingToken = existingTokens[0] as { token: string; expires_at: string };
-      console.log('[CSRF] Returning existing token for userId:', userId);
+      logger.debug('Returning existing CSRF token');
       return existingToken.token;
     }
 
@@ -79,15 +77,13 @@ export async function getCsrfToken(userId: string): Promise<string> {
     const token = generateCsrfToken();
 
     // Delete any old tokens for this user (cleanup)
-    // @ts-ignore - csrf_tokens table exists but not in types yet (run migration first)
-    await (supabase as any)
+    await supabase
       .from('csrf_tokens')
       .delete()
       .eq('user_id', userId);
 
     // Insert new token
-    // @ts-ignore - csrf_tokens table exists but not in types yet (run migration first)
-    const { error: insertError } = await (supabase as any)
+    const { error: insertError } = await supabase
       .from('csrf_tokens')
       .insert({
         user_id: userId,
@@ -96,20 +92,18 @@ export async function getCsrfToken(userId: string): Promise<string> {
       });
 
     if (insertError) {
-      console.error('[CSRF] Error inserting token:', insertError);
+      logger.error('Error inserting CSRF token', { endpoint: 'csrf-get-token' }, insertError as Error);
       throw new Error('Failed to store CSRF token');
     }
 
-    console.log('[CSRF] Generated new token:', {
-      userId,
+    logger.debug('Generated new CSRF token', {
       tokenLength: token.length,
-      tokenPrefix: token.substring(0, 10) + '...',
       expiresAt: expiresAt.toISOString(),
     });
 
     return token;
   } catch (error) {
-    console.error('[CSRF] Error in getCsrfToken:', error);
+    logger.error('Error in getCsrfToken', { endpoint: 'csrf-get-token' }, error as Error);
     throw error;
   }
 }
@@ -126,10 +120,8 @@ export async function validateCsrfToken(userId: string, token: string): Promise<
   const supabase = await createClient();
   const now = new Date().toISOString();
 
-  console.log('[CSRF] validateCsrfToken called:', {
-    userId,
+  logger.debug('Validating CSRF token', {
     tokenLength: token?.length,
-    tokenPrefix: token ? token.substring(0, 10) + '...' : 'null',
   });
 
   try {
@@ -137,8 +129,7 @@ export async function validateCsrfToken(userId: string, token: string): Promise<
     await cleanupExpiredTokens(supabase);
 
     // Look up token in database
-    // @ts-ignore - csrf_tokens table exists but not in types yet (run migration first)
-    const { data: storedTokens, error: fetchError } = await (supabase as any)
+    const { data: storedTokens, error: fetchError } = await supabase
       .from('csrf_tokens')
       .select('token, expires_at')
       .eq('user_id', userId)
@@ -147,12 +138,12 @@ export async function validateCsrfToken(userId: string, token: string): Promise<
       .limit(1);
 
     if (fetchError) {
-      console.error('[CSRF] Error fetching token:', fetchError);
+      logger.error('Error fetching CSRF token for validation', { endpoint: 'csrf-validate' }, fetchError as Error);
       return false;
     }
 
     if (!storedTokens || storedTokens.length === 0) {
-      console.error('[CSRF] No stored token found for userId:', userId);
+      logger.warn('No stored CSRF token found', { endpoint: 'csrf-validate' });
       return false;
     }
 
@@ -160,10 +151,9 @@ export async function validateCsrfToken(userId: string, token: string): Promise<
 
     // Double-check expiration (shouldn't be needed due to query, but safety check)
     if (new Date(storedToken.expires_at) < new Date(now)) {
-      console.error('[CSRF] Token expired:', {
-        userId,
+      logger.warn('CSRF token expired', {
+        endpoint: 'csrf-validate',
         expiresAt: storedToken.expires_at,
-        now,
       });
       return false;
     }
@@ -173,8 +163,8 @@ export async function validateCsrfToken(userId: string, token: string): Promise<
     const tokenBuffer = Buffer.from(token);
     
     if (storedBuffer.length !== tokenBuffer.length) {
-      console.error('[CSRF] Token length mismatch:', {
-        userId,
+      logger.warn('CSRF token length mismatch', {
+        endpoint: 'csrf-validate',
         storedLength: storedBuffer.length,
         receivedLength: tokenBuffer.length,
       });
@@ -183,16 +173,13 @@ export async function validateCsrfToken(userId: string, token: string): Promise<
     
     const isValid = crypto.timingSafeEqual(storedBuffer, tokenBuffer);
     
-    console.log('[CSRF] Token validation result:', {
-      userId,
+    logger.debug('CSRF token validation result', {
       isValid,
-      storedTokenPrefix: storedToken.token.substring(0, 10) + '...',
-      receivedTokenPrefix: token.substring(0, 10) + '...',
     });
 
     return isValid;
   } catch (error) {
-    console.error('[CSRF] Error in validateCsrfToken:', error);
+    logger.error('Error in validateCsrfToken', { endpoint: 'csrf-validate' }, error as Error);
     return false;
   }
 }
@@ -212,9 +199,8 @@ export async function checkCsrfToken(
 ): Promise<NextResponse | null> {
   const method = request.method;
   
-  console.log('[CSRF] checkCsrfToken called:', {
+  logger.debug('Checking CSRF token', {
     method,
-    userId,
     url: request.url,
     hasParsedBody: !!parsedBody,
   });
@@ -245,17 +231,18 @@ export async function checkCsrfToken(
 
   const token = headerToken || bodyToken;
 
-  console.log('[CSRF] Token extraction:', {
-    userId,
+  logger.debug('CSRF token extraction', {
     hasHeaderToken: !!headerToken,
     hasBodyToken: !!bodyToken,
     hasToken: !!token,
     tokenSource: headerToken ? 'header' : bodyToken ? 'body' : 'none',
-    tokenPrefix: token ? token.substring(0, 10) + '...' : 'null',
   });
 
   if (!token) {
-    console.error('[CSRF] No token found in request');
+    logger.warn('No CSRF token found in request', {
+      endpoint: request.nextUrl.pathname,
+      method,
+    });
     
     // In development, include diagnostic information
     const diagnosticInfo = process.env.NODE_ENV === 'development' ? {
@@ -277,7 +264,10 @@ export async function checkCsrfToken(
   const isValid = await validateCsrfToken(userId, token);
   
   if (!isValid) {
-    console.error('[CSRF] Token validation failed for userId:', userId);
+    logger.warn('CSRF token validation failed', {
+      endpoint: request.nextUrl.pathname,
+      method,
+    });
     
     // In development, include diagnostic information
     const supabase = await createClient();
@@ -285,8 +275,7 @@ export async function checkCsrfToken(
     
     if (process.env.NODE_ENV === 'development') {
       try {
-        // @ts-ignore - csrf_tokens table exists but not in types yet (run migration first)
-        const { data: userTokens } = await (supabase as any)
+        const { data: userTokens } = await supabase
           .from('csrf_tokens')
           .select('user_id')
           .eq('user_id', userId);
@@ -313,7 +302,9 @@ export async function checkCsrfToken(
     );
   }
 
-  console.log('[CSRF] Token validation successful for userId:', userId);
+  logger.debug('CSRF token validation successful', {
+    endpoint: request.nextUrl.pathname,
+  });
   return null;
 }
 
@@ -323,19 +314,20 @@ export async function checkCsrfToken(
  */
 export async function getCsrfTokenHandler(request: NextRequest): Promise<NextResponse> {
   try {
-    console.log('[CSRF] getCsrfTokenHandler called');
+    logger.debug('CSRF token handler called');
     
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    console.log('[CSRF] User lookup:', {
+    logger.debug('User lookup for CSRF token', {
       hasUser: !!user,
-      userId: user?.id,
       userError: userError?.message,
     });
 
     if (!user) {
-      console.error('[CSRF] No user found in session');
+      logger.warn('No user found in session for CSRF token request', {
+        endpoint: '/api/csrf-token',
+      });
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
@@ -344,14 +336,13 @@ export async function getCsrfTokenHandler(request: NextRequest): Promise<NextRes
 
     const token = await getCsrfToken(user.id);
 
-    console.log('[CSRF] Token generated successfully:', {
-      userId: user.id,
+    logger.debug('CSRF token generated successfully', {
       tokenLength: token.length,
     });
 
     return NextResponse.json({ csrfToken: token });
   } catch (error) {
-    console.error('[CSRF] Error in getCsrfTokenHandler:', error);
+    logger.error('Error in getCsrfTokenHandler', { endpoint: '/api/csrf-token' }, error as Error);
     return NextResponse.json(
       { error: 'Failed to generate CSRF token' },
       { status: 500 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { HiQuestionMarkCircle } from 'react-icons/hi';
 
 interface TipModalProps {
@@ -16,6 +17,7 @@ interface TipModalProps {
  */
 export function TipModal({ message, className = '' }: TipModalProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
@@ -26,8 +28,11 @@ export function TipModal({ message, className = '' }: TipModalProps) {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
       
-      // Close if click is outside the container (which includes both button and tooltip)
-      if (containerRef.current && !containerRef.current.contains(target)) {
+      // Close if click is outside both the container (button) and the tooltip
+      const isInsideContainer = containerRef.current?.contains(target);
+      const isInsideTooltip = tooltipRef.current?.contains(target);
+      
+      if (!isInsideContainer && !isInsideTooltip) {
         setIsOpen(false);
       }
     };
@@ -58,36 +63,85 @@ export function TipModal({ message, className = '' }: TipModalProps) {
     };
   }, [isOpen]);
 
+  // Calculate tooltip position when opening and update on scroll/resize
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+
+    const updatePosition = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setTooltipPosition({
+          top: rect.top - 8, // Position above the icon with 8px margin
+          left: rect.left + rect.width / 2, // Center horizontally
+        });
+      }
+    };
+
+    // Initial position
+    updatePosition();
+
+    // Update on scroll and resize
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen]);
+
   const toggleTooltip = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsOpen(!isOpen);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsOpen(!isOpen);
+    } else if (e.key === 'Escape' && isOpen) {
+      e.stopPropagation();
+      setIsOpen(false);
+    }
+  };
+
   return (
     <div className={`relative inline-flex items-center ${className}`} ref={containerRef}>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={toggleTooltip}
+        onKeyDown={handleKeyDown}
         className="w-4 h-4 bg-red-500 border-2 border-red-500 rounded flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
         aria-label="Show field information"
         aria-expanded={isOpen}
       >
         <HiQuestionMarkCircle className="w-3 h-3 text-white" />
-      </button>
+      </div>
 
-      {isOpen && (
-        <div
-          ref={tooltipRef}
-          className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 w-64 p-3 bg-white border-2 border-red-500 rounded-lg shadow-lg"
-          role="tooltip"
-        >
-          <p className="text-sm text-black">{message}</p>
-          {/* Arrow pointing down */}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-            <div className="w-3 h-3 bg-white border-r-2 border-b-2 border-red-500 rotate-45"></div>
-          </div>
-        </div>
-      )}
+      {isOpen &&
+        typeof window !== 'undefined' &&
+        createPortal(
+          <div
+            ref={tooltipRef}
+            className="fixed z-[9999] w-64 p-3 bg-white border-2 border-red-500 rounded-lg shadow-lg"
+            style={{
+              top: `${tooltipPosition.top}px`,
+              left: `${tooltipPosition.left}px`,
+              transform: 'translate(-50%, -100%)',
+              marginBottom: '8px',
+            }}
+            role="tooltip"
+          >
+            <p className="text-sm text-black">{message}</p>
+            {/* Arrow pointing down */}
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+              <div className="w-3 h-3 bg-white border-r-2 border-b-2 border-red-500 rotate-45"></div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

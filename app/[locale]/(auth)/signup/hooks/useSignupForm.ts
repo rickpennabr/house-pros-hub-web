@@ -291,7 +291,7 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
         // For customers, show success message
         setUiState(prev => ({
           ...prev,
-          successMessage: 'Thanks for signing up for House Pros Hub! Now you can contact your pro. But if you are an invited contractor, feel free to create a business account.',
+          successMessage: 'Thanks for signing up for House Pros Hub! Now you can contact your pro.',
           signedUpUser: createdUser as User,
           error: null, // Clear any previous errors
           isLoading: false,

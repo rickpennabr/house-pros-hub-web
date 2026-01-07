@@ -11,26 +11,32 @@ import { RESIDENTIAL_CONTRACTOR_LICENSES } from '@/lib/constants/contractorLicen
  * These should match the labels in SERVICE_CATEGORIES from @/lib/constants/categories
  */
 const licenseToCategoryMap: Record<string, string> = {
-  'B-2': 'General',
-  'B-7': 'General',
+  'B-2': 'General Contractor',
+  'B-7': 'General Contractor',
   'C-1': 'Plumbing',
   'C-2': 'Electrical',
-  'C-3': 'General',
+  'C-2d': 'Smart Home',
+  'C-3': 'Carpentry',
   'C-4': 'Painting',
-  'C-5': 'Pavers',
-  'C-8': 'Windows',
+  'C-5': 'Concrete',
+  'C-8': 'Windows & Doors',
   'C-10': 'Landscape',
   'C-15': 'Roofing',
   'C-16': 'Flooring',
-  'C-17': 'General',
+  'C-17': 'General Contractor',
   'C-18': 'Masonry',
   'C-19': 'Tile',
   'C-20': 'Tile',
   'C-21': 'HVAC',
   'C-25': 'Fencing',
-  'A-7': 'General',
-  'A-10': 'General',
-  'GENERAL': 'General',
+  'C-27': 'Plumbing',
+  'C-30': 'Plumbing',
+  'C-37': 'Solar',
+  'C-39': 'HVAC',
+  'C-41': 'Fire Protection',
+  'A-7': 'General Contractor',
+  'A-10': 'Pools & Spas',
+  'GENERAL': 'General Contractor',
 };
 
 /**
@@ -41,9 +47,10 @@ const licenseToIconMap: Record<string, string> = {
   'B-7': 'Home',
   'C-1': 'Droplet',
   'C-2': 'Zap',
-  'C-3': 'Home',
+  'C-2d': 'Wifi',
+  'C-3': 'Hammer',
   'C-4': 'Paintbrush',
-  'C-5': 'Square',
+  'C-5': 'Box',
   'C-8': 'RectangleHorizontal',
   'C-10': 'TreePine',
   'C-15': 'Home',
@@ -54,8 +61,13 @@ const licenseToIconMap: Record<string, string> = {
   'C-20': 'Grid3x3',
   'C-21': 'Wind',
   'C-25': 'Fence',
+  'C-27': 'Droplet',
+  'C-30': 'Droplet',
+  'C-37': 'Sun',
+  'C-39': 'Wind',
+  'C-41': 'Shield',
   'A-7': 'Layers',
-  'A-10': 'Droplet',
+  'A-10': 'Waves',
   'GENERAL': 'Home',
 };
 
@@ -63,7 +75,7 @@ const licenseToIconMap: Record<string, string> = {
  * Get category from license code
  */
 function getCategoryFromLicense(licenseCode: string): string {
-  return licenseToCategoryMap[licenseCode] || 'General';
+  return licenseToCategoryMap[licenseCode] || 'General Contractor';
 }
 
 /**

@@ -1,65 +1,132 @@
 import { AddressData } from '../../AddressAutocomplete';
 
-export interface PhotonResult {
-  properties: {
-    name?: string;
-    street?: string;
-    housenumber?: string;
-    city?: string;
-    state?: string;
-    postcode?: string;
-    zipcode?: string;
-    country?: string;
-    [key: string]: unknown;
+// Address component type (compatible with both legacy and new API formats)
+export interface AddressComponent {
+  long_name: string;
+  short_name: string;
+  types: string[];
+}
+
+// Google Places API result type
+export interface GooglePlacesResult {
+  place_id: string;
+  description: string;
+  structured_formatting?: {
+    main_text: string;
+    secondary_text: string;
   };
-  geometry: {
-    coordinates: [number, number];
+  // Full place details after getDetails call
+  address_components?: AddressComponent[];
+  formatted_address?: string;
+  geometry?: {
+    location?: {
+      lat: () => number;
+      lng: () => number;
+    };
   };
 }
 
-export function formatAddress(result: PhotonResult): string {
-  const props = result.properties;
-  const parts: string[] = [];
-
-  if (props.housenumber) parts.push(props.housenumber);
-  if (props.street) parts.push(props.street);
-  if (props.city) parts.push(props.city);
-  if (props.state) parts.push(props.state);
-  if (props.postcode) parts.push(props.postcode);
-
-  return parts.join(', ') || props.name || '';
+// Helper to extract address component value by type
+function getAddressComponent(
+  components: AddressComponent[] | undefined,
+  type: string,
+  useShortName = false
+): string {
+  if (!components) return '';
+  const component = components.find((comp) => comp.types.includes(type));
+  if (!component) return '';
+  return useShortName ? component.short_name : component.long_name;
 }
 
-export function parseAddressData(result: PhotonResult): AddressData {
-  const props = result.properties;
+export function formatAddress(result: GooglePlacesResult): string {
+  // Use formatted_address if available (from getDetails)
+  if (result.formatted_address) {
+    return result.formatted_address;
+  }
+  
+  // Otherwise use description from autocomplete prediction
+  if (result.description) {
+    return result.description;
+  }
+  
+  // Fallback to structured formatting
+  if (result.structured_formatting) {
+    return `${result.structured_formatting.main_text}, ${result.structured_formatting.secondary_text}`;
+  }
+  
+  return '';
+}
 
-  let streetAddress = '';
-  if (props.housenumber && props.street) {
-    streetAddress = `${props.housenumber} ${props.street}`.trim();
-  } else if (props.street) {
-    streetAddress = props.street;
-  } else if (props.name) {
-    if (props.name !== props.city && !props.name.includes(',')) {
-      streetAddress = props.name;
+export function parseAddressData(result: GooglePlacesResult): AddressData {
+  // If we have address_components (from getDetails), use them
+  if (result.address_components && result.address_components.length > 0) {
+    const streetNumber = getAddressComponent(result.address_components, 'street_number');
+    const route = getAddressComponent(result.address_components, 'route');
+    
+    let streetAddress = '';
+    if (streetNumber && route) {
+      streetAddress = `${streetNumber} ${route}`.trim();
+    } else if (route) {
+      streetAddress = route;
+    } else {
+      // Fallback to formatted address first line
+      const formatted = result.formatted_address || '';
+      const firstLine = formatted.split(',')[0] || '';
+      streetAddress = firstLine.trim();
     }
+    
+    const city = getAddressComponent(result.address_components, 'locality') ||
+                 getAddressComponent(result.address_components, 'sublocality') ||
+                 getAddressComponent(result.address_components, 'sublocality_level_1') ||
+                 '';
+    
+    const state = getAddressComponent(result.address_components, 'administrative_area_level_1', true) || 'NV';
+    const zipCode = getAddressComponent(result.address_components, 'postal_code') || '';
+    
+    return {
+      streetAddress,
+      city,
+      state,
+      zipCode,
+      apartment: '',
+      fullAddress: result.formatted_address || formatAddress(result),
+    };
   }
-
-  const city = props.city || props.name || '';
-
-  let state = props.state || 'NV';
-  if (state === 'Nevada') {
-    state = 'NV';
+  
+  // If we only have prediction data (no address_components), parse from description
+  // This is a fallback - ideally we should call getDetails first
+  const description = result.description || '';
+  const parts = description.split(',').map(p => p.trim());
+  
+  // Try to extract street address (first part)
+  let streetAddress = parts[0] || '';
+  
+  // Extract city (usually second to last part)
+  let city = '';
+  if (parts.length > 1) {
+    city = parts[parts.length - 3] || parts[parts.length - 2] || '';
   }
-
-  const zipCode = props.postcode || props.zipcode || '';
-
+  
+  // Extract state (usually second to last part)
+  let state = 'NV';
+  const statePart = parts.find(p => /^[A-Z]{2}$/.test(p));
+  if (statePart) {
+    state = statePart;
+  }
+  
+  // Extract zip code (usually last part or second to last)
+  let zipCode = '';
+  const zipPart = parts.find(p => /^\d{5}(-\d{4})?$/.test(p));
+  if (zipPart) {
+    zipCode = zipPart;
+  }
+  
   return {
-    streetAddress: streetAddress || props.name || '',
-    city: city,
-    state: state,
-    zipCode: zipCode,
+    streetAddress,
+    city,
+    state,
+    zipCode,
     apartment: '',
-    fullAddress: formatAddress(result),
+    fullAddress: description,
   };
 }
-

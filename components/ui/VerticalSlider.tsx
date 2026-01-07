@@ -19,7 +19,7 @@ export function VerticalSlider({ initialPosition = 50, onPositionChange, classNa
   const [isDragging, setIsDragging] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
 
-  const updatePosition = useCallback((e: MouseEvent | React.MouseEvent | TouchEvent) => {
+  const updatePosition = useCallback((e: MouseEvent | React.MouseEvent | TouchEvent | React.TouchEvent) => {
     if (!sliderRef.current) return;
 
     const rect = sliderRef.current.getBoundingClientRect();

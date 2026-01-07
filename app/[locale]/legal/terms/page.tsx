@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server';
+import { COMPANY_INFO } from '@/lib/constants/company';
 
 export async function generateMetadata({
   params,
@@ -180,8 +181,8 @@ export default async function TermsOfServicePage({
                 {t('contact.content')}
               </p>
               <p className="mt-2">
-                <strong>{t('contact.email')}</strong> legal@houseproshub.com<br />
-                <strong>{t('contact.address')}</strong> {t('contact.addressValue')}
+                <strong>{t('contact.email')}</strong> {COMPANY_INFO.email.legal}<br />
+                <strong>{t('contact.address')}</strong> {COMPANY_INFO.address}
               </p>
             </section>
 
@@ -196,6 +197,9 @@ export default async function TermsOfServicePage({
               <h2 className="text-2xl font-bold text-black mb-4">{t('entireAgreement.title')}</h2>
               <p>
                 {t('entireAgreement.content')}
+              </p>
+              <p className="mt-2 text-sm text-gray-600">
+                <strong>Last Updated:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
             </section>
           </div>

@@ -1,0 +1,355 @@
+================================================================================
+                    SIGNUP PROCESS FLOW - VISUAL DIAGRAM
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        1. EMAIL/PASSWORD SIGNUP                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    [USER] 
+      │
+      │ Fills 3-step form:
+      │   Step 1: Personal Info (firstName, lastName, referral)
+      │   Step 2: Address Info (streetAddress, city, state, zipCode)
+      │   Step 3: Credentials (email, password)
+      │
+      ▼
+    [SIGNUP FORM] (React Hook Form)
+      │
+      │ Validates with Zod schema
+      │
+      ▼
+    POST /api/auth/signup
+      │
+      │ 1. Rate limit check
+      │ 2. Validate input fields
+      │
+      ▼
+    [SUPABASE AUTH]
+      │
+      │ supabase.auth.signUp()
+      │ Creates user with metadata:
+      │   { email, password, metadata: {firstName, lastName} }
+      │
+      ▼
+    [DATABASE TRIGGER] ────────────────────────────────────────────┐
+      │                                                             │
+      │ Trigger: on_auth_user_created (SECURITY DEFINER)           │
+      │ Automatically runs AFTER INSERT on auth.users              │
+      │                                                             │
+      ▼                                                             │
+    [PostgreSQL - profiles table]                                   │
+      │                                                             │
+      │ INSERT INTO profiles                                       │
+      │   (id, first_name, last_name)                              │
+      │                                                             │
+      └─────────────────────────────────────────────────────────────┘
+      │
+      │ Returns {user, session?}
+      │
+      ▼
+    [API CONTINUES PROCESSING]
+      │
+      ├─▶ IF profile picture provided:
+      │     │
+      │     │ 1. Validate base64 image (magic bytes)
+      │     │ 2. Convert to Buffer
+      │     │
+      │     ▼
+      │   [SUPABASE STORAGE]
+      │     │
+      │     │ Upload to: profile-pictures/{userId}/{timestamp}.ext
+      │     │
+      │     └─▶ Returns publicUrl
+      │
+      ├─▶ [SERVICE ROLE CLIENT] (Bypasses RLS)
+      │     │
+      │     │ UPSERT profiles table
+      │     │   - first_name, last_name
+      │     │   - phone, referral, referral_other
+      │     │   - user_picture (URL from storage)
+      │     │   - company_role
+      │
+      ├─▶ IF address provided:
+      │     │
+      │     │ INSERT INTO addresses table
+      │     │   - user_id, address_type
+      │     │   - street_address, apartment, city, state, zip_code
+      │     │   - gate_code, address_note
+      │
+      └─▶ IF user type provided:
+            │
+            │ INSERT INTO user_roles table
+            │   - user_id, role (customer/contractor/both)
+            │   - is_active, activated_at
+            │
+            │ (Loop for each role if 'both')
+      
+      │
+      ├─▶ Send welcome email (non-blocking, doesn't fail signup if errors)
+      │
+      ▼
+    Returns {user} to frontend (201 Created)
+      │
+      ▼
+    [FRONTEND - Auto-login]
+      │
+      │ 1. Call supabase.auth.signInWithPassword()
+      │ 2. Call checkAuth() to verify session
+      │
+      ▼
+    [SUCCESS STATE]
+      │
+      ├─▶ IF contractor/both: Show business form
+      │
+      └─▶ IF customer: Show success message
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        2. OAUTH (GOOGLE) SIGNUP                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    [USER]
+      │
+      │ Clicks "Sign up with Google"
+      │
+      ▼
+    [AUTH CONTEXT]
+      │
+      │ signInWithGoogle(role)
+      │
+      ▼
+    [SUPABASE AUTH - OAuth]
+      │
+      │ signInWithOAuth({provider: 'google'})
+      │
+      ▼
+    [GOOGLE OAUTH]
+      │
+      │ User authenticates & grants consent
+      │
+      ▼
+    Redirect to: /api/auth/callback?code=xxx&role=xxx
+      │
+      ▼
+    [OAUTH CALLBACK HANDLER]
+      │
+      │ 1. Exchange code for session
+      │ 2. Extract metadata from OAuth response
+      │ 3. Parse firstName/lastName from full name
+      │ 4. Extract profile picture URL
+      │
+      ├─▶ IF Google profile picture exists:
+      │     │
+      │     │ 1. Download image from Google
+      │     │ 2. Validate (size, magic bytes)
+      │     │ 3. Upload to Supabase Storage
+      │     │ 4. Get public URL
+      │
+      ├─▶ [SERVICE ROLE CLIENT]
+      │     │
+      │     │ UPSERT profiles table
+      │     │   - first_name, last_name
+      │     │   - user_picture (from Google, uploaded to Storage)
+      │
+      └─▶ IF role provided:
+            │
+            │ INSERT/UPDATE user_roles table
+            │   - Reactivate if exists, create if new
+            │
+      │
+      ▼
+    [REDIRECT]
+      │
+      ├─▶ IF contractor/both: /signup/complete-profile
+      │
+      └─▶ IF customer: /signup/success
+            │
+            │ Load success page
+            │ Call checkAuth() (with retries)
+            │ Display success message
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          3. DATABASE STRUCTURE                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    auth.users (Supabase Auth)
+         │
+         │ (1:1 relationship)
+         │
+         ▼
+    profiles
+         │
+         ├─── (1:many) ───► addresses
+         │
+         ├─── (1:many) ───► user_roles
+         │
+         └─── (1:1 optional) ───► businesses
+
+
+    ┌─────────────────────────────────────┐
+    │         auth.users                  │
+    ├─────────────────────────────────────┤
+    │ id (UUID, PK)                       │
+    │ email                               │
+    │ encrypted_password                  │
+    │ user_metadata (JSON)                │
+    │   - firstName                       │
+    │   - lastName                        │
+    └─────────────────────────────────────┘
+                   │
+                   │ TRIGGER: on_auth_user_created
+                   │ (SECURITY DEFINER - bypasses RLS)
+                   │
+                   ▼
+    ┌─────────────────────────────────────┐
+    │           profiles                  │
+    ├─────────────────────────────────────┤
+    │ id (UUID, PK, FK→auth.users)       │
+    │ first_name                          │
+    │ last_name                           │
+    │ phone                               │
+    │ referral                            │
+    │ referral_other                      │
+    │ company_role                        │
+    │ user_picture (URL from storage)     │
+    │ business_id (FK, optional)          │
+    │ created_at                          │
+    │ updated_at                          │
+    └─────────────────────────────────────┘
+                   │
+        ┌──────────┼──────────┐
+        │          │          │
+        ▼          ▼          ▼
+    ┌────────┐ ┌──────────┐ ┌─────────────┐
+    │addresses│ │user_roles│ │  businesses │
+    ├────────┤ ├──────────┤ ├─────────────┤
+    │id (PK) │ │id (PK)   │ │id (PK)      │
+    │user_id │ │user_id   │ │business_name│
+    │address_│ │role      │ │...          │
+    │type    │ │is_active │ └─────────────┘
+    │street_ │ │activated_│
+    │address │ │at        │
+    │city    │ │...       │
+    │state   │ └──────────┘
+    │zip_code│
+    │...     │
+    └────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        4. STORAGE OPERATIONS                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    Profile Picture Upload Flow:
+    
+    [Image Source]
+         │
+         ├─▶ Email Signup: Base64 string from form
+         │
+         └─▶ OAuth: URL from Google
+         
+         │
+         ▼
+    [VALIDATION]
+         │
+         │ - Check magic bytes (JPEG/PNG detection)
+         │ - Check file size (max limit)
+         │ - Determine MIME type
+         │
+         ▼
+    [PREPARATION]
+         │
+         ├─▶ Email: Convert base64 → Buffer
+         └─▶ OAuth: Download from URL → Buffer
+         │
+         ▼
+    [SUPABASE STORAGE]
+         │
+         │ Bucket: profile-pictures
+         │ Path: {userId}/{timestamp}.{ext}
+         │
+         │ Upload with:
+         │   - cacheControl: '3600'
+         │   - contentType: detected MIME type
+         │   - upsert: false
+         │
+         ▼
+    [PUBLIC URL]
+         │
+         │ Get public URL from Supabase
+         │
+         ▼
+    [SAVE TO DATABASE]
+         │
+         │ Store URL in profiles.user_picture
+         │
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        5. KEY FILES & COMPONENTS                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    Frontend:
+    ├── app/[locale]/(auth)/signup/page.tsx
+    │   └── Main signup page component
+    │
+    ├── app/[locale]/(auth)/signup/hooks/useSignupForm.ts
+    │   └── Form state management and submission logic
+    │
+    ├── contexts/AuthContext.tsx
+    │   └── Authentication state and methods (signup, login, checkAuth)
+    │
+    └── lib/schemas/auth.ts
+        └── Zod validation schemas
+
+    Backend API:
+    ├── app/api/auth/signup/route.ts
+    │   └── POST endpoint for email/password signup
+    │
+    └── app/api/auth/callback/route.ts
+        └── GET endpoint for OAuth callback handling
+
+    Database:
+    └── supabase/migrations/001_create_profiles.sql
+        ├── Profiles table schema
+        ├── Addresses table schema
+        ├── User roles table schema
+        └── Trigger function: handle_new_user()
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        6. SECURITY FEATURES                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ✓ Rate limiting on auth endpoints
+    ✓ Input validation (Zod schemas + server-side checks)
+    ✓ Password requirements (8+ chars, uppercase, lowercase, number)
+    ✓ Row Level Security (RLS) policies on database tables
+    ✓ Service Role Client only used server-side (never exposed)
+    ✓ Image validation (magic bytes check prevents malicious uploads)
+    ✓ Secure password hashing (handled by Supabase Auth)
+    ✓ Session management via secure HTTP-only cookies
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        7. ERROR HANDLING                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    Non-Critical Operations (don't fail signup):
+    - Profile picture upload failures → Use original URL or skip
+    - Address save failures → User can add later
+    - Role assignment failures → Can be assigned later
+    - Welcome email failures → Logged but doesn't block signup
+
+    Critical Operations (fail signup if error):
+    - User creation in Supabase Auth
+    - Input validation failures
+    - Rate limit exceeded
+
+
+================================================================================
+                            END OF DIAGRAM
+================================================================================
+

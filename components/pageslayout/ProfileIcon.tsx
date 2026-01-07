@@ -159,7 +159,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
           {/* Account Section */}
           {isAuthenticated ? (
             <>
-              <div className="px-4 py-3 flex items-center gap-3 border-b-2 border-black bg-gray-50">
+              <div className="px-4 py-3 flex items-center gap-3 border-b-2 border-black bg-gray-50 h-[60px]">
                 <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
                   {user?.userPicture && !dropdownImageError ? (
                     user.userPicture.startsWith('data:') ? (
@@ -199,7 +199,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   </span>
                 </div>
               </div>
-              <div className="p-2">
+              <div className="p-2 h-[60px]">
                 {hasBusiness && (
                   <button
                     onClick={() => handleMenuItemClick('/businesslist')}
@@ -228,7 +228,6 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   <span>{t('accountManagement')}</span>
                 </button>
               </div>
-              <div className="border-t-2 border-black"></div>
             </>
           ) : (
             <div className="p-2">

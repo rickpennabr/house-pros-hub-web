@@ -23,6 +23,7 @@ import { RESIDENTIAL_CONTRACTOR_LICENSES } from '@/lib/constants/contractorLicen
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { processLinkValue } from '@/lib/utils/link-processor';
 import { LinkItem } from '@/components/proscard/ProLinks';
+import { validateFileSize } from '@/lib/utils/image';
 import { AddressRequiredModal } from '@/app/[locale]/(auth)/signup/components/AddressRequiredModal';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { createSignInUrl } from '@/lib/redirect';
@@ -86,6 +87,7 @@ export default function EditBusinessPage() {
   const locale = useLocale() as Locale;
   const tSearch = useTranslations('common.search');
   const tBusinessForm = useTranslations('businessForm');
+  const tBrand = useTranslations('businessForm.brand');
   const slug = params.slug as string;
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -485,13 +487,27 @@ export default function EditBusinessPage() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      setErrorMessage('Please select an image file');
+      setErrorMessage(tBrand('imageTypeError'));
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
+      return;
+    }
+
+    if (!validateFileSize(file, 2)) {
+      setErrorMessage(tBrand('imageSizeError'));
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
       return;
     }
 
     if (!businessId) {
       setErrorMessage('Business ID is required. Please wait for the page to finish loading.');
       console.error('[Business Edit] Cannot upload logo: businessId is null');
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
       return;
     }
 
@@ -579,12 +595,26 @@ export default function EditBusinessPage() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      setErrorMessage('Please select an image file');
+      setErrorMessage(tBrand('imageTypeError'));
+      if (bgInputRef.current) {
+        bgInputRef.current.value = '';
+      }
+      return;
+    }
+
+    if (!validateFileSize(file, 2)) {
+      setErrorMessage(tBrand('imageSizeError'));
+      if (bgInputRef.current) {
+        bgInputRef.current.value = '';
+      }
       return;
     }
 
     if (!businessId) {
       setErrorMessage('Business ID is required');
+      if (bgInputRef.current) {
+        bgInputRef.current.value = '';
+      }
       return;
     }
 

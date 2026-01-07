@@ -131,8 +131,8 @@ async function handleUpdateProfile(request: AuthenticatedRequest) {
     if (updates.addressNote !== undefined) {
       profileUpdate.address_note = updates.addressNote || null;
     }
-    if (updates.companyName !== undefined) {
-      profileUpdate.company_name = updates.companyName || null;
+    if (updates.businessId !== undefined) {
+      profileUpdate.business_id = updates.businessId || null;
     }
     if (updates.companyRole !== undefined) {
       profileUpdate.company_role = updates.companyRole || null;
@@ -142,6 +142,9 @@ async function handleUpdateProfile(request: AuthenticatedRequest) {
     }
     if (updates.userPicture !== undefined) {
       profileUpdate.user_picture = updates.userPicture || null;
+    }
+    if (updates.preferredLocale !== undefined) {
+      profileUpdate.preferred_locale = updates.preferredLocale || null;
     }
 
     // Update profile in database using service role client to bypass RLS
@@ -158,6 +161,17 @@ async function handleUpdateProfile(request: AuthenticatedRequest) {
         { error: 'Failed to update profile' },
         { status: 500 }
       );
+    }
+
+    // Fetch business name if business_id exists
+    let companyName: string | null = null;
+    if (updatedProfile.business_id) {
+      const { data: business } = await serviceRoleClient
+        .from('businesses')
+        .select('business_name')
+        .eq('id', updatedProfile.business_id)
+        .single();
+      companyName = business?.business_name || null;
     }
 
     // Return updated profile data immediately
@@ -177,10 +191,12 @@ async function handleUpdateProfile(request: AuthenticatedRequest) {
         zipCode: updatedProfile.zip_code,
         gateCode: updatedProfile.gate_code,
         addressNote: updatedProfile.address_note,
-        companyName: updatedProfile.company_name,
+        businessId: updatedProfile.business_id,
+        companyName: companyName,
         companyRole: updatedProfile.company_role,
         companyRoleOther: updatedProfile.company_role_other,
         userPicture: updatedProfile.user_picture,
+        preferredLocale: updatedProfile.preferred_locale,
       },
     });
 

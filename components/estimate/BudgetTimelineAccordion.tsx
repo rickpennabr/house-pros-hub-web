@@ -18,6 +18,7 @@ interface BudgetTimelineAccordionProps {
   tAccordion: (key: string) => string;
   tFields: (key: string) => string;
   tHelp: (key: string) => string;
+  tTips: (key: string) => string;
 }
 
 export default function BudgetTimelineAccordion({
@@ -32,6 +33,7 @@ export default function BudgetTimelineAccordion({
   tAccordion,
   tFields,
   tHelp,
+  tTips,
 }: BudgetTimelineAccordionProps) {
   const { register } = methods;
 
@@ -43,6 +45,7 @@ export default function BudgetTimelineAccordion({
       isComplete={isComplete}
       error={(errors.budgetRange || errors.timeline) ? tHelp('requiredFieldsHint') : undefined}
       required
+      tip={tTips('budgetTimeline')}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField

@@ -92,7 +92,7 @@
       "emailLabel": "Correo electrónico",
       "emailPlaceholder": "Ingresa tu correo electrónico",
       "passwordLabel": "Contraseña",
-      "passwordPlaceholder": "Contraseña",
+      "passwordPlaceholder": "Ingresa tu contraseña",
       "forgotPassword": "¿Olvidaste tu contraseña?",
       "submit": "Iniciar sesión",
       "submitting": "Iniciando sesión...",
@@ -150,7 +150,7 @@
     },
     "signup": {
       "roleSelection": {
-        "title": "¿Cómo te gustaría usar House Pros Hub?",
+        "title": "¿Cómo te gustaría usar The Hub?",
         "subtitle": "Elige la opción que mejor te describa",
         "customer": {
           "title": "Soy Cliente",
@@ -168,14 +168,14 @@
         "signInLink": "Iniciar sesión"
       },
       "authMethod": {
-        "title": "Crea tu cuenta",
+        "title": "¿Cómo te gustaría crear tu cuenta HPH?",
         "subtitle": "Continuar como {role}",
         "roleText": {
           "customer": "un cliente",
           "contractor": "un contratista",
           "both": "tanto cliente como contratista"
         },
-        "emailButton": "Continuar con Correo",
+        "emailButton": "Registrarse con formulario",
         "googleButton": "Registrarse con Google",
         "divider": "O continuar con",
         "backButton": "← Atrás"
@@ -226,7 +226,7 @@
         "emailLabel": "Correo electrónico",
         "emailPlaceholder": "Ingresa tu correo electrónico",
         "passwordLabel": "Contraseña",
-        "passwordPlaceholder": "Contraseña",
+        "passwordPlaceholder": "Ingresa tu contraseña",
         "repeatPasswordLabel": "Repetir contraseña",
         "repeatPasswordPlaceholder": "Repite la contraseña",
         "confirmPasswordLabel": "Confirmar contraseña",
@@ -279,6 +279,22 @@
         "continueButton": "Continuar con Google",
         "backButton": "← Atrás"
       }
+    },
+    "welcomeEmail": {
+      "subject": "¡Bienvenido a House Pros Hub!",
+      "greeting": "Hola",
+      "customerWelcomeMessage": "¡Gracias por unirte a House Pros Hub! Estamos emocionados de tenerte como parte de nuestra comunidad. Estamos aquí para ayudarte a encontrar contratistas y proveedores de servicios de confianza para todas tus necesidades de mejoras para el hogar.",
+      "contractorWelcomeMessage": "¡Gracias por unirte a House Pros Hub! Estamos emocionados de tenerte como parte de nuestra comunidad. Estamos aquí para ayudarte a conectarte con clientes y hacer crecer tu negocio.",
+      "bothWelcomeMessage": "¡Gracias por unirte a House Pros Hub! Estamos emocionados de tenerte como parte de nuestra comunidad. Ya sea que estés buscando servicios de mejoras para el hogar o proporcionándolos, estamos aquí para ayudarte a conectarte con las personas adecuadas.",
+      "nextSteps": "Próximos Pasos",
+      "customerNextSteps": "<p style=\"margin: 0 0 15px 0;\">Como cliente, ahora puedes:</p><ul style=\"margin: 0; padding-left: 20px; color: #333;\"><li style=\"margin-bottom: 10px;\">Explorar nuestro directorio de contratistas y proveedores de servicios de confianza</li><li style=\"margin-bottom: 10px;\">Solicitar estimaciones gratuitas para tus proyectos de mejoras para el hogar</li><li style=\"margin-bottom: 10px;\">Guardar tus negocios favoritos para acceso fácil más tarde</li><li style=\"margin-bottom: 10px;\">Conectarte directamente con profesionales en tu área</li></ul><p style=\"margin: 15px 0 0 0;\">¡Comienza explorando nuestras categorías o solicitando una estimación gratuita hoy!</p>",
+      "contractorNextSteps": "<p style=\"margin: 0 0 15px 0;\">Como contratista, ahora puedes:</p><ul style=\"margin: 0; padding-left: 20px; color: #333;\"><li style=\"margin-bottom: 10px;\">Crear y gestionar el perfil de tu negocio</li><li style=\"margin-bottom: 10px;\">Conectarte con clientes potenciales en tu área</li><li style=\"margin-bottom: 10px;\">Mostrar tus servicios y experiencia</li><li style=\"margin-bottom: 10px;\">Construir tu reputación a través de interacciones con clientes</li></ul><p style=\"margin: 15px 0 0 0;\">¡Completa el perfil de tu negocio para comenzar a conectarte con clientes!</p>",
+      "bothNextSteps": "<p style=\"margin: 0 0 15px 0;\">Como cliente y contratista, tienes acceso a:</p><ul style=\"margin: 0; padding-left: 20px; color: #333;\"><li style=\"margin-bottom: 10px;\">Explorar y conectarte con otros profesionales</li><li style=\"margin-bottom: 10px;\">Solicitar estimaciones para tus proyectos</li><li style=\"margin-bottom: 10px;\">Crear y gestionar el perfil de tu negocio</li><li style=\"margin-bottom: 10px;\">Guardar negocios y proveedores favoritos</li></ul><p style=\"margin: 15px 0 0 0;\">¡Completa el perfil de tu negocio y comienza a explorar nuestra plataforma!</p>",
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "Si tienes alguna pregunta, por favor contáctanos.",
+        "unsubscribe": "Estás recibiendo este correo porque creaste una cuenta con House Pros Hub."
+      }
     }
   },
   "businessForm": {
@@ -303,6 +319,7 @@
       "removeLogoTitle": "Eliminar logotipo",
       "removeBackgroundTitle": "Eliminar fondo",
       "imageTypeError": "Por favor selecciona un archivo de imagen",
+      "imageSizeError": "El tamaño de la imagen debe ser menor a 2MB",
       "businessNameLabel": "Nombre del negocio",
       "businessNamePlaceholder": "Ingresa el nombre de tu negocio",
       "userNameLabel": "Nombre de usuario",
@@ -369,7 +386,7 @@
       "position": "Posición",
       "links": "Enlaces",
       "noLinks": "Aún no se han agregado enlaces.",
-      "addLinkLabel": "Agregar enlace",
+      "addLinkLabel": "Selecciona enlaces para tu Tarjeta de Negocio",
       "maxReached": "(Máx. 15)",
       "maxLinksReached": "Se alcanzó el máximo de enlaces",
       "choosePlatform": "Elige una plataforma...",
@@ -407,13 +424,22 @@
       "projectAddress": "Dirección del proyecto",
       "projectInfo": "Información del proyecto",
       "projectType": "Tipo de proyecto",
-      "trades": "Oficios/Servicios necesarios",
-      "description": "Descripción del proyecto",
+      "trades": "Seleccionar Oficios/Servicios necesarios*",
+      "description": "Descripción del proyecto e imágenes",
       "budgetTimeline": "Presupuesto y plazo",
       "preferredContact": "Método de contacto preferido",
       "additionalNotes": "Notas adicionales",
       "selectedPrefix": "Seleccionado:",
       "missingRequiredInfo": "Información Requerida Faltante"
+    },
+    "tips": {
+      "customerInfo": "Proporciona tu información de contacto para que los contratistas puedan comunicarse contigo.",
+      "projectType": "Selecciona el tipo de proyecto que estás planeando. Esto nos ayuda a conectarte con los contratistas adecuados.",
+      "trades": "Selecciona todos los oficios o servicios que necesitas para tu proyecto. Puedes seleccionar múltiples opciones.",
+      "description": "Describe tu proyecto en detalle. Incluye cualquier requisito específico, materiales o preferencias.",
+      "budgetTimeline": "Proporciona tu rango de presupuesto y plazo para ayudar a los contratistas a entender el alcance de tu proyecto.",
+      "preferredContact": "Elige cómo te gustaría que los contratistas se comuniquen contigo.",
+      "additionalNotes": "Agrega cualquier información adicional que pueda ser útil para los contratistas."
     },
     "sections": {
       "customer": "Tu información",
@@ -445,9 +471,18 @@
       "projectTypeOtherPlaceholder": "Ingresa el tipo de proyecto...",
       "requiresHoaApprovalLabel": "Mi proyecto requiere aprobación de HOA",
       "wants3DLabel": "Me encantaría un 3D para mi proyecto",
-      "tradesLabel": "Oficio(s) / Servicio(s)",
+      "tradesLabel": "Selecciona Oficios/Servicios Necesarios*",
       "projectDescriptionLabel": "Descripción del proyecto",
       "projectDescriptionPlaceholder": "Describe lo que necesitas...",
+      "projectImagesLabel": "Imágenes del proyecto (opcional)",
+      "projectImagesHelp": "Sube hasta 5 imágenes para ayudar a los contratistas a entender mejor tu proyecto. Formatos aceptados: JPEG, PNG, WebP. Tamaño máximo: 2MB por imagen.",
+      "uploadImages": "Subir imágenes",
+      "uploading": "Subiendo...",
+      "removeImage": "Eliminar imagen",
+      "maxImagesError": "Solo puedes subir hasta 5 imágenes.",
+      "imageTypeError": "Tipo de archivo inválido. Solo se permiten imágenes JPEG, PNG y WebP.",
+      "imageSizeError": "El tamaño del archivo debe ser menor a 2MB.",
+      "uploadError": "Error al subir la imagen. Por favor intenta de nuevo.",
       "budgetRangeLabel": "Rango de presupuesto",
       "budgetRangePlaceholder": "Selecciona un rango de presupuesto",
       "timelineLabel": "Plazo",
@@ -489,19 +524,27 @@
         "either": "Cualquiera"
       },
       "trades": {
-        "general": "General",
+        "general": "Contratista General",
+        "general contractor": "Contratista General",
+        "handyman": "Manitas",
         "landscape": "Paisajismo",
         "pavers": "Adoquines",
+        "concrete": "Concreto",
         "tile": "Azulejo",
         "roofing": "Techos",
+        "siding": "Revestimiento",
+        "gutters": "Canalones",
+        "garage doors": "Puertas de Garaje",
         "plumbing": "Plomería",
         "electrical": "Electricidad",
+        "smart home": "Casa Inteligente",
         "hvac": "HVAC",
         "painting": "Pintura",
         "flooring": "Pisos",
         "windows": "Ventanas",
         "doors": "Puertas",
         "fencing": "Cercas",
+        "ornamental iron": "Hierro Ornamental",
         "decking": "Terrazas",
         "masonry": "Albañilería",
         "finishingFloors": "Acabado de Pisos",
@@ -524,7 +567,15 @@
         "fencingAndEquippingPlaygrounds": "Cercas y Equipamiento de Patios de Juego",
         "excavatingAndGrading": "Excavación y Nivelación",
         "commercialAndResidentialPools": "Piscinas Comerciales y Residenciales",
-        "foundation": "Cimentación"
+        "foundation": "Cimentación",
+        "pools & spas": "Piscinas y Spas",
+        "solar": "Solar",
+        "fire protection": "Protección contra Incendios",
+        "individualSewerage": "Alcantarillado Individual",
+        "waterTreatment": "Tratamiento de Agua",
+        "solarContracting": "Contratación Solar",
+        "heaters": "Calentadores",
+        "fireProtection": "Protección contra Incendios"
       }
     },
     "buttons": {
@@ -535,6 +586,44 @@
     "success": {
       "title": "Solicitud enviada",
       "body": "¡Gracias! Nuestra red de contratistas de confianza se pondrá en contacto para brindarte una estimación gratuita."
+    },
+    "email": {
+      "subject": "Tu Solicitud de Estimación - House Pros Hub",
+      "subjectAdmin": "Nueva Solicitud de Estimación Recibida",
+      "greeting": "Hola",
+      "thankYou": "¡Gracias por tu solicitud de estimación!",
+      "thankYouAdmin": "Se ha recibido una nueva solicitud de estimación.",
+      "copyBelow": "Una copia de los detalles de tu estimación está a continuación:",
+      "sections": {
+        "customerInfo": "Información del Cliente",
+        "projectAddress": "Dirección del Proyecto",
+        "projectDetails": "Detalles del Proyecto",
+        "projectType": "Tipo de Proyecto",
+        "trades": "Oficios/Servicios Necesarios",
+        "description": "Descripción del Proyecto",
+        "images": "Imágenes del Proyecto",
+        "budget": "Rango de Presupuesto",
+        "timeline": "Plazo",
+        "contactPreference": "Método de Contacto Preferido",
+        "additionalNotes": "Notas Adicionales",
+        "hoaApproval": "Requiere Aprobación de HOA",
+        "wants3D": "Desea Diseño 3D"
+      },
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "Si tienes alguna pregunta, por favor contáctanos.",
+        "unsubscribe": "Estás recibiendo este correo porque enviaste una solicitud de estimación."
+      },
+      "admin": {
+        "estimateId": "ID de Estimación",
+        "submittedAt": "Enviado el",
+        "userId": "ID de Usuario",
+        "anonymous": "Envío Anónimo"
+      },
+      "yes": "Sí",
+      "no": "No",
+      "noneSelected": "Ninguno seleccionado",
+      "noImagesProvided": "No se proporcionaron imágenes"
     },
     "validation": {
       "firstNameRequired": "El nombre es obligatorio",
@@ -549,6 +638,7 @@
       "projectTypeOtherRequired": "Por favor especifica tu tipo de proyecto",
       "tradesMin": "Selecciona al menos un oficio/servicio",
       "projectDescriptionMin": "Describe el proyecto (mínimo 10 caracteres)",
+      "projectImagesMax": "Solo puedes subir hasta 5 imágenes",
       "budgetRangeRequired": "Selecciona un rango de presupuesto",
       "timelineRequired": "Selecciona un plazo",
       "preferredContactRequired": "Selecciona un método de contacto preferido",
@@ -563,14 +653,21 @@
   },
   "categories": {
     "all": "Todos",
-    "general": "General",
+    "general": "Contratista General",
+    "general contractor": "Contratista General",
+    "handyman": "Manitas",
     "landscape": "Paisajismo",
     "pavers": "Adoquines",
+    "concrete": "Concreto",
     "tile": "Azulejo",
     "masonry": "Albañilería",
     "roofing": "Techos",
+    "siding": "Revestimiento",
+    "gutters": "Canalones",
+    "garage doors": "Puertas de Garaje",
     "plumbing": "Plomería",
     "electrical": "Electricidad",
+    "smart home": "Casa Inteligente",
     "hvac": "HVAC",
     "painting": "Pintura",
     "flooring": "Pisos",
@@ -582,7 +679,12 @@
     "patio cover": "Cobertizo para Patio",
     "custom outdoor living": "Vida al Aire Libre Personalizada",
     "fencing": "Cercas",
-    "decking": "Terrazas"
+    "ornamental iron": "Hierro Ornamental",
+    "decking": "Terrazas",
+    "carpentry": "Carpintería",
+    "pools & spas": "Piscinas y Spas",
+    "solar": "Solar",
+    "fire protection": "Protección contra Incendios"
   },
   "businessList": {
     "noBusinessesYet": "Aún no hay negocios. ¡Regístrate y agrega tu primer negocio!",
@@ -677,6 +779,7 @@
     },
     "errors": {
       "imageFile": "Por favor selecciona un archivo de imagen",
+      "imageSizeError": "El tamaño de la imagen debe ser menor a 2MB",
       "mustBeLoggedIn": "Debes iniciar sesión para subir imágenes",
       "firstNameRequired": "El nombre es requerido",
       "lastNameRequired": "El apellido es requerido",

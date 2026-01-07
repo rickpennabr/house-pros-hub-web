@@ -197,7 +197,7 @@ export default function ProReactions({
   const justifyClass = layout === 'around' ? 'justify-around' : 'justify-between';
   
   return (
-    <div className="h-[60px] p-2 flex items-center justify-center overflow-hidden">
+    <div className="h-[60px] p-2 flex items-center justify-center overflow-hidden mb-1 md:mb-0">
       <div className={`w-full flex items-center ${justifyClass} ${gap}`}>
         {reactionConfig.map(({ type, icon: Icon, label, count }) => {
           const isActive = activeReactions.has(type);

@@ -206,7 +206,7 @@ export default function ExpandableSearchbar({
       <button
         ref={searchButtonRef}
         onClick={handleSearchToggle}
-        className={`absolute ${shiftRight ? 'right-[calc(0.25rem+2.5rem+0.5rem)] md:right-[calc(0.5rem+2.5rem+0.5rem)]' : 'right-1 md:right-2'} h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all z-20 md:top-[calc(50%-0.25rem)] md:-translate-y-1/2 mr-1 md:mr-0 ${
+        className={`absolute ${shiftRight ? 'right-[calc(0.25rem+2.5rem+0.5rem)] md:right-[calc(0.5rem+2.5rem+0.5rem)]' : 'right-1 md:right-2'} h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all z-20 top-1/2 -translate-y-1/2 md:mr-0 ${
           isSearchOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         aria-label="Search (Press S)"

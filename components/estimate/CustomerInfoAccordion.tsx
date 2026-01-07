@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { TbUserEdit } from 'react-icons/tb';
 import { MapPin } from 'lucide-react';
 import { UseFormReturn } from 'react-hook-form';
@@ -9,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import AddressAutocomplete, { AddressData } from '@/components/AddressAutocomplete';
 import Accordion from '@/components/ui/Accordion';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
+import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 
 interface CustomerInfoAccordionProps {
   isOpen: boolean;
@@ -20,6 +22,7 @@ interface CustomerInfoAccordionProps {
   onAddressSelect: (addressData: AddressData) => void;
   tFields: (key: string) => string;
   tAccordion: (key: string) => string;
+  tTips: (key: string) => string;
 }
 
 export default function CustomerInfoAccordion({
@@ -32,9 +35,27 @@ export default function CustomerInfoAccordion({
   onAddressSelect,
   tFields,
   tAccordion,
+  tTips,
 }: CustomerInfoAccordionProps) {
   const { register, watch, setValue } = methods;
   const streetAddress = watch('streetAddress');
+
+  // Typing animation for placeholders
+  const firstNamePlaceholder = tFields('firstNamePlaceholder');
+  const lastNamePlaceholder = tFields('lastNamePlaceholder');
+  const emailPlaceholder = tFields('emailPlaceholder');
+  const phonePlaceholder = tFields('phonePlaceholder');
+  const streetAddressPlaceholder = tFields('streetAddressPlaceholder');
+  const placeholders = useMemo(
+    () => [firstNamePlaceholder, lastNamePlaceholder, emailPlaceholder, phonePlaceholder, streetAddressPlaceholder],
+    [firstNamePlaceholder, lastNamePlaceholder, emailPlaceholder, phonePlaceholder, streetAddressPlaceholder]
+  );
+  const animatedPlaceholders = useTypingPlaceholder({
+    placeholders,
+    typingSpeed: 100,
+    delayBetweenFields: 300,
+    startDelay: 500,
+  });
 
   // Check if there are any errors in customer info fields
   const hasErrors = Boolean(
@@ -61,12 +82,13 @@ export default function CustomerInfoAccordion({
       required
       hasErrors={hasErrors || !isComplete}
       missingInfoMessage={showMissingInfo ? tAccordion('missingRequiredInfo') : undefined}
+      tip={tTips('customerInfo')}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField label={tFields('firstNameLabel')} required error={errors.firstName?.message}>
           <Input
             {...register('firstName')}
-            placeholder={tFields('firstNamePlaceholder')}
+            placeholder={animatedPlaceholders[0]}
             disabled={isSubmitting}
             error={errors.firstName?.message}
           />
@@ -75,7 +97,7 @@ export default function CustomerInfoAccordion({
         <FormField label={tFields('lastNameLabel')} required error={errors.lastName?.message}>
           <Input
             {...register('lastName')}
-            placeholder={tFields('lastNamePlaceholder')}
+            placeholder={animatedPlaceholders[1]}
             disabled={isSubmitting}
             error={errors.lastName?.message}
           />
@@ -86,7 +108,7 @@ export default function CustomerInfoAccordion({
         <Input
           {...register('email')}
           type="email"
-          placeholder={tFields('emailPlaceholder')}
+          placeholder={animatedPlaceholders[2]}
           disabled={isSubmitting}
           error={errors.email?.message}
         />
@@ -96,7 +118,7 @@ export default function CustomerInfoAccordion({
         <Input
           {...register('phone')}
           type="tel"
-          placeholder={tFields('phonePlaceholder')}
+          placeholder={animatedPlaceholders[3]}
           disabled={isSubmitting}
           error={errors.phone?.message}
           onChange={(e) => {
@@ -117,7 +139,7 @@ export default function CustomerInfoAccordion({
             value={streetAddress || ''}
             onChange={(value) => setValue('streetAddress', value, { shouldValidate: true })}
             onAddressSelect={onAddressSelect}
-            placeholder={tFields('streetAddressPlaceholder')}
+            placeholder={animatedPlaceholders[4]}
             disabled={isSubmitting}
             required
           />

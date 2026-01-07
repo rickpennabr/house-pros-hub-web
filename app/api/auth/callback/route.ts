@@ -351,6 +351,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Redirect to the determined path using normalized base URL
+        // Cookies set via cookieStore.set() in createClient() are automatically included in the response
         return NextResponse.redirect(new URL(redirectPath, normalizedBaseUrl));
       }
     }

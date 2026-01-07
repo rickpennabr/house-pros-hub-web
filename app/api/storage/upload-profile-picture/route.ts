@@ -19,26 +19,10 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const userId = formData.get('userId') as string;
-
-    // Check rate limit with user ID if available
-    if (userId) {
-      const userRateLimitResponse = await checkRateLimit(request, 'upload', userId);
-      if (userRateLimitResponse) {
-        return userRateLimitResponse;
-      }
-    }
 
     if (!file) {
       return NextResponse.json(
         { error: 'No file provided' },
-        { status: 400 }
-      );
-    }
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
         { status: 400 }
       );
     }
@@ -66,13 +50,21 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
-    // Verify user is authenticated and matches userId
+    // Get userId from authenticated session only (never trust client-provided userId)
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user || user.id !== userId) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+
+    const userId = user.id;
+
+    // Check rate limit with authenticated user ID
+    const userRateLimitResponse = await checkRateLimit(request, 'upload', userId);
+    if (userRateLimitResponse) {
+      return userRateLimitResponse;
     }
 
     // Upload file to storage using validated buffer and MIME type

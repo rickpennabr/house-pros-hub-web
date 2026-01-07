@@ -35,6 +35,7 @@ export default function EstimatePage() {
   const tButtons = useTranslations('estimate.buttons');
   const tSuccess = useTranslations('estimate.success');
   const tHelp = useTranslations('estimate.help');
+  const tTips = useTranslations('estimate.tips');
   const tCategories = useTranslations('categories');
   const tCommon = useTranslations('common');
   const tValidation = useTranslations('estimate.validation');
@@ -277,7 +278,7 @@ export default function EstimatePage() {
     );
   }
 
-  const onSubmit = async () => {
+  const onSubmit = async (data: EstimateSchema) => {
     try {
       setErrorMessage('');
       setSuccessMessage('');
@@ -285,12 +286,21 @@ export default function EstimatePage() {
       // Close all accordions so user can see the success message
       closeAll();
       
-      // TODO: Send data to your API endpoint
-      // In production, replace with actual API call:
-      // const response = await fetch('/api/estimate', { method: 'POST', body: JSON.stringify(data) });
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Send data to API endpoint
+      const response = await fetch('/api/estimate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-locale': locale,
+        },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to submit estimate' }));
+        throw new Error(errorData.error || 'Failed to submit estimate');
+      }
       
       setSuccessMessage(tSuccess('body'));
       
@@ -313,7 +323,7 @@ export default function EstimatePage() {
       }, 5000);
     } catch (error) {
       console.error('Error submitting estimate:', error);
-      setErrorMessage(tValidation('genericError'));
+      setErrorMessage(error instanceof Error ? error.message : tValidation('genericError'));
     }
   };
 
@@ -353,6 +363,7 @@ export default function EstimatePage() {
               onAddressSelect={handleAddressSelect}
               tFields={tFields}
               tAccordion={tAccordion}
+              tTips={tTips}
             />
           </div>
 
@@ -381,6 +392,7 @@ export default function EstimatePage() {
                   tFields={tFields}
                   tValidation={tValidation}
                   tHelp={tHelp}
+                  tTips={tTips}
                 />
               </div>
 
@@ -397,6 +409,7 @@ export default function EstimatePage() {
                   tAccordion={tAccordion}
                   tCategories={tCategories}
                   tHelp={tHelp}
+                  tTips={tTips}
                 />
               </div>
 
@@ -412,6 +425,7 @@ export default function EstimatePage() {
                   tAccordion={tAccordion}
                   tFields={tFields}
                   tHelp={tHelp}
+                  tTips={tTips}
                 />
               </div>
 
@@ -429,6 +443,7 @@ export default function EstimatePage() {
                   tAccordion={tAccordion}
                   tFields={tFields}
                   tHelp={tHelp}
+                  tTips={tTips}
                 />
               </div>
 
@@ -446,6 +461,7 @@ export default function EstimatePage() {
                   onSelectContactMethod={selectContactMethod}
                   tAccordion={tAccordion}
                   tHelp={tHelp}
+                  tTips={tTips}
                 />
               </div>
 

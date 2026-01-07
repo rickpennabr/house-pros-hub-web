@@ -130,7 +130,7 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
       {isSuppliersPage && (
         <button
           onClick={handleFilterClick}
-          className={`absolute right-1 md:right-2 h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all z-30 md:top-[calc(50%-0.25rem)] md:-translate-y-1/2 ${
+          className={`absolute right-1 md:right-2 h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all z-30 top-1/2 -translate-y-1/2 ${
             isSearchOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
           aria-label="Filter"
@@ -147,7 +147,7 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
       />
 
       {/* Categories - Hidden when search is open */}
-      <div className={`flex-1 h-full flex items-center gap-3 overflow-x-auto scrollbar-custom transition-opacity duration-300 pr-[52px] md:pr-[56px] min-w-0 ml-1 ${
+      <div className={`flex-1 h-full flex items-center gap-3 overflow-x-auto scrollbar-custom transition-opacity duration-300 pr-[52px] md:pr-[56px] min-w-0 md:ml-1 ${
         isSearchOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}>
         {filteredCategories.map((category) => {

@@ -101,20 +101,36 @@ function getTradeTranslationKey(tradeName: string): string | null {
     'doors': 'doors',
     'door': 'doors', // Map singular "door" to doors
     'fencing': 'fencing',
+    'ornamental iron': 'ornamental iron',
     'decking': 'decking',
-    'general': 'general',
+    'general': 'general contractor',
+    'general contractor': 'general contractor',
+    'handyman': 'handyman',
     'landscape': 'landscape',
     'landscaping': 'landscape', // Map "Landscaping" to landscape
     'pavers': 'pavers',
     'paving': 'pavers', // Map "Paving" to pavers
+    'concrete': 'concrete',
     'tile': 'tile',
     'roofing': 'roofing',
+    'siding': 'siding',
+    'gutters': 'gutters',
+    'garage doors': 'garage doors',
     'plumbing': 'plumbing',
     'electrical': 'electrical',
+    'smart home': 'smart home',
     'hvac': 'hvac',
     'painting': 'painting',
     'flooring': 'flooring',
     'foundation': 'foundation',
+    'pools and spas': 'pools & spas',
+    'pools & spas': 'pools & spas',
+    'solar': 'solar',
+    'fire protection': 'fire protection',
+    'individual sewerage': 'individualSewerage',
+    'water treatment': 'waterTreatment',
+    'solar contracting': 'solarContracting',
+    'heaters': 'heaters',
   };
   
   // Check if we have a direct mapping

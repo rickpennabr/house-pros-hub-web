@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
+import { ADMIN_EMAIL } from '@/lib/constants/admin';
 
 /**
  * DELETE /api/storage/delete
@@ -28,6 +29,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+
+    // Verify user is admin
+    const userEmail = user.email?.toLowerCase().trim();
+    if (userEmail !== ADMIN_EMAIL.toLowerCase().trim()) {
+      return NextResponse.json(
+        { error: 'Forbidden - Admin access required' },
+        { status: 403 }
       );
     }
 

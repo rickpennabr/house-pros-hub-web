@@ -35,7 +35,7 @@ function SignUpForm() {
   const { user, checkAuth, signInWithGoogle } = useAuth();
   
   // Get role from URL if coming from OAuth callback or Free Estimate button
-  const urlRole = searchParams.get('role') as 'customer' | 'contractor' | 'both' | null;
+  const urlRole = searchParams.get('role') as 'customer' | 'contractor' | null;
   const skipRoleSelection = searchParams.get('skipRoleSelection') === 'true';
   
   // If skipRoleSelection is true, go directly to form step (skip role selection and auth method)
@@ -43,7 +43,7 @@ function SignUpForm() {
   const [currentStep, setCurrentStep] = useState<SignupStep>(
     skipRoleSelection || urlRole ? 'form' : 'role-selection'
   );
-  const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | 'both' | null>(
+  const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | null>(
     skipRoleSelection ? 'customer' : urlRole
   );
   const [authError, setAuthError] = useState<string | null>(null);
@@ -69,12 +69,7 @@ function SignUpForm() {
 
   // Set user type when role is selected (for form display)
   if (selectedRole && formState.userType !== selectedRole) {
-    if (selectedRole === 'both') {
-      // For 'both', default to contractor flow (they can add customer role later)
-      setUserType(USER_TYPES.CONTRACTOR);
-    } else {
-      setUserType(selectedRole === 'customer' ? USER_TYPES.CUSTOMER : USER_TYPES.CONTRACTOR);
-    }
+    setUserType(selectedRole === 'customer' ? USER_TYPES.CUSTOMER : USER_TYPES.CONTRACTOR);
   }
 
   // Show warning when user tries to leave on steps 2, 3, or 4
@@ -88,7 +83,7 @@ function SignUpForm() {
     await handleNext();
   };
 
-  const handleRoleSelect = (role: 'customer' | 'contractor' | 'both') => {
+  const handleRoleSelect = (role: 'customer' | 'contractor') => {
     setSelectedRole(role);
     setCurrentStep('auth-method');
     setAuthError(null);
@@ -231,7 +226,7 @@ function SignUpForm() {
 
   return (
     <AuthPageLayout>
-      <div className="w-full max-w-md mx-auto flex flex-col text-black pt-2 md:pt-0">
+      <div className="w-full max-w-md mx-auto flex flex-col text-black pt-3 md:pt-0">
         {/* Leave Page Warning Modal */}
         <LeavePageWarningModal
           isOpen={showModal}

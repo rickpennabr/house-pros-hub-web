@@ -2,10 +2,11 @@
 
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
+import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 interface AuthMethodSelectionProps {
-  role: 'customer' | 'contractor' | 'both';
+  role: 'customer' | 'contractor';
   onEmailSelected: () => void;
   onGoogleSelected: () => void;
   isLoading?: boolean;
@@ -25,44 +26,43 @@ export function AuthMethodSelection({
         return t('roleText.customer');
       case 'contractor':
         return t('roleText.contractor');
-      case 'both':
-        return t('roleText.both');
     }
   };
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col text-black">
+    <div className="w-full max-w-md mx-auto flex flex-col text-black md:pt-12">
       {/* Logo */}
-      <div className="flex items-center justify-center h-[40px] md:h-[95px] mt-8 md:mt-4 mb-6 md:mb-0 pb-4 md:pb-0 animate-fade-in">
-        <div className="cursor-pointer flex-shrink-0 w-full md:w-auto">
+      <div className="flex items-center justify-center h-[40px] md:h-[95px] mt-8 md:mt-0 mb-6 md:mb-0 pb-4 md:pb-2 md:w-full animate-fade-in">
+        <div className="cursor-pointer flex-shrink-0 w-full md:w-full">
           <Image
             src="/hph-logo-2.3.png"
             alt="House Pros Hub"
             width={400}
             height={100}
-            className="h-full w-full md:w-auto max-w-full object-contain"
+            className="h-full w-full md:w-full max-w-full object-contain"
             priority
           />
         </div>
       </div>
 
       {/* Title */}
-      <div className="flex items-center justify-center gap-3 mb-2 md:pt-4">
-        <h2 className="text-3xl font-semibold text-center animate-fade-in">
+      <div className="flex items-center justify-center gap-3 mb-2 md:pt-4 animate-slide-in-right">
+        <h2 className="text-3xl font-semibold text-center">
           {t('title')}
         </h2>
       </div>
 
       {/* Auth Method Buttons */}
       <div className="space-y-4 mt-2 md:mt-6">
-        {/* Continue with Email Button */}
+        {/* Sign up with Form Button */}
         <Button
           type="button"
           onClick={onEmailSelected}
           variant="primary"
           disabled={isLoading}
-          className="w-full"
+          className="w-full flex items-center justify-center gap-2"
         >
+          <FileText className="w-5 h-5 text-white" />
           {t('emailButton')}
         </Button>
 

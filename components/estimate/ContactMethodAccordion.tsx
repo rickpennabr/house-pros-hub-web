@@ -17,6 +17,7 @@ interface ContactMethodAccordionProps {
   onSelectContactMethod: (value: string) => void;
   tAccordion: (key: string) => string;
   tHelp: (key: string) => string;
+  tTips: (key: string) => string;
 }
 
 export default function ContactMethodAccordion({
@@ -30,6 +31,7 @@ export default function ContactMethodAccordion({
   onSelectContactMethod,
   tAccordion,
   tHelp,
+  tTips,
 }: ContactMethodAccordionProps) {
   return (
     <Accordion
@@ -39,6 +41,7 @@ export default function ContactMethodAccordion({
       isComplete={isComplete}
       error={errors.preferredContactMethod ? tHelp('requiredFieldsHint') : undefined}
       required
+      tip={tTips('preferredContact')}
     >
       <FormField label="" error={undefined}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">

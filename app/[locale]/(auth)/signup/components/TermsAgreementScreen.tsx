@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 
 interface TermsAgreementScreenProps {
-  role: 'customer' | 'contractor' | 'both';
+  role: 'customer' | 'contractor';
   onTermsAgreed: () => void;
   onBack: () => void;
   isLoading?: boolean;
@@ -30,16 +30,16 @@ export function TermsAgreementScreen({
   };
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col text-black">
+    <div className="w-full max-w-md mx-auto flex flex-col text-black md:pt-12">
       {/* Logo */}
-      <div className="flex items-center justify-center h-[40px] md:h-[95px] mt-8 md:mt-4 mb-6 md:mb-0 pb-4 md:pb-0 animate-fade-in">
-        <div className="cursor-pointer flex-shrink-0 w-full md:w-auto">
+      <div className="flex items-center justify-center h-[40px] md:h-[95px] mt-8 md:mt-0 mb-6 md:mb-0 pb-4 md:pb-2 md:w-full animate-fade-in">
+        <div className="cursor-pointer flex-shrink-0 w-full md:w-full">
           <Image
             src="/hph-logo-2.3.png"
             alt="House Pros Hub"
             width={400}
             height={100}
-            className="h-full w-full md:w-auto max-w-full object-contain"
+            className="h-full w-full md:w-full max-w-full object-contain"
             priority
           />
         </div>

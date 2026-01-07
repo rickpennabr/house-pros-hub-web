@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useState, useMemo } from 'react';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
 import { ChevronDown, ChevronUp, User as UserIcon, X, UserPen, Settings } from 'lucide-react';
-import { resizeImageSquare, base64ToFile } from '@/lib/utils/image';
+import { resizeImageSquare, base64ToFile, validateFileSize } from '@/lib/utils/image';
 import { useRef } from 'react';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
@@ -51,6 +51,7 @@ export default function EditProfilePage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [personalAddressId, setPersonalAddressId] = useState<string | null>(null);
   const [initialFormData, setInitialFormData] = useState<typeof formData | null>(null);
+  const [showCompanyFields, setShowCompanyFields] = useState(false);
 
   // Redirect to signin if not authenticated
   useEffect(() => {
@@ -138,6 +139,57 @@ export default function EditProfilePage() {
     };
   }, [user?.id, personalAddressId]);
 
+  // Check if user is contractor or has businesses - show Company Name/Role fields only in those cases
+  useEffect(() => {
+    if (!user?.id) {
+      setShowCompanyFields(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Check user roles
+        const rolesRes = await fetch('/api/profile/roles', {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (rolesRes.ok) {
+          const rolesData = await rolesRes.json();
+          const isContractor = rolesData.roles?.includes('contractor') || false;
+          
+          if (isContractor) {
+            if (!cancelled) setShowCompanyFields(true);
+            return;
+          }
+        }
+
+        // If not contractor, check if user has businesses
+        const businessesRes = await fetch('/api/businesses', {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (businessesRes.ok) {
+          const businessesData = await businessesRes.json();
+          const hasBusinesses = Array.isArray(businessesData.businesses) && businessesData.businesses.length > 0;
+          if (!cancelled) setShowCompanyFields(hasBusinesses);
+        } else {
+          if (!cancelled) setShowCompanyFields(false);
+        }
+      } catch (error) {
+        console.error('Error checking user role/businesses:', error);
+        if (!cancelled) setShowCompanyFields(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   // Check if form has been modified - compare all fields individually
   // This must be called before any early returns to follow Rules of Hooks
   const hasChanges = useMemo(() => {
@@ -200,6 +252,14 @@ export default function EditProfilePage() {
 
     if (!file.type.startsWith('image/')) {
       setErrors(prev => ({ ...prev, userPicture: t('errors.imageFile') }));
+      return;
+    }
+
+    if (!validateFileSize(file, 2)) {
+      setErrors(prev => ({ ...prev, userPicture: t('errors.imageSizeError') }));
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
@@ -732,100 +792,104 @@ export default function EditProfilePage() {
                     </FormField>
                   </div>
 
-                  {/* Company Name */}
-                  <div className="md:col-span-2">
-                    <FormField label={t('fields.companyName')}>
-                      <Input
-                        type="text"
-                        id="companyName"
-                        name="companyName"
-                        value={formData.companyName}
-                        onChange={handleChange}
-                        onClear={() => {
-                          setFormData(prev => ({ ...prev, companyName: '' }));
-                        }}
-                        showClear
-                        placeholder={t('fields.companyNamePlaceholder')}
-                      />
-                    </FormField>
-                  </div>
+                  {/* Company Name - Only show for contractors or users with businesses */}
+                  {showCompanyFields && (
+                    <>
+                      <div className="md:col-span-2">
+                        <FormField label={t('fields.companyName')}>
+                          <Input
+                            type="text"
+                            id="companyName"
+                            name="companyName"
+                            value={formData.companyName}
+                            onChange={handleChange}
+                            onClear={() => {
+                              setFormData(prev => ({ ...prev, companyName: '' }));
+                            }}
+                            showClear
+                            placeholder={t('fields.companyNamePlaceholder')}
+                          />
+                        </FormField>
+                      </div>
 
-                  {/* Company Role */}
-                  <div className="md:col-span-2">
-                    <FormField label={t('fields.companyRoleLabel')} error={errors.companyRole}>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {[
-                          { value: 'Owner', label: 'Owner' },
-                          { value: 'Manager', label: 'Manager' },
-                          { value: 'Other', label: 'Other' },
-                        ].map((role) => {
-                          const isSelected = formData.companyRole === role.value;
-                          return (
-                            <button
-                              key={role.value}
-                              type="button"
-                              onClick={() => {
-                                setFormData(prev => {
-                                  const newData = { ...prev, companyRole: role.value };
-                                  if (role.value !== 'Other') {
-                                    newData.companyRoleOther = '';
-                                  }
-                                  return newData;
-                                });
-                                if (errors.companyRole) {
-                                  setErrors(prev => ({ ...prev, companyRole: '' }));
-                                }
+                      {/* Company Role */}
+                      <div className="md:col-span-2">
+                        <FormField label={t('fields.companyRoleLabel')} error={errors.companyRole}>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {[
+                              { value: 'Owner', label: 'Owner' },
+                              { value: 'Manager', label: 'Manager' },
+                              { value: 'Other', label: 'Other' },
+                            ].map((role) => {
+                              const isSelected = formData.companyRole === role.value;
+                              return (
+                                <button
+                                  key={role.value}
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData(prev => {
+                                      const newData = { ...prev, companyRole: role.value };
+                                      if (role.value !== 'Other') {
+                                        newData.companyRoleOther = '';
+                                      }
+                                      return newData;
+                                    });
+                                    if (errors.companyRole) {
+                                      setErrors(prev => ({ ...prev, companyRole: '' }));
+                                    }
+                                    if (errors.companyRoleOther) {
+                                      setErrors(prev => ({ ...prev, companyRoleOther: '' }));
+                                    }
+                                  }}
+                                  disabled={isSubmitting}
+                                  aria-pressed={isSelected}
+                                  aria-label={`Select ${role.label} as company role`}
+                                  className={`
+                                    flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all cursor-pointer
+                                    ${isSelected
+                                      ? 'bg-black text-white border-black'
+                                      : 'bg-white text-black border-black hover:bg-gray-50'
+                                    }
+                                    ${errors.companyRole ? 'border-red-500' : ''}
+                                    disabled:opacity-50 disabled:cursor-not-allowed
+                                  `}
+                                >
+                                  <span className="text-sm font-medium text-center">{role.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {errors.companyRole && (
+                            <p className="mt-1 text-sm text-red-600">{errors.companyRole}</p>
+                          )}
+                        </FormField>
+                      </div>
+
+                      {/* Company Role Other */}
+                      {formData.companyRole === 'Other' && (
+                        <div className="md:col-span-2">
+                          <FormField label={t('fields.companyRoleOtherLabel')} required error={errors.companyRoleOther}>
+                            <Input
+                              type="text"
+                              id="companyRoleOther"
+                              name="companyRoleOther"
+                              value={formData.companyRoleOther}
+                              onChange={handleChange}
+                              onClear={() => {
+                                setFormData(prev => ({ ...prev, companyRoleOther: '' }));
                                 if (errors.companyRoleOther) {
                                   setErrors(prev => ({ ...prev, companyRoleOther: '' }));
                                 }
                               }}
-                              disabled={isSubmitting}
-                              aria-pressed={isSelected}
-                              aria-label={`Select ${role.label} as company role`}
-                              className={`
-                                flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all cursor-pointer
-                                ${isSelected
-                                  ? 'bg-black text-white border-black'
-                                  : 'bg-white text-black border-black hover:bg-gray-50'
-                                }
-                                ${errors.companyRole ? 'border-red-500' : ''}
-                                disabled:opacity-50 disabled:cursor-not-allowed
-                              `}
-                            >
-                              <span className="text-sm font-medium text-center">{role.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {errors.companyRole && (
-                        <p className="mt-1 text-sm text-red-600">{errors.companyRole}</p>
+                              showClear
+                              required
+                              placeholder={t('fields.companyRoleOtherPlaceholder')}
+                              error={errors.companyRoleOther}
+                            />
+                          </FormField>
+                        </div>
                       )}
-                    </FormField>
-                  </div>
-
-                  {/* Company Role Other */}
-                  {formData.companyRole === 'Other' && (
-                    <div className="md:col-span-2">
-                      <FormField label={t('fields.companyRoleOtherLabel')} required error={errors.companyRoleOther}>
-                        <Input
-                          type="text"
-                          id="companyRoleOther"
-                          name="companyRoleOther"
-                          value={formData.companyRoleOther}
-                          onChange={handleChange}
-                          onClear={() => {
-                            setFormData(prev => ({ ...prev, companyRoleOther: '' }));
-                            if (errors.companyRoleOther) {
-                              setErrors(prev => ({ ...prev, companyRoleOther: '' }));
-                            }
-                          }}
-                          showClear
-                          required
-                          placeholder={t('fields.companyRoleOtherPlaceholder')}
-                          error={errors.companyRoleOther}
-                        />
-                      </FormField>
-                    </div>
+                    </>
                   )}
                 </div>
               </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useFormContext, useFieldArray } from 'react-hook-form';
 import { Input } from '@/components/ui/Input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
@@ -9,6 +10,7 @@ import { RESIDENTIAL_CONTRACTOR_LICENSES } from '@/lib/constants/contractorLicen
 import { SignupSchema } from '@/lib/schemas/auth';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 
 export function ContractorStep2() {
   const tFields = useTranslations('auth.signup.fields');
@@ -23,6 +25,21 @@ export function ContractorStep2() {
   const licenses = watch('licenses');
   const companyRole = watch('companyRole');
   const companyRoleOther = watch('companyRoleOther');
+
+  // Typing animation for placeholders (only when not authenticated)
+  const emailPlaceholder = tFields('emailPlaceholder');
+  const passwordPlaceholder = tFields('passwordPlaceholder');
+  const confirmPasswordPlaceholder = tFields('confirmPasswordPlaceholder');
+  const authPlaceholders = useMemo(
+    () => [emailPlaceholder, passwordPlaceholder, confirmPasswordPlaceholder],
+    [emailPlaceholder, passwordPlaceholder, confirmPasswordPlaceholder]
+  );
+  const animatedAuthPlaceholders = useTypingPlaceholder({
+    placeholders: authPlaceholders,
+    typingSpeed: 100,
+    delayBetweenFields: 300,
+    startDelay: 500,
+  });
 
   const addLicense = () => {
     prepend({ license: '', trade: '' });
@@ -48,7 +65,7 @@ export function ContractorStep2() {
               onClear={() => setValue('email', '')}
               showClear
               required
-              placeholder={tFields('emailPlaceholder')}
+              placeholder={animatedAuthPlaceholders[0]}
               disabled={isSubmitting}
               error={errors.email?.message}
             />
@@ -59,7 +76,7 @@ export function ContractorStep2() {
             id="signup-password"
             label={tFields('passwordLabel')}
             required
-            placeholder={tFields('passwordPlaceholder')}
+            placeholder={animatedAuthPlaceholders[1]}
             disabled={isSubmitting}
             error={errors.password?.message}
           />
@@ -69,7 +86,7 @@ export function ContractorStep2() {
             id="confirm-password"
             label={tFields('confirmPasswordLabel')}
             required
-            placeholder={tFields('confirmPasswordPlaceholder')}
+            placeholder={animatedAuthPlaceholders[2]}
             disabled={isSubmitting}
             error={errors.confirmPassword?.message}
           />

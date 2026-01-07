@@ -31,12 +31,13 @@ export interface Database {
           zip_code: string | null;
           gate_code: string | null;
           address_note: string | null;
-          company_name: string | null;
+          business_id: string | null;
           company_role: string | null;
           company_role_other: string | null;
           user_picture: string | null;
           referral: string | null;
           referral_other: string | null;
+          preferred_locale: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -52,12 +53,13 @@ export interface Database {
           zip_code?: string | null;
           gate_code?: string | null;
           address_note?: string | null;
-          company_name?: string | null;
+          business_id?: string | null;
           company_role?: string | null;
           company_role_other?: string | null;
           user_picture?: string | null;
           referral?: string | null;
           referral_other?: string | null;
+          preferred_locale?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -73,12 +75,13 @@ export interface Database {
           zip_code?: string | null;
           gate_code?: string | null;
           address_note?: string | null;
-          company_name?: string | null;
+          business_id?: string | null;
           company_role?: string | null;
           company_role_other?: string | null;
           user_picture?: string | null;
           referral?: string | null;
           referral_other?: string | null;
+          preferred_locale?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -87,6 +90,12 @@ export interface Database {
             foreignKeyName: "profiles_id_fkey";
             columns: ["id"];
             referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "profiles_business_id_fkey";
+            columns: ["business_id"];
+            referencedRelation: "businesses";
             referencedColumns: ["id"];
           }
         ];
@@ -314,6 +323,122 @@ export interface Database {
           }
         ];
       };
+      estimates: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          first_name: string;
+          last_name: string;
+          email: string;
+          phone: string;
+          street_address: string;
+          city: string;
+          state: string;
+          zip_code: string;
+          apartment: string | null;
+          project_type: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'other';
+          project_type_other: string | null;
+          requires_hoa_approval: boolean;
+          wants_3d: boolean;
+          trades: Json;
+          project_description: string;
+          project_images: Json | null;
+          budget_range: 'under_5k' | '5k_10k' | '10k_25k' | '25k_50k' | '50k_100k' | 'over_100k' | 'not_sure';
+          timeline: 'asap' | 'within_month' | '1_3_months' | '3_6_months' | '6_plus_months' | 'flexible';
+          preferred_contact_method: 'phone' | 'email' | 'text' | 'either';
+          additional_notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          first_name: string;
+          last_name: string;
+          email: string;
+          phone: string;
+          street_address: string;
+          city: string;
+          state: string;
+          zip_code: string;
+          apartment?: string | null;
+          project_type: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'other';
+          project_type_other?: string | null;
+          requires_hoa_approval?: boolean;
+          wants_3d?: boolean;
+          trades: Json;
+          project_description: string;
+          project_images?: Json | null;
+          budget_range: 'under_5k' | '5k_10k' | '10k_25k' | '25k_50k' | '50k_100k' | 'over_100k' | 'not_sure';
+          timeline: 'asap' | 'within_month' | '1_3_months' | '3_6_months' | '6_plus_months' | 'flexible';
+          preferred_contact_method: 'phone' | 'email' | 'text' | 'either';
+          additional_notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          first_name?: string;
+          last_name?: string;
+          email?: string;
+          phone?: string;
+          street_address?: string;
+          city?: string;
+          state?: string;
+          zip_code?: string;
+          apartment?: string | null;
+          project_type?: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'other';
+          project_type_other?: string | null;
+          requires_hoa_approval?: boolean;
+          wants_3d?: boolean;
+          trades?: Json;
+          project_description?: string;
+          project_images?: Json | null;
+          budget_range?: 'under_5k' | '5k_10k' | '10k_25k' | '25k_50k' | '50k_100k' | 'over_100k' | 'not_sure';
+          timeline?: 'asap' | 'within_month' | '1_3_months' | '3_6_months' | '6_plus_months' | 'flexible';
+          preferred_contact_method?: 'phone' | 'email' | 'text' | 'either';
+          additional_notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "estimates_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      csrf_tokens: {
+        Row: {
+          user_id: string;
+          token: string;
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          token: string;
+          expires_at: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          token?: string;
+          expires_at?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "csrf_tokens_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -349,3 +474,7 @@ export type BusinessUpdate = Database['public']['Tables']['businesses']['Update'
 export type License = Database['public']['Tables']['licenses']['Row'];
 export type LicenseInsert = Database['public']['Tables']['licenses']['Insert'];
 export type LicenseUpdate = Database['public']['Tables']['licenses']['Update'];
+
+export type Estimate = Database['public']['Tables']['estimates']['Row'];
+export type EstimateInsert = Database['public']['Tables']['estimates']['Insert'];
+export type EstimateUpdate = Database['public']['Tables']['estimates']['Update'];

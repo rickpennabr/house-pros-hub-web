@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useMemo } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import Logo from '@/components/Logo';
@@ -12,6 +12,7 @@ import { FormField } from '@/components/ui/FormField';
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout';
 import { AuthNavigationButtons } from '@/components/auth/AuthNavigationButtons';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
+import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 
 function ForgotPasswordForm() {
   const locale = useLocale();
@@ -22,6 +23,16 @@ function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string }>({});
+
+  // Typing animation for placeholder
+  const emailPlaceholder = t('emailPlaceholder');
+  const placeholders = useMemo(() => [emailPlaceholder], [emailPlaceholder]);
+  const animatedPlaceholders = useTypingPlaceholder({
+    placeholders,
+    typingSpeed: 100,
+    delayBetweenFields: 300,
+    startDelay: 500,
+  });
 
   const validateField = (field: 'email', value: string): string | undefined => {
     if (field === 'email') {
@@ -136,7 +147,7 @@ function ForgotPasswordForm() {
                   }}
                   showClear
                   required
-                  placeholder={t('emailPlaceholder')}
+                  placeholder={animatedPlaceholders[0]}
                   disabled={isLoading}
                   error={fieldErrors.email}
                   autoFocus

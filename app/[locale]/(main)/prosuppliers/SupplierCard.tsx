@@ -67,7 +67,7 @@ export default function SupplierCard({ supplier, isSelected, onClick, isListMode
     return (
       <>
         <div 
-          className="border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
+          className="border-2 border-black rounded-lg md:bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
           onClick={onClick}
         >
           <div className={`relative h-[60px] flex items-center p-2`}>
@@ -144,7 +144,7 @@ export default function SupplierCard({ supplier, isSelected, onClick, isListMode
     <>
       <div
         className={`border-2 ${
-          isSelected ? 'border-black bg-gray-50' : 'border-black bg-white'
+          isSelected ? 'border-black md:bg-gray-50' : 'border-black md:bg-white'
         } rounded-lg hover:shadow-lg transition-shadow cursor-pointer w-full`}
         onClick={onClick}
       >

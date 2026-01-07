@@ -31,6 +31,13 @@ export const RESIDENTIAL_CONTRACTOR_LICENSES: ContractorLicense[] = [
     description: 'Electrical wiring, fixtures, systems, and installations' 
   },
   
+  // Low Voltage Systems (Smart Home/IoT)
+  { 
+    code: 'C-2d', 
+    name: 'Low Voltage Systems', 
+    description: 'Smart home systems, security cameras, home automation, security alarms, fire alarms, and low-voltage lighting (91 volts or less)' 
+  },
+  
   // Carpentry & Repairs
   { 
     code: 'C-3', 
@@ -119,7 +126,7 @@ export const RESIDENTIAL_CONTRACTOR_LICENSES: ContractorLicense[] = [
   { 
     code: 'C-25', 
     name: 'Fencing and Equipping Playgrounds', 
-    description: 'Fencing, guardrails, and playground equipment' 
+    description: 'Fencing, ornamental ironwork, custom iron gates, guardrails, railings, and playground equipment' 
   },
   
   // General Engineering (for driveways, excavation, etc.)
@@ -134,6 +141,41 @@ export const RESIDENTIAL_CONTRACTOR_LICENSES: ContractorLicense[] = [
     code: 'A-10', 
     name: 'Commercial and Residential Pools', 
     description: 'Pool and spa construction, alteration, and repair' 
+  },
+  
+  // Individual Sewerage
+  { 
+    code: 'C-27', 
+    name: 'Individual Sewerage', 
+    description: 'Septic systems, sewerage disposal, and related installations' 
+  },
+  
+  // Water Treatment
+  { 
+    code: 'C-30', 
+    name: 'Water Treatment', 
+    description: 'Water filtration, treatment systems, and water quality improvement' 
+  },
+  
+  // Solar Contracting
+  { 
+    code: 'C-37', 
+    name: 'Solar Contracting', 
+    description: 'Solar panels, solar water heating, space heating, and pool heating systems' 
+  },
+  
+  // Heaters
+  { 
+    code: 'C-39', 
+    name: 'Heaters', 
+    description: 'Heating systems, heaters, and related installations' 
+  },
+  
+  // Fire Protection
+  { 
+    code: 'C-41', 
+    name: 'Fire Protection', 
+    description: 'Fire sprinklers, extinguishing systems, fire alarms, and hydrants' 
   },
 ];
 

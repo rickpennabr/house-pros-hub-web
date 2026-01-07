@@ -18,25 +18,35 @@ function SignupSuccessPage() {
 
   // Ensure user session is loaded after OAuth redirect
   useEffect(() => {
-    let retryTimer: NodeJS.Timeout | null = null;
+    let retryTimers: NodeJS.Timeout[] = [];
+    
+    const loadSession = async () => {
+      try {
+        await checkAuth();
+      } catch (error) {
+        console.warn('Auth check failed, will retry:', error);
+      }
+    };
     
     // Check auth immediately
-    checkAuth().catch(() => {
-      // Silent fail on first attempt
-    });
+    void loadSession();
     
-    // Retry after a delay to ensure session cookies have propagated
+    // Retry multiple times to ensure session cookies have propagated
     // This handles cases where OAuth callback just set the session
-    retryTimer = setTimeout(() => {
-      checkAuth().catch(() => {
-        // Silent fail - user can still see success message
-      });
-    }, 500);
+    retryTimers.push(setTimeout(() => {
+      void loadSession();
+    }, 500));
+    
+    retryTimers.push(setTimeout(() => {
+      void loadSession();
+    }, 1500));
+    
+    retryTimers.push(setTimeout(() => {
+      void loadSession();
+    }, 3000));
     
     return () => {
-      if (retryTimer) {
-        clearTimeout(retryTimer);
-      }
+      retryTimers.forEach(timer => clearTimeout(timer));
     };
   }, [checkAuth]); // Only run once on mount
 

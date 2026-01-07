@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
 import { Building2, Check, X } from 'lucide-react';
 import type { BusinessFormValues } from '@/lib/schemas/business';
-import { resizeImage } from '@/lib/utils/image';
+import { resizeImage, validateFileSize } from '@/lib/utils/image';
 import { generateSlug } from '@/lib/utils/businessTransform';
 
 export function BusinessStep1() {
@@ -87,6 +87,17 @@ export function BusinessStep1() {
     if (file) {
       if (!file.type.startsWith('image/')) {
         alert(t('imageTypeError'));
+        if (logoInputRef.current) {
+          logoInputRef.current.value = '';
+        }
+        return;
+      }
+
+      if (!validateFileSize(file, 2)) {
+        alert(t('imageSizeError'));
+        if (logoInputRef.current) {
+          logoInputRef.current.value = '';
+        }
         return;
       }
       
@@ -111,6 +122,17 @@ export function BusinessStep1() {
     if (file) {
       if (!file.type.startsWith('image/')) {
         alert(t('imageTypeError'));
+        if (bgInputRef.current) {
+          bgInputRef.current.value = '';
+        }
+        return;
+      }
+
+      if (!validateFileSize(file, 2)) {
+        alert(t('imageSizeError'));
+        if (bgInputRef.current) {
+          bgInputRef.current.value = '';
+        }
         return;
       }
       
@@ -137,7 +159,7 @@ export function BusinessStep1() {
         <label className="block text-sm font-bold text-black uppercase tracking-wider">{t('sectionTitle')}</label>
         <div className="relative w-full h-[200px] md:h-[300px] lg:h-[350px] group">
           {/* Background Container with Overflow Hidden */}
-          <div className="absolute inset-0 rounded-lg border-2 border-black bg-white overflow-hidden">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] h-[95%] rounded-lg border-2 border-black bg-white overflow-hidden">
             {/* Background Image (if exists) */}
             {bgPreview && (
               <div className="absolute inset-0 w-full h-full pointer-events-none">
@@ -155,7 +177,7 @@ export function BusinessStep1() {
             {/* Background Upload/Click Area - Always covers full area */}
             <div 
               onClick={() => bgInputRef.current?.click()}
-              className="absolute inset-0 w-full h-full cursor-pointer hover:bg-gray-50/30 transition-colors z-20"
+              className="absolute inset-0 w-full h-full cursor-pointer hover:bg-gray-50/30 transition-colors z-10"
             >
               {!bgPreview && (
                 <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1">
@@ -167,12 +189,15 @@ export function BusinessStep1() {
             
             {/* Background Edit/Remove Controls */}
             {bgPreview && (
-              <div className="absolute top-2 right-2 flex gap-2 z-30">
+              <div className="absolute top-2 right-2 flex gap-2 z-20">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setValue('businessBackground', '');
+                    if (bgInputRef.current) {
+                      bgInputRef.current.value = '';
+                    }
                   }}
                   className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md cursor-pointer"
                   title={t('removeBackgroundTitle')}
@@ -184,7 +209,7 @@ export function BusinessStep1() {
           </div>
 
           {/* Logo Upload/Preview (Overlapping Bottom Center) */}
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-30">
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-10">
             <div 
               onClick={() => logoInputRef.current?.click()}
               className="w-24 h-24 rounded-lg border-4 border-white bg-white shadow-xl overflow-hidden flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform relative"
@@ -217,7 +242,7 @@ export function BusinessStep1() {
                     logoInputRef.current.value = '';
                   }
                 }}
-                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors shadow-lg z-40"
+                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors shadow-lg z-20"
                 title={t('removeLogoTitle')}
               >
                 <X className="w-3 h-3 text-white" />

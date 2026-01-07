@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useAddressSearch } from './AddressAutocomplete/hooks/useAddressSearch';
-import { formatAddress, parseAddressData, PhotonResult } from './AddressAutocomplete/utils/addressParser';
+import { formatAddress, parseAddressData, GooglePlacesResult } from './AddressAutocomplete/utils/addressParser';
 
 export interface AddressData {
   streetAddress: string;
@@ -36,7 +36,7 @@ export default function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const { suggestions, isLoading, searchAddresses, clearSuggestions } = useAddressSearch();
+  const { suggestions, isLoading, searchAddresses, clearSuggestions, getPlaceDetails } = useAddressSearch();
 
   // Handle input change with debounce
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,15 +53,25 @@ export default function AddressAutocomplete({
   };
 
   // Handle suggestion selection
-  const handleSelectSuggestion = (suggestion: PhotonResult) => {
-    const addressData = parseAddressData(suggestion);
+  const handleSelectSuggestion = async (suggestion: GooglePlacesResult) => {
+    setShowSuggestions(false);
+    
+    // Fetch full place details to get address components
+    let fullPlaceDetails: GooglePlacesResult | null = null;
+    if (suggestion.place_id && getPlaceDetails) {
+      fullPlaceDetails = await getPlaceDetails(suggestion.place_id);
+    }
+    
+    // Use full details if available, otherwise use the suggestion
+    const resultToParse = fullPlaceDetails || suggestion;
+    const addressData = parseAddressData(resultToParse);
+    
     onChange(addressData.streetAddress);
 
     if (onAddressSelect) {
       onAddressSelect(addressData);
     }
 
-    setShowSuggestions(false);
     clearSuggestions();
 
     if (inputRef.current) {
@@ -141,7 +151,7 @@ export default function AddressAutocomplete({
             const formattedAddress = formatAddress(suggestion);
             return (
               <button
-                key={index}
+                key={suggestion.place_id || index}
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault();

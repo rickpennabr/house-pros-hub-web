@@ -1,3 +1,5 @@
+import { COMPANY_INFO } from '@/lib/constants/company';
+
 export const metadata = {
   title: 'Cookie Policy | House Pros Hub',
   description: 'Cookie Policy for House Pros Hub marketplace platform',
@@ -29,15 +31,17 @@ export default function CookiePolicyPage() {
                 <li><strong>Preferences:</strong> To remember your settings and preferences</li>
               </ul>
 
-              <h3 className="text-xl font-semibold text-black mt-4 mb-2">2.2 Analytics Cookies</h3>
+              <h3 className="text-xl font-semibold text-black mt-4 mb-2">2.2 Performance Monitoring</h3>
               <p>
-                These cookies help us understand how visitors interact with the Platform by collecting and reporting information anonymously. This helps us improve the Platform&apos;s functionality and user experience.
+                We use performance monitoring tools to help us identify and fix technical issues, improve platform stability, and enhance user experience. This includes:
               </p>
               <ul className="list-disc pl-6 space-y-2">
-                <li>Page views and navigation patterns</li>
-                <li>Time spent on pages</li>
-                <li>Error messages and performance issues</li>
+                <li><strong>Error Tracking:</strong> We use Sentry to monitor and track errors and performance issues to improve platform reliability</li>
+                <li><strong>Performance Monitoring:</strong> We collect anonymous performance metrics to identify and resolve technical problems</li>
               </ul>
+              <p className="mt-2">
+                <em>Note: We do not currently use analytics cookies for tracking page views or user behavior patterns. If we add analytics cookies in the future, we will update this policy and provide opt-out options where required by law.</em>
+              </p>
 
               <h3 className="text-xl font-semibold text-black mt-4 mb-2">2.3 Functionality Cookies</h3>
               <p>
@@ -65,12 +69,12 @@ export default function CookiePolicyPage() {
 
               <h3 className="text-xl font-semibold text-black mt-4 mb-2">3.3 Third-Party Cookies</h3>
               <p>
-                We may use third-party services that set cookies on your device. These cookies are subject to the privacy policies of the third-party providers. We use third-party cookies for:
+                We use third-party services that may set cookies on your device. These cookies are subject to the privacy policies of the third-party providers. We use third-party services for:
               </p>
               <ul className="list-disc pl-6 space-y-2">
-                <li>Analytics and performance monitoring</li>
-                <li>Security and fraud prevention</li>
-                <li>Content delivery networks</li>
+                <li><strong>Performance Monitoring:</strong> Sentry (error tracking and performance monitoring) - <a href="https://sentry.io/privacy/" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">Sentry Privacy Policy</a></li>
+                <li><strong>Authentication:</strong> Supabase (authentication and database services) - <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">Supabase Privacy Policy</a></li>
+                <li><strong>Hosting and Content Delivery:</strong> Our hosting and content delivery network providers may set cookies for security and performance</li>
               </ul>
             </section>
 
@@ -112,6 +116,9 @@ export default function CookiePolicyPage() {
               <p>
                 We may update this Cookie Policy from time to time to reflect changes in our practices or for other operational, legal, or regulatory reasons. We will notify you of any material changes by posting the updated Cookie Policy on the Platform and updating the &quot;Last Updated&quot; date.
               </p>
+              <p className="mt-2 text-sm text-gray-600">
+                <strong>Last Updated:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
             </section>
 
             <section>
@@ -120,8 +127,8 @@ export default function CookiePolicyPage() {
                 If you have any questions about our use of cookies, please contact us at:
               </p>
               <p className="mt-2">
-                <strong>Email:</strong> privacy@houseproshub.com<br />
-                <strong>Address:</strong> [Your Business Address]
+                <strong>Email:</strong> {COMPANY_INFO.email.privacy}<br />
+                <strong>Address:</strong> {COMPANY_INFO.address}
               </p>
             </section>
           </div>

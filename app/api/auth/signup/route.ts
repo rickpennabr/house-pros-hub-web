@@ -3,6 +3,10 @@ import { isValidEmail, isValidPassword, isNotEmpty } from '@/lib/validation';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { validateBase64Image, getExtensionFromMimeType } from '@/lib/utils/fileValidation';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
+import { sendWelcomeEmail } from '@/lib/services/emailService';
+import { getMessages } from 'next-intl/server';
+import { logger } from '@/lib/utils/logger';
+import type { WelcomeEmailTranslations } from '@/lib/utils/emailTemplates';
 
 /**
  * Convert base64 string to Buffer for server-side file handling
@@ -198,7 +202,7 @@ export async function POST(request: NextRequest) {
       referral: normalizeString(referral),
       referral_other: normalizeString(referralOther),
       // Address fields removed - they're saved to addresses table below
-      company_name: normalizeString(companyName),
+      // company_name removed - businesses are linked via business_id foreign key
       company_role: normalizeString(companyRole),
       user_picture: profilePictureUrl || null,
     };
@@ -349,10 +353,68 @@ export async function POST(request: NextRequest) {
       zipCode: normalizeString(zipCode),
       gateCode: normalizeString(gateCode),
       addressNote: normalizeString(addressNote),
-      companyName: normalizeString(companyName),
+      // companyName removed - businesses are linked via business_id foreign key
       companyRole: normalizeString(companyRole),
       userPicture: profilePictureUrl || null,
     };
+
+    // Send welcome email (non-blocking - don't fail signup if email fails)
+    try {
+      // Get locale from request headers or default to 'en'
+      const locale = request.headers.get('x-locale') || 'en';
+
+      // Get email translations using getMessages for better API route support
+      const messages = await getMessages({ locale });
+      const welcomeEmailMessages = messages?.auth?.welcomeEmail as Record<string, any> | undefined;
+      const footerMessages = welcomeEmailMessages?.footer as Record<string, string> | undefined;
+
+      if (!welcomeEmailMessages) {
+        logger.warn('Welcome email translations not found', { locale, endpoint: '/api/auth/signup' });
+      }
+
+      const emailTranslations: WelcomeEmailTranslations = {
+        subject: welcomeEmailMessages?.subject || 'Welcome to House Pros Hub!',
+        greeting: welcomeEmailMessages?.greeting || 'Hello',
+        customerWelcomeMessage: welcomeEmailMessages?.customerWelcomeMessage || '',
+        contractorWelcomeMessage: welcomeEmailMessages?.contractorWelcomeMessage || '',
+        bothWelcomeMessage: welcomeEmailMessages?.bothWelcomeMessage || '',
+        nextSteps: welcomeEmailMessages?.nextSteps || 'Next Steps',
+        customerNextSteps: welcomeEmailMessages?.customerNextSteps || '',
+        contractorNextSteps: welcomeEmailMessages?.contractorNextSteps || '',
+        bothNextSteps: welcomeEmailMessages?.bothNextSteps || '',
+        footer: {
+          companyName: footerMessages?.companyName || 'House Pros Hub',
+          contactInfo: footerMessages?.contactInfo || 'If you have any questions, please contact us.',
+          unsubscribe: footerMessages?.unsubscribe || 'You are receiving this email because you created an account with House Pros Hub.',
+        },
+      };
+
+      // Prepare welcome email data
+      const welcomeEmailData = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: normalizedEmail,
+        userType: (userType || 'customer') as 'customer' | 'contractor' | 'both',
+      };
+
+      // Send welcome email (errors are logged but don't fail signup)
+      const emailResult = await sendWelcomeEmail(welcomeEmailData, normalizedEmail, emailTranslations);
+      if (!emailResult.success) {
+        logger.warn('Failed to send welcome email', {
+          endpoint: '/api/auth/signup',
+          userId: authData.user.id,
+          userEmail: normalizedEmail,
+          error: emailResult.error,
+        });
+      }
+    } catch (emailError) {
+      // Log error but don't fail signup
+      logger.error('Error sending welcome email', {
+        endpoint: '/api/auth/signup',
+        userId: authData.user.id,
+        userEmail: normalizedEmail,
+      }, emailError as Error);
+    }
 
     return NextResponse.json(
       { user },

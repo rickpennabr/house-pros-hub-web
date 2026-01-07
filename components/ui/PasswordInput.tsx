@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, InputHTMLAttributes } from 'react';
+import { useState, InputHTMLAttributes, ReactNode } from 'react';
+import { TipModal } from './TipModal';
 
 interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'className'> {
-  label?: string;
+  label?: string | ReactNode;
   showToggle?: boolean;
   error?: string;
   className?: string;
+  /** Optional tip message to display in the info icon tooltip */
+  tip?: string;
 }
 
-export function PasswordInput({ label, showToggle = true, error, className = '', ...props }: PasswordInputProps) {
+export function PasswordInput({ label, showToggle = true, error, className = '', tip, ...props }: PasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false);
   const hasError = !!error;
   const borderClass = hasError 
@@ -19,9 +22,10 @@ export function PasswordInput({ label, showToggle = true, error, className = '',
   return (
     <div>
       {label && (
-        <label htmlFor={props.id} className={`block text-sm font-medium mb-2 ${hasError ? 'text-red-600' : ''}`}>
-          {error || label}
-          {props.required && !error && <span className="text-red-500 ml-1">*</span>}
+        <label htmlFor={props.id} className={`flex items-center gap-2 text-sm font-medium mb-2 ${hasError ? 'text-red-600' : ''}`}>
+          {error ? <span>{error}</span> : <>{label}</>}
+          {props.required && !error && <span className="text-red-500">*</span>}
+          {tip && !error && <TipModal message={tip} />}
         </label>
       )}
       <div className="relative">

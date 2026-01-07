@@ -19,6 +19,7 @@ interface ProjectTypeSelectorProps {
   tFields: (key: string) => string;
   tValidation: (key: string) => string;
   tHelp: (key: string) => string;
+  tTips: (key: string) => string;
 }
 
 export default function ProjectTypeSelector({
@@ -35,6 +36,7 @@ export default function ProjectTypeSelector({
   tFields,
   tValidation,
   tHelp,
+  tTips,
 }: ProjectTypeSelectorProps) {
   const { register } = methods;
 
@@ -46,6 +48,7 @@ export default function ProjectTypeSelector({
       isComplete={isComplete}
       error={errors.projectType ? tHelp('requiredFieldsHint') : undefined}
       required
+      tip={tTips('projectType')}
     >
       <FormField label="" error={undefined}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">

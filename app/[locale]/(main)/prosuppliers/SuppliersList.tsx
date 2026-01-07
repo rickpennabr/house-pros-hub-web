@@ -405,13 +405,11 @@ export default function SuppliersList() {
   const [showSearchInput, setShowSearchInput] = useState(false);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-2 relative min-h-[calc(100vh-200px)]">
-      {/* List Sidebar */}
-      <div className={`lg:w-[35%] ${view === 'map' && isMobile ? 'hidden' : 'block'}`}>
-        {/* Mobile: Show full search bar, PC: Show header with Suppliers label and search button */}
-        {isMobile ? (
-          renderSearchBar()
-        ) : (
+    <div className={`flex flex-col lg:flex-row gap-2 relative ${isMobile ? 'h-[calc(100vh-200px)]' : 'min-h-[calc(100vh-200px)]'}`}>
+      {/* List Sidebar - Mobile: full height when card/list view, PC: always visible */}
+      <div className={`${isMobile ? (view === 'map' ? 'hidden' : 'w-full h-full') : 'lg:w-[35%]'} ${view === 'map' && isMobile ? 'hidden' : 'block'}`}>
+        {/* Mobile: Hide search bar (using top navigation), PC: Show header with Suppliers label and search button */}
+        {!isMobile && (
           <>
             {renderPCSidebarHeader()}
             {(showSearchInput || searchTerm) && (
@@ -442,7 +440,7 @@ export default function SuppliersList() {
             )}
           </>
         )}
-        <div className={`${isMobile && view === 'list' ? 'space-y-2' : 'space-y-4'} overflow-y-auto max-h-[calc(100vh-280px)]`}>
+        <div className={`${isMobile && view === 'list' ? 'space-y-2' : 'space-y-4'} ${isMobile ? 'h-full overflow-y-auto' : 'overflow-y-auto max-h-[calc(100vh-280px)]'}`}>
           {filteredSuppliers.length === 0 ? (
             <div className="w-full flex items-center justify-center py-12 text-center">
               <p className="text-gray-600 text-lg">
@@ -465,32 +463,9 @@ export default function SuppliersList() {
         </div>
       </div>
       
-      {/* Map Side */}
-      <div className={`lg:w-[65%] h-[calc(100vh-200px)] ${view === 'list' && isMobile ? 'hidden' : 'block'} relative`}>
-        {/* Search bar overlay on map (mobile only) */}
-        {view === 'map' && isMobile && (
-          <div className="absolute top-0 left-0 right-0 z-10 bg-white/95 p-4 border-2 border-black rounded-lg mb-4">
-            <div className="flex flex-row gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder="Search suppliers..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full h-10 pl-10 pr-4 border-2 border-black rounded-lg bg-white focus:outline-none transition-all text-black placeholder-gray-500"
-                />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-red-500 pointer-events-none" size={20} />
-              </div>
-              <button
-                onClick={() => setIsFilterModalOpen(true)}
-                className="h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-colors shrink-0"
-                aria-label="Filter"
-              >
-                <Filter className="w-5 h-5 text-white" />
-              </button>
-            </div>
-          </div>
-        )}
+      {/* Map Side - Mobile: full height when map view, PC: always visible */}
+      <div className={`${isMobile ? (view === 'map' ? 'w-full h-full' : 'hidden') : 'lg:w-[65%] h-[calc(100vh-200px)]'} relative`}>
+        {/* Search bar overlay on map removed on mobile - using top navigation instead */}
         {selectedSupplier !== null && (
           <Button
             variant="secondary"
@@ -549,7 +524,7 @@ export default function SuppliersList() {
 
       {/* View Toggle - Mobile only (card/list/map all inside the same black container) */}
       {isMobile && filteredSuppliers.length > 0 && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-50 bottom-[90px] md:bottom-[75px]">
+        <div className="fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-300 bottom-[65px]">
           <div className="p-2 bg-black text-white rounded-lg border-2 border-black font-bold text-[11px] flex items-center justify-center gap-2 shadow-lg">
             <button
               type="button"

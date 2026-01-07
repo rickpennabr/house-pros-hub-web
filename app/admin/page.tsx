@@ -35,6 +35,16 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="p-6 border-2 border-black rounded-lg bg-white">
+          <h2 className="text-xl font-semibold mb-2">Storage</h2>
+          <p className="text-gray-600 mb-4">
+            View and manage files in Supabase storage buckets.
+          </p>
+          <Link href="/admin/storage" className="text-black underline hover:no-underline">
+            Go to Storage →
+          </Link>
+        </div>
+
+        <div className="p-6 border-2 border-black rounded-lg bg-white">
           <h2 className="text-xl font-semibold mb-2">Clear Data</h2>
           <p className="text-gray-600 mb-4">
             Clear local storage data for testing purposes.

@@ -6,6 +6,11 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { logger } from '@/lib/utils/logger';
 import { handleError } from '@/lib/utils/errorHandler';
 
+// Route segment config - optimize for caching and performance
+// This helps prevent unnecessary re-compilations and improves caching
+export const dynamic = 'force-dynamic'; // Force dynamic since we need fresh data from Supabase
+export const revalidate = 0; // Disable ISR - we use our own cache headers with stale-while-revalidate
+
 interface DbLicenseRow {
   license_number: string | null;
   license_type: string | null;

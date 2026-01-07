@@ -4,11 +4,11 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { User, Users } from 'lucide-react';
+import { User } from 'lucide-react';
 import { GrUserWorker } from 'react-icons/gr';
 
 interface RoleSelectionScreenProps {
-  onRoleSelect: (role: 'customer' | 'contractor' | 'both') => void;
+  onRoleSelect: (role: 'customer' | 'contractor') => void;
   isLoading?: boolean;
 }
 
@@ -18,24 +18,24 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
   const locale = useLocale();
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col text-black">
+    <div className="w-full max-w-md mx-auto flex flex-col text-black md:pt-12">
       {/* Logo */}
-      <div className="flex items-center justify-center h-[40px] md:h-[95px] mt-8 md:mt-4 mb-6 md:mb-0 pb-4 md:pb-0 animate-fade-in">
-        <Link href={`/${locale}/businesslist`} className="cursor-pointer flex-shrink-0 w-full md:w-auto">
+      <div className="flex items-center justify-center h-[40px] md:h-[95px] mt-8 md:mt-0 mb-6 md:mb-0 pb-4 md:pb-2 md:w-full animate-fade-in">
+        <Link href={`/${locale}/businesslist`} className="cursor-pointer flex-shrink-0 w-full md:w-full">
           <Image
             src="/hph-logo-2.3.png"
             alt="House Pros Hub"
             width={400}
             height={100}
-            className="h-full w-full md:w-auto max-w-full object-contain"
+            className="h-full w-full md:w-full max-w-full object-contain"
             priority
           />
         </Link>
       </div>
       
       {/* Title */}
-      <div className="flex items-center justify-center gap-3 mb-8 md:mb-6 pt-4">
-        <h2 className="text-3xl font-semibold text-center animate-fade-in">
+      <div className="flex items-center justify-center gap-3 mb-4 md:mb-6 md:pt-4 animate-slide-in-right">
+        <h2 className="text-3xl font-semibold text-center">
           {t('title')}
         </h2>
       </div>
@@ -81,28 +81,6 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
               </h3>
               <p className="text-sm text-gray-600">
                 {t('contractor.description')}
-              </p>
-            </div>
-          </div>
-        </button>
-
-        {/* Both Option */}
-        <button
-          type="button"
-          onClick={() => onRoleSelect('both')}
-          disabled={isLoading}
-          className="w-full p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
-        >
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
-              <Users className="w-6 h-6 text-red-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-black mb-1">
-                {t('both.title')}
-              </h3>
-              <p className="text-sm text-gray-600">
-                {t('both.description')}
               </p>
             </div>
           </div>

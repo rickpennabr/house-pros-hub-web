@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { TipModal } from './TipModal';
 
 interface AccordionProps {
   title: string;
@@ -15,6 +16,7 @@ interface AccordionProps {
   className?: string;
   hasErrors?: boolean;
   missingInfoMessage?: string;
+  tip?: string;
 }
 
 export default function Accordion({
@@ -28,6 +30,7 @@ export default function Accordion({
   children,
   className = '',
   missingInfoMessage,
+  tip,
 }: AccordionProps) {
   // Determine if we should show error styling (red border and message)
   // Show when accordion is collapsed, required, and incomplete (has errors or missing info)
@@ -54,7 +57,10 @@ export default function Accordion({
             <h2 className={`text-xl font-bold flex-shrink-0 ${isComplete ? 'text-white' : 'text-black'}`}>
               {title}
               {required && !isComplete && !error && (
-                <span className="text-red-500 ml-1">*</span>
+                <>
+                  <span className="text-red-500 ml-1">*</span>
+                  {tip && <span className="ml-1"><TipModal message={tip} /></span>}
+                </>
               )}
             </h2>
             {showErrorState && missingInfoMessage && (
