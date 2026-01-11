@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 
 interface ExpandableSearchbarProps {
   onSearchChange?: (query: string) => void;
   onSearchToggle?: (isOpen: boolean) => void;
   placeholder?: string;
-  placeholderKey?: 'categories' | 'businesses' | 'suppliers' | 'address';
+  placeholderKey?: 'categories' | 'businesses' | 'suppliers' | 'address' | 'help';
   shiftRight?: boolean; // Shift search button to the left to make room for filter button
 }
 
@@ -30,6 +31,34 @@ export default function ExpandableSearchbar({
   const searchBarRef = useRef<HTMLDivElement>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Typing animation for placeholder (only when search is open and empty)
+  const prevSearchOpenRef = useRef(false);
+  const [animationKey, setAnimationKey] = useState(0);
+  
+  useEffect(() => {
+    // Only restart animation when search transitions from closed to open (and input is empty)
+    if (isSearchOpen && !prevSearchOpenRef.current && !searchQuery) {
+      setAnimationKey(prev => prev + 1);
+    }
+    prevSearchOpenRef.current = isSearchOpen;
+  }, [isSearchOpen, searchQuery]);
+
+  const placeholderArray = useMemo(
+    () => [displayPlaceholder],
+    [displayPlaceholder, animationKey] // Change when animation key changes to restart
+  );
+  
+  // Only animate when search is open and empty
+  const shouldAnimate = isSearchOpen && !searchQuery;
+  const animatedPlaceholders = useTypingPlaceholder({
+    placeholders: placeholderArray,
+    typingSpeed: 100,
+    delayBetweenFields: 0,
+    startDelay: shouldAnimate ? 500 : 0,
+  });
+  
+  const animatedPlaceholder = shouldAnimate ? (animatedPlaceholders[0] || displayPlaceholder) : displayPlaceholder;
 
   // Set mounted flag after hydration to prevent hydration mismatches
   useEffect(() => {
@@ -246,8 +275,8 @@ export default function ExpandableSearchbar({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={displayPlaceholder}
-              className="w-full h-10 pl-10 pr-10 border-2 border-black rounded-lg bg-white focus:outline-none transition-all text-black placeholder-gray-500"
+              placeholder={searchQuery ? displayPlaceholder : animatedPlaceholder}
+              className="w-full h-10 pl-8 md:pl-10 pr-2 md:pr-10 border-2 border-black rounded-lg bg-white focus:outline-none transition-all text-black placeholder-gray-500 text-sm md:text-base"
             />
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-red-500 pointer-events-none" size={20} />
             {searchQuery && (

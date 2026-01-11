@@ -23,6 +23,7 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
   const pathname = usePathname();
   const t = useTranslations('categories');
   const isSuppliersPage = pathname?.includes('/prosuppliers');
+  const isHelpPage = pathname?.includes('/help');
 
   const { businesses } = useBusinesses();
 
@@ -142,7 +143,7 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
       <ExpandableSearchbar 
         onSearchChange={handleSearchChange}
         onSearchToggle={handleSearchToggle}
-        placeholderKey={isSuppliersPage ? "suppliers" : "businesses"}
+        placeholderKey={isHelpPage ? "help" : isSuppliersPage ? "suppliers" : "businesses"}
         shiftRight={isSuppliersPage}
       />
 

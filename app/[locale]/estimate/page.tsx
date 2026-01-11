@@ -9,7 +9,7 @@ import { TbHomeEdit } from 'react-icons/tb';
 
 import { estimateSchema, type EstimateSchema } from '@/lib/schemas/estimate';
 import { useAuth } from '@/contexts/AuthContext';
-import { createSignUpUrl } from '@/lib/redirect';
+import { createSignUpUrl, createLocalePath } from '@/lib/redirect';
 import { useAccordionState } from '@/hooks/useAccordionState';
 import { useEstimateFormValues } from '@/hooks/useEstimateFormValues';
 import { useEstimateFormValidation } from '@/hooks/useEstimateFormValidation';
@@ -312,15 +312,11 @@ export default function EstimatePage() {
         });
       }, 100);
       
-      // Reset form after success and re-populate user data
+      // Redirect to home after 6 seconds (users typically only submit one estimate)
       setTimeout(() => {
-        methods.reset();
-        setSuccessMessage('');
-        // Re-populate user data after reset
-        setTimeout(() => {
-          populateUserData();
-        }, 100);
-      }, 5000);
+        const homePath = createLocalePath(locale as 'en' | 'es', '/');
+        router.push(homePath);
+      }, 6000);
     } catch (error) {
       console.error('Error submitting estimate:', error);
       setErrorMessage(error instanceof Error ? error.message : tValidation('genericError'));
@@ -341,8 +337,9 @@ export default function EstimatePage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Success/Error Messages */}
           {successMessage && (
-            <div ref={successMessageRef} className="bg-green-50 border-2 border-green-600 text-green-800 rounded-lg p-4">
-              {successMessage}
+            <div ref={successMessageRef} className="bg-green-50 border-2 border-green-600 text-green-800 rounded-lg p-4 text-center">
+              <p className="mb-2">{successMessage}</p>
+              <p className="text-sm text-green-700">Redirecting to home page...</p>
             </div>
           )}
           {errorMessage && (
@@ -351,8 +348,11 @@ export default function EstimatePage() {
             </div>
           )}
 
-          {/* Customer Information Section */}
-          <div ref={customerInfoRef}>
+          {/* Hide form after successful submission */}
+          {!successMessage && (
+            <>
+              {/* Customer Information Section */}
+              <div ref={customerInfoRef}>
             <CustomerInfoAccordion
               isOpen={isOpen('customerInfo')}
               onToggle={() => toggleAccordion('customerInfo')}
@@ -480,22 +480,24 @@ export default function EstimatePage() {
             </Accordion>
           </div>
 
-          {/* Submit Button */}
-          <div className="flex justify-end pt-4">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={`
-                px-8 py-3 bg-black text-white rounded-lg border-2 border-black
-                font-bold text-lg cursor-pointer
-                transition-all duration-200
-                hover:bg-gray-900 active:scale-95
-                disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100
-              `}
-            >
-              {isSubmitting ? tButtons('submitting') : tButtons('submit')}
-            </button>
-          </div>
+              {/* Submit Button */}
+              <div className="flex justify-end pt-4">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={`
+                    px-8 py-3 bg-black text-white rounded-lg border-2 border-black
+                    font-bold text-lg cursor-pointer
+                    transition-all duration-200
+                    hover:bg-gray-900 active:scale-95
+                    disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100
+                  `}
+                >
+                  {isSubmitting ? tButtons('submitting') : tButtons('submit')}
+                </button>
+              </div>
+            </>
+          )}
         </form>
       </FormProvider>
     </div>

@@ -37,9 +37,10 @@
     },
     "search": {
       "categories": "Search categories...",
-      "businesses": "Search businesses, services, or keywords...",
+      "businesses": "Find your Home Pro...",
       "suppliers": "Search suppliers by name, materials, or trades...",
-      "address": "Search for address"
+      "address": "Search for address",
+      "help": "Find help here..."
     },
     "account": {
       "myBusiness": "My Business",
