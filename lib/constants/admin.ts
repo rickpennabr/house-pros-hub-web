@@ -8,8 +8,15 @@
  * 
  * In production, throws error if not set to prevent security issues.
  * In development, uses a fallback but logs a warning.
+ * On the client side, returns a sentinel value that will never match.
  */
 export const ADMIN_EMAIL = (() => {
+  // On client side, environment variables without NEXT_PUBLIC_ prefix are not available
+  // Return a sentinel value that will never match any email address
+  if (typeof window !== 'undefined') {
+    return '__CLIENT_SIDE_PLACEHOLDER__';
+  }
+  
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const isProduction = process.env.NODE_ENV === 'production';
   
