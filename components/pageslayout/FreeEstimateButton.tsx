@@ -1,28 +1,23 @@
 'use client';
 
+import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { createSignUpUrl } from '@/lib/redirect';
 
+/** Links to sign-up (if not logged in) or the Free Estimate form (if logged in). Return URL is set so after sign-up user lands on estimate. */
 export default function FreeEstimateButton() {
-  const router = useRouter();
-  const locale = useLocale();
   const t = useTranslations('common');
-  const { isAuthenticated } = useAuth();
+  const locale = useLocale();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  const handleClick = () => {
-    // If authenticated, go directly to estimate page
-    if (isAuthenticated) {
-      router.push(`/${locale}/estimate`);
-    } else {
-      // If not authenticated, go to signup and skip role selection, go directly to form as customer
-      router.push(`/${locale}/signup?skipRoleSelection=true&role=customer`);
-    }
-  };
+  const href = !isLoading && isAuthenticated
+    ? `/${locale}/estimate`
+    : createSignUpUrl(locale as 'en' | 'es', 'estimate');
 
   return (
-    <button
-      onClick={handleClick}
+    <Link
+      href={href}
       className="
         relative h-10 px-2 
         bg-black text-white 
@@ -36,6 +31,6 @@ export default function FreeEstimateButton() {
       "
     >
       <span className="whitespace-nowrap tracking-wider">{t('button.freeEstimate')}</span>
-    </button>
+    </Link>
   );
 }

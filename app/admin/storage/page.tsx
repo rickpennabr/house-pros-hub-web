@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Trash2, RefreshCw, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
 
 const STORAGE_BUCKETS = [
   { id: 'profile-pictures', name: 'Profile Pictures', icon: '👤' },
@@ -88,6 +89,7 @@ export default function StorageManagementPage() {
 
   return (
     <div className="w-full">
+      <AdminFloatingAddButton href="/admin/customers" ariaLabel="Add customer" />
       <div className="mb-6">
         <h1 className="text-3xl font-semibold text-black mb-2">
           Storage Management

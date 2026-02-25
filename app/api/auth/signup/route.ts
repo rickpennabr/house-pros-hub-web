@@ -3,7 +3,7 @@ import { isValidEmail, isValidPassword, isNotEmpty } from '@/lib/validation';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { validateBase64Image, getExtensionFromMimeType } from '@/lib/utils/fileValidation';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
-import { sendWelcomeEmail } from '@/lib/services/emailService';
+import { sendWelcomeEmail, sendNewSignupAdminNotification } from '@/lib/services/emailService';
 import { getMessages } from 'next-intl/server';
 import { logger } from '@/lib/utils/logger';
 import type { WelcomeEmailTranslations } from '@/lib/utils/emailTemplates';
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, password, firstName, lastName, phone, referral, referralOther, streetAddress, apartment, city, state, zipCode, gateCode, addressNote, companyName, companyRole, userPicture, userType } = body;
+    const { email, password, firstName, lastName, phone, referral, referralOther, streetAddress, apartment, city, state, zipCode, gateCode, addressNote, companyName, companyRole, userPicture, userType, invitationCode } = body;
     
     // Log received data (without password) for debugging
     if (process.env.NODE_ENV === 'development') {
@@ -136,6 +136,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const serviceRoleClient = createServiceRoleClient();
+
+    // Contractor signup requires a valid invitation code
+    let invitationCodeId: string | null = null;
+    if (userType === 'contractor') {
+      const rawCode = invitationCode != null ? String(invitationCode).trim().toUpperCase() : '';
+      if (!rawCode) {
+        return NextResponse.json(
+          { error: 'Invitation code is required for contractor signup.' },
+          { status: 400 }
+        );
+      }
+      const { data: codeRow, error: codeError } = await serviceRoleClient
+        .from('contractor_invitation_codes')
+        .select('id, expires_at, used_at')
+        .eq('code', rawCode)
+        .maybeSingle();
+
+      if (codeError || !codeRow) {
+        return NextResponse.json(
+          { error: 'Invalid or expired invitation code.' },
+          { status: 400 }
+        );
+      }
+      if (codeRow.used_at) {
+        return NextResponse.json(
+          { error: 'This invitation code has already been used.' },
+          { status: 400 }
+        );
+      }
+      const expiresAt = new Date(codeRow.expires_at);
+      if (expiresAt <= new Date()) {
+        return NextResponse.json(
+          { error: 'Invalid or expired invitation code.' },
+          { status: 400 }
+        );
+      }
+      invitationCodeId = codeRow.id;
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
     const supabase = await createClient();
 
@@ -167,8 +207,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use service role client to bypass RLS for profile and role creation
-    // This is necessary because if email confirmation is required, there's no session yet
-    const serviceRoleClient = createServiceRoleClient();
+    // (serviceRoleClient already created above for contractor invitation code check)
 
     // Upload profile picture to storage if provided (base64 string)
     let profilePictureUrl: string | null = null;
@@ -337,6 +376,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Mark invitation code as used for contractor signup
+    if (invitationCodeId) {
+      await serviceRoleClient
+        .from('contractor_invitation_codes')
+        .update({
+          used_at: new Date().toISOString(),
+          used_by: authData.user.id,
+        })
+        .eq('id', invitationCodeId);
+    }
+
     // Return user data (use normalized values to match what was saved)
     const user = {
       id: authData.user.id,
@@ -372,6 +422,7 @@ export async function POST(request: NextRequest) {
         logger.warn('Welcome email translations not found', { locale, endpoint: '/api/auth/signup' });
       }
 
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://houseproshub.com';
       const emailTranslations: WelcomeEmailTranslations = {
         subject: welcomeEmailMessages?.subject || 'Welcome to House Pros Hub!',
         greeting: welcomeEmailMessages?.greeting || 'Hello',
@@ -382,6 +433,7 @@ export async function POST(request: NextRequest) {
         customerNextSteps: welcomeEmailMessages?.customerNextSteps || '',
         contractorNextSteps: welcomeEmailMessages?.contractorNextSteps || '',
         bothNextSteps: welcomeEmailMessages?.bothNextSteps || '',
+        siteUrl,
         footer: {
           companyName: footerMessages?.companyName || 'House Pros Hub',
           contactInfo: footerMessages?.contactInfo || 'If you have any questions, please contact us.',
@@ -414,6 +466,44 @@ export async function POST(request: NextRequest) {
         userId: authData.user.id,
         userEmail: normalizedEmail,
       }, emailError as Error);
+    }
+
+    // Notify admin of new customer or new contractor signup (non-blocking)
+    try {
+      const signupType = userType === 'contractor' ? 'contractor' : 'customer';
+      const name = `${firstName.trim()} ${lastName.trim()}`.trim() || normalizedEmail;
+      const adminNotifyResult = await sendNewSignupAdminNotification({
+        type: signupType,
+        name,
+        email: normalizedEmail,
+        phone: normalizeString(phone) ?? undefined,
+      });
+      if (!adminNotifyResult.success) {
+        logger.warn('Failed to send admin new-signup notification', {
+          endpoint: '/api/auth/signup',
+          userId: authData.user.id,
+          error: adminNotifyResult.error,
+        });
+      }
+    } catch (adminNotifyErr) {
+      logger.error('Error sending admin new-signup notification', {
+        endpoint: '/api/auth/signup',
+        userId: authData.user.id,
+      }, adminNotifyErr as Error);
+    }
+
+    // Log signup event for admin notifications (persists even if user is later deleted)
+    const isCustomer = userType === 'customer' || userType === 'both';
+    if (isCustomer) {
+      const displayName = `${firstName.trim()} ${lastName.trim()}`.trim() || normalizedEmail || 'Customer';
+      await serviceRoleClient.from('admin_notification_events').insert({
+        event_type: 'signup',
+        entity_type: 'customer',
+        entity_id: authData.user.id,
+        display_name: displayName,
+      }).then(({ error: evErr }) => {
+        if (evErr) logger.warn('Failed to log admin notification event', { endpoint: '/api/auth/signup', error: evErr.message });
+      });
     }
 
     return NextResponse.json(

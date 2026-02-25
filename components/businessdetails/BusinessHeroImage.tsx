@@ -63,7 +63,7 @@ export default function BusinessHeroImage({ imageUrl, businessName }: BusinessHe
             alt={businessName}
             fill
             className="object-cover"
-            sizes="100vw"
+            sizes="(max-width: 1200px) 100vw, 1200px"
             unoptimized
             onError={() => {
               console.error('Failed to load business background image:', normalizedImageUrl);

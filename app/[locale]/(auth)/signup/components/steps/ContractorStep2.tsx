@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useFormContext, useFieldArray } from 'react-hook-form';
 import { Input } from '@/components/ui/Input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
@@ -14,8 +14,29 @@ import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 
 export function ContractorStep2() {
   const tFields = useTranslations('auth.signup.fields');
+  const tChat = useTranslations('auth.signup.chat');
   const { isAuthenticated } = useAuth();
-  const { register, control, setValue, watch, trigger, formState: { errors, isSubmitting } } = useFormContext<SignupSchema>();
+  const { register, control, setValue, watch, setError, clearErrors, getValues, trigger, formState: { errors, isSubmitting } } = useFormContext<SignupSchema>();
+
+  const handleEmailBlur = useCallback(async () => {
+    const email = String(getValues('email') ?? '').trim().toLowerCase();
+    if (!email) return;
+    try {
+      const res = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.available === false) {
+        setError('email', { type: 'manual', message: tChat('emailAlreadyExists') });
+      } else {
+        clearErrors('email');
+      }
+    } catch {
+      // ignore
+    }
+  }, [getValues, setError, clearErrors, tChat]);
   
   const { fields, prepend, remove } = useFieldArray({
     control,
@@ -36,7 +57,7 @@ export function ContractorStep2() {
   );
   const animatedAuthPlaceholders = useTypingPlaceholder({
     placeholders: authPlaceholders,
-    typingSpeed: 100,
+    typingSpeed: 50,
     delayBetweenFields: 300,
     startDelay: 500,
   });
@@ -62,6 +83,10 @@ export function ContractorStep2() {
               id="signup-email"
               type="email"
               value={watch('email') || ''}
+              onBlur={(e) => {
+                register('email').onBlur(e);
+                void handleEmailBlur();
+              }}
               onClear={() => setValue('email', '')}
               showClear
               required

@@ -155,12 +155,7 @@ export default function BusinessAboutTab({
   
   return (
     <div className="bg-white space-y-8">
-      {/* About the Company */}
       <section>
-        <h2 className="text-xl font-bold text-black mb-2 flex items-center gap-2">
-          <span>About the Company</span>
-        </h2>
-        
         <div className="flex flex-col md:flex-row gap-6">
           <div className="w-full md:w-1/3 flex-shrink-0">
             <div className={`aspect-square relative rounded-lg border-2 border-black overflow-hidden flex items-center justify-center p-4 ${logo && !logoError ? 'bg-gray-50' : 'bg-black'}`}>
@@ -258,6 +253,7 @@ export default function BusinessAboutTab({
                     alt={ownerName || 'Owner'}
                     fill
                     className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 33vw"
                     onError={() => setOwnerImageError(true)}
                   />
                 ) : (

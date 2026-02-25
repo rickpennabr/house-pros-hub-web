@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -37,7 +37,12 @@ export default function BusinessDetailsHeader({
   const { isAuthenticated } = useAuth();
   const businessInitials = getInitials(businessName);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  
+  const [shareBusinessUrl, setShareBusinessUrl] = useState('');
+
+  useEffect(() => {
+    setShareBusinessUrl(window.location.href);
+  }, []);
+
   const handleShare = () => {
     setIsShareModalOpen(true);
   };
@@ -51,7 +56,7 @@ export default function BusinessDetailsHeader({
           aria-label="Go back"
         >
           <Image
-            src="/hph-logo-simble-sq-white-bg-2.2.png"
+            src="/house-pros-hub-logo-simble-bot.png"
             alt="House Pros Hub"
             width={40}
             height={40}
@@ -110,7 +115,7 @@ export default function BusinessDetailsHeader({
         businessName={businessName}
         contractorType={contractorType}
         logo={logo}
-        businessUrl={typeof window !== 'undefined' ? window.location.href : ''}
+        businessUrl={shareBusinessUrl}
       />
     </div>
   );

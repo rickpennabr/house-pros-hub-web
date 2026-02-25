@@ -29,16 +29,19 @@ export interface User {
   preferredLocale?: string;
 }
 
+export type UserRole = 'customer' | 'contractor';
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isAdmin: boolean;
+  roles: UserRole[];
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (userData: SignupData) => Promise<User>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
-  signInWithGoogle: (role?: 'customer' | 'contractor' | 'both') => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   resetPassword: (newPassword: string) => Promise<void>;
 }
@@ -140,6 +143,8 @@ function getErrorMessage(error: unknown): string {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [roles, setRoles] = useState<UserRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = useMemo(() => createClient(), []);
 
@@ -150,6 +155,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (!session?.user) {
         setUser(null);
+        setIsAdmin(false);
+        setRoles([]);
         setIsLoading(false);
         return;
       }
@@ -180,9 +187,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Map Supabase user and profile to our User interface
       const mappedUser = mapSupabaseUserToUser(session.user, profile, companyName);
       setUser(mappedUser);
+      // Fetch admin status and roles from server (ADMIN_EMAIL not exposed to client)
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
+        if (res.ok) {
+          const { isAdmin: admin, roles: userRoles } = await res.json();
+          setIsAdmin(!!admin);
+          setRoles(Array.isArray(userRoles) ? userRoles : []);
+        } else {
+          setIsAdmin(false);
+          setRoles([]);
+        }
+      } catch {
+        setIsAdmin(false);
+        setRoles([]);
+      }
     } catch (error) {
       console.error('Error loading user from session:', error);
       setUser(null);
+      setIsAdmin(false);
+      setRoles([]);
     } finally {
       setIsLoading(false);
     }
@@ -222,7 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         if (response.ok) {
-          const { user: apiUser } = await response.json();
+          const { user: apiUser, isAdmin: apiIsAdmin, roles: userRoles } = await response.json();
           if (apiUser) {
             // Map API user response to our User interface
             setUser({
@@ -247,6 +271,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               userPicture: apiUser.userPicture,
               preferredLocale: apiUser.preferredLocale,
             });
+            setIsAdmin(!!apiIsAdmin);
+            setRoles(Array.isArray(userRoles) ? userRoles : []);
             setIsLoading(false);
             return;
           }
@@ -257,10 +283,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // If both methods fail, user is not authenticated
       setUser(null);
+      setIsAdmin(false);
+      setRoles([]);
       setIsLoading(false);
     } catch (error) {
       console.error('Error checking auth:', error);
       setUser(null);
+      setIsAdmin(false);
+      setRoles([]);
       setIsLoading(false);
     }
   }, [supabase, loadUserFromSession]);
@@ -277,6 +307,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await loadUserFromSession(session);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
+        setIsAdmin(false);
+        setRoles([]);
         setIsLoading(false);
       }
     });
@@ -524,6 +556,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     setUser(null);
+    setIsAdmin(false);
+    setRoles([]);
   }, [supabase]);
 
   const updateUser = useCallback(async (updates: Partial<User>): Promise<void> => {
@@ -637,36 +671,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, [user, supabase, loadUserFromSession]);
 
-  const signInWithGoogle = useCallback(async (role?: 'customer' | 'contractor' | 'both'): Promise<void> => {
-    // Normalize origin - convert 0.0.0.0 to localhost for OAuth redirects
-    let origin = window.location.origin;
-    if (origin.includes('0.0.0.0')) {
-      origin = origin.replace('0.0.0.0', 'localhost');
-    }
-    
-    // Extract locale from current pathname (format: /en/... or /es/...)
-    const pathname = window.location.pathname;
-    const localeMatch = pathname.match(/^\/(en|es)(\/|$)/);
-    const locale = localeMatch ? localeMatch[1] : 'en';
-    
-    const redirectUrl = new URL(`${origin}/api/auth/callback`);
-    if (role) {
-      redirectUrl.searchParams.set('role', role);
-    }
-    redirectUrl.searchParams.set('locale', locale);
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: redirectUrl.toString(),
-      },
-    });
-
-    if (error) {
-      throw new Error(getErrorMessage(error));
-    }
-  }, [supabase]);
-
   const requestPasswordReset = useCallback(async (email: string): Promise<void> => {
     // Normalize email
     const normalizedEmail = email.trim().toLowerCase();
@@ -766,13 +770,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
+    isAdmin,
+    roles,
     isLoading,
     login,
     signup,
     logout,
     checkAuth,
     updateUser,
-    signInWithGoogle,
     requestPasswordReset,
     resetPassword,
   };

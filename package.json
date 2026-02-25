@@ -4,11 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
-    "check": "npm run lint && npm run type-check"
+    "check": "npm run lint && npm run type-check",
+    "analyze": "next build",
+    "audit": "npm audit"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -29,9 +31,11 @@
     "react-hook-form": "^7.68.0",
     "react-icons": "^5.5.0",
     "resend": "^4.0.0",
+    "web-push": "^3.6.7",
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.1.6",
     "@tailwindcss/postcss": "^4",
     "@types/dompurify": "^3.0.5",
     "@types/node": "^20",

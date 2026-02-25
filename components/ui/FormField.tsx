@@ -20,10 +20,10 @@ export function FormField({ label, error, required, children, className = '', ti
 
   return (
     <div className={className}>
-      <label className={`flex items-center gap-2 text-sm font-medium mb-2 ${isError ? 'text-red-600' : ''}`}>
+      <label className={`flex items-center gap-2 text-sm font-medium mb-2 text-gray-900 dark:text-gray-100 ${isError ? 'text-red-600 dark:text-red-400' : ''}`}>
         <span>{displayLabel}</span>
         {required && !error && <span className="text-red-500">*</span>}
-        {tip && !error && <TipModal message={tip} />}
+        {tip && !error && <TipModal message={tip} hoverOnly />}
       </label>
       {children}
     </div>

@@ -1,4 +1,34 @@
+import { COMPANY_INFO, COMPANY_WHATSAPP_URL } from '@/lib/constants/company';
 import { EstimateSchema } from '@/lib/schemas/estimate';
+
+/**
+ * Footer CTA block: phone, WhatsApp, and email contact buttons for customer-facing emails.
+ */
+function getFooterContactCta(): string {
+  const tel = COMPANY_INFO.phone ? COMPANY_INFO.phone.replace(/\D/g, '') : '';
+  const telHref = tel ? `tel:+${tel}` : '';
+  const mailHref = `mailto:${COMPANY_INFO.email.contact}`;
+  const whatsappHref = COMPANY_WHATSAPP_URL;
+
+  return `
+  <table cellpadding="0" cellspacing="0" align="center" style="margin: 16px 0 20px 0; border-collapse: collapse;">
+    <tr>
+      ${telHref ? `
+      <td style="padding: 0 8px;">
+        <a href="${telHref}" style="display: inline-block; padding: 10px 18px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">&#9742; Call</a>
+      </td>
+      ` : ''}
+      ${whatsappHref ? `
+      <td style="padding: 0 8px;">
+        <a href="${whatsappHref}" style="display: inline-block; padding: 10px 18px; background-color: #25D366; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">&#128172; WhatsApp</a>
+      </td>
+      ` : ''}
+      <td style="padding: 0 8px;">
+        <a href="${mailHref}" style="display: inline-block; padding: 10px 18px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">&#9993; Email</a>
+      </td>
+    </tr>
+  </table>`;
+}
 
 export interface EmailTranslations {
   subject: string;
@@ -6,6 +36,7 @@ export interface EmailTranslations {
   greeting: string;
   thankYou: string;
   thankYouAdmin: string;
+  proWillContact: string;
   copyBelow: string;
   sections: {
     customerInfo: string;
@@ -55,6 +86,8 @@ export interface WelcomeEmailTranslations {
   customerNextSteps: string;
   contractorNextSteps: string;
   bothNextSteps: string;
+  /** Base URL for the app (e.g. https://houseproshub.com). Used for CTA button link. */
+  siteUrl?: string;
   footer: {
     companyName: string;
     contactInfo: string;
@@ -67,6 +100,113 @@ export interface WelcomeEmailData {
   lastName: string;
   email: string;
   userType: 'customer' | 'contractor' | 'both';
+}
+
+export interface SetPasswordEmailTranslations {
+  subject: string;
+  greeting: string;
+  body: string;
+  cta: string;
+  footer: {
+    companyName: string;
+    contactInfo: string;
+    unsubscribe: string;
+  };
+}
+
+export interface NewSignupAdminNotificationData {
+  type: 'customer' | 'contractor' | 'business';
+  /** For customer/contractor: full name. For business: business name. */
+  name: string;
+  email: string;
+  /** Optional: phone (customer/contractor). */
+  phone?: string | null;
+}
+
+/**
+ * Generate HTML email for admin: new customer, new contractor signup, or new business added.
+ */
+export function generateNewSignupAdminNotification(data: NewSignupAdminNotificationData): string {
+  const title =
+    data.type === 'customer'
+      ? 'New customer signed up'
+      : data.type === 'contractor'
+        ? 'New contractor signed up'
+        : 'New business added';
+  const typeLabel =
+    data.type === 'customer'
+      ? 'Customer'
+      : data.type === 'contractor'
+        ? 'Contractor'
+        : 'Business';
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">${title}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 24px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 15px; color: #333;">
+                <tr>
+                  <td style="padding: 8px 0;"><strong>Type:</strong></td>
+                  <td style="padding: 8px 0;">${typeLabel}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;"><strong>Name:</strong></td>
+                  <td style="padding: 8px 0;">${data.name}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0;"><strong>Email:</strong></td>
+                  <td style="padding: 8px 0;">${data.email}</td>
+                </tr>
+                ${data.phone ? `
+                <tr>
+                  <td style="padding: 8px 0;"><strong>Phone:</strong></td>
+                  <td style="padding: 8px 0;">${data.phone}</td>
+                </tr>
+                ` : ''}
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 16px; background-color: #f9fafb; border-top: 2px solid #e5e7eb; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #666;">House Pros Hub – Admin notification</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+export interface IncomingEmailNotificationData {
+  fromEmail: string;
+  fromName?: string;
+  toEmail: string;
+  subject?: string;
+  textContent?: string;
+  htmlContent?: string;
+  receivedAt: string;
+  hasAttachments: boolean;
+  attachmentCount: number;
+  emailId?: string;
 }
 
 /**
@@ -199,7 +339,8 @@ export function generateEstimateConfirmationEmail(
             <td style="padding: 30px;">
               <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${translations.greeting},</p>
               <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${thankYou}</p>
-              ${!isAdmin ? `<p style="margin: 0 0 30px 0; font-size: 16px; color: #333;">${translations.copyBelow}</p>` : ''}
+              ${!isAdmin ? `<p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${translations.proWillContact}</p>
+              <p style="margin: 0 0 30px 0; font-size: 16px; color: #333;">${translations.copyBelow}</p>` : ''}
               
               <!-- Estimate Details Table -->
               <table width="100%" cellpadding="0" cellspacing="0" style="border: 2px solid #000000; border-radius: 4px; overflow: hidden;">
@@ -288,6 +429,7 @@ export function generateEstimateConfirmationEmail(
             <td style="padding: 20px; background-color: #f9fafb; border-top: 2px solid #000000; text-align: center;">
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">${translations.footer.companyName}</p>
               <p style="margin: 0 0 10px 0; font-size: 12px; color: #666;">${translations.footer.contactInfo}</p>
+              ${getFooterContactCta()}
               <p style="margin: 0; font-size: 11px; color: #999;">${translations.footer.unsubscribe}</p>
             </td>
           </tr>
@@ -363,6 +505,20 @@ export function generateWelcomeEmail(
                     ${nextStepsContent}
                   </div>
                 </div>
+                ${translations.siteUrl ? `
+                <table cellpadding="0" cellspacing="0" style="margin: 20px 0 0 0;">
+                  <tr>
+                    <td style="border-radius: 8px; background-color: #000000; padding: 0;">
+                      <a href="${translations.siteUrl}/businesslist" style="display: inline-block; padding: 14px 28px; color: #ffffff; font-size: 16px; font-weight: bold; text-decoration: none;">GO SEE THE PROS</a>
+                    </td>
+                  </tr>
+                </table>
+                <div style="margin-top: 24px; padding: 20px; background-color: #f9fafb; border: 2px solid #000000; border-radius: 4px;">
+                  <div style="font-size: 16px; color: #333; line-height: 1.6;">
+                    ${nextStepsContent}
+                  </div>
+                </div>
+                ` : ''}
               </div>
             </td>
           </tr>
@@ -372,7 +528,166 @@ export function generateWelcomeEmail(
             <td style="padding: 20px; background-color: #f9fafb; border-top: 2px solid #000000; text-align: center;">
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">${translations.footer.companyName}</p>
               <p style="margin: 0 0 10px 0; font-size: 12px; color: #666;">${translations.footer.contactInfo}</p>
+              ${getFooterContactCta()}
               <p style="margin: 0; font-size: 11px; color: #999;">${translations.footer.unsubscribe}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+/**
+ * Generate HTML email template for "set your password" (admin-created customer)
+ */
+export function generateSetPasswordEmail(
+  firstName: string,
+  setPasswordLink: string,
+  translations: SetPasswordEmailTranslations
+): string {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${translations.subject}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style="padding: 30px;">
+              <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${translations.greeting} ${firstName},</p>
+              <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${translations.body}</p>
+              <table cellpadding="0" cellspacing="0" style="margin: 24px 0 0 0;">
+                <tr>
+                  <td style="border-radius: 8px; background-color: #000000; padding: 0;">
+                    <a href="${setPasswordLink}" style="display: inline-block; padding: 14px 28px; color: #ffffff; font-size: 16px; font-weight: bold; text-decoration: none;">${translations.cta}</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px; background-color: #f9fafb; border-top: 2px solid #000000; text-align: center;">
+              <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">${translations.footer.companyName}</p>
+              <p style="margin: 0 0 10px 0; font-size: 12px; color: #666;">${translations.footer.contactInfo}</p>
+              ${getFooterContactCta()}
+              <p style="margin: 0; font-size: 11px; color: #999;">${translations.footer.unsubscribe}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+/**
+ * Generate HTML email template for incoming email notification to admin
+ */
+export function generateIncomingEmailNotification(
+  emailData: IncomingEmailNotificationData
+): string {
+  const fromDisplay = emailData.fromName
+    ? `${emailData.fromName} <${emailData.fromEmail}>`
+    : emailData.fromEmail;
+
+  const subject = emailData.subject || '(No Subject)';
+  const content = emailData.htmlContent || emailData.textContent || 'No content available';
+  const isHtml = !!emailData.htmlContent;
+
+  const receivedDate = new Date(emailData.receivedAt).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  });
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Email Received: ${subject}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="700" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">New Email Received</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 30px; background-color: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #374151;">
+                    <strong>From:</strong> ${fromDisplay}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #374151;">
+                    <strong>To:</strong> ${emailData.toEmail}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #374151;">
+                    <strong>Subject:</strong> ${subject}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #374151;">
+                    <strong>Received:</strong> ${receivedDate}
+                  </td>
+                </tr>
+                ${emailData.hasAttachments ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #374151;">
+                    <strong>Attachments:</strong> ${emailData.attachmentCount} file(s)
+                  </td>
+                </tr>
+                ` : ''}
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px;">
+              <div style="font-size: 16px; color: #333; line-height: 1.6;">
+                ${isHtml ? content : `<pre style="white-space: pre-wrap; font-family: Arial, sans-serif; margin: 0;">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; background-color: #f9fafb; border-top: 2px solid #e5e7eb; text-align: center;">
+              <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">House Pros Hub</p>
+              <p style="margin: 0; font-size: 12px; color: #999;">
+                This is an automated notification of an incoming email to ${emailData.toEmail}
+                ${emailData.emailId ? `<br>Email ID: ${emailData.emailId}` : ''}
+              </p>
             </td>
           </tr>
         </table>

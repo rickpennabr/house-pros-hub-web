@@ -18,7 +18,7 @@ export const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'] as co
  * Maximum file sizes in bytes
  */
 export const MAX_FILE_SIZES = {
-  profile: 2 * 1024 * 1024, // 2MB
+  profile: 5 * 1024 * 1024, // 5MB
   logo: 2 * 1024 * 1024, // 2MB
   background: 5 * 1024 * 1024, // 5MB
 } as const;

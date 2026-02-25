@@ -4,6 +4,7 @@ import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
 import { transformBusinessToProCardData } from '@/lib/utils/businessTransform';
 import { normalizeLinks } from '@/lib/utils/normalizeLinks';
 import { deleteBusinessBackground, deleteBusinessLogo } from '@/lib/utils/storage';
+import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 
@@ -167,7 +168,51 @@ async function handleUpdateBusiness(
     const supabase = await createClient();
     const { id } = await params;
     const businessId = id;
-    const body = (request._body || await request.json()) as BusinessUpdateBody;
+    const rawBody = (request._body || await request.json()) as BusinessUpdateBody;
+
+    // Sanitize user-editable strings before persist (defense-in-depth)
+    const body: BusinessUpdateBody = {
+      ...rawBody,
+      businessName: rawBody.businessName ? sanitizeText(rawBody.businessName) || rawBody.businessName : rawBody.businessName,
+      slug: rawBody.slug ? sanitizeText(rawBody.slug) || rawBody.slug : rawBody.slug,
+      companyDescription: rawBody.companyDescription !== undefined
+        ? (rawBody.companyDescription ? sanitizeText(rawBody.companyDescription) || null : null)
+        : rawBody.companyDescription,
+      email: rawBody.email !== undefined
+        ? (rawBody.email ? sanitizeText(rawBody.email) || null : null)
+        : rawBody.email,
+      phone: rawBody.phone !== undefined ? (rawBody.phone ? sanitizeText(rawBody.phone) || null : null) : rawBody.phone,
+      mobilePhone: rawBody.mobilePhone !== undefined
+        ? (rawBody.mobilePhone ? sanitizeText(rawBody.mobilePhone) || null : null)
+        : rawBody.mobilePhone,
+      streetAddress: rawBody.streetAddress ? sanitizeText(rawBody.streetAddress) || rawBody.streetAddress : rawBody.streetAddress,
+      apartment: rawBody.apartment ? sanitizeText(rawBody.apartment) || null : rawBody.apartment,
+      city: rawBody.city ? sanitizeText(rawBody.city) || rawBody.city : rawBody.city,
+      state: rawBody.state ? sanitizeText(rawBody.state) || rawBody.state : rawBody.state,
+      zipCode: rawBody.zipCode ? sanitizeText(rawBody.zipCode) || rawBody.zipCode : rawBody.zipCode,
+      gateCode: rawBody.gateCode ? sanitizeText(rawBody.gateCode) || null : rawBody.gateCode,
+      addressNote: rawBody.addressNote ? sanitizeText(rawBody.addressNote) || null : rawBody.addressNote,
+      links:
+        rawBody.links && Array.isArray(rawBody.links)
+          ? rawBody.links.map((link: { type?: string; url?: string; value?: string }) => {
+              const url = link.url?.trim();
+              const value = link.value != null ? sanitizeText(String(link.value)) : undefined;
+              if (link.type === 'phone' || link.type === 'email' || link.type === 'location') {
+                return { ...link, value: value ?? link.value };
+              }
+              const safeUrl = url ? (sanitizeUrl(url) || url) : undefined;
+              return { ...link, url: safeUrl ?? link.url, value: value ?? link.value };
+            })
+          : rawBody.links,
+      licenses:
+        rawBody.licenses && Array.isArray(rawBody.licenses)
+          ? rawBody.licenses.map((lic) => ({
+              license: lic.license ? sanitizeText(lic.license) || lic.license : lic.license,
+              licenseNumber: lic.licenseNumber ? sanitizeText(lic.licenseNumber) || lic.licenseNumber : lic.licenseNumber,
+              trade: lic.trade ? sanitizeText(lic.trade) || lic.trade : lic.trade,
+            }))
+          : rawBody.licenses,
+    };
 
     // Verify ownership
     const { data: existingBusiness, error: fetchError } = await supabase

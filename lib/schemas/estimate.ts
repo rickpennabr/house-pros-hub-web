@@ -23,7 +23,7 @@ export const estimateSchema = z.object({
   requiresHoaApproval: z.boolean(),
   wants3D: z.boolean(),
   trades: z.array(z.string()).min(1, 'tradesMin'),
-  projectDescription: z.string().trim().min(10, 'projectDescriptionMin'),
+  projectDescription: z.string().trim(), // optional step: empty string allowed
   projectImages: z.array(z.string().url()).max(5, 'projectImagesMax').optional(),
   budgetRange: z.enum(['under_5k', '5k_10k', '10k_25k', '25k_50k', '50k_100k', 'over_100k', 'not_sure']),
   timeline: z.enum(['asap', 'within_month', '1_3_months', '3_6_months', '6_plus_months', 'flexible']),

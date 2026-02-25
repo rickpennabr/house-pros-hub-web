@@ -1,8 +1,10 @@
 import Link from 'next/link';
+import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
 
 export default function AdminDashboardPage() {
   return (
     <div className="w-full">
+      <AdminFloatingAddButton href="/admin/customers" ariaLabel="Add customer" />
       <div className="mb-6">
         <h1 className="text-3xl font-semibold text-black mb-2">
           Admin Dashboard

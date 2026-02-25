@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { getUserRoles } from '@/lib/utils/roles';
+import type { UserRole } from '@/lib/utils/roles';
 
 /**
  * GET /api/auth/me
@@ -71,8 +74,14 @@ export async function GET() {
       preferredLocale: profile?.preferred_locale || session.user.user_metadata?.preferredLocale || null,
     };
 
+    const isAdmin =
+      !!session.user.email &&
+      session.user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+    const roles: UserRole[] = await getUserRoles(session.user.id);
+
     return NextResponse.json(
-      { user },
+      { user, isAdmin, roles },
       { status: 200 }
     );
   } catch (error) {

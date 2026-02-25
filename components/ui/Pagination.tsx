@@ -8,6 +8,7 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
   totalItems: number;
   itemsPerPage: number;
+  itemLabel?: string;
 }
 
 export default function Pagination({
@@ -16,6 +17,7 @@ export default function Pagination({
   onPageChange,
   totalItems,
   itemsPerPage,
+  itemLabel = 'items',
 }: PaginationProps) {
   // Don't render pagination if there's only 1 page
   if (totalPages <= 1) {
@@ -100,7 +102,7 @@ export default function Pagination({
     <div className="flex flex-col items-center gap-4 py-4">
       {/* Page Info */}
       <div className="text-sm text-gray-600">
-        Showing {startItem}-{endItem} of {totalItems} businesses
+        Showing {startItem}-{endItem} of {totalItems} {itemLabel}
       </div>
 
       {/* Pagination Controls */}

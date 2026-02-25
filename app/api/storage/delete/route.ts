@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import {
+  validateStorageBucket,
+  validateStoragePath,
+  normalizeStoragePath,
+} from '@/lib/utils/storageValidation';
 
 /**
  * DELETE /api/storage/delete
@@ -19,6 +24,15 @@ export async function DELETE(request: NextRequest) {
         { error: 'Bucket and path are required' },
         { status: 400 }
       );
+    }
+
+    const bucketError = validateStorageBucket(bucket);
+    if (bucketError) {
+      return NextResponse.json({ error: bucketError }, { status: 400 });
+    }
+    const pathError = validateStoragePath(path);
+    if (pathError) {
+      return NextResponse.json({ error: pathError }, { status: 400 });
     }
 
     const supabase = await createClient();
@@ -41,11 +55,18 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Extract path from URL if full URL is provided
+    // Extract path from URL if full URL is provided, then normalize
     let filePath = path;
     if (path.includes(bucket)) {
       const urlParts = path.split(`${bucket}/`);
       filePath = urlParts[1] || path;
+    }
+    filePath = normalizeStoragePath(filePath);
+    if (!filePath) {
+      return NextResponse.json(
+        { error: 'Path is required after normalization' },
+        { status: 400 }
+      );
     }
 
     const { error } = await supabase.storage

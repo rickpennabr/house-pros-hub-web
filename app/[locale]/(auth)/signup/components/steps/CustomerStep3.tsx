@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useFormContext } from 'react-hook-form';
 import { Input } from '@/components/ui/Input';
@@ -9,6 +9,7 @@ import { PasswordInput } from '@/components/ui/PasswordInput';
 import { FormField } from '@/components/ui/FormField';
 import { TipModal } from '@/components/ui/TipModal';
 import { SignupSchema } from '@/lib/schemas/auth';
+import { USER_TYPES } from '@/lib/constants/auth';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 
@@ -16,7 +17,30 @@ export function CustomerStep3() {
   const locale = useLocale();
   const tFields = useTranslations('auth.signup.fields');
   const tTerms = useTranslations('auth.signup.terms');
-  const { register, setValue, watch, formState: { errors, isSubmitting } } = useFormContext<SignupSchema>();
+  const tChat = useTranslations('auth.signup.chat');
+  const { register, setValue, watch, setError, clearErrors, getValues, formState: { errors, isSubmitting } } = useFormContext<SignupSchema>();
+
+  const handleEmailBlur = useCallback(async () => {
+    const email = String(getValues('email') ?? '').trim().toLowerCase();
+    if (!email) return;
+    try {
+      const res = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.available === false) {
+        setError('email', { type: 'manual', message: tChat('emailAlreadyExists') });
+      } else {
+        clearErrors('email');
+      }
+    } catch {
+      // ignore
+    }
+  }, [getValues, setError, clearErrors, tChat]);
+  const userType = watch('userType');
+  const isContractor = userType === USER_TYPES.CONTRACTOR;
 
   // Typing animation for placeholders
   const phonePlaceholder = tFields('phonePlaceholder');
@@ -88,6 +112,10 @@ export function CustomerStep3() {
           {...register('email')}
           id="signup-email"
           type="email"
+          onBlur={(e) => {
+            register('email').onBlur(e);
+            void handleEmailBlur();
+          }}
           onClear={() => setValue('email', '')}
           showClear
           required
@@ -127,6 +155,30 @@ export function CustomerStep3() {
         error={errors.confirmPassword?.message}
       />
 
+      {isContractor && (
+        <FormField
+          label={tFields('invitationCodeLabel')}
+          required
+          error={errors.invitationCode?.message}
+          tip="Enter the code you received from House Pros Hub to sign up as a contractor."
+        >
+          <Input
+            {...register('invitationCode')}
+            id="invitation-code"
+            type="text"
+            value={watch('invitationCode') ?? ''}
+            onChange={(e) => setValue('invitationCode', e.target.value.trim().toUpperCase())}
+            onClear={() => setValue('invitationCode', '')}
+            showClear
+            required
+            placeholder={tFields('invitationCodePlaceholder')}
+            disabled={isSubmitting}
+            error={errors.invitationCode?.message}
+            autoComplete="off"
+          />
+        </FormField>
+      )}
+
       <div>
         <label className="flex items-start">
           <input
@@ -145,8 +197,8 @@ export function CustomerStep3() {
             <Link href={`/${locale}/legal/privacy`} target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
               {tTerms('privacyPolicy')}
             </Link>
-            {' '}{tTerms('suffix')}{' '}
-            <TipModal message="The rules and information on how the platform www.houseproshub.com operates." />
+            {' '}{isContractor ? tTerms('suffixContractor') : tTerms('suffix')}{' '}
+            <TipModal message="The rules and information on how the platform www.houseproshub.com operates." hoverOnly />
           </span>
         </label>
         {errors.agreeToTerms && (

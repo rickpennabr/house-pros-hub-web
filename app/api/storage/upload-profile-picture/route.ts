@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     // Validate file size first (before reading into buffer)
     if (!validateFileSize(file.size, 'profile')) {
       return NextResponse.json(
-        { error: 'File size must be less than 2MB' },
+        { error: 'File size must be less than 5MB' },
         { status: 400 }
       );
     }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
 import {
   clearAllLocalData,
   clearAuthData,
@@ -78,6 +79,7 @@ export default function ClearDataPage() {
 
   return (
     <div className="w-full max-w-2xl">
+      <AdminFloatingAddButton href="/admin/customers" ariaLabel="Add customer" />
       <div className="mb-6">
         <h1 className="text-3xl font-semibold mb-2">Clear Local Data</h1>
         <p className="text-gray-600 mb-6">

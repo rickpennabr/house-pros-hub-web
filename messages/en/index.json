@@ -37,7 +37,7 @@
     },
     "search": {
       "categories": "Search categories...",
-      "businesses": "Find your Home Pro...",
+      "businesses": "Find Your House Pro...",
       "suppliers": "Search suppliers by name, materials, or trades...",
       "address": "Search for address",
       "help": "Find help here..."
@@ -56,6 +56,36 @@
     "prosBlog": "ProsBlog",
     "housePros": "HousePros",
     "proSuppliers": "ProSuppliers"
+  },
+  "bot": {
+    "greeting": "HI!",
+    "tooltip": "I am the ProBot, click on me to start a conversation...",
+    "welcomeMessage": "Hi, Welcome to HouseProsHub.com, I am the ProBot, I can help connecting with a Pro, or help you to request your Free Estimate.",
+    "choiceRequestEstimate": "Request free estimate",
+    "choiceTalkToPro": "Talk to a pro now",
+    "choiceAccountEstimate": "Account and Estimate",
+    "choiceCallHub": "Call the Hub",
+    "choiceChatWithHub": "Chat with Hub",
+    "choiceMessageAPro": "Message a Pro",
+    "estimateSuccessMessage": "Thanks for signing up for House Pros Hub! Now you can contact your pro or request your free estimate.",
+    "estimateSuccessMessageLine1": "Thanks for signing up for House Pros Hub!",
+    "estimateSuccessMessageLine2": "Now you can contact your pro or request your free estimate.",
+    "estimateSubmittedMessage": "Your estimate request has been submitted. Our contractors will reach out to you soon.",
+    "goToHomePage": "Go to home page",
+    "getAnEstimate": "Get an estimate",
+    "modal": {
+      "title": "ProBot",
+      "message": "Chat with ProBot is coming soon. We're building a helpful assistant to answer questions about House Pros Hub and connect you with the right pros.",
+      "close": "Close"
+    },
+    "callHubModalTitle": "Call House Pros Hub?",
+    "callHubModalMessage": "Call {number}?",
+    "callHubModalCancel": "Cancel",
+    "callHubModalCall": "Call",
+    "prosListHeading": "Here are our pros. You can call, visit their profile, or message them.",
+    "messagePro": "Message",
+    "viewProfile": "View profile",
+    "messagingPro": "Messaging {name}"
   },
   "validation": {
     "firstName": {
@@ -97,7 +127,6 @@
       "forgotPassword": "Forgot password?",
       "submit": "Sign In",
       "submitting": "Signing in...",
-      "googleButton": "Sign in with Google",
       "validation": {
         "emailRequired": "Email is required",
         "emailInvalid": "Please enter a valid email address",
@@ -159,6 +188,7 @@
         },
         "contractor": {
           "title": "I'm a Contractor",
+          "titleWithCode": "I'm a Contractor (invitation code required)",
           "description": "I provide services to customers"
         },
         "both": {
@@ -168,21 +198,33 @@
         "alreadyHaveAccount": "Already have an account?",
         "signInLink": "Sign in"
       },
-      "authMethod": {
-        "title": "How would you like to create your HPH account?",
-        "subtitle": "Continue as {role}",
-        "roleText": {
-          "customer": "a customer",
-          "contractor": "a contractor",
-          "both": "both a customer and contractor"
-        },
-        "emailButton": "Sign up with form",
-        "googleButton": "Sign up with Google",
-        "divider": "Or continue with",
-        "backButton": "← Back"
+      "chat": {
+        "role": "Are you here as a customer or a contractor?",
+        "userPicture": "Add a profile photo (optional). It helps pros recognize you!",
+        "firstName": "What's your first name?",
+        "lastName": "And your last name?",
+        "referral": "How did you hear about us?",
+        "referralOther": "Tell us how you heard about us.",
+        "address": "What's your address? (Nevada only)",
+        "apartment": "Apartment, suite, or unit? (optional)",
+        "gateCode": "Gate code? (optional)",
+        "addressNote": "Any extra address notes for pros? (optional)",
+        "phone": "What's the best phone number to reach you?",
+        "email": "What's your email?",
+        "password": "Choose a password (at least 8 characters, with uppercase, lowercase, and a number).",
+        "confirmPassword": "Confirm your password.",
+        "agreeToTerms": "By signing up you agree to our Terms of Service and Privacy Policy. Ready to create your account?",
+        "invitationCode": "Enter your invitation code.",
+        "closeWarningTitle": "Leave sign-up?",
+        "passwordsDoNotMatch": "Passwords don't match",
+        "emailAlreadyExists": "This email is already registered. Please sign in or use a different email.",
+        "accountCreatedSignIn": "Account created. Please sign in with your email and password.",
+        "closeWarningMessage": "Your progress will be lost. To create an account you’ll need to start over from the beginning. Close anyway?",
+        "closeWarningCancel": "Cancel",
+        "closeWarningConfirm": "OK"
       },
       "navigation": {
-        "previous": "Previous",
+        "previous": "Back",
         "next": "Next",
         "submit": "Sign Up",
         "submitting": "Creating account...",
@@ -201,6 +243,8 @@
         "referralOtherLabel": "Please specify",
         "referralOtherPlaceholder": "How did you hear about us?",
         "referralOtherOption": "Other",
+        "invitationCodeLabel": "Invitation code",
+        "invitationCodePlaceholder": "Enter the code you received",
         "firstNameLabel": "First Name",
         "firstNamePlaceholder": "First name",
         "lastNameLabel": "Last Name",
@@ -224,6 +268,7 @@
 
         "phoneLabel": "Phone",
         "phonePlaceholder": "Enter your phone number",
+        "phoneRequired": "Phone number is required.",
         "emailLabel": "Email",
         "emailPlaceholder": "Enter your email",
         "passwordLabel": "Password",
@@ -268,17 +313,8 @@
         "termsOfService": "Terms of Service",
         "and": "and",
         "privacyPolicy": "Privacy Policy",
-        "suffix": "to create a personal account."
-      },
-      "termsAgreement": {
-        "title": "Agree to Terms",
-        "description": "Please review and agree to our terms before continuing",
-        "checkboxLabel": "I agree to the",
-        "termsLink": "Terms of Service",
-        "and": "and",
-        "privacyLink": "Privacy Policy",
-        "continueButton": "Continue with Google",
-        "backButton": "← Back"
+        "suffix": "to create a personal account.",
+        "suffixContractor": "to create a contractor account."
       }
     },
     "welcomeEmail": {
@@ -295,6 +331,17 @@
         "companyName": "House Pros Hub",
         "contactInfo": "If you have any questions, please contact us.",
         "unsubscribe": "You are receiving this email because you created an account with House Pros Hub."
+      }
+    },
+    "setPasswordEmail": {
+      "subject": "Set your password – House Pros Hub",
+      "greeting": "Hello",
+      "body": "Your House Pros Hub account has been created. Click the button below to set your password and sign in.",
+      "cta": "Set your password",
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "If you have any questions, please contact us.",
+        "unsubscribe": "You are receiving this email because an account was created for you on House Pros Hub."
       }
     }
   },
@@ -423,9 +470,11 @@
     "accordion": {
       "customerInfo": "Customer Information",
       "projectAddress": "Project Address",
+      "confirmAddressFromProfile": "We've pre-filled your project address from your profile. Confirm or update it below.",
       "projectInfo": "Project Information",
       "projectType": "Project Type",
       "trades": "Select Trades/Services Needed*",
+      "tradesMultiHint": "(you can select more than one)",
       "description": "Project Description & Images",
       "budgetTimeline": "Budget Range & Timeline",
       "preferredContact": "Preferred Contact Method",
@@ -466,23 +515,24 @@
       "statePlaceholder": "NV",
       "zipCodeLabel": "ZIP Code",
       "zipCodePlaceholder": "ZIP Code",
-      "projectTypeLabel": "Project Type",
+      "projectTypeLabel": "What option best describes your project?",
       "projectTypePlaceholder": "Select a project type",
       "projectTypeOtherLabel": "Please specify your project type",
       "projectTypeOtherPlaceholder": "Enter project type...",
       "requiresHoaApprovalLabel": "My project required HOA approval",
       "wants3DLabel": "I would love to have a 3D design for my project",
-      "tradesLabel": "Select Trades/Services Needed*",
+      "hoaAnd3DLabel": "Any of these apply to your project?",
+      "tradesLabel": "Select Trades/Services Needed* (you can select more than one)",
       "projectDescriptionLabel": "Project Description",
       "projectDescriptionPlaceholder": "Describe what you need...",
       "projectImagesLabel": "Project Images (Optional)",
-      "projectImagesHelp": "Upload up to 5 images to help contractors understand your project better. Accepted formats: JPEG, PNG, WebP. Max size: 2MB per image.",
+      "projectImagesHelp": "Upload up to 5 images to help contractors understand your project better. Accepted formats: JPEG, PNG, WebP. Max size: 5MB per image.",
       "uploadImages": "Upload Images",
       "uploading": "Uploading...",
       "removeImage": "Remove image",
       "maxImagesError": "You can only upload up to 5 images.",
       "imageTypeError": "Invalid file type. Only JPEG, PNG, and WebP images are allowed.",
-      "imageSizeError": "File size must be less than 2MB.",
+      "imageSizeError": "File size must be less than 5MB.",
       "uploadError": "Failed to upload image. Please try again.",
       "budgetRangeLabel": "Budget Range",
       "budgetRangePlaceholder": "Select a budget range",
@@ -490,10 +540,14 @@
       "timelinePlaceholder": "Select a timeline",
       "preferredContactMethodLabel": "Preferred Contact Method",
       "preferredContactMethodPlaceholder": "Select a contact method",
+      "useSameAddressForEstimateLabel": "Do you want to use the same personal address for the estimate address?",
+      "yes": "Yes",
+      "no": "No",
       "additionalNotesLabel": "Additional Notes (Optional)",
       "additionalNotesPlaceholder": "Anything else we should know?"
     },
     "options": {
+      "noneSelected": "None selected",
       "projectType": {
         "new_construction": "New Construction",
         "renovation": "Renovation",
@@ -585,8 +639,10 @@
       "reset": "Submit another request"
     },
     "success": {
-      "title": "Request sent",
-      "body": "Thank you! Our network of trusted contractors will reach out to provide you with a free estimate."
+      "title": "Thanks for your estimate request!",
+      "body": "Our network of trusted contractors will reach out to provide you with a free estimate.",
+      "goToHome": "Go to Home",
+      "requestNewEstimate": "Request New Estimate"
     },
     "email": {
       "subject": "Your Estimate Request - House Pros Hub",
@@ -594,6 +650,7 @@
       "greeting": "Hello",
       "thankYou": "Thank you for your estimate request!",
       "thankYouAdmin": "A new estimate request has been submitted.",
+      "proWillContact": "A pro will contact you soon.",
       "copyBelow": "A copy of your estimate details is below:",
       "sections": {
         "customerInfo": "Customer Information",

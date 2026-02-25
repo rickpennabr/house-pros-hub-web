@@ -15,6 +15,9 @@ import {
 import { Supplier } from '@/app/[locale]/(main)/prosuppliers/SupplierCard';
 import { ChevronDown, Search, X, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
+
+const BULK_SELECT_COLUMN_WIDTH = 44;
 
 // Import suppliers data from SuppliersList
 const suppliers: Supplier[] = [
@@ -155,9 +158,66 @@ export default function SuppliersPage() {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
   const [globalFilter, setGlobalFilter] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const columns = useMemo<ColumnDef<Supplier>[]>(
     () => [
+      {
+        id: 'select',
+        size: BULK_SELECT_COLUMN_WIDTH,
+        minSize: BULK_SELECT_COLUMN_WIDTH,
+        maxSize: BULK_SELECT_COLUMN_WIDTH,
+        enableSorting: false,
+        header: ({ table }) => {
+          const rows = table.getRowModel().rows;
+          const allSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.original.id));
+          const someSelected = rows.some((r) => selectedIds.has(r.original.id));
+          return (
+            <input
+              type="checkbox"
+              ref={(el) => {
+                if (el) el.indeterminate = someSelected && !allSelected;
+              }}
+              checked={allSelected}
+              onChange={() => {
+                if (allSelected) {
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    rows.forEach((r) => next.delete(r.original.id));
+                    return next;
+                  });
+                } else {
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    rows.forEach((r) => next.add(r.original.id));
+                    return next;
+                  });
+                }
+              }}
+              className="w-4 h-4 rounded border-gray-300 accent-red-600 focus:ring-red-500 cursor-pointer"
+              aria-label="Select all on page"
+            />
+          );
+        },
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            checked={selectedIds.has(row.original.id)}
+            onChange={() => {}}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedIds((prev) => {
+                const next = new Set(prev);
+                if (next.has(row.original.id)) next.delete(row.original.id);
+                else next.add(row.original.id);
+                return next;
+              });
+            }}
+            className="w-4 h-4 rounded border-gray-300 accent-red-600 focus:ring-red-500 cursor-pointer"
+            aria-label={`Select row ${row.original.id}`}
+          />
+        ),
+      },
       {
         accessorKey: 'id',
         header: 'ID',
@@ -256,7 +316,7 @@ export default function SuppliersPage() {
         },
       },
     ],
-    []
+    [selectedIds]
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -303,8 +363,26 @@ export default function SuppliersPage() {
     },
   });
 
+  const selectedRows = useMemo(
+    () => suppliers.filter((s) => selectedIds.has(s.id)),
+    [suppliers, selectedIds]
+  );
+
+  const handleBulkCopyAsJson = () => {
+    const json = JSON.stringify(selectedRows, null, 2);
+    void navigator.clipboard.writeText(json);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkEdit = () => {
+    if (selectedRows.length !== 1) return;
+    // Edit single supplier - no-op for static data; could open modal later
+    setSelectedIds(new Set());
+  };
+
   return (
     <div className="w-full">
+      <AdminFloatingAddButton href="/admin/customers" ariaLabel="Add customer" />
       <div className="mb-2 md:mb-6">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -320,6 +398,44 @@ export default function SuppliersPage() {
           </Button>
         </div>
       </div>
+
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 pb-3 px-1 border-b border-gray-200 bg-gray-50 rounded-lg py-2 mb-4">
+          <span className="text-sm font-medium text-gray-700">
+            {selectedIds.size} selected
+          </span>
+          <button
+            type="button"
+            className="text-sm font-medium text-red-600 hover:text-red-700 opacity-60 cursor-not-allowed border-2 border-red-600"
+            title="Bulk delete not available for suppliers"
+          >
+            Delete
+          </button>
+          <button
+            type="button"
+            onClick={handleBulkCopyAsJson}
+            className="text-sm font-medium text-gray-700 hover:text-gray-900 cursor-pointer px-2 py-1 rounded hover:bg-gray-100 border-b-2 border-black"
+          >
+            Copy as JSON
+          </button>
+          {selectedIds.size === 1 && (
+            <button
+              type="button"
+              onClick={handleBulkEdit}
+              className="text-sm font-medium text-gray-700 hover:text-gray-900 cursor-pointer px-2 py-1 rounded hover:bg-gray-100"
+            >
+              Edit
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setSelectedIds(new Set())}
+            className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer px-2 py-1 rounded hover:bg-gray-100 border-2 border-gray-400"
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
 
       {/* Global Search */}
       <div className="mb-4">

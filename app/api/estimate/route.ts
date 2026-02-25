@@ -29,7 +29,7 @@ function transformEstimateToDb(estimate: z.infer<typeof estimateSchema>) {
     requires_hoa_approval: estimate.requiresHoaApproval,
     wants_3d: estimate.wants3D,
     trades: estimate.trades,
-    project_description: estimate.projectDescription,
+    project_description: estimate.projectDescription ?? '',
     project_images: estimate.projectImages || null,
     budget_range: estimate.budgetRange,
     timeline: estimate.timeline,
@@ -53,6 +53,7 @@ async function getEmailTranslations(locale: string): Promise<EmailTranslations> 
     greeting: t('greeting'),
     thankYou: t('thankYou'),
     thankYouAdmin: t('thankYouAdmin'),
+    proWillContact: t('proWillContact'),
     copyBelow: t('copyBelow'),
     sections: {
       customerInfo: tSections('customerInfo'),

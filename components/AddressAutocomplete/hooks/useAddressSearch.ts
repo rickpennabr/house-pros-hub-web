@@ -93,8 +93,19 @@ export function useAddressSearch() {
       );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Places API error:', response.status, errorText);
+        let errorText = '';
+        try {
+          errorText = await response.text();
+        } catch {
+          // ignore parse error
+        }
+        // PERMISSION_DENIED / API_KEY_HTTP_REFERER_BLOCKED when testing from phone (e.g. http://192.168.x.x:3000).
+        // Fix: Google Cloud Console → APIs & Services → Credentials → your API key → Application restrictions →
+        // add "192.168.0.0/16" or your dev URL (e.g. http://192.168.0.26:3000/*). Don't log to avoid dev overlay.
+        const isReferrerBlocked = response.status === 403 || (errorText && /PERMISSION_DENIED|API_KEY_HTTP_REFERER_BLOCKED/i.test(errorText));
+        if (!isReferrerBlocked && process.env.NODE_ENV === 'development') {
+          console.warn('Places API error:', response.status, errorText?.slice(0, 200));
+        }
         setSuggestions([]);
         return;
       }
@@ -180,8 +191,16 @@ export function useAddressSearch() {
       );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Places API details error:', response.status, errorText);
+        let errorText = '';
+        try {
+          errorText = await response.text();
+        } catch {
+          // ignore
+        }
+        const isReferrerBlocked = response.status === 403 || (errorText && /PERMISSION_DENIED|API_KEY_HTTP_REFERER_BLOCKED/i.test(errorText));
+        if (!isReferrerBlocked && process.env.NODE_ENV === 'development') {
+          console.warn('Places API details error:', response.status, errorText?.slice(0, 200));
+        }
         return null;
       }
 

@@ -148,7 +148,7 @@ export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
       : 'gap-4';
 
   return (
-    <div className={`h-[60px] flex items-center p-2 border-b border-black`}>
+    <div className={`h-[50px] flex items-center p-2 border-b border-black`}>
       <div className={`flex items-center flex-wrap w-full ${gapClass}`}>
         {visibleLinks.map((link, index) => {
           const Icon = iconMap[link.type] || Globe;

@@ -12,17 +12,15 @@ export interface UseBusinessesResult {
 }
 
 /**
- * Request deduplication cache
- * Prevents multiple simultaneous identical requests
- * Caches the parsed JSON data, not the Response object
+ * Client-side request deduplication and in-memory cache (60s).
+ * next.revalidate only applies to server-side fetch; this hook uses its own cache and deduplication.
  */
 const requestCache = new Map<string, Promise<{ businesses: unknown[]; pagination?: unknown }>>();
 const CACHE_DURATION = 60 * 1000; // 60 seconds
 const cacheTimestamps = new Map<string, number>();
 
 /**
- * Deduplicated fetch function
- * If a request with the same URL is already in progress, returns the existing parsed data promise
+ * Deduplicated fetch: same URL+options share one promise; result cached for CACHE_DURATION.
  */
 async function deduplicatedFetch(
   url: string, 
@@ -41,16 +39,22 @@ async function deduplicatedFetch(
   const cacheTime = cacheTimestamps.get(cacheKey);
   const isStale = !cacheTime || (now - cacheTime) > CACHE_DURATION;
   
-  // Create new request and parse JSON
-  const requestPromise = fetch(url, {
-    ...options,
-    next: { revalidate: 60 }, // Cache for 60 seconds
-  })
+  // Client-side fetch: next.revalidate only applies to server fetch; we use in-memory cache above
+  const requestPromise = fetch(url, options)
     .then(async (response) => {
       if (!response.ok) {
         // Remove from cache on error
         requestCache.delete(cacheKey);
-        throw new Error(`Failed to fetch: ${response.statusText}`);
+        let message = response.statusText;
+        try {
+          const body = await response.json();
+          if (body && typeof body.error === 'string') {
+            message = body.error;
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(`Failed to fetch: ${message}`);
       }
       
       // Parse JSON once
@@ -77,18 +81,20 @@ async function deduplicatedFetch(
 }
 
 /**
- * Hook to fetch and manage businesses from the API
- * Automatically removes userId from business data and handles window focus refresh
- * Uses request deduplication to prevent multiple simultaneous identical requests
+ * Hook to fetch and manage businesses from the API.
+ * Optionally accepts initial data from server (e.g. from getCachedBusinessesList) for fast first paint.
+ * Uses request deduplication and in-memory cache; refetches on focus and when navigating to list.
+ * @param initialData - Optional server-fetched list for initial render (avoids loading flash)
  * @returns Businesses data, loading state, error, and refetch function
  */
-export function useBusinesses(): UseBusinessesResult {
-  const [businesses, setBusinesses] = useState<ProCardData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export function useBusinesses(initialData?: ProCardData[] | null): UseBusinessesResult {
+  const [businesses, setBusinesses] = useState<ProCardData[]>(initialData ?? []);
+  const [isLoading, setIsLoading] = useState(!initialData?.length);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const pathname = usePathname();
   const previousPathnameRef = useRef<string | null>(null);
+  const hasInitialData = Boolean(initialData?.length);
 
   const fetchBusinesses = useCallback(async (forceRefresh: boolean = false) => {
     // Cancel previous request if still in flight
@@ -99,7 +105,7 @@ export function useBusinesses(): UseBusinessesResult {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
     
-    setIsLoading(true);
+    if (!hasInitialData) setIsLoading(true);
     setError(null);
     
     try {
@@ -136,7 +142,7 @@ export function useBusinesses(): UseBusinessesResult {
         setIsLoading(false);
       }
     }
-  }, []);
+  }, [hasInitialData]);
 
   useEffect(() => {
     const isBusinessListPage = pathname?.includes('/businesslist');

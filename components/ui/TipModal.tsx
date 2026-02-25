@@ -9,13 +9,15 @@ interface TipModalProps {
   message: string;
   /** Optional className for the container */
   className?: string;
+  /** When true, tooltip shows on hover only, hides when not hovered, and icon is not clickable (e.g. for PC) */
+  hoverOnly?: boolean;
 }
 
 /**
  * TipModal component displays a question mark icon that shows an informational tooltip when clicked.
- * The tooltip appears above the icon and contains helpful information about the form field.
+ * With hoverOnly, tooltip shows on hover only and the icon is not clickable.
  */
-export function TipModal({ message, className = '' }: TipModalProps) {
+export function TipModal({ message, className = '', hoverOnly = false }: TipModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,6 +107,29 @@ export function TipModal({ message, className = '' }: TipModalProps) {
       setIsOpen(false);
     }
   };
+
+  // Hover-only: show tooltip on hover, hide when not hovered, icon not clickable
+  if (hoverOnly) {
+    return (
+      <div className={`group relative inline-flex items-center ${className}`}>
+        <div
+          className="w-4 h-4 bg-red-500 border-2 border-red-500 rounded flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors pointer-events-auto"
+          aria-label="Field information (hover to view)"
+        >
+          <HiQuestionMarkCircle className="w-3 h-3 text-white" />
+        </div>
+        <div
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-white border-2 border-red-500 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity pointer-events-none z-[9999]"
+          role="tooltip"
+        >
+          <p className="text-sm text-black">{message}</p>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
+            <div className="w-3 h-3 bg-white border-r-2 border-b-2 border-red-500 rotate-45" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`relative inline-flex items-center ${className}`} ref={containerRef}>

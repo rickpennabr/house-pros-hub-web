@@ -27,7 +27,7 @@ export default function EditBusinessLayout({ children }: EditBusinessLayoutProps
                 aria-label="Go to account management"
               >
                 <Image
-                  src="/hph-logo-simble-sq-white-bg-2.2.png"
+                  src="/house-pros-hub-logo-simble-bot.png"
                   alt="House Pros Hub"
                   width={40}
                   height={40}

@@ -23,6 +23,13 @@ export const RATE_LIMIT_CONFIGS = {
     message: 'Upload limit exceeded. Please try again later.',
   } as RateLimitConfig,
 
+  // Estimate image uploads (ProBot + estimate page) - separate quota so multiple images per estimate are allowed
+  estimateUpload: {
+    windowMs: 60 * 60 * 1000, // 1 hour
+    maxRequests: 30,
+    message: 'Upload limit exceeded. Please try again later.',
+  } as RateLimitConfig,
+
   // General API endpoints - more lenient
   general: {
     windowMs: 60 * 1000, // 1 minute
@@ -35,6 +42,13 @@ export const RATE_LIMIT_CONFIGS = {
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 20,
     message: 'Too many business operations. Please try again later.',
+  } as RateLimitConfig,
+
+  // ProBot chat - prevent spam
+  chat: {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 30,
+    message: 'Too many messages. Please slow down.',
   } as RateLimitConfig,
 } as const;
 

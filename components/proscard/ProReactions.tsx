@@ -1,16 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Heart, MessageSquare, Link, Bookmark } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { createSignInUrl } from '@/lib/redirect';
-import FeedbackModal from './FeedbackModal';
 import { businessStorage } from '@/lib/storage/businessStorage';
 import { feedbackStorage } from '@/lib/storage/feedbackStorage';
 import { savedBusinessStorage } from '@/lib/storage/savedBusinessStorage';
 import Modal from '@/components/ui/Modal';
+
+const FeedbackModal = dynamic(() => import('./FeedbackModal'), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface ProReactionsProps {
   initialReactions?: {
@@ -197,8 +202,8 @@ export default function ProReactions({
   const justifyClass = layout === 'around' ? 'justify-around' : 'justify-between';
   
   return (
-    <div className="h-[60px] p-2 flex items-center justify-center overflow-hidden mb-1 md:mb-0">
-      <div className={`w-full flex items-center ${justifyClass} ${gap}`}>
+    <div className="h-[70px] px-1 py-2 flex items-center justify-center overflow-hidden">
+      <div className={`w-full flex items-center ${justifyClass}`}>
         {reactionConfig.map(({ type, icon: Icon, label, count }) => {
           const isActive = activeReactions.has(type);
           // Special styling for active states
@@ -249,16 +254,13 @@ export default function ProReactions({
           };
           
           // Get padding for reaction label container
-          const getLabelPadding = () => {
-            if (type === 'link' || type === 'save') return 'px-2';
-            return 'px-4';
-          };
+          const getLabelPadding = () => 'px-2';
           
           return (
             <button
               key={type}
               onClick={(e) => handleReaction(e, type)}
-              className={`group flex flex-col items-center justify-center gap-1.5 px-0.5 py-1 rounded-lg transition-all font-medium cursor-pointer shrink-0 ${getButtonStyles()}`}
+              className={`group flex flex-col items-center justify-center gap-2 px-0.5 rounded-lg transition-all font-medium cursor-pointer shrink-0 ${getButtonStyles()}`}
               aria-label={label}
             >
               <div className="flex items-center justify-center gap-1">

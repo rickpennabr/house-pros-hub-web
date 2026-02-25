@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
@@ -58,6 +58,11 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
   const locale = useLocale();
   const { isAuthenticated, isLoading } = useAuth();
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareBusinessUrl, setShareBusinessUrl] = useState('');
+
+  useEffect(() => {
+    setShareBusinessUrl(`${window.location.origin}/business/${data.slug || data.id}`);
+  }, [data.slug, data.id]);
 
   const handleCardClick = () => {
     // Check authentication before navigating to business details
@@ -117,7 +122,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
           businessName={data.businessName}
           contractorType={data.contractorType}
           logo={data.logo}
-          businessUrl={typeof window !== 'undefined' ? `${window.location.origin}/business/${data.slug || data.id}` : ''}
+          businessUrl={shareBusinessUrl}
         />
       </div>
     );
@@ -159,7 +164,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
         businessName={data.businessName}
         contractorType={data.contractorType}
         logo={data.logo}
-        businessUrl={typeof window !== 'undefined' ? `${window.location.origin}/business/${data.slug || data.id}` : ''}
+        businessUrl={shareBusinessUrl}
       />
     </div>
   );

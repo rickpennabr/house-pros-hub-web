@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { List } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useScrollPosition } from '@/hooks/useScrollPosition';
@@ -23,6 +24,8 @@ export default function ViewToggle({ currentView, onViewChange }: ViewToggleProp
   const t = useTranslations('common');
   const { isAtBottom } = useScrollPosition({ threshold: 50, useRequestAnimationFrame: false });
   const { isDesktop } = useWindowDimensions();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const views: ViewOption[] = [
     {
@@ -40,9 +43,9 @@ export default function ViewToggle({ currentView, onViewChange }: ViewToggleProp
   return (
     <div 
       className={`fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${
-        isAtBottom && isDesktop 
-          ? 'bottom-[90px]' // Move up 100px from original 80px (80 + 100 = 180) + 100px more = 280
-          : 'bottom-[65px] md:bottom-[75px]'
+        mounted && isAtBottom && isDesktop
+          ? 'bottom-[90px]' // Move up when at bottom on desktop
+          : 'bottom-[35px] md:bottom-[75px]' // Mobile: 30px lower than before (was 65px)
       }`}
     >
       <div className="

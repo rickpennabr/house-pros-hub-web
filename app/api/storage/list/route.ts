@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import {
+  validateStorageBucket,
+  validateStoragePath,
+  normalizeStoragePath,
+} from '@/lib/utils/storageValidation';
 
 /**
  * GET /api/storage/list
@@ -14,12 +19,16 @@ export async function GET(request: NextRequest) {
     const bucket = searchParams.get('bucket');
     const folder = searchParams.get('folder') || '';
 
-    if (!bucket) {
-      return NextResponse.json(
-        { error: 'Bucket name is required' },
-        { status: 400 }
-      );
+    const bucketError = validateStorageBucket(bucket ?? '');
+    if (bucketError) {
+      return NextResponse.json({ error: bucketError }, { status: 400 });
     }
+    const folderError = validateStoragePath(folder);
+    if (folderError) {
+      return NextResponse.json({ error: folderError }, { status: 400 });
+    }
+
+    const normalizedFolder = normalizeStoragePath(folder);
 
     const supabase = await createClient();
 
@@ -43,8 +52,8 @@ export async function GET(request: NextRequest) {
 
     // List files in the bucket
     const { data, error } = await supabase.storage
-      .from(bucket)
-      .list(folder, {
+      .from(bucket!)
+      .list(normalizedFolder, {
         limit: 1000,
         offset: 0,
         sortBy: { column: 'created_at', order: 'desc' }
@@ -63,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     // Get public URLs for all files
     const filesWithUrls = files.map(file => {
-      const filePath = folder ? `${folder}/${file.name}` : file.name;
+      const filePath = normalizedFolder ? `${normalizedFolder}/${file.name}` : file.name;
       const { data: { publicUrl } } = supabase.storage
         .from(bucket)
         .getPublicUrl(filePath);

@@ -59,7 +59,7 @@ export default function Accordion({
               {required && !isComplete && !error && (
                 <>
                   <span className="text-red-500 ml-1">*</span>
-                  {tip && <span className="ml-1"><TipModal message={tip} /></span>}
+                  {tip && <span className="ml-1"><TipModal message={tip} hoverOnly /></span>}
                 </>
               )}
             </h2>

@@ -307,13 +307,14 @@ export default function SuppliersList() {
   }, [selectedTrade, selectedMaterial, combinedSearchTerm, selectedSupplier]);
 
   const mapCenter = {
-    lat: 36.0922,
-    lng: -115.1987,
+    lat: 36.11,
+    lng: -115.17,
   };
 
   const mapContainerStyle = {
     width: '100%',
     height: '100%',
+    minHeight: isMobile ? '50vh' : undefined,
   };
 
   const renderSearchBar = () => (
@@ -382,6 +383,7 @@ export default function SuppliersList() {
                 <li><strong>Billing</strong> not set up on your Google Cloud project</li>
                 <li>API key is invalid or expired</li>
                 <li>API key restrictions block your domain</li>
+                <li><strong>RefererNotAllowedMapError</strong> on mobile or LAN: add your URL (e.g. <code>http://192.168.0.26:3000/*</code>) under API key → Application restrictions → HTTP referrers</li>
                 <li>You've exceeded your quota</li>
               </ol>
               <p className="text-xs text-gray-500 mt-3">
@@ -478,7 +480,7 @@ export default function SuppliersList() {
         )}
         {loadError || !apiKey ? (
           renderMapError()
-        ) : isLoaded ? (
+        ) : isLoaded && (!isMobile || view === 'map') ? (
           <GoogleMap
             mapContainerStyle={mapContainerStyle}
             center={
@@ -486,7 +488,8 @@ export default function SuppliersList() {
                 ? suppliers.find((s) => s.id === selectedSupplier)?.coordinates || mapCenter
                 : mapCenter
             }
-            zoom={selectedSupplier !== null ? 15 : 11}
+            zoom={selectedSupplier !== null ? 14 : 10.5}
+            options={{ gestureHandling: 'cooperative' }}
           >
             {filteredSuppliers.map((supplier) => {
               if (!supplier.coordinates) return null;

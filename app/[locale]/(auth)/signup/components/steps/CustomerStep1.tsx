@@ -36,7 +36,7 @@ export function CustomerStep1() {
   );
   const animatedPlaceholders = useTypingPlaceholder({
     placeholders,
-    typingSpeed: 100,
+    typingSpeed: 50,
     delayBetweenFields: 300,
     startDelay: 500,
   });
@@ -71,7 +71,7 @@ export function CustomerStep1() {
         return;
       }
 
-      if (!validateFileSize(file, 2)) {
+      if (!validateFileSize(file, 5)) {
         alert(tFields('imageSizeError'));
         return;
       }
@@ -278,7 +278,7 @@ export function CustomerStep1() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-black">{tFields('uploadPicture')}</span>
-          <TipModal message="It will only be publicly visible on comments on business card" />
+          <TipModal message="It will only be publicly visible on comments on business card" hoverOnly />
         </div>
         <input
           ref={fileInputRef}

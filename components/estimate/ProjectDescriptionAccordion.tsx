@@ -64,8 +64,8 @@ export default function ProjectDescriptionAccordion({
           throw new Error(tFields('imageTypeError'));
         }
 
-        // Validate file size (2MB)
-        if (file.size > 2 * 1024 * 1024) {
+        // Validate file size (5MB)
+        if (file.size > 5 * 1024 * 1024) {
           throw new Error(tFields('imageSizeError'));
         }
 

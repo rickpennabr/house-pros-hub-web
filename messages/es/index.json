@@ -37,7 +37,7 @@
     },
     "search": {
       "categories": "Buscar categorías...",
-      "businesses": "Encuentra tu Home Pro...",
+      "businesses": "Encuentra Tu House Pro...",
       "suppliers": "Buscar proveedores por nombre, materiales u oficios...",
       "address": "Buscar dirección",
       "help": "Encuentra ayuda aquí..."
@@ -56,6 +56,36 @@
     "prosBlog": "ProsBlog",
     "housePros": "HousePros",
     "proSuppliers": "ProSuppliers"
+  },
+  "bot": {
+    "greeting": "¡Hola!",
+    "tooltip": "Soy el ProBot, haz clic en mí para iniciar una conversación...",
+    "welcomeMessage": "Hola, bienvenido a HouseProsHub.com, soy el ProBot, puedo ayudarte a conectarte con un Pro o a solicitar tu estimado gratuito.",
+    "choiceRequestEstimate": "Solicitar estimado gratis",
+    "choiceTalkToPro": "Hablar con un pro ahora",
+    "choiceAccountEstimate": "Cuenta y estimado",
+    "choiceCallHub": "Llamar al Hub",
+    "choiceChatWithHub": "Chatear con el Hub",
+    "choiceMessageAPro": "Mensaje a un pro",
+    "estimateSuccessMessage": "¡Gracias por registrarte en House Pros Hub! Ahora puedes contactar a tu pro o solicitar tu estimado gratis.",
+    "estimateSuccessMessageLine1": "¡Gracias por registrarte en House Pros Hub!",
+    "estimateSuccessMessageLine2": "Ahora puedes contactar a tu pro o solicitar tu estimado gratis.",
+    "estimateSubmittedMessage": "Tu solicitud de estimado ha sido enviada. Nuestros contratistas se pondrán en contacto pronto.",
+    "goToHomePage": "Ir a la página principal",
+    "getAnEstimate": "Obtener un estimado",
+    "modal": {
+      "title": "ProBot",
+      "message": "El chat con ProBot estará disponible pronto. Estamos creando un asistente útil para responder preguntas sobre House Pros Hub y conectarte con los profesionales adecuados.",
+      "close": "Cerrar"
+    },
+    "callHubModalTitle": "¿Llamar a House Pros Hub?",
+    "callHubModalMessage": "¿Llamar al {number}?",
+    "callHubModalCancel": "Cancelar",
+    "callHubModalCall": "Llamar",
+    "prosListHeading": "Aquí están nuestros pros. Puedes llamar, ver su perfil o enviarles un mensaje.",
+    "messagePro": "Mensaje",
+    "viewProfile": "Ver perfil",
+    "messagingPro": "Mensaje a {name}"
   },
   "validation": {
     "firstName": {
@@ -97,7 +127,6 @@
       "forgotPassword": "¿Olvidaste tu contraseña?",
       "submit": "Iniciar sesión",
       "submitting": "Iniciando sesión...",
-      "googleButton": "Iniciar sesión con Google",
       "validation": {
         "emailRequired": "El correo electrónico es requerido",
         "emailInvalid": "Por favor ingresa un correo electrónico válido",
@@ -159,6 +188,7 @@
         },
         "contractor": {
           "title": "Soy Contratista",
+          "titleWithCode": "Soy Contratista (código de invitación requerido)",
           "description": "Proporciono servicios a clientes"
         },
         "both": {
@@ -168,29 +198,39 @@
         "alreadyHaveAccount": "¿Ya tienes una cuenta?",
         "signInLink": "Iniciar sesión"
       },
-      "authMethod": {
-        "title": "¿Cómo te gustaría crear tu cuenta HPH?",
-        "subtitle": "Continuar como {role}",
-        "roleText": {
-          "customer": "un cliente",
-          "contractor": "un contratista",
-          "both": "tanto cliente como contratista"
-        },
-        "emailButton": "Registrarse con formulario",
-        "googleButton": "Registrarse con Google",
-        "divider": "O continuar con",
-        "backButton": "← Atrás"
+      "chat": {
+        "role": "¿Estás aquí como cliente o como contratista?",
+        "userPicture": "Añade una foto de perfil (opcional). ¡Ayuda a los pros a reconocerte!",
+        "firstName": "¿Cuál es tu nombre?",
+        "lastName": "¿Y tu apellido?",
+        "referral": "¿Cómo supiste de nosotros?",
+        "referralOther": "Cuéntanos cómo supiste de nosotros.",
+        "address": "¿Cuál es tu dirección? (solo Nevada)",
+        "apartment": "¿Apartamento, suite o unidad? (opcional)",
+        "gateCode": "¿Código de acceso? (opcional)",
+        "addressNote": "¿Alguna nota adicional para los pros? (opcional)",
+        "phone": "¿Cuál es el mejor número para contactarte?",
+        "email": "¿Cuál es tu correo?",
+        "password": "Elige una contraseña (mínimo 8 caracteres, con mayúscula, minúscula y un número).",
+        "confirmPassword": "Confirma tu contraseña.",
+        "agreeToTerms": "Al registrarte aceptas nuestros Términos de Servicio y Política de Privacidad. ¿Listo para crear tu cuenta?",
+        "invitationCode": "Ingresa tu código de invitación.",
+        "closeWarningTitle": "¿Salir del registro?",
+        "closeWarningMessage": "Se perderá tu progreso. Para crear una cuenta tendrás que volver a empezar desde el principio. ¿Cerrar de todos modos?",
+        "closeWarningCancel": "Cancelar",
+        "closeWarningConfirm": "Aceptar",
+        "passwordsDoNotMatch": "Las contraseñas no coinciden",
+        "emailAlreadyExists": "Este correo ya está registrado. Inicia sesión o usa otro correo.",
+        "accountCreatedSignIn": "Cuenta creada. Inicia sesión con tu correo y contraseña."
       },
       "navigation": {
-        "previous": "Anterior",
+        "previous": "Atrás",
         "next": "Siguiente",
         "submit": "Registrarse",
         "submitting": "Creando cuenta...",
         "addBusiness": "Agregar un Negocio"
       },
-      "errors": {
-        "googleSignInFailed": "Error al iniciar sesión con Google"
-      },
+      "errors": {},
       "fields": {
         "imageTypeError": "Por favor selecciona un archivo de imagen",
         "imageSizeError": "El tamaño de la imagen debe ser menor a 2MB",
@@ -201,6 +241,8 @@
         "referralOtherLabel": "Por favor especifica",
         "referralOtherPlaceholder": "¿Cómo supiste de nosotros?",
         "referralOtherOption": "Otro",
+        "invitationCodeLabel": "Código de invitación",
+        "invitationCodePlaceholder": "Ingresa el código que recibiste",
         "firstNameLabel": "Nombre",
         "firstNamePlaceholder": "Nombre",
         "lastNameLabel": "Apellido",
@@ -224,6 +266,7 @@
 
         "phoneLabel": "Teléfono",
         "phonePlaceholder": "Ingresa tu número de teléfono",
+        "phoneRequired": "El número de teléfono es obligatorio.",
         "emailLabel": "Correo electrónico",
         "emailPlaceholder": "Ingresa tu correo electrónico",
         "passwordLabel": "Contraseña",
@@ -268,17 +311,8 @@
         "termsOfService": "Términos de servicio",
         "and": "y la",
         "privacyPolicy": "Política de privacidad",
-        "suffix": "para crear una cuenta personal."
-      },
-      "termsAgreement": {
-        "title": "Aceptar términos",
-        "description": "Por favor revisa y acepta nuestros términos antes de continuar",
-        "checkboxLabel": "Acepto los",
-        "termsLink": "Términos de servicio",
-        "and": "y la",
-        "privacyLink": "Política de privacidad",
-        "continueButton": "Continuar con Google",
-        "backButton": "← Atrás"
+        "suffix": "para crear una cuenta personal.",
+        "suffixContractor": "para crear una cuenta de contratista."
       }
     },
     "welcomeEmail": {
@@ -295,6 +329,17 @@
         "companyName": "House Pros Hub",
         "contactInfo": "Si tienes alguna pregunta, por favor contáctanos.",
         "unsubscribe": "Estás recibiendo este correo porque creaste una cuenta con House Pros Hub."
+      }
+    },
+    "setPasswordEmail": {
+      "subject": "Establece tu contraseña – House Pros Hub",
+      "greeting": "Hola",
+      "body": "Tu cuenta de House Pros Hub ha sido creada. Haz clic en el botón de abajo para establecer tu contraseña e iniciar sesión.",
+      "cta": "Establecer contraseña",
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "Si tienes alguna pregunta, por favor contáctanos.",
+        "unsubscribe": "Estás recibiendo este correo porque se creó una cuenta para ti en House Pros Hub."
       }
     }
   },
@@ -423,9 +468,11 @@
     "accordion": {
       "customerInfo": "Información del cliente",
       "projectAddress": "Dirección del proyecto",
+      "confirmAddressFromProfile": "Hemos completado la dirección del proyecto con tu perfil. Confírmala o actualízala abajo.",
       "projectInfo": "Información del proyecto",
       "projectType": "Tipo de proyecto",
       "trades": "Seleccionar Oficios/Servicios necesarios*",
+      "tradesMultiHint": "(puedes seleccionar más de uno)",
       "description": "Descripción del proyecto e imágenes",
       "budgetTimeline": "Presupuesto y plazo",
       "preferredContact": "Método de contacto preferido",
@@ -466,23 +513,24 @@
       "statePlaceholder": "NV",
       "zipCodeLabel": "Código postal",
       "zipCodePlaceholder": "Código postal",
-      "projectTypeLabel": "Tipo de proyecto",
+      "projectTypeLabel": "¿Qué opción describe mejor tu proyecto?",
       "projectTypePlaceholder": "Selecciona un tipo de proyecto",
       "projectTypeOtherLabel": "Por favor especifica tu tipo de proyecto",
       "projectTypeOtherPlaceholder": "Ingresa el tipo de proyecto...",
       "requiresHoaApprovalLabel": "Mi proyecto requiere aprobación de HOA",
       "wants3DLabel": "Me encantaría un 3D para mi proyecto",
-      "tradesLabel": "Selecciona Oficios/Servicios Necesarios*",
+      "hoaAnd3DLabel": "¿Alguno de estos aplica a tu proyecto?",
+      "tradesLabel": "Selecciona Oficios/Servicios Necesarios* (puedes seleccionar más de uno)",
       "projectDescriptionLabel": "Descripción del proyecto",
       "projectDescriptionPlaceholder": "Describe lo que necesitas...",
       "projectImagesLabel": "Imágenes del proyecto (opcional)",
-      "projectImagesHelp": "Sube hasta 5 imágenes para ayudar a los contratistas a entender mejor tu proyecto. Formatos aceptados: JPEG, PNG, WebP. Tamaño máximo: 2MB por imagen.",
+      "projectImagesHelp": "Sube hasta 5 imágenes para ayudar a los contratistas a entender mejor tu proyecto. Formatos aceptados: JPEG, PNG, WebP. Tamaño máximo: 5MB por imagen.",
       "uploadImages": "Subir imágenes",
       "uploading": "Subiendo...",
       "removeImage": "Eliminar imagen",
       "maxImagesError": "Solo puedes subir hasta 5 imágenes.",
       "imageTypeError": "Tipo de archivo inválido. Solo se permiten imágenes JPEG, PNG y WebP.",
-      "imageSizeError": "El tamaño del archivo debe ser menor a 2MB.",
+      "imageSizeError": "El tamaño del archivo debe ser menor a 5MB.",
       "uploadError": "Error al subir la imagen. Por favor intenta de nuevo.",
       "budgetRangeLabel": "Rango de presupuesto",
       "budgetRangePlaceholder": "Selecciona un rango de presupuesto",
@@ -490,10 +538,14 @@
       "timelinePlaceholder": "Selecciona un plazo",
       "preferredContactMethodLabel": "Método de contacto preferido",
       "preferredContactMethodPlaceholder": "Selecciona un método de contacto",
+      "useSameAddressForEstimateLabel": "¿Quieres usar la misma dirección personal para la dirección del presupuesto?",
+      "yes": "Sí",
+      "no": "No",
       "additionalNotesLabel": "Notas adicionales (opcional)",
       "additionalNotesPlaceholder": "¿Algo más que debamos saber?"
     },
     "options": {
+      "noneSelected": "Ninguno seleccionado",
       "projectType": {
         "new_construction": "Nueva construcción",
         "renovation": "Renovación",
@@ -585,8 +637,10 @@
       "reset": "Enviar otra solicitud"
     },
     "success": {
-      "title": "Solicitud enviada",
-      "body": "¡Gracias! Nuestra red de contratistas de confianza se pondrá en contacto para brindarte una estimación gratuita."
+      "title": "¡Gracias por tu solicitud de presupuesto!",
+      "body": "Nuestra red de contratistas de confianza se pondrá en contacto para brindarte una estimación gratuita.",
+      "goToHome": "Ir al inicio",
+      "requestNewEstimate": "Solicitar nuevo presupuesto"
     },
     "email": {
       "subject": "Tu Solicitud de Estimación - House Pros Hub",
@@ -594,6 +648,7 @@
       "greeting": "Hola",
       "thankYou": "¡Gracias por tu solicitud de estimación!",
       "thankYouAdmin": "Se ha recibido una nueva solicitud de estimación.",
+      "proWillContact": "Un profesional se pondrá en contacto contigo pronto.",
       "copyBelow": "Una copia de los detalles de tu estimación está a continuación:",
       "sections": {
         "customerInfo": "Información del Cliente",

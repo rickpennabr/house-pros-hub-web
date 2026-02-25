@@ -1,5 +1,5 @@
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Suspense } from "react";
 import { validateEnvVarsOrThrow } from "@/lib/utils/envValidation";
 
 // Validate environment variables at runtime (not during build)
@@ -23,16 +23,6 @@ if (typeof window === 'undefined') {
   }
 }
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export default function RootLayout({
   children,
 }: {
@@ -40,10 +30,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <head>
+        <link rel="preload" href="/pro-bot-solo.gif" as="image" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="antialiased">
+        <Suspense fallback={null}>{children}</Suspense>
       </body>
     </html>
   );

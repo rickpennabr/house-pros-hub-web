@@ -28,7 +28,7 @@ export default function AddBusinessLayout({ children }: AddBusinessLayoutProps) 
                 aria-label="Go to home"
               >
                 <Image
-                  src="/hph-logo-simble-sq-white-bg-2.2.png"
+                  src="/house-pros-hub-logo-simble-bot.png"
                   alt="House Pros Hub"
                   width={40}
                   height={40}

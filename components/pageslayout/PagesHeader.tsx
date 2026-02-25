@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -10,7 +10,9 @@ import ProfileIcon from './ProfileIcon';
 import LanguageSwitcher from './LanguageSwitcher';
 import FreeEstimateButton from './FreeEstimateButton';
 import PhoneButton from './PhoneButton';
+import { NotificationBellDropdown } from '@/components/admin/NotificationBellDropdown';
 import { Phone } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface PageHeaderProps {
   children?: ReactNode;
@@ -44,14 +46,42 @@ function CallButton() {
   );
 }
 
+const NEW_SIGNUPS_POLL_MS = 60 * 1000;
+
 export default function PageHeader({ children }: PageHeaderProps) {
   const pathname = usePathname();
   const locale = useLocale();
   const headerRef = useRef<HTMLElement>(null);
+  const { isAdmin, roles } = useAuth();
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  const fetchNewSignupsCount = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch('/api/admin/notifications/new-signups-count', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (typeof data.count === 'number') setNotificationCount(data.count);
+    } catch {
+      // ignore
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchNewSignupsCount();
+    const interval = setInterval(fetchNewSignupsCount, NEW_SIGNUPS_POLL_MS);
+    return () => clearInterval(interval);
+  }, [isAdmin, fetchNewSignupsCount]);
 
   const isLegalPage = pathname?.includes('/legal');
   const isHomePage = pathname?.includes('/businesslist') || pathname === `/${locale}` || pathname === `/${locale}/`;
   const isSuppliersPage = pathname?.includes('/prosuppliers');
+  const isContractor = roles.includes('contractor');
+  const showFreeEstimate = (isHomePage || isSuppliersPage) && !isAdmin && !isContractor;
 
   // #region agent log - Development only
   useEffect(() => {
@@ -109,31 +139,6 @@ export default function PageHeader({ children }: PageHeaderProps) {
   }, []);
   // #endregion
 
-  // Get page title and date for legal pages
-  const getLegalPageInfo = () => {
-    if (pathname === '/legal/terms') {
-      return {
-        title: 'Terms of Service',
-        lastUpdated: 'December 18, 2025'
-      };
-    }
-    if (pathname === '/legal/privacy') {
-      return {
-        title: 'Privacy Policy',
-        lastUpdated: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-      };
-    }
-    if (pathname === '/legal/cookies') {
-      return {
-        title: 'Cookie Policy',
-        lastUpdated: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-      };
-    }
-    return null;
-  };
-
-  const legalPageInfo = isLegalPage ? getLegalPageInfo() : null;
-
   return (
     <header ref={headerRef} className="w-full min-h-[60px] h-[60px] border-b-2 border-black px-2 md:px-2 py-2 md:py-0 flex-shrink-0">
       <div className="relative w-full h-full flex items-center justify-between gap-2">
@@ -146,7 +151,7 @@ export default function PageHeader({ children }: PageHeaderProps) {
               aria-label="Go to home page"
             >
               <Image
-                src="/hph-logo-simble-sq-white-bg-2.2.png"
+                src="/house-pros-hub-logo-simble-bot.png"
                 alt="House Pros Hub"
                 width={40}
                 height={40}
@@ -158,15 +163,12 @@ export default function PageHeader({ children }: PageHeaderProps) {
           )}
         </div>
 
-        {/* Center: Legal page title/date or Logo */}
-        {isLegalPage && legalPageInfo ? (
-          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center z-0 min-w-0">
+        {/* Center: "HouseProsHub Legal" label on legal pages, Logo on others */}
+        {isLegalPage ? (
+          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center z-0 min-w-0">
             <h1 className="text-xl md:text-2xl font-bold text-black whitespace-nowrap">
-              {legalPageInfo.title}
+              HouseProsHub Legal
             </h1>
-            <p className="text-xs md:text-sm text-gray-600 whitespace-nowrap">
-              Last Updated: {legalPageInfo.lastUpdated}
-            </p>
           </div>
         ) : (
           <div className="flex items-center justify-center flex-shrink min-w-0">
@@ -178,13 +180,26 @@ export default function PageHeader({ children }: PageHeaderProps) {
 
         {/* Right: Actions */}
         <div className="flex items-center flex-shrink-0 gap-2 z-[100]">
-          {(isHomePage || isSuppliersPage) && <FreeEstimateButton />}
-          <div className="hidden md:block">
-            <PhoneButton />
-          </div>
-          <div className="md:hidden">
-            <CallButton />
-          </div>
+          {showFreeEstimate && <FreeEstimateButton />}
+          {!isLegalPage && (
+            <>
+              {isAdmin ? (
+                <NotificationBellDropdown
+                  notificationCount={notificationCount}
+                  onMarkAllRead={fetchNewSignupsCount}
+                />
+              ) : (
+                <>
+                  <div className="hidden md:block">
+                    <PhoneButton />
+                  </div>
+                  <div className="md:hidden">
+                    <CallButton />
+                  </div>
+                </>
+              )}
+            </>
+          )}
           <ProfileIcon />
         </div>
 

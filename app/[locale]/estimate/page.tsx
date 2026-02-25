@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,6 +22,7 @@ import BudgetTimelineAccordion from '@/components/estimate/BudgetTimelineAccordi
 import ContactMethodAccordion from '@/components/estimate/ContactMethodAccordion';
 import NotesAccordion from '@/components/estimate/NotesAccordion';
 import Accordion from '@/components/ui/Accordion';
+import { Button } from '@/components/ui/Button';
 import { AddressData } from '@/components/AddressAutocomplete';
 
 export default function EstimatePage() {
@@ -42,6 +44,8 @@ export default function EstimatePage() {
   
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [loadingFallback, setLoadingFallback] = useState(false);
+  const [addressPrefilledFromProfile, setAddressPrefilledFromProfile] = useState(false);
 
   // Refs for accordion sections for auto-scrolling
   const successMessageRef = useRef<HTMLDivElement>(null);
@@ -118,7 +122,29 @@ export default function EstimatePage() {
     },
   });
 
-  const { handleSubmit, setValue, formState: { errors, isSubmitting } } = methods;
+  const { handleSubmit, setValue, reset, formState: { errors, isSubmitting } } = methods;
+
+  const estimateDefaultValues: EstimateSchema = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    streetAddress: '',
+    city: '',
+    state: 'NV',
+    zipCode: '',
+    apartment: '',
+    projectType: undefined,
+    projectTypeOther: '',
+    requiresHoaApproval: false,
+    wants3D: false,
+    trades: [],
+    projectDescription: '',
+    budgetRange: undefined,
+    timeline: undefined,
+    preferredContactMethod: undefined,
+    additionalNotes: '',
+  };
 
   // Use optimized hook to watch all form values at once
   const formValues = useEstimateFormValues(methods);
@@ -139,6 +165,16 @@ export default function EstimatePage() {
       router.push(signUpUrl);
     }
   }, [isAuthenticated, isLoading, router, locale, pathname]);
+
+  // If auth check takes too long, show link to sign up so user isn't stuck
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      setLoadingFallback(false);
+      return;
+    }
+    const timer = setTimeout(() => setLoadingFallback(true), 4000);
+    return () => clearTimeout(timer);
+  }, [isLoading, isAuthenticated]);
 
   // Helper function to populate form with user data (non-address fields)
   const populateUserData = useCallback(() => {
@@ -181,6 +217,7 @@ export default function EstimatePage() {
         setValue('state', addr.state || 'NV', { shouldValidate: false });
         setValue('zipCode', addr.zipCode || '', { shouldValidate: false });
         setValue('apartment', addr.apartment || '', { shouldValidate: false });
+        if (!cancelled) setAddressPrefilledFromProfile(true);
       } catch (error) {
         console.error('Error fetching address from addresses table:', error);
         // Non-fatal: form can still be filled manually
@@ -272,11 +309,51 @@ export default function EstimatePage() {
   // Show loading state while checking authentication
   if (isLoading || !isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 px-4">
         <p className="text-gray-600">{tCommon('message.loading')}</p>
+        {loadingFallback && (
+          <p className="text-sm text-gray-500 text-center">
+            Taking a while?{' '}
+            <Link
+              href={createSignUpUrl(locale as 'en' | 'es', pathname)}
+              className="font-medium text-black underline hover:no-underline"
+            >
+              Sign in or sign up
+            </Link>
+          </p>
+        )}
       </div>
     );
   }
+
+  const handleRequestNewEstimate = useCallback(() => {
+    setSuccessMessage('');
+    setErrorMessage('');
+    setAddressPrefilledFromProfile(false);
+    reset(estimateDefaultValues);
+    if (isAuthenticated && user && !isLoading) {
+      setValue('firstName', user.firstName || '', { shouldValidate: false });
+      setValue('lastName', user.lastName || '', { shouldValidate: false });
+      setValue('email', user.email || '', { shouldValidate: false });
+      setValue('phone', user.phone || '', { shouldValidate: false });
+    }
+    if (isAuthenticated && user?.id) {
+      fetch('/api/addresses?type=personal', { method: 'GET', credentials: 'include' })
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          const addr = Array.isArray(data?.addresses) ? data.addresses[0] : null;
+          if (addr) {
+            setValue('streetAddress', addr.streetAddress || '', { shouldValidate: false });
+            setValue('city', addr.city || '', { shouldValidate: false });
+            setValue('state', addr.state || 'NV', { shouldValidate: false });
+            setValue('zipCode', addr.zipCode || '', { shouldValidate: false });
+            setValue('apartment', addr.apartment || '', { shouldValidate: false });
+            setAddressPrefilledFromProfile(true);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [reset, isAuthenticated, user, isLoading, setValue]);
 
   const onSubmit = async (data: EstimateSchema) => {
     try {
@@ -303,7 +380,7 @@ export default function EstimatePage() {
       }
       
       setSuccessMessage(tSuccess('body'));
-      
+
       // Scroll to top of page after successful submission
       setTimeout(() => {
         window.scrollTo({
@@ -311,12 +388,6 @@ export default function EstimatePage() {
           behavior: 'smooth'
         });
       }, 100);
-      
-      // Redirect to home after 6 seconds (users typically only submit one estimate)
-      setTimeout(() => {
-        const homePath = createLocalePath(locale as 'en' | 'es', '/');
-        router.push(homePath);
-      }, 6000);
     } catch (error) {
       console.error('Error submitting estimate:', error);
       setErrorMessage(error instanceof Error ? error.message : tValidation('genericError'));
@@ -337,9 +408,48 @@ export default function EstimatePage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Success/Error Messages */}
           {successMessage && (
-            <div ref={successMessageRef} className="bg-green-50 border-2 border-green-600 text-green-800 rounded-lg p-4 text-center">
-              <p className="mb-2">{successMessage}</p>
-              <p className="text-sm text-green-700">Redirecting to home page...</p>
+            <div ref={successMessageRef} className="space-y-6 flex-1 flex flex-col min-h-[300px]">
+              <div className="flex-1 flex flex-col justify-center">
+                <div className="bg-white border-2 border-black rounded-lg p-6 flex flex-col justify-center text-center">
+                  <svg
+                    className="w-16 h-16 mx-auto text-green-600 mb-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <h2 className="text-2xl font-semibold mb-4 text-black">
+                    {tSuccess('title')}
+                  </h2>
+                  <p className="text-gray-700">
+                    {successMessage}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4 w-full">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => router.push(createLocalePath(locale as 'en' | 'es', '/'))}
+                  className="flex-1 whitespace-nowrap px-2 md:px-4 py-2 md:py-3"
+                >
+                  {tSuccess('goToHome')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={handleRequestNewEstimate}
+                  className="flex-1 whitespace-nowrap px-2 md:px-4 py-2 md:py-3"
+                >
+                  {tSuccess('requestNewEstimate')}
+                </Button>
+              </div>
             </div>
           )}
           {errorMessage && (
@@ -364,6 +474,7 @@ export default function EstimatePage() {
               tFields={tFields}
               tAccordion={tAccordion}
               tTips={tTips}
+              addressPrefilledFromProfile={addressPrefilledFromProfile}
             />
           </div>
 

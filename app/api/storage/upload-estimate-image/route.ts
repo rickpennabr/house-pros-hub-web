@@ -12,8 +12,10 @@ import { logger } from '@/lib/utils/logger';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Check rate limit for upload endpoints
-    const rateLimitResponse = await checkRateLimit(request, 'upload');
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    // Check rate limit (per-user when authenticated, per-IP otherwise; same quota for chat + estimate form)
+    const rateLimitResponse = await checkRateLimit(request, 'estimateUpload', user?.id);
     if (rateLimitResponse) {
       return rateLimitResponse;
     }
@@ -28,10 +30,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (using profile size limit as reference, 2MB)
+    // Validate file size (5MB max for estimate images)
     if (!validateFileSize(file.size, 'profile')) {
       return NextResponse.json(
-        { error: 'File size must be less than 2MB' },
+        { error: 'File size must be less than 5MB' },
         { status: 400 }
       );
     }
@@ -48,8 +50,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const supabase = await createClient();
 
     // Generate unique file path using timestamp and random string
     // Format: estimates/timestamp-random.ext

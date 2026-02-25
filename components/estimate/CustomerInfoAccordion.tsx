@@ -23,6 +23,8 @@ interface CustomerInfoAccordionProps {
   tFields: (key: string) => string;
   tAccordion: (key: string) => string;
   tTips: (key: string) => string;
+  /** When true, show a message asking the customer to confirm or update the pre-filled profile address. */
+  addressPrefilledFromProfile?: boolean;
 }
 
 export default function CustomerInfoAccordion({
@@ -36,6 +38,7 @@ export default function CustomerInfoAccordion({
   tFields,
   tAccordion,
   tTips,
+  addressPrefilledFromProfile = false,
 }: CustomerInfoAccordionProps) {
   const { register, watch, setValue } = methods;
   const streetAddress = watch('streetAddress');
@@ -52,7 +55,7 @@ export default function CustomerInfoAccordion({
   );
   const animatedPlaceholders = useTypingPlaceholder({
     placeholders,
-    typingSpeed: 100,
+    typingSpeed: 50,
     delayBetweenFields: 300,
     startDelay: 500,
   });
@@ -133,6 +136,12 @@ export default function CustomerInfoAccordion({
           <MapPin className="w-5 h-5 text-red-600" />
           <h3 className="text-lg font-semibold text-black">{tAccordion('projectAddress')}</h3>
         </div>
+
+        {addressPrefilledFromProfile && (
+          <p className="text-sm text-gray-700 mb-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            {tAccordion('confirmAddressFromProfile')}
+          </p>
+        )}
 
         <FormField label={tFields('streetAddressLabel')} required error={errors.streetAddress?.message}>
           <AddressAutocomplete

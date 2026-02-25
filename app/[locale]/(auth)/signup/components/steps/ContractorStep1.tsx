@@ -31,7 +31,7 @@ export function ContractorStep1() {
         return;
       }
 
-      if (!validateFileSize(file, 2)) {
+      if (!validateFileSize(file, 5)) {
         alert(tFields('imageSizeError'));
         return;
       }

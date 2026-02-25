@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import Script from 'next/script';
@@ -69,7 +70,7 @@ export async function generateMetadata({
     },
     icons: {
       icon: '/fav.ico',
-      apple: '/hph-logo-simble-sq-white-bg-2.2.png',
+      apple: '/house-pros-hub-logo-simble-bot.png',
     },
     manifest: '/manifest.json',
     openGraph: {
@@ -159,7 +160,9 @@ export default async function RootLayout({
       />
       <NextIntlClientProvider locale={resolvedLocale} messages={messages}>
         <AuthProviderWrapper>
-          {children}
+          <Suspense fallback={null}>
+            {children}
+          </Suspense>
         </AuthProviderWrapper>
       </NextIntlClientProvider>
     </>

@@ -94,6 +94,26 @@ const OPTIONAL_ENV_VARS: EnvVar[] = [
     required: false,
     description: 'Node environment (development, production, etc.)',
   },
+  {
+    name: 'RESEND_API_KEY',
+    required: false,
+    description: 'Resend API key for sending email (required for forgot-password, estimate emails)',
+  },
+  {
+    name: 'RESEND_FROM_EMAIL',
+    required: false,
+    description: 'Resend from-address for outgoing email',
+  },
+  {
+    name: 'RESEND_WEBHOOK_SECRET',
+    required: false,
+    description: 'Resend webhook signing secret for incoming email webhook',
+  },
+  {
+    name: 'WEBHOOK_API_KEY',
+    required: false,
+    description: 'API key for webhook authentication (e.g. incoming email)',
+  },
 ];
 
 interface ValidationResult {
@@ -134,15 +154,26 @@ export function validateEnvVars(): ValidationResult {
     }
   }
 
-  // Check optional but recommended variables
+  // Check optional but recommended variables (warn in production when unset)
+  const isProduction = process.env.NODE_ENV === 'production';
   for (const envVar of OPTIONAL_ENV_VARS) {
     const value = process.env[envVar.name];
     if (!value || value.trim() === '') {
-      if (envVar.name === 'NEXT_PUBLIC_SENTRY_DSN' && process.env.NODE_ENV === 'production') {
+      if (envVar.name === 'NEXT_PUBLIC_SENTRY_DSN' && isProduction) {
         warnings.push(
           `Optional but recommended environment variable not set: ${envVar.name}\n` +
           `  Description: ${envVar.description}\n` +
           `  Consider setting this for production error tracking.`
+        );
+      }
+      if (
+        isProduction &&
+        ['RESEND_API_KEY', 'RESEND_FROM_EMAIL', 'RESEND_WEBHOOK_SECRET', 'WEBHOOK_API_KEY'].includes(envVar.name)
+      ) {
+        warnings.push(
+          `Optional environment variable not set: ${envVar.name}\n` +
+          `  Description: ${envVar.description}\n` +
+          `  Set this if you use email or webhook features.`
         );
       }
     }

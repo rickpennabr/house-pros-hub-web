@@ -130,3 +130,44 @@ export function parseAddressData(result: GooglePlacesResult): AddressData {
     fullAddress: description,
   };
 }
+
+const ZIP_REGEX = /\b(\d{5}(-\d{4})?)\b/;
+
+/**
+ * Parse a free-form address line (e.g. "123 Main St, Las Vegas, NV 89101") into AddressData.
+ * Used when the user confirms an address that wasn't in autocomplete suggestions.
+ */
+export function parseFreeformAddress(line: string): AddressData {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return {
+      streetAddress: '',
+      city: '',
+      state: 'NV',
+      zipCode: '',
+      apartment: '',
+      fullAddress: '',
+    };
+  }
+  const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean);
+  const zipMatch = trimmed.match(ZIP_REGEX);
+  const zipCode = zipMatch ? zipMatch[1] : '';
+  const statePart = parts.find((p) => /^(NV|Nevada)$/i.test(p));
+  const state = statePart ? (statePart.toUpperCase() === 'NEVADA' ? 'NV' : statePart) : 'NV';
+  let city = '';
+  const nvIndex = parts.findIndex((p) => /^(NV|Nevada)$/i.test(p));
+  if (nvIndex > 0) {
+    city = parts[nvIndex - 1];
+  } else if (parts.length >= 2) {
+    city = parts[parts.length - 2];
+  }
+  const streetAddress = parts[0] ?? trimmed;
+  return {
+    streetAddress,
+    city,
+    state,
+    zipCode,
+    apartment: '',
+    fullAddress: trimmed,
+  };
+}

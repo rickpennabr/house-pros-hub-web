@@ -114,7 +114,7 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
 
   const categoryClasses = (categoryLabel: string) => {
     // Base classes: same as PagesMenu, with whitespace-nowrap and shrink-0 for horizontal scrolling
-    const baseClasses = 'group h-10 border-2 transition-all duration-300 font-medium flex items-center justify-center px-1.5 md:px-2 gap-2 whitespace-nowrap shrink-0 cursor-pointer hover:scale-105';
+    const baseClasses = 'group h-10 border-2 transition-all duration-300 font-medium flex items-center justify-center px-1.5 md:px-2 gap-1 whitespace-nowrap shrink-0 cursor-pointer hover:scale-105';
     // Active item: always use black border (not theme-aware)
     const activeClasses = 'bg-white border-black text-black rounded-lg';
     // Inactive item: use rounded-lg to match active shape, including on hover
@@ -148,7 +148,7 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
       />
 
       {/* Categories - Hidden when search is open */}
-      <div className={`flex-1 h-full flex items-center gap-3 overflow-x-auto scrollbar-custom transition-opacity duration-300 pr-[52px] md:pr-[56px] min-w-0 md:ml-1 ${
+      <div className={`flex-1 h-full flex items-center gap-1 md:gap-2 overflow-x-auto scrollbar-custom transition-opacity duration-300 pr-[52px] md:pr-[56px] min-w-0 md:ml-1 ${
         isSearchOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}>
         {filteredCategories.map((category) => {

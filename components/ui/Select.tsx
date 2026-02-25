@@ -16,7 +16,7 @@ export function Select({ error, className = '', ...props }: SelectProps) {
   return (
     <select
       {...props}
-      className={`w-full px-2 py-3 border-2 rounded-lg bg-white focus:outline-none transition-all ${borderClass} ${className}`}
+      className={`w-full px-2 py-3 border-2 rounded-lg bg-white dark:bg-[#1a1a1a] text-black dark:text-gray-100 focus:outline-none transition-all dark:border-gray-600 ${borderClass} ${className}`}
     />
   );
 }

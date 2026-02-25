@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { Button } from '@/components/ui/Button';
 import { USER_TYPES, type UserType } from '@/lib/constants/auth';
-import { createLocalePath } from '@/lib/redirect';
+import { createLocalePath, getRedirectPath } from '@/lib/redirect';
 import { useAuth } from '@/contexts/AuthContext';
 
 // Success message component displayed after successful signup
@@ -13,78 +13,65 @@ import { useAuth } from '@/contexts/AuthContext';
 interface SignupSuccessMessageProps {
   userType?: UserType;
   onAddBusiness?: () => void | Promise<void>;
+  /** If present (e.g. from signup?returnUrl=...), used for "Get Free Estimate" and preferred redirect */
+  returnUrl?: string | null;
 }
 
-export function SignupSuccessMessage({ userType, onAddBusiness }: SignupSuccessMessageProps) {
+export function SignupSuccessMessage({ userType, onAddBusiness, returnUrl }: SignupSuccessMessageProps) {
   const router = useRouter();
-  const locale = useLocale();
-  const { isAuthenticated, isLoading, checkAuth } = useAuth();
+  const locale = useLocale() as 'en' | 'es';
+  const { checkAuth } = useAuth();
   const [isNavigating, setIsNavigating] = useState(false);
   const isBusinessSignup = userType === USER_TYPES.CONTRACTOR;
   const isCustomerSignup = userType === USER_TYPES.CUSTOMER;
 
+  /** path can be locale-prefixed (e.g. /en/estimate) or relative (e.g. /estimate) */
   const ensureAuthAndNavigate = async (path: string) => {
     if (isNavigating) return;
-    
+
     setIsNavigating(true);
-    
+
+    const targetPath =
+      path.startsWith('/en/') || path.startsWith('/es/') ? path : createLocalePath(locale, path);
+
     try {
-      // Ensure user data is refreshed from database before navigating
-      // This is especially important after OAuth signup to ensure session is loaded
-      // checkAuth now has a fallback to API endpoint, so it should be more reliable
       const maxRetries = 3;
-      
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
-          // Call checkAuth - it will try client-side first, then fall back to API
-          // Use a reasonable timeout (API calls should be faster than client-side getSession)
           const checkAuthPromise = checkAuth();
-          const timeoutPromise = new Promise<never>((_, reject) => 
+          const timeoutPromise = new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Auth check timeout')), 5000)
           );
-          
           await Promise.race([checkAuthPromise, timeoutPromise]);
-          
-          // Wait a bit for state to update after checkAuth
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          // If we got here without error, session should be loaded
+          await new Promise((resolve) => setTimeout(resolve, 300));
           break;
         } catch (authError) {
-          const errorMessage = authError instanceof Error ? authError.message : 'Unknown auth error';
-          console.warn(`Auth check attempt ${attempt + 1}/${maxRetries} failed:`, errorMessage);
-          
+          const msg = authError instanceof Error ? authError.message : 'Unknown auth error';
+          console.warn(`Auth check attempt ${attempt + 1}/${maxRetries} failed:`, msg);
           if (attempt < maxRetries - 1) {
-            // Wait before retrying
-            const delay = 800 * (attempt + 1); // 800ms, 1600ms
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
           }
         }
       }
-      
-      // Final check - call checkAuth one more time to ensure session is loaded
+
+      // Final refresh with timeout so we never hang (fixes stuck "Loading..." after API signup)
       try {
-        await checkAuth();
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (finalError) {
-        console.warn('Final auth check failed, but continuing with navigation:', finalError);
+        const finalCheck = checkAuth();
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout')), 2000)
+        );
+        await Promise.race([finalCheck, timeout]);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      } catch {
+        // Navigate anyway; destination will handle auth
       }
-      
-      // Navigate to the path
-      // Even if auth check had issues, navigate anyway - the destination page will handle auth
-      const targetPath = createLocalePath(locale as 'en' | 'es', path);
+
       router.push(targetPath);
-      
-      // Reset navigating state after a short delay to allow navigation to start
-      setTimeout(() => {
-        setIsNavigating(false);
-      }, 500);
     } catch (error) {
       console.error('Error navigating:', error);
-      // Still navigate - the destination page will handle auth check
-      const targetPath = createLocalePath(locale as 'en' | 'es', path);
       router.push(targetPath);
-      setIsNavigating(false);
+    } finally {
+      setTimeout(() => setIsNavigating(false), 500);
     }
   };
 
@@ -92,8 +79,12 @@ export function SignupSuccessMessage({ userType, onAddBusiness }: SignupSuccessM
     void ensureAuthAndNavigate('/');
   };
 
+  const estimatePath = returnUrl
+    ? getRedirectPath(returnUrl, locale)
+    : createLocalePath(locale, '/estimate');
+
   const handleGetEstimate = () => {
-    void ensureAuthAndNavigate('/estimate');
+    void ensureAuthAndNavigate(estimatePath);
   };
 
   return (
@@ -119,7 +110,7 @@ export function SignupSuccessMessage({ userType, onAddBusiness }: SignupSuccessM
           <p className="text-gray-700">
             {isBusinessSignup
               ? "Welcome to House Pros Hub! Your business account has been created. You can now manage your business profile and connect with customers."
-              : "Now you can contact your pro."}
+              : "Now you can contact your pro or request your free estimate."}
           </p>
         </div>
       </div>

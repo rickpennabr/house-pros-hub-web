@@ -137,6 +137,119 @@ export interface Database {
           }
         ];
       };
+      contractor_invitation_codes: {
+        Row: {
+          id: string;
+          code: string;
+          created_at: string;
+          expires_at: string;
+          used_at: string | null;
+          used_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          created_at?: string;
+          expires_at: string;
+          used_at?: string | null;
+          used_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          created_at?: string;
+          expires_at?: string;
+          used_at?: string | null;
+          used_by?: string | null;
+        };
+        Relationships: [
+          { foreignKeyName: "contractor_invitation_codes_used_by_fkey"; columns: ["used_by"]; referencedRelation: "users"; referencedColumns: ["id"] }
+        ];
+      };
+      admin_users: {
+        Row: { user_id: string };
+        Insert: { user_id: string };
+        Update: { user_id?: string };
+        Relationships: [
+          { foreignKeyName: "admin_users_user_id_fkey"; columns: ["user_id"]; referencedRelation: "users"; referencedColumns: ["id"] }
+        ];
+      };
+      admin_push_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          endpoint?: string;
+          p256dh?: string;
+          auth?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "admin_push_subscriptions_user_id_fkey"; columns: ["user_id"]; referencedRelation: "users"; referencedColumns: ["id"] }
+        ];
+      };
+      probot_conversations: {
+        Row: {
+          id: string;
+          visitor_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          visitor_id: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          visitor_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      probot_messages: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          sender: 'visitor' | 'admin';
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          sender: 'visitor' | 'admin';
+          body: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          conversation_id?: string;
+          sender?: 'visitor' | 'admin';
+          body?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "probot_messages_conversation_id_fkey"; columns: ["conversation_id"]; referencedRelation: "probot_conversations"; referencedColumns: ["id"] }
+        ];
+      };
       addresses: {
         Row: {
           id: string;
@@ -439,6 +552,73 @@ export interface Database {
           }
         ];
       };
+      incoming_emails: {
+        Row: {
+          id: string;
+          message_id: string | null;
+          from_email: string;
+          from_name: string | null;
+          to_email: string;
+          subject: string | null;
+          text_content: string | null;
+          html_content: string | null;
+          attachments: Json | null;
+          headers: Json | null;
+          status: 'new' | 'processing' | 'processed' | 'failed' | 'archived';
+          processed_at: string | null;
+          error_message: string | null;
+          user_id: string | null;
+          received_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          message_id?: string | null;
+          from_email: string;
+          from_name?: string | null;
+          to_email: string;
+          subject?: string | null;
+          text_content?: string | null;
+          html_content?: string | null;
+          attachments?: Json | null;
+          headers?: Json | null;
+          status?: 'new' | 'processing' | 'processed' | 'failed' | 'archived';
+          processed_at?: string | null;
+          error_message?: string | null;
+          user_id?: string | null;
+          received_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          message_id?: string | null;
+          from_email?: string;
+          from_name?: string | null;
+          to_email?: string;
+          subject?: string | null;
+          text_content?: string | null;
+          html_content?: string | null;
+          attachments?: Json | null;
+          headers?: Json | null;
+          status?: 'new' | 'processing' | 'processed' | 'failed' | 'archived';
+          processed_at?: string | null;
+          error_message?: string | null;
+          user_id?: string | null;
+          received_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "incoming_emails_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -463,6 +643,10 @@ export type UserRole = Database['public']['Tables']['user_roles']['Row'];
 export type UserRoleInsert = Database['public']['Tables']['user_roles']['Insert'];
 export type UserRoleUpdate = Database['public']['Tables']['user_roles']['Update'];
 
+export type ContractorInvitationCode = Database['public']['Tables']['contractor_invitation_codes']['Row'];
+export type ContractorInvitationCodeInsert = Database['public']['Tables']['contractor_invitation_codes']['Insert'];
+export type ContractorInvitationCodeUpdate = Database['public']['Tables']['contractor_invitation_codes']['Update'];
+
 export type Address = Database['public']['Tables']['addresses']['Row'];
 export type AddressInsert = Database['public']['Tables']['addresses']['Insert'];
 export type AddressUpdate = Database['public']['Tables']['addresses']['Update'];
@@ -478,3 +662,7 @@ export type LicenseUpdate = Database['public']['Tables']['licenses']['Update'];
 export type Estimate = Database['public']['Tables']['estimates']['Row'];
 export type EstimateInsert = Database['public']['Tables']['estimates']['Insert'];
 export type EstimateUpdate = Database['public']['Tables']['estimates']['Update'];
+
+export type IncomingEmail = Database['public']['Tables']['incoming_emails']['Row'];
+export type IncomingEmailInsert = Database['public']['Tables']['incoming_emails']['Insert'];
+export type IncomingEmailUpdate = Database['public']['Tables']['incoming_emails']['Update'];

@@ -26,6 +26,14 @@ This document describes the backend conventions used in this repo (Next.js App R
   - **Bypasses RLS**.
   - Must be used **server-side only**.
 
+## API security (auth by route)
+
+- **Public** (no auth): `GET /api/businesses`, `GET /api/businesses/[id]`, `GET /api/health`, `POST /api/auth/login`, `POST /api/auth/signup`, `GET /api/auth/callback`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, `POST /api/estimate`. All are rate-limited where applicable.
+- **Authenticated** (session required): `GET /api/csrf-token`, `GET /api/auth/me`, `GET /api/auth/is-admin`, `PUT /api/profile`, `DELETE /api/profile/delete`, `GET/POST/DELETE /api/profile/roles`, `GET/POST /api/addresses`, `GET/PUT/DELETE /api/addresses/[id]`, `POST /api/business/create`, `GET /api/business/check-slug`, `PUT/DELETE /api/businesses/[id]`. State-changing JSON routes use **CSRF** (token from `GET /api/csrf-token`, sent as `X-CSRF-Token`).
+- **Upload routes** (auth inside handler, no CSRF): `POST /api/storage/upload-profile-picture`, `upload-business-logo`, `upload-business-background`, `upload-estimate-image`.
+- **Admin only** (`ADMIN_EMAIL`): `GET/POST/PUT/DELETE /api/admin/customers`, `GET/DELETE /api/storage/list`, `DELETE /api/storage/delete`.
+- **Webhook** (signature or API key): `POST /api/webhooks/email`.
+
 ## API Route Types
 
 ### JSON routes (default)

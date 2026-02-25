@@ -96,40 +96,40 @@ async function handleUpdateProfile(request: AuthenticatedRequest) {
     const profileUpdate: Record<string, unknown> = {};
 
     if (updates.firstName !== undefined) {
-      profileUpdate.first_name = updates.firstName;
+      profileUpdate.first_name = updates.firstName ? sanitizeText(updates.firstName) || null : null;
     }
     if (updates.lastName !== undefined) {
-      profileUpdate.last_name = updates.lastName;
+      profileUpdate.last_name = updates.lastName ? sanitizeText(updates.lastName) || null : null;
     }
     if (updates.phone !== undefined) {
-      profileUpdate.phone = updates.phone || null;
+      profileUpdate.phone = updates.phone ? sanitizeText(updates.phone) || null : null;
     }
     if (updates.referral !== undefined) {
-      profileUpdate.referral = updates.referral || null;
+      profileUpdate.referral = updates.referral ? sanitizeText(updates.referral) || null : null;
     }
     if (updates.referralOther !== undefined) {
-      profileUpdate.referral_other = updates.referralOther || null;
+      profileUpdate.referral_other = updates.referralOther ? sanitizeText(updates.referralOther) || null : null;
     }
     if (updates.streetAddress !== undefined) {
-      profileUpdate.street_address = updates.streetAddress || null;
+      profileUpdate.street_address = updates.streetAddress ? sanitizeText(updates.streetAddress) || null : null;
     }
     if (updates.apartment !== undefined) {
-      profileUpdate.apartment = updates.apartment || null;
+      profileUpdate.apartment = updates.apartment ? sanitizeText(updates.apartment) || null : null;
     }
     if (updates.city !== undefined) {
-      profileUpdate.city = updates.city || null;
+      profileUpdate.city = updates.city ? sanitizeText(updates.city) || null : null;
     }
     if (updates.state !== undefined) {
-      profileUpdate.state = updates.state || null;
+      profileUpdate.state = updates.state ? sanitizeText(updates.state) || null : null;
     }
     if (updates.zipCode !== undefined) {
-      profileUpdate.zip_code = updates.zipCode || null;
+      profileUpdate.zip_code = updates.zipCode ? sanitizeText(updates.zipCode) || null : null;
     }
     if (updates.gateCode !== undefined) {
-      profileUpdate.gate_code = updates.gateCode || null;
+      profileUpdate.gate_code = updates.gateCode ? sanitizeText(updates.gateCode) || null : null;
     }
     if (updates.addressNote !== undefined) {
-      profileUpdate.address_note = updates.addressNote || null;
+      profileUpdate.address_note = updates.addressNote ? sanitizeText(updates.addressNote) || null : null;
     }
     if (updates.businessId !== undefined) {
       profileUpdate.business_id = updates.businessId || null;

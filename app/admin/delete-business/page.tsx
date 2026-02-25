@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { businessStorage } from '@/lib/storage/businessStorage';
 import { ProCardData } from '@/components/proscard/ProCard';
+import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
 
 export default function DeleteBusinessPage() {
   const router = useRouter();
@@ -62,6 +63,7 @@ export default function DeleteBusinessPage() {
 
   return (
     <div className="w-full max-w-4xl">
+      <AdminFloatingAddButton href="/admin/customers" ariaLabel="Add customer" />
       <div className="mb-6">
         <h1 className="text-3xl font-semibold mb-2">Delete Business</h1>
         <p className="text-gray-600">

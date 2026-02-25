@@ -8,7 +8,6 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { createLocalePath, createSignInUrl } from '@/lib/redirect';
 import SettingsModal from '@/components/settings/SettingsModal';
-import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import type { Locale } from '@/i18n';
 import { 
   Building2, 
@@ -29,7 +28,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
   const pathname = usePathname();
   const locale = useLocale() as Locale;
   const t = useTranslations('common.account');
-  const { isAuthenticated, logout, user } = useAuth();
+  const { isAuthenticated, isAdmin, logout, user } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const pictureUrl = user?.userPicture;
@@ -101,7 +100,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
       <button
         ref={buttonRef}
         onClick={handleAccountButtonClick}
-        className={`w-10 h-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden relative ${className}`}
+        className={`w-10 h-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden relative text-black ${className}`}
         aria-label={t('account')}
       >
         {isAuthenticated && user?.userPicture && !imageError ? (
@@ -140,7 +139,8 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
             viewBox="0 0 24 24"
             strokeWidth={2}
             stroke="currentColor"
-            className="w-5 h-5"
+            className="w-5 h-5 text-black shrink-0"
+            aria-hidden
           >
             <path
               strokeLinecap="round"
@@ -199,8 +199,8 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   </span>
                 </div>
               </div>
-              <div className="p-2 h-[60px]">
-                {hasBusiness && (
+              {hasBusiness && (
+                <div className="p-2">
                   <button
                     onClick={() => handleMenuItemClick('/businesslist')}
                     className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
@@ -208,9 +208,12 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                     <Building2 className="w-4 h-4" />
                     <span>{t('myBusiness')}</span>
                   </button>
-                )}
-                {/* Admin Dash - Only for specific email */}
-                {user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase() && (
+                </div>
+              )}
+              {/* Account / Admin section - same style as Settings and Help */}
+              <div className="border-t-2 border-black"></div>
+              <div className="p-2">
+                {isAdmin && (
                   <Link
                     href="/admin"
                     className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer mb-1"

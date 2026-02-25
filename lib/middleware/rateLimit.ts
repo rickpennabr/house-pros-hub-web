@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { RATE_LIMIT_CONFIGS, type RateLimitType } from '@/lib/utils/rateLimitConfig';
 
 /**
- * In-memory store for rate limiting
- * TODO: Replace with Redis for production multi-instance deployments
+ * In-memory store for rate limiting.
+ * Intentional for single-instance deployment; replace with Redis if you run multiple instances.
  */
 interface RateLimitEntry {
   count: number;

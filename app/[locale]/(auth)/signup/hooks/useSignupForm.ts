@@ -47,6 +47,7 @@ interface UseSignupFormProps {
 export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
   const { checkAuth, login, user } = useAuth();
   const tStep = useTranslations('auth.signup.stepLabels');
+  const tChat = useTranslations('auth.signup.chat');
   
   const [uiState, setUiState] = useState<SignupFormState>(initialUIState);
   
@@ -75,6 +76,7 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
       agreeToTerms: false,
       licenses: [], // Licenses will be added in business form
       userPicture: '',
+      invitationCode: '',
     },
     mode: 'onChange',
   });
@@ -92,6 +94,13 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
   
   // Use ref as additional backup - persists across re-renders and doesn't get cleared
   const signedUpUserRef = useRef<User | null>(null);
+
+  // Keep form userType in sync with selectedRole so step 3 shows invitation code when signing up as contractor
+  useEffect(() => {
+    if (selectedRole) {
+      setValue('userType', selectedRole === 'customer' ? USER_TYPES.CUSTOMER : USER_TYPES.CONTRACTOR);
+    }
+  }, [selectedRole, setValue]);
 
   // Reset step when user type changes
   useEffect(() => {
@@ -173,6 +182,21 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
     setUiState(prev => ({ ...prev, error: null, isLoading: true }));
 
     try {
+      // Check email uniqueness before calling signup API (same as bot flow)
+      const email = data.email?.trim().toLowerCase();
+      if (email) {
+        const checkRes = await fetch('/api/auth/check-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const checkData = await checkRes.json().catch(() => ({}));
+        if (checkData.available === false) {
+          setUiState(prev => ({ ...prev, error: tChat('emailAlreadyExists'), isLoading: false }));
+          return;
+        }
+      }
+
       // Determine role from selectedRole (from role selection screen) or userType (from form)
       let role: 'customer' | 'contractor' | 'both' | undefined;
       if (selectedRole) {
@@ -208,6 +232,7 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
           // They'll be added via business form
           userPicture: data.userPicture,
           userType: role,
+          ...(role === 'contractor' && data.invitationCode ? { invitationCode: data.invitationCode.trim() } : {}),
         }),
       });
 
@@ -291,7 +316,7 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
         // For customers, show success message
         setUiState(prev => ({
           ...prev,
-          successMessage: 'Thanks for signing up for House Pros Hub! Now you can contact your pro.',
+          successMessage: 'Thanks for signing up for House Pros Hub! Now you can contact your pro or request your free estimate.',
           signedUpUser: createdUser as User,
           error: null, // Clear any previous errors
           isLoading: false,

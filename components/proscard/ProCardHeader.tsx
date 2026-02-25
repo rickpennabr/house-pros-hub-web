@@ -207,11 +207,11 @@ export default function ProCardHeader({
 
         {/* Text Content */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-xl md:text-base font-bold text-black truncate leading-tight">{businessName}</h3>
+          <h3 className="text-base md:text-sm font-bold text-black truncate leading-tight">{businessName}</h3>
           <div className="flex flex-col gap-0.5 min-w-0 mt-0.5">
             {/* Licenses - Show all with icons, pipe-separated, with ellipsis on overflow */}
             <div className="min-w-0 overflow-hidden">
-              <p className="text-base md:text-xs font-medium text-gray-600 truncate">
+              <p className="text-sm md:text-xs font-medium text-gray-600 truncate">
                 {displayLicenses.map((license, index) => {
                   const IconComponent = license.tradeIcon && license.tradeIcon in LucideIcons
                     ? (LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }>>)[license.tradeIcon]

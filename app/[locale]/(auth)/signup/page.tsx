@@ -15,8 +15,6 @@ import { SignupSuccessMessage } from './components/SignupSuccessMessage';
 import { BusinessSuccessMessage } from './components/BusinessSuccessMessage';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { RoleSelectionScreen } from './components/RoleSelectionScreen';
-import { AuthMethodSelection } from './components/AuthMethodSelection';
-import { TermsAgreementScreen } from './components/TermsAgreementScreen';
 import { CustomerStep1 } from './components/steps/CustomerStep1';
 import { CustomerStep2 } from './components/steps/CustomerStep2';
 import { CustomerStep3 } from './components/steps/CustomerStep3';
@@ -27,18 +25,18 @@ import { LeavePageWarningModal } from './components/LeavePageWarningModal';
 import { FormProvider } from 'react-hook-form';
 import type { BusinessFormValues } from '@/lib/schemas/business';
 
-type SignupStep = 'role-selection' | 'auth-method' | 'terms-agreement' | 'form' | 'success' | 'business-form';
+type SignupStep = 'role-selection' | 'form' | 'success' | 'business-form';
 
 function SignUpForm() {
   const searchParams = useSearchParams();
   const t = useTranslations('auth.signup');
-  const { user, checkAuth, signInWithGoogle } = useAuth();
+  const { user, checkAuth } = useAuth();
   
-  // Get role from URL if coming from OAuth callback or Free Estimate button
+  // Get role from URL if coming from Free Estimate button
   const urlRole = searchParams.get('role') as 'customer' | 'contractor' | null;
   const skipRoleSelection = searchParams.get('skipRoleSelection') === 'true';
   
-  // If skipRoleSelection is true, go directly to form step (skip role selection and auth method)
+  // If skipRoleSelection is true, go directly to form step (skip role selection)
   // Otherwise, show role selection unless role is in URL
   const [currentStep, setCurrentStep] = useState<SignupStep>(
     skipRoleSelection || urlRole ? 'form' : 'role-selection'
@@ -46,7 +44,6 @@ function SignUpForm() {
   const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | null>(
     skipRoleSelection ? 'customer' : urlRole
   );
-  const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   const {
@@ -85,41 +82,8 @@ function SignUpForm() {
 
   const handleRoleSelect = (role: 'customer' | 'contractor') => {
     setSelectedRole(role);
-    setCurrentStep('auth-method');
-    setAuthError(null);
-  };
-
-  const handleEmailSelected = () => {
     setCurrentStep('form');
-    setAuthError(null);
-  };
-
-  const handleGoogleSelected = () => {
-    if (!selectedRole) return;
-    
-    setAuthError(null);
-    // Show terms agreement screen instead of immediately redirecting
-    setCurrentStep('terms-agreement');
-  };
-
-  const handleTermsAgreed = async () => {
-    if (!selectedRole) return;
-    
-    setAuthError(null);
-    setIsAuthLoading(true);
-
-    try {
-      await signInWithGoogle(selectedRole);
-      // OAuth redirect will happen, so we don't need to do anything here
-    } catch (err) {
-      setAuthError(err instanceof Error ? err.message : t('errors.googleSignInFailed'));
-      setIsAuthLoading(false);
-    }
-  };
-
-  const handleTermsBack = () => {
-    setCurrentStep('auth-method');
-    setAuthError(null);
+    setIsAuthLoading(false);
   };
 
   const handleBusinessSubmit = async (businessFormData: BusinessFormValues) => {
@@ -250,41 +214,7 @@ function SignUpForm() {
           />
         )}
 
-        {/* Step 2: Auth Method Selection */}
-        {currentStep === 'auth-method' && selectedRole && (
-          <>
-            <AuthMethodSelection
-              role={selectedRole}
-              onEmailSelected={handleEmailSelected}
-              onGoogleSelected={handleGoogleSelected}
-              isLoading={isAuthLoading}
-            />
-            {authError && (
-              <div className="mt-4">
-                <ErrorMessage message={authError} />
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Step 2.5: Terms Agreement (for Google sign-up) */}
-        {currentStep === 'terms-agreement' && selectedRole && (
-          <>
-            <TermsAgreementScreen
-              role={selectedRole}
-              onTermsAgreed={handleTermsAgreed}
-              onBack={handleTermsBack}
-              isLoading={isAuthLoading}
-            />
-            {authError && (
-              <div className="mt-4">
-                <ErrorMessage message={authError} />
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Step 3: Form Steps */}
+        {/* Step 2: Form Steps */}
         {currentStep === 'form' && (
           <>
             {/* Add Business Form - takes priority */}
@@ -301,7 +231,11 @@ function SignUpForm() {
             ) : formState.successMessage ? (
               <>
                 <SignupHeader isLoading={false} />
-                <SignupSuccessMessage userType={formState.userType} onAddBusiness={handleAddBusiness} />
+                <SignupSuccessMessage
+                  userType={formState.userType}
+                  onAddBusiness={handleAddBusiness}
+                  returnUrl={searchParams.get('returnUrl')}
+                />
               </>
             ) : (
               <FormProvider {...methods}>

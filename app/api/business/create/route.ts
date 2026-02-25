@@ -4,9 +4,11 @@ import { transformBusinessToProCardData, generateSlug } from '@/lib/utils/busine
 import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { normalizeLinks } from '@/lib/utils/normalizeLinks';
+import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { hasRole } from '@/lib/utils/roles';
+import { sendNewSignupAdminNotification } from '@/lib/services/emailService';
 
 /**
  * Convert base64 string to Buffer for server-side file handling
@@ -197,6 +199,34 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       );
     }
 
+    // Sanitize user-editable strings before persist (defense-in-depth)
+    const safeBusinessName = sanitizeText(businessName) || businessName.trim();
+    const safeCompanyDescription = companyDescription ? sanitizeText(companyDescription) || null : null;
+    const safeStreetAddress = sanitizeText(streetAddress || address || '') || (streetAddress || address);
+    const safeApartment = apartment ? sanitizeText(apartment) || null : null;
+    const safeCity = sanitizeText(city) || city;
+    const safeState = sanitizeText(state) || state;
+    const safeZipCode = sanitizeText(zipCode) || zipCode;
+    const safeEmail = email ? (sanitizeText(email) || email.trim().toLowerCase()) : null;
+    const safePhone = phone ? (sanitizeText(phone) || null) : null;
+    const safeMobilePhone = mobilePhone ? (sanitizeText(mobilePhone) || null) : null;
+    const safeLicenses = licenses.map((lic: { license?: string; licenseNumber?: string; trade?: string }) => ({
+      license: lic.license ? sanitizeText(lic.license) || lic.license : lic.license,
+      licenseNumber: lic.licenseNumber ? sanitizeText(lic.licenseNumber) || lic.licenseNumber : lic.licenseNumber,
+      trade: lic.trade ? sanitizeText(lic.trade) || lic.trade : lic.trade,
+    }));
+    const safeLinks = links && Array.isArray(links)
+      ? links.map((link: { type?: string; url?: string; value?: string }) => {
+          const url = link.url?.trim();
+          const value = link.value != null ? sanitizeText(String(link.value)) : undefined;
+          if (link.type === 'phone' || link.type === 'email' || link.type === 'location') {
+            return { ...link, value: value ?? link.value };
+          }
+          const safeUrl = url ? (sanitizeUrl(url) || url) : undefined;
+          return { ...link, url: safeUrl ?? link.url, value: value ?? link.value };
+        })
+      : null;
+
     const supabase = await createClient();
     const serviceRoleClient = createServiceRoleClient();
 
@@ -230,7 +260,7 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
     }
 
     // Generate slug if not provided
-    let businessSlug = slug || generateSlug(businessName);
+    let businessSlug = slug ? sanitizeText(slug) || generateSlug(safeBusinessName) : generateSlug(safeBusinessName);
 
     // Check if slug already exists and make it unique
     let counter = 1;
@@ -264,11 +294,11 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       .insert({
         user_id: userId,
         address_type: 'business',
-        street_address: streetAddress || address,
-        apartment: apartment || null,
-        city: city,
-        state: state,
-        zip_code: zipCode,
+        street_address: safeStreetAddress,
+        apartment: safeApartment,
+        city: safeCity,
+        state: safeState,
+        zip_code: safeZipCode,
         is_public: true, // Business addresses are public
       })
       .select()
@@ -287,16 +317,16 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       .from('businesses')
       .insert({
         owner_id: userId,
-        business_name: businessName,
+        business_name: safeBusinessName,
         slug: businessSlug,
         business_logo: null, // Will be updated after upload
         business_background: null, // Will be updated after upload
-        company_description: companyDescription || null,
-        email: email || null,
-        phone: phone || null,
-        mobile_phone: mobilePhone || null,
+        company_description: safeCompanyDescription,
+        email: safeEmail,
+        phone: safePhone,
+        mobile_phone: safeMobilePhone,
         business_address_id: addressData.id,
-        links: links || null,
+        links: safeLinks,
         operating_hours: operatingHours || null,
         is_active: true,
       })
@@ -362,7 +392,7 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
     }
 
     // Create licenses
-    const licenseInserts = licenses.map((license: { license: string; licenseNumber: string; trade?: string }) => ({
+    const licenseInserts = safeLicenses.map((license: { license: string; licenseNumber: string; trade?: string }) => ({
       business_id: businessData.id,
       license_number: license.licenseNumber,
       license_type: license.license,
@@ -438,6 +468,37 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
     const finalLogoUrl = logoUrl || completeBusiness?.business_logo || businessData.business_logo;
     const finalBackgroundUrl = backgroundUrl || completeBusiness?.business_background || businessData.business_background;
     
+    // Notify admin that a new business was added (non-blocking)
+    try {
+      const adminNotifyResult = await sendNewSignupAdminNotification({
+        type: 'business',
+        name: businessData.business_name ?? 'Business',
+        email: businessData.email ?? '',
+      });
+      if (!adminNotifyResult.success) {
+        logger.warn('Failed to send admin new-business notification', {
+          endpoint: '/api/business/create',
+          businessId: businessData.id,
+          error: adminNotifyResult.error,
+        });
+      }
+    } catch (adminNotifyErr) {
+      logger.error('Error sending admin new-business notification', {
+        endpoint: '/api/business/create',
+        businessId: businessData.id,
+      }, adminNotifyErr as Error);
+    }
+
+    // Log signup event for admin notifications (persists even if business is later deleted)
+    await serviceRoleClient.from('admin_notification_events').insert({
+      event_type: 'signup',
+      entity_type: 'contractor',
+      entity_id: businessData.id,
+      display_name: businessData.business_name ?? 'Business',
+    }).then(({ error: evErr }) => {
+      if (evErr) logger.warn('Failed to log admin notification event', { endpoint: '/api/business/create', error: evErr.message });
+    });
+
     const businessForCard = transformBusinessToProCardData({
       id: businessData.id,
       businessName: businessData.business_name,

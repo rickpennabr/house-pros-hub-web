@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { LINK_TYPES } from '@/lib/constants/linkTypes';
 
-const phoneRegex = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
+/** US phone: 10 digits, optional formatting; area code must not start with 0 or 1 (NANP). */
+export const US_PHONE_REGEX = /^\(?([2-9][0-9]{2})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
+const phoneRegex = US_PHONE_REGEX;
 const zipRegex = /^\d{5}(-\d{4})?$/;
 
-export const signupSchema = z.object({
+const signupSchemaBaseObject = z.object({
   userType: z.enum(['customer', 'contractor']),
   firstName: z.string().trim().min(1, 'First name is required'),
   lastName: z.string().trim().min(1, 'Last name is required'),
@@ -54,7 +56,13 @@ export const signupSchema = z.object({
     value: z.string().optional().or(z.literal('')),
   })).optional(),
   agreeToTerms: z.boolean().refine(val => val === true, 'You must agree to the terms'),
-}).refine((data) => {
+  invitationCode: z.string().trim().optional(),
+});
+
+/** Base object schema (no refinements). Use for per-field validation e.g. in chat signup. */
+export const signupSchemaBase = signupSchemaBaseObject;
+
+export const signupSchema = signupSchemaBaseObject.refine((data) => {
   // Only validate password match if password is provided (not OAuth flow)
   if (data.password && data.confirmPassword) {
     return data.password === data.confirmPassword;
@@ -92,6 +100,14 @@ export const signupSchema = z.object({
 }, {
   message: "Please enter your company role",
   path: ["companyRoleOther"],
+}).refine((data) => {
+  if (data.userType === 'contractor') {
+    return !!data.invitationCode?.trim();
+  }
+  return true;
+}, {
+  message: 'Invitation code is required for contractor signup.',
+  path: ['invitationCode'],
 });
 
 export type SignupSchema = z.infer<typeof signupSchema>;

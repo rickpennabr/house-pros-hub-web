@@ -13,7 +13,7 @@ interface UseTypingPlaceholderOptions {
  */
 export function useTypingPlaceholder({
   placeholders,
-  typingSpeed = 100,
+  typingSpeed = 50,
   delayBetweenFields = 300,
   startDelay = 500,
 }: UseTypingPlaceholderOptions): string[] {

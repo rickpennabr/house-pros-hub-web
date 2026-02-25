@@ -255,7 +255,7 @@ export default function EditProfilePage() {
       return;
     }
 
-    if (!validateFileSize(file, 2)) {
+    if (!validateFileSize(file, 5)) {
       setErrors(prev => ({ ...prev, userPicture: t('errors.imageSizeError') }));
       if (fileInputRef.current) {
         fileInputRef.current.value = '';

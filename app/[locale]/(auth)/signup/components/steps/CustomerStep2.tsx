@@ -32,7 +32,7 @@ export function CustomerStep2({
   );
   const animatedPlaceholders = useTypingPlaceholder({
     placeholders,
-    typingSpeed: 100,
+    typingSpeed: 50,
     delayBetweenFields: 300,
     startDelay: 500,
   });

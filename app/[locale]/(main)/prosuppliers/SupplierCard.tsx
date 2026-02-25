@@ -1,9 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { Share2, Phone, Globe, MapPin } from 'lucide-react';
-import ShareSupplierModal from '@/components/suppliers/ShareSupplierModal';
+
+const ShareSupplierModal = dynamic(
+  () => import('@/components/suppliers/ShareSupplierModal'),
+  { ssr: false, loading: () => null }
+);
 
 export interface Supplier {
   id: number;
@@ -51,12 +56,13 @@ function parseSupplierName(fullName: string): { supplierName: string; branchName
 export default function SupplierCard({ supplier, isSelected, onClick, isListMode = false }: SupplierCardProps) {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [shareSupplierUrl, setShareSupplierUrl] = useState('');
   const { supplierName, branchName } = parseSupplierName(supplier.name);
   const initials = getInitials(supplierName);
-  
-  const supplierUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/prosuppliers?supplier=${supplier.id}`
-    : '';
+
+  useEffect(() => {
+    setShareSupplierUrl(`${window.location.origin}/prosuppliers?supplier=${supplier.id}`);
+  }, [supplier.id]);
 
   const shouldShowImage = supplier.logo && !imageError;
 
@@ -133,7 +139,7 @@ export default function SupplierCard({ supplier, isSelected, onClick, isListMode
           branchName={branchName}
           supplierType={supplier.type}
           logo={supplier.logo}
-          supplierUrl={supplierUrl}
+          supplierUrl={shareSupplierUrl}
         />
       </>
     );
@@ -263,7 +269,7 @@ export default function SupplierCard({ supplier, isSelected, onClick, isListMode
         branchName={branchName}
         supplierType={supplier.type}
         logo={supplier.logo}
-        supplierUrl={supplierUrl}
+        supplierUrl={shareSupplierUrl}
       />
     </>
   );

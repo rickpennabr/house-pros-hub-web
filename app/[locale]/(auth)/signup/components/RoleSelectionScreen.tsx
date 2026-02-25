@@ -77,7 +77,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-black mb-1">
-                {t('contractor.title')}
+                {t('contractor.titleWithCode')}
               </h3>
               <p className="text-sm text-gray-600">
                 {t('contractor.description')}
