@@ -48,7 +48,7 @@ const defaultValues: Record<string, string | boolean> = {
 
 function formatDisplayValue(step: ChatSignupStep, value: unknown): string {
   if (value === undefined || value === null) return '';
-  if (step.id === 'userType') return value === USER_TYPES.CONTRACTOR ? 'Contractor' : 'Customer';
+  if (step.id === 'role') return value === USER_TYPES.CONTRACTOR ? 'Contractor' : 'Customer';
   if (step.id === 'userPicture') return value ? 'Photo added' : '';
   if (step.id === 'agreeToTerms') return value ? 'I agree' : '';
   if (step.id === 'invitationCode') return value ? 'Entered' : '';

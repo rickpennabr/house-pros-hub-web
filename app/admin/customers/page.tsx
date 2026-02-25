@@ -1168,7 +1168,7 @@ export default function CustomersPage() {
                               setMenuPosition(null);
                               return;
                             }
-                            const el = e.currentTarget as HTMLElement;
+                            const el = e.currentTarget;
                             const rect = el.getBoundingClientRect();
                             actionsButtonRef.current = el;
                             const left = Math.min(rect.right - 120, window.innerWidth - 130);

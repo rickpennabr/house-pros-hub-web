@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const insertPayload: { conversation_id: string; sender: string; body: string; business_id?: string } = {
+    const insertPayload: { conversation_id: string; sender: 'visitor' | 'admin'; body: string; business_id?: string } = {
       conversation_id: conversationId,
       sender: 'visitor',
       body: messageBody,
@@ -158,6 +158,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: true })
       .limit(100);
 
+    type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null };
     if (withBusinessId.error) {
       // Fallback: column business_id may not exist yet (migration 018 not applied)
       const fallback = await supabase
@@ -170,9 +171,9 @@ export async function GET(request: NextRequest) {
         console.error('ProBot messages GET error:', fallback.error);
         return NextResponse.json({ error: 'Failed to load messages' }, { status: 500 });
       }
-      rawMessages = fallback.data;
+      rawMessages = fallback.data as unknown as MessageRow[] | null;
     } else {
-      rawMessages = withBusinessId.data;
+      rawMessages = withBusinessId.data as unknown as MessageRow[] | null;
     }
 
     const rows = rawMessages ?? [];

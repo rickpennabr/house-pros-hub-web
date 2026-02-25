@@ -619,6 +619,48 @@ export interface Database {
           }
         ];
       };
+      admin_notification_read: {
+        Row: {
+          user_id: string;
+          read_at: string;
+        };
+        Insert: {
+          user_id: string;
+          read_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          read_at?: string;
+        };
+        Relationships: [];
+      };
+      admin_notification_events: {
+        Row: {
+          id: string;
+          event_type: 'signup' | 'deletion';
+          entity_type: 'customer' | 'contractor';
+          entity_id: string;
+          display_name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_type: 'signup' | 'deletion';
+          entity_type: 'customer' | 'contractor';
+          entity_id: string;
+          display_name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_type?: 'signup' | 'deletion';
+          entity_type?: 'customer' | 'contractor';
+          entity_id?: string;
+          display_name?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

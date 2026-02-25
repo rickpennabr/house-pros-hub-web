@@ -80,7 +80,7 @@ export default function AdminChatPage() {
       }
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
       });
       const payload = sub.toJSON();
       const res = await fetch('/api/chat/admin/push-subscription', {

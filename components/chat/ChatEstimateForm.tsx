@@ -485,11 +485,13 @@ export default function ChatEstimateForm({
                               : values.useSameAddress === false
                                 ? tFields('no')
                                 : ''
-                          : step.field === 'trades' && Array.isArray(values[step.field])
+                          : step.field === 'trades' && step.field && Array.isArray(values[step.field])
                             ? (values[step.field] as string[])
                                 .map((t) => (t === 'All' ? tCategories('all') : tCategories(t.toLowerCase())))
                                 .join(', ')
-                            : String(values[step.field] ?? '')}
+                            : step.field != null
+                              ? String(values[step.field] ?? '')
+                              : ''}
               </div>
             </div>
           ))}

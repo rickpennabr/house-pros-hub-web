@@ -323,7 +323,7 @@ export async function sendIncomingEmailNotification(
       to: ADMIN_EMAIL,
       subject,
       html,
-      reply_to: parsedEmail.fromEmail,
+      replyTo: parsedEmail.fromEmail,
     });
 
     if (error) {

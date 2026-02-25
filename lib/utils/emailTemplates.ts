@@ -243,8 +243,8 @@ export function generateEstimateConfirmationEmail(
     other: 'Other',
   };
   const projectTypeDisplay = estimate.projectType === 'other' && estimate.projectTypeOther
-    ? `${projectTypeMap[estimate.projectType] || estimate.projectType}: ${estimate.projectTypeOther}`
-    : projectTypeMap[estimate.projectType] || estimate.projectType;
+    ? `${(estimate.projectType != null && projectTypeMap[estimate.projectType]) || estimate.projectType}: ${estimate.projectTypeOther}`
+    : (estimate.projectType != null ? projectTypeMap[estimate.projectType] || estimate.projectType : '');
 
   // Format budget range
   const budgetMap: Record<string, string> = {
@@ -256,7 +256,7 @@ export function generateEstimateConfirmationEmail(
     over_100k: 'Over $100k',
     not_sure: 'Not sure',
   };
-  const budgetDisplay = budgetMap[estimate.budgetRange] || estimate.budgetRange;
+  const budgetDisplay = estimate.budgetRange != null ? budgetMap[estimate.budgetRange] || estimate.budgetRange : '';
 
   // Format timeline
   const timelineMap: Record<string, string> = {
@@ -267,7 +267,7 @@ export function generateEstimateConfirmationEmail(
     '6_plus_months': '6+ months',
     flexible: 'Flexible',
   };
-  const timelineDisplay = timelineMap[estimate.timeline] || estimate.timeline;
+  const timelineDisplay = estimate.timeline != null ? timelineMap[estimate.timeline] || estimate.timeline : '';
 
   // Format contact method
   const contactMap: Record<string, string> = {
@@ -276,7 +276,7 @@ export function generateEstimateConfirmationEmail(
     text: 'Text',
     either: 'Either',
   };
-  const contactDisplay = contactMap[estimate.preferredContactMethod] || estimate.preferredContactMethod;
+  const contactDisplay = estimate.preferredContactMethod != null ? contactMap[estimate.preferredContactMethod] || estimate.preferredContactMethod : '';
 
   // Format address
   const addressParts = [

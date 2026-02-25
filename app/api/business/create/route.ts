@@ -391,14 +391,19 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
         .eq('id', businessData.id);
     }
 
-    // Create licenses
-    const licenseInserts = safeLicenses.map((license: { license: string; licenseNumber: string; trade?: string }) => ({
-      business_id: businessData.id,
-      license_number: license.licenseNumber,
-      license_type: license.license,
-      license_name: license.trade || null,
-      is_active: true,
-    }));
+    // Create licenses (only rows with required fields)
+    const licenseInserts = safeLicenses
+      .filter(
+        (lic): lic is { license: string; licenseNumber: string; trade: string | undefined } =>
+          typeof lic.license === 'string' && typeof lic.licenseNumber === 'string'
+      )
+      .map((license) => ({
+        business_id: businessData.id,
+        license_number: license.licenseNumber,
+        license_type: license.license,
+        license_name: license.trade || null,
+        is_active: true,
+      }));
 
     const { error: licensesError } = await supabase
       .from('licenses')

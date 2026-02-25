@@ -129,7 +129,7 @@ export async function updateEmailStatus(
 
   try {
     const updateData: {
-      status: string;
+      status: IncomingEmailRecord['status'];
       processed_at?: string;
       error_message?: string;
     } = {

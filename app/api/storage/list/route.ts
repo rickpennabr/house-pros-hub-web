@@ -23,6 +23,9 @@ export async function GET(request: NextRequest) {
     if (bucketError) {
       return NextResponse.json({ error: bucketError }, { status: 400 });
     }
+    if (!bucket) {
+      return NextResponse.json({ error: 'Bucket is required' }, { status: 400 });
+    }
     const folderError = validateStoragePath(folder);
     if (folderError) {
       return NextResponse.json({ error: folderError }, { status: 400 });
@@ -52,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     // List files in the bucket
     const { data, error } = await supabase.storage
-      .from(bucket!)
+      .from(bucket)
       .list(normalizedFolder, {
         limit: 1000,
         offset: 0,

@@ -176,22 +176,22 @@ async function handleUpdateBusiness(
       businessName: rawBody.businessName ? sanitizeText(rawBody.businessName) || rawBody.businessName : rawBody.businessName,
       slug: rawBody.slug ? sanitizeText(rawBody.slug) || rawBody.slug : rawBody.slug,
       companyDescription: rawBody.companyDescription !== undefined
-        ? (rawBody.companyDescription ? sanitizeText(rawBody.companyDescription) || null : null)
+        ? (rawBody.companyDescription ? sanitizeText(rawBody.companyDescription) || undefined : undefined)
         : rawBody.companyDescription,
       email: rawBody.email !== undefined
-        ? (rawBody.email ? sanitizeText(rawBody.email) || null : null)
+        ? (rawBody.email ? sanitizeText(rawBody.email) || undefined : undefined)
         : rawBody.email,
-      phone: rawBody.phone !== undefined ? (rawBody.phone ? sanitizeText(rawBody.phone) || null : null) : rawBody.phone,
+      phone: rawBody.phone !== undefined ? (rawBody.phone ? sanitizeText(rawBody.phone) || undefined : undefined) : rawBody.phone,
       mobilePhone: rawBody.mobilePhone !== undefined
-        ? (rawBody.mobilePhone ? sanitizeText(rawBody.mobilePhone) || null : null)
+        ? (rawBody.mobilePhone ? sanitizeText(rawBody.mobilePhone) || undefined : undefined)
         : rawBody.mobilePhone,
       streetAddress: rawBody.streetAddress ? sanitizeText(rawBody.streetAddress) || rawBody.streetAddress : rawBody.streetAddress,
-      apartment: rawBody.apartment ? sanitizeText(rawBody.apartment) || null : rawBody.apartment,
+      apartment: rawBody.apartment ? sanitizeText(rawBody.apartment) || undefined : rawBody.apartment,
       city: rawBody.city ? sanitizeText(rawBody.city) || rawBody.city : rawBody.city,
       state: rawBody.state ? sanitizeText(rawBody.state) || rawBody.state : rawBody.state,
       zipCode: rawBody.zipCode ? sanitizeText(rawBody.zipCode) || rawBody.zipCode : rawBody.zipCode,
-      gateCode: rawBody.gateCode ? sanitizeText(rawBody.gateCode) || null : rawBody.gateCode,
-      addressNote: rawBody.addressNote ? sanitizeText(rawBody.addressNote) || null : rawBody.addressNote,
+      gateCode: rawBody.gateCode ? sanitizeText(rawBody.gateCode) || undefined : rawBody.gateCode,
+      addressNote: rawBody.addressNote ? sanitizeText(rawBody.addressNote) || undefined : rawBody.addressNote,
       links:
         rawBody.links && Array.isArray(rawBody.links)
           ? rawBody.links.map((link: { type?: string; url?: string; value?: string }) => {

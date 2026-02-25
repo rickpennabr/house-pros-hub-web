@@ -18,16 +18,16 @@ export const estimateSchema = z.object({
   apartment: z.string().trim().optional(),
   
   // Project Information
-  projectType: z.enum(['new_construction', 'renovation', 'repair', 'remodel', 'other']),
+  projectType: z.enum(['new_construction', 'renovation', 'repair', 'remodel', 'other']).optional(),
   projectTypeOther: z.string().trim().optional(),
   requiresHoaApproval: z.boolean(),
   wants3D: z.boolean(),
   trades: z.array(z.string()).min(1, 'tradesMin'),
   projectDescription: z.string().trim(), // optional step: empty string allowed
   projectImages: z.array(z.string().url()).max(5, 'projectImagesMax').optional(),
-  budgetRange: z.enum(['under_5k', '5k_10k', '10k_25k', '25k_50k', '50k_100k', 'over_100k', 'not_sure']),
-  timeline: z.enum(['asap', 'within_month', '1_3_months', '3_6_months', '6_plus_months', 'flexible']),
-  preferredContactMethod: z.enum(['phone', 'email', 'text', 'either']),
+  budgetRange: z.enum(['under_5k', '5k_10k', '10k_25k', '25k_50k', '50k_100k', 'over_100k', 'not_sure']).optional(),
+  timeline: z.enum(['asap', 'within_month', '1_3_months', '3_6_months', '6_plus_months', 'flexible']).optional(),
+  preferredContactMethod: z.enum(['phone', 'email', 'text', 'either']).optional(),
   additionalNotes: z.string().trim().optional(),
 }).refine((data) => {
   // If projectType is 'other', projectTypeOther is required
