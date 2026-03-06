@@ -15,7 +15,7 @@ export interface BusinessUIState {
   isLoading: boolean;
 }
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 7;
 
 export function useAddBusinessForm(personalData?: PersonalData) {
   const [uiState, setUiState] = useState<BusinessUIState>({
@@ -32,7 +32,10 @@ export function useAddBusinessForm(personalData?: PersonalData) {
       companyDescription: '',
       businessLogo: '',
       businessBackground: '',
+      businessBackgroundPosition: '50% 50%',
       licenses: [{ license: '', licenseNumber: '' }],
+      services: [],
+      images: [],
       address: '',
       streetAddress: '',
       city: '',
@@ -141,15 +144,25 @@ export function useAddBusinessForm(personalData?: PersonalData) {
     setValue('licenses', newLicenses);
   };
 
+  const reorderServices = (fromIndex: number, toIndex: number) => {
+    const currentServices = methods.getValues('services') || [];
+    const newServices = [...currentServices];
+    const [movedService] = newServices.splice(fromIndex, 1);
+    newServices.splice(toIndex, 0, movedService);
+    setValue('services', newServices);
+  };
+
   const getTotalSteps = (): number => TOTAL_STEPS;
 
   const getStepLabel = (): string => {
     switch (uiState.currentStep) {
       case 1: return 'stepLabels.businessInformation';
       case 2: return 'stepLabels.licenses';
-      case 3: return 'stepLabels.address';
-      case 4: return 'stepLabels.contact';
-      case 5: return 'stepLabels.links';
+      case 3: return 'stepLabels.services';
+      case 4: return 'stepLabels.images';
+      case 5: return 'stepLabels.address';
+      case 6: return 'stepLabels.contact';
+      case 7: return 'stepLabels.links';
       default: return '';
     }
   };
@@ -161,14 +174,18 @@ export function useAddBusinessForm(personalData?: PersonalData) {
     } else if (uiState.currentStep === 2) {
       fieldsToValidate = ['licenses'];
     } else if (uiState.currentStep === 3) {
-      fieldsToValidate = ['streetAddress', 'city', 'state', 'zipCode'];
+      fieldsToValidate = ['services'];
     } else if (uiState.currentStep === 4) {
+      fieldsToValidate = ['images'];
+    } else if (uiState.currentStep === 5) {
+      fieldsToValidate = ['streetAddress', 'city', 'state', 'zipCode'];
+    } else if (uiState.currentStep === 6) {
       fieldsToValidate = ['email', 'phone', 'mobilePhone'];
     }
 
     const isStepValid = await trigger(fieldsToValidate);
 
-    if (isStepValid && uiState.currentStep === 4) {
+    if (isStepValid && uiState.currentStep === 6) {
       const phone = methods.getValues('phone');
       const mobilePhone = methods.getValues('mobilePhone');
       if (!phone?.trim() && !mobilePhone?.trim()) {
@@ -226,6 +243,7 @@ export function useAddBusinessForm(personalData?: PersonalData) {
     updateLink,
     reorderLinks,
     reorderLicenses,
+    reorderServices,
     setError: (error: string | null) => setUiState(prev => ({ ...prev, error })),
     setFieldErrors: () => {},
     setLoading: (isLoading: boolean) => setUiState(prev => ({ ...prev, isLoading })),

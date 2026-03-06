@@ -1,5 +1,5 @@
 import { getResendClient, getResendFromEmail } from '@/lib/utils/resend';
-import { generateEstimateConfirmationEmail, type EmailTranslations, type EstimateEmailData, generateWelcomeEmail, type WelcomeEmailTranslations, type WelcomeEmailData, generateSetPasswordEmail, type SetPasswordEmailTranslations, generateIncomingEmailNotification, type IncomingEmailNotificationData, generateNewSignupAdminNotification, type NewSignupAdminNotificationData } from '@/lib/utils/emailTemplates';
+import { generateEstimateConfirmationEmail, type EmailTranslations, type EstimateEmailData, generateWelcomeEmail, type WelcomeEmailTranslations, type WelcomeEmailData, generateSetPasswordEmail, type SetPasswordEmailTranslations, generatePasswordResetEmail, type PasswordResetEmailTranslations, generateIncomingEmailNotification, type IncomingEmailNotificationData, generateNewSignupAdminNotification, type NewSignupAdminNotificationData } from '@/lib/utils/emailTemplates';
 import { logger } from '@/lib/utils/logger';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import type { ParsedEmail } from '@/lib/utils/emailParser';
@@ -277,6 +277,54 @@ export async function sendSetPasswordEmail(
     return { success: true };
   } catch (error) {
     logger.error('Error sending set-password email', {
+      endpoint: 'email-service',
+      toEmail,
+    }, error as Error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+/**
+ * Send forgot-password (user-initiated) reset email with custom House Pros Hub template
+ */
+export async function sendPasswordResetEmail(
+  toEmail: string,
+  resetLink: string,
+  translations: PasswordResetEmailTranslations,
+  options?: { userName?: string }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const resend = getResendClient();
+    const fromEmail = getResendFromEmail();
+
+    const firstName = options?.userName?.split(' ')[0] ?? '';
+    const html = generatePasswordResetEmail(firstName, resetLink, translations);
+
+    const { data, error } = await resend.emails.send({
+      from: fromEmail,
+      to: toEmail,
+      subject: translations.subject,
+      html,
+    });
+
+    if (error) {
+      logger.error('Failed to send password reset email', {
+        endpoint: 'email-service',
+        toEmail,
+        error: error.message,
+      }, error as Error);
+      return { success: false, error: error.message };
+    }
+
+    logger.info('Password reset email sent successfully', {
+      endpoint: 'email-service',
+      toEmail,
+      emailId: data?.id,
+    });
+
+    return { success: true };
+  } catch (error) {
+    logger.error('Error sending password reset email', {
       endpoint: 'email-service',
       toEmail,
     }, error as Error);

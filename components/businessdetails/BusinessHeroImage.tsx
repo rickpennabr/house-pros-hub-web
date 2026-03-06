@@ -6,9 +6,11 @@ import Image from 'next/image';
 interface BusinessHeroImageProps {
   imageUrl?: string;
   businessName: string;
+  /** CSS object-position (e.g. "50% 50%"). Persisted with business. */
+  objectPosition?: string;
 }
 
-export default function BusinessHeroImage({ imageUrl, businessName }: BusinessHeroImageProps) {
+export default function BusinessHeroImage({ imageUrl, businessName, objectPosition = '50% 50%' }: BusinessHeroImageProps) {
   const [imageErrorState, setImageErrorState] = useState<{
     imageUrl?: string;
     hasError: boolean;
@@ -63,6 +65,7 @@ export default function BusinessHeroImage({ imageUrl, businessName }: BusinessHe
             alt={businessName}
             fill
             className="object-cover"
+            style={{ objectPosition }}
             sizes="(max-width: 1200px) 100vw, 1200px"
             unoptimized
             onError={() => {

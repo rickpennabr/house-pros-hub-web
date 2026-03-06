@@ -1,8 +1,8 @@
 'use client';
 
-import { CheckSquare, Link as LinkIcon, Building2 } from 'lucide-react';
+import { CheckSquare, Link as LinkIcon, Building2, Images } from 'lucide-react';
 
-type TabType = 'contact' | 'links' | 'about';
+type TabType = 'contact' | 'links' | 'about' | 'images';
 
 interface BusinessDetailsTabsProps {
   activeTab: TabType;
@@ -25,6 +25,11 @@ export default function BusinessDetailsTabs({ activeTab, onTabChange }: Business
       id: 'about' as TabType, 
       label: 'About', 
       icon: Building2 
+    },
+    { 
+      id: 'images' as TabType, 
+      label: 'Images', 
+      icon: Images 
     },
   ];
 

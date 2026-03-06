@@ -13,9 +13,11 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log('[Reset Password API] POST received');
     // Check rate limit for auth endpoints
     const rateLimitResponse = await checkRateLimit(request, 'auth');
     if (rateLimitResponse) {
+      console.log('[Reset Password API] rate limited');
       return rateLimitResponse;
     }
 
@@ -24,6 +26,7 @@ export async function POST(request: NextRequest) {
 
     // Validate input
     if (!password) {
+      console.log('[Reset Password API] missing password');
       return NextResponse.json(
         { error: 'Password is required' },
         { status: 400 }
@@ -32,6 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Validate password strength
     if (!isValidPassword(password)) {
+      console.log('[Reset Password API] invalid password strength');
       return NextResponse.json(
         { error: 'Password must be at least 8 characters and contain uppercase, lowercase, and number' },
         { status: 400 }
@@ -41,10 +45,12 @@ export async function POST(request: NextRequest) {
     // Create Supabase client
     const supabase = await createClient();
 
-    // Check if user has a valid session (created by Supabase when clicking reset link)
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    // Verify user (validates with Supabase Auth server; do not use getSession() for auth)
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    console.log('[Reset Password API] getUser', { userId: user?.id ?? null, userError: userError?.message ?? null });
 
-    if (sessionError || !session || !session.user) {
+    if (userError || !user) {
+      console.log('[Reset Password API] unauthorized (no user or error)');
       return NextResponse.json(
         { error: 'Invalid or expired reset token. Please request a new password reset.' },
         { status: 401 }
@@ -55,6 +61,7 @@ export async function POST(request: NextRequest) {
     const { data: updateData, error: updateError } = await supabase.auth.updateUser({
       password: password,
     });
+    console.log('[Reset Password API] updateUser', { success: !updateError, error: updateError?.message ?? null });
 
     if (updateError) {
       // Check if it's a token-related error
@@ -81,10 +88,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the updated session
-    const { data: { session: updatedSession }, error: updatedSessionError } = await supabase.auth.getSession();
+    // Verify session is still valid after password update
+    const { data: { user: refreshedUser }, error: refreshedError } = await supabase.auth.getUser();
 
-    if (updatedSessionError || !updatedSession) {
+    if (refreshedError || !refreshedUser) {
       return NextResponse.json(
         { error: 'Password was reset but session could not be refreshed. Please sign in manually.' },
         { status: 500 }
@@ -103,16 +110,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Return user data
-    const user = {
+    const userData = {
       id: updateData.user.id,
       email: updateData.user.email,
       firstName: profile?.first_name || updateData.user.user_metadata?.firstName || '',
       lastName: profile?.last_name || updateData.user.user_metadata?.lastName || '',
     };
 
+    console.log('[Reset Password API] success', { userId: userData.id });
     return NextResponse.json(
       { 
-        user,
+        user: userData,
         message: 'Password reset successfully. You have been signed in.' 
       },
       { status: 200 }

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 
 /**
  * Hook to show a custom warning modal when user tries to leave the page
- * while on steps 2, 3, 4, or 5 of a form
+ * while on steps 2, 3, 4, 5, 6, or 7 of a form
  * @param currentStep - The current step number
  * @param enabled - Whether the warning should be enabled (default: true)
  * @returns Object with modal state and handlers
@@ -16,8 +16,8 @@ export function useBeforeUnloadWarning(currentStep: number, enabled: boolean = t
   const allowNavigationRef = useRef(false);
   const allowBeforeUnloadRef = useRef(false);
 
-  // Only show warning on steps 2, 3, 4, or 5
-  const shouldWarn = enabled && (currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 5);
+  // Only show warning on steps 2, 3, 4, 5, 6, or 7
+  const shouldWarn = enabled && (currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 5 || currentStep === 6 || currentStep === 7);
   
   // Update ref in effect to avoid updating during render
   useEffect(() => {

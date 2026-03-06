@@ -29,7 +29,7 @@ export default function EstimatePage() {
   const router = useRouter();
   const pathname = usePathname();
   const locale = useLocale();
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, checkAuth } = useAuth();
   const tPage = useTranslations('estimate.page');
   const tAccordion = useTranslations('estimate.accordion');
   const tFields = useTranslations('estimate.fields');
@@ -46,6 +46,8 @@ export default function EstimatePage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [loadingFallback, setLoadingFallback] = useState(false);
   const [addressPrefilledFromProfile, setAddressPrefilledFromProfile] = useState(false);
+  const hasTriggeredAuthRefresh = useRef(false);
+  const didPostSignupRefresh = useRef(false);
 
   // Refs for accordion sections for auto-scrolling
   const successMessageRef = useRef<HTMLDivElement>(null);
@@ -155,8 +157,15 @@ export default function EstimatePage() {
     errors,
   });
 
-  // Note: User data is already refreshed in SignupSuccessMessage before navigation
-  // No need to call checkAuth again here as it can cause loading loops
+  // When coming from signup, refresh auth once on mount so we don't depend on state from the previous page
+  useEffect(() => {
+    if (typeof sessionStorage === 'undefined') return;
+    if (sessionStorage.getItem('estimate_post_signup') !== '1') return;
+    sessionStorage.removeItem('estimate_post_signup');
+    didPostSignupRefresh.current = true;
+    hasTriggeredAuthRefresh.current = true;
+    checkAuth();
+  }, [checkAuth]);
 
   // Redirect to signup if not authenticated
   useEffect(() => {
@@ -175,6 +184,20 @@ export default function EstimatePage() {
     const timer = setTimeout(() => setLoadingFallback(true), 4000);
     return () => clearTimeout(timer);
   }, [isLoading, isAuthenticated]);
+
+  // Fallback: if still loading after a while, trigger one refresh (skip when we already did post-signup refresh)
+  useEffect(() => {
+    if (!isLoading) {
+      hasTriggeredAuthRefresh.current = false;
+      return;
+    }
+    if (hasTriggeredAuthRefresh.current) return;
+    const timer = setTimeout(() => {
+      hasTriggeredAuthRefresh.current = true;
+      checkAuth();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [isLoading, checkAuth]);
 
   // Helper function to populate form with user data (non-address fields)
   const populateUserData = useCallback(() => {

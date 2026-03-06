@@ -223,7 +223,7 @@ export function BusinessStep4({ updateLink, reorderLinks, personalData }: Busine
           <button
             type="button"
             onClick={() => setShowExplanation(!showExplanation)}
-            className="w-full flex items-center justify-between p-2 text-left bg-black text-white"
+            className="w-full flex items-center justify-between p-2 text-left bg-black text-white cursor-pointer"
           >
             <label className="block text-base font-bold text-white">{t('instructionsTitle') || 'Link Ordering Instructions'}</label>
             {showExplanation ? <ChevronUp className="w-5 h-5 text-white" /> : <ChevronDown className="w-5 h-5 text-white" />}

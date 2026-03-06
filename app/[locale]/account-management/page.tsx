@@ -15,7 +15,8 @@ import {
   ChevronRight,
   Bookmark,
   Edit,
-  Trash2
+  Trash2,
+  LayoutDashboard
 } from 'lucide-react';
 
 interface Account {
@@ -46,7 +47,7 @@ function AccountManagementContent() {
   const locale = useLocale();
   const searchParams = useSearchParams();
   const t = useTranslations('accountManagement');
-  const { user, logout } = useAuth();
+  const { user, roles, logout, isLoading: authLoading } = useAuth();
   const userId = user?.id ?? '';
   const [accountSelection, setAccountSelection] = useState<{
     userId: string;
@@ -55,10 +56,34 @@ function AccountManagementContent() {
     userId,
     accountId: '',
   }));
+  const [businessesRefreshKey, setBusinessesRefreshKey] = useState(0);
+  const [apiBusinesses, setApiBusinesses] = useState<(ProCardData & { userId?: string })[] | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const selectedAccountId = accountSelection.userId === userId ? accountSelection.accountId : '';
   const effectiveSelectedAccountId = selectedAccountId || userId;
+
+  // Load current user's businesses from API so they always appear in Select Account (not only from localStorage)
+  useEffect(() => {
+    if (!userId) return;
+    fetch('/api/me/businesses/list', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : { businesses: [] }))
+      .then((data) => {
+        const list = (data.businesses ?? []) as (ProCardData & { userId?: string })[];
+        const withUserId = list.map((b) => ({ ...b, userId }));
+        setApiBusinesses(withUserId);
+        const existing = businessStorage.getBusinessesByUserId(userId);
+        withUserId.forEach((b) => {
+          if (!existing.some((eb) => eb.id === b.id)) {
+            businessStorage.addBusiness({ ...b, userId });
+          } else {
+            businessStorage.updateBusiness(b.id, b);
+          }
+        });
+        setBusinessesRefreshKey((k) => k + 1);
+      })
+      .catch(() => setApiBusinesses([]));
+  }, [userId]);
 
   // Check for businessId query parameter and select it if present
   // Also refresh business data from API to ensure we have latest logo/background
@@ -106,8 +131,9 @@ function AccountManagementContent() {
           .then(res => res.json())
           .then(data => {
             if (data.business && data.business.userId === userId) {
-              // Add to localStorage
+              // Add to localStorage so it appears in the account list
               businessStorage.addBusiness({ ...data.business, userId });
+              setBusinessesRefreshKey((k) => k + 1);
               setAccountSelection({ userId, accountId: businessIdParam });
               // Remove the query parameter from URL
               const newUrl = new URL(window.location.href);
@@ -125,9 +151,9 @@ function AccountManagementContent() {
   const userBusinesses = useMemo<ProCardData[]>(() => {
     if (!userId) return [];
     return businessStorage.getBusinessesByUserId(userId);
-  }, [userId]);
+  }, [userId, businessesRefreshKey]);
 
-  // Personal account actions (for customers) - using translations
+  // Personal account actions - using translations. ProsCRM only for contractors.
   const personalActions: QuickAction[] = useMemo(() => [
     {
       id: 'personal-1',
@@ -158,6 +184,16 @@ function AccountManagementContent() {
       iconColor: 'text-white',
       borderColor: 'border-black',
       path: `/${locale}/business/add`,
+    },
+    {
+      id: 'personal-proscrm',
+      title: t('actions.personal.proscrm.title'),
+      description: t('actions.personal.proscrm.description'),
+      icon: LayoutDashboard,
+      iconBg: 'bg-black',
+      iconColor: 'text-white',
+      borderColor: 'border-black',
+      path: `/${locale}/crm`,
     },
   ], [t, locale]);
 
@@ -195,43 +231,46 @@ function AccountManagementContent() {
     },
   ], [t, locale]);
 
-  // Generate accounts: personal account first, then business accounts
+  // Generate accounts: personal account first, then business accounts (from API when available, else localStorage)
+  const businessList = apiBusinesses ?? userBusinesses;
   const visibleAccounts = useMemo(() => {
     const accounts: Account[] = [];
     
     // Always add personal account first
     if (user) {
+      const personalName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || t('personalAccountFallback') || 'Personal';
       const personalAccount: Account = {
         id: user.id,
-        name: `${user.firstName} ${user.lastName}`,
+        name: personalName,
         type: 'personal',
-        isSelected: effectiveSelectedAccountId === user.id || (effectiveSelectedAccountId === '' && userBusinesses.length === 0),
+        isSelected: effectiveSelectedAccountId === user.id || (effectiveSelectedAccountId === '' && businessList.length === 0),
       };
       accounts.push(personalAccount);
     }
     
-    // Add business accounts from storage (appear on the right side)
-    userBusinesses.forEach((business) => {
+    // Add business accounts (from API so they always show, or from storage)
+    businessList.forEach((business) => {
       const businessAccount: Account = {
         id: business.id,
         slug: business.slug,
-        name: business.businessName,
+        name: business.businessName?.trim() || t('businessAccountFallback') || 'Business',
         type: 'business',
         icon: business.logo || business.businessLogo,
         isSelected: effectiveSelectedAccountId === business.id,
-        hasCrown: false, // No crown for business accounts
+        hasCrown: false,
       };
       accounts.push(businessAccount);
     });
     
     return accounts;
-  }, [user, userBusinesses, effectiveSelectedAccountId]);
+  }, [user, businessList, effectiveSelectedAccountId, t]);
 
-  // Filter quick actions based on account type
+  // Filter quick actions based on account type. ProsCRM only when personal + contractor.
   const selectedAccount = visibleAccounts.find(acc => acc.id === effectiveSelectedAccountId);
+  const isContractor = roles.includes('contractor');
   const visibleActions =
     selectedAccount?.type === 'personal'
-      ? personalActions
+      ? personalActions.filter((a) => a.id !== 'personal-proscrm' || isContractor)
       : businessActions.map((action) => {
           if (action.id === '1') {
             // Edit Business
@@ -310,40 +349,49 @@ function AccountManagementContent() {
     <div className="bg-white">
       {/* Main Content */}
       <div className="w-full max-w-[960px] mx-auto p-2 md:p-2 py-2 md:py-2">
-        {/* Select Account Section */}
+        {/* Select Account Section - Personal first, then business (e.g. after "Manage business") */}
         <div className="mb-4 md:mb-6">
           <h2 className="text-lg md:text-xl font-bold text-black mb-4">{t('selectAccount')}</h2>
           <div className="relative">
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {visibleAccounts.map((account) => (
-                <button
-                  key={account.id}
-                  onClick={() => handleAccountSelect(account.id)}
-                  className={`
-                    relative flex items-center gap-3 px-2 py-2 md:px-4 md:py-3 rounded-lg border-2 transition-all flex-shrink-0 cursor-pointer
-                    ${account.isSelected 
-                      ? 'bg-white border-black' 
-                      : account.isActive 
-                        ? 'bg-black text-white border-black' 
-                        : 'bg-white border-gray-300 hover:border-black'
-                    }
-                  `}
-                >
-                  {account.hasCrown && (
-                    <Crown className="w-4 h-4 text-green-600 absolute -top-1 -right-1" />
-                  )}
-                  {getAccountIcon(account)}
-                  <span className="text-sm md:text-base font-medium whitespace-nowrap">
-                    {account.name}
-                  </span>
-                </button>
-              ))}
-            </div>
-            {/* Scroll indicator - only show on mobile when more than 2 accounts */}
-            {visibleAccounts.length > 2 && (
-              <div className="absolute right-0 top-1/2 transform -translate-y-1/2 pointer-events-none md:hidden">
-                <ChevronRight className="w-6 h-6 text-gray-400" />
+            {authLoading ? (
+              <div className="flex gap-3 overflow-x-auto pb-2">
+                <div className="h-12 w-32 rounded-lg border-2 border-gray-200 bg-gray-50 animate-pulse flex-shrink-0" />
+                <div className="h-12 w-40 rounded-lg border-2 border-gray-200 bg-gray-50 animate-pulse flex-shrink-0" />
               </div>
+            ) : (
+              <>
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                  {visibleAccounts.map((account) => (
+                    <button
+                      key={account.id}
+                      onClick={() => handleAccountSelect(account.id)}
+                      className={`
+                        relative flex items-center gap-3 px-2 py-2 md:px-4 md:py-3 rounded-lg border-2 transition-all flex-shrink-0 cursor-pointer
+                        ${account.isSelected 
+                          ? 'bg-white border-black' 
+                          : account.isActive 
+                            ? 'bg-black text-white border-black' 
+                            : 'bg-white border-gray-300 hover:border-black'
+                        }
+                      `}
+                    >
+                      {account.hasCrown && (
+                        <Crown className="w-4 h-4 text-green-600 absolute -top-1 -right-1" />
+                      )}
+                      {getAccountIcon(account)}
+                      <span className="text-sm md:text-base font-medium whitespace-nowrap">
+                        {account.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {/* Scroll indicator - only show on mobile when more than 2 accounts */}
+                {visibleAccounts.length > 2 && (
+                  <div className="absolute right-0 top-1/2 transform -translate-y-1/2 pointer-events-none md:hidden">
+                    <ChevronRight className="w-6 h-6 text-gray-400" />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

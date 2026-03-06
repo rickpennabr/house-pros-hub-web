@@ -76,6 +76,7 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       businessName,
       businessLogo,
       businessBackground,
+      businessBackgroundPosition,
       slug,
       companyDescription,
       licenses,
@@ -89,6 +90,8 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       phone,
       mobilePhone,
       links,
+      services,
+      images,
       operatingHours,
     } = body;
 
@@ -110,11 +113,42 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
 
     for (let i = 0; i < licenses.length; i++) {
       const license = licenses[i];
-      if (!license.license || !license.licenseNumber) {
+      if (!license.license) {
         return NextResponse.json(
-          { error: `License ${i + 1} must have both classification and number` },
+          { error: `License ${i + 1} must have a classification` },
           { status: 400 }
         );
+      }
+    }
+
+    // Fetch categories so we know when license number is required (contractor) vs optional (non-contractor)
+    const supabaseForCategories = createServiceRoleClient();
+    const { data: licenseCategories } = await supabaseForCategories
+      .from('license_categories')
+      .select('code, requires_contractor_license');
+    const nonContractorCodes = new Set(
+      (licenseCategories ?? []).filter((r: { requires_contractor_license: boolean }) => !r.requires_contractor_license).map((r: { code: string }) => r.code)
+    );
+    for (let i = 0; i < licenses.length; i++) {
+      const license = licenses[i];
+      if (license.license && !nonContractorCodes.has(license.license) && !(license.licenseNumber ?? '').trim()) {
+        return NextResponse.json(
+          { error: `License ${i + 1}: license number is required for this classification` },
+          { status: 400 }
+        );
+      }
+    }
+    const { isValidNevadaBusinessLicense } = await import('@/lib/schemas/business');
+    for (let i = 0; i < licenses.length; i++) {
+      const lic = licenses[i];
+      if (nonContractorCodes.has(lic.license)) {
+        const num = (lic.licenseNumber ?? '').trim();
+        if (num && !isValidNevadaBusinessLicense(num)) {
+          return NextResponse.json(
+            { error: `License ${i + 1}: Nevada Business License must be 11 digits (spaces or dashes are ignored)` },
+            { status: 400 }
+          );
+        }
       }
     }
 
@@ -227,6 +261,12 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
         })
       : null;
 
+    const safeServices: string[] = services && Array.isArray(services)
+      ? services
+          .map((s: { name?: string }) => (s?.name != null ? sanitizeText(String(s.name).trim()) : ''))
+          .filter((name: string) => name.length > 0)
+      : [];
+
     const supabase = await createClient();
     const serviceRoleClient = createServiceRoleClient();
 
@@ -321,12 +361,14 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
         slug: businessSlug,
         business_logo: null, // Will be updated after upload
         business_background: null, // Will be updated after upload
+        business_background_position: (businessBackgroundPosition && typeof businessBackgroundPosition === 'string') ? businessBackgroundPosition : '50% 50%',
         company_description: safeCompanyDescription,
         email: safeEmail,
         phone: safePhone,
         mobile_phone: safeMobilePhone,
         business_address_id: addressData.id,
         links: safeLinks,
+        services: safeServices,
         operating_hours: operatingHours || null,
         is_active: true,
       })
@@ -391,19 +433,47 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
         .eq('id', businessData.id);
     }
 
+    // Upload gallery images (max 10) to business-images bucket
+    const imageUrls: string[] = [];
+    const rawImages = Array.isArray(images) ? images.slice(0, 10) : [];
+    for (let i = 0; i < rawImages.length; i++) {
+      const dataUrl = rawImages[i];
+      if (typeof dataUrl === 'string' && dataUrl.startsWith('data:image')) {
+        const fileExt = dataUrl.includes('image/png') ? 'png' : 'jpg';
+        const filePath = `${businessData.id}/gallery-${Date.now()}-${i}.${fileExt}`;
+        const url = await uploadBase64Image(
+          serviceRoleClient,
+          'business-images',
+          filePath,
+          dataUrl,
+          dataUrl.includes('image/png') ? 'image/png' : 'image/jpeg'
+        );
+        if (url) imageUrls.push(url);
+      }
+    }
+    if (imageUrls.length > 0) {
+      await supabase
+        .from('businesses')
+        .update({ images: imageUrls })
+        .eq('id', businessData.id);
+    }
+
     // Create licenses (only rows with required fields)
     const licenseInserts = safeLicenses
       .filter(
         (lic): lic is { license: string; licenseNumber: string; trade: string | undefined } =>
           typeof lic.license === 'string' && typeof lic.licenseNumber === 'string'
       )
-      .map((license) => ({
-        business_id: businessData.id,
-        license_number: license.licenseNumber,
-        license_type: license.license,
-        license_name: license.trade || null,
-        is_active: true,
-      }));
+      .map((license) => {
+        const num = (license.licenseNumber ?? '').trim();
+        return {
+          business_id: businessData.id,
+          license_number: num || null,
+          license_type: license.license,
+          license_name: license.trade || null,
+          is_active: true,
+        };
+      });
 
     const { error: licensesError } = await supabase
       .from('licenses')
@@ -529,6 +599,11 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       phone: businessData.phone || undefined,
       mobilePhone: businessData.mobile_phone || undefined,
       links: normalizeLinks(businessData.links ?? links),
+      services: businessData.services ?? safeServices,
+      images:
+        imageUrls.length > 0
+          ? imageUrls
+          : (Array.isArray(completeBusiness?.images) ? (completeBusiness.images as string[]) : []),
       userId,
     });
 

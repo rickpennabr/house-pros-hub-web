@@ -479,7 +479,7 @@ export default function SuppliersPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={header.column.getToggleSortingHandler()}
-                          className="flex items-center gap-1 hover:text-gray-200 transition-colors"
+                          className="flex items-center gap-1 hover:text-gray-200 transition-colors cursor-pointer"
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
                           <ChevronDown 

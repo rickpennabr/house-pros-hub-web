@@ -9,7 +9,7 @@ interface SignupStepsIndicatorProps {
 export function SignupStepsIndicator({ currentStep, totalSteps, stepLabel }: SignupStepsIndicatorProps) {
   return (
     <section className="flex flex-col">
-      <div className="flex items-center justify-between pb-2 md:pb-0">
+      <div className="flex items-center justify-between pb-2">
         {/* Progress Bar Label */}
         <span className="text-base font-bold text-black">
           {stepLabel}

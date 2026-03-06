@@ -16,6 +16,8 @@ import { SignupStepsIndicator } from '@/app/[locale]/(auth)/signup/components/Si
 import { BusinessFormNavigation } from '@/app/[locale]/(auth)/signup/components/BusinessFormNavigation';
 import { BusinessStep1 } from '@/app/[locale]/(auth)/signup/components/steps/BusinessStep1';
 import { BusinessStepLicenses } from '@/app/[locale]/(auth)/signup/components/steps/BusinessStepLicenses';
+import { BusinessStepServices } from '@/app/[locale]/(auth)/signup/components/steps/BusinessStepServices';
+import { BusinessStepImages } from '@/app/[locale]/(auth)/signup/components/steps/BusinessStepImages';
 import { BusinessStep2 } from '@/app/[locale]/(auth)/signup/components/steps/BusinessStep2';
 import { BusinessStep3 } from '@/app/[locale]/(auth)/signup/components/steps/BusinessStep3';
 import { BusinessStep4 } from '@/app/[locale]/(auth)/signup/components/steps/BusinessStep4';
@@ -35,6 +37,7 @@ export default function AddBusinessPage() {
   const tBusinessForm = useTranslations('businessForm');
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [createdBusinessId, setCreatedBusinessId] = useState<string | null>(null);
 
   // Extract personal data from user for "Same as Personal" functionality
   const personalData = extractPersonalData(user);
@@ -50,6 +53,7 @@ export default function AddBusinessPage() {
     applyPersonalMobilePhone,
     updateLink,
     reorderLinks,
+    reorderServices,
     setError,
     setLoading,
     getTotalSteps,
@@ -206,6 +210,7 @@ export default function AddBusinessPage() {
 
         // Also save to localStorage for local access
         businessStorage.addBusiness(business);
+        setCreatedBusinessId(business?.id ?? null);
         setIsSuccessModalOpen(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to add business');
@@ -235,6 +240,10 @@ export default function AddBusinessPage() {
       case 2:
         return <BusinessStepLicenses />;
       case 3:
+        return <BusinessStepServices reorderServices={reorderServices} />;
+      case 4:
+        return <BusinessStepImages />;
+      case 5:
         return (
           <BusinessStep2
             handleAddressSelect={handleAddressSelect}
@@ -243,7 +252,7 @@ export default function AddBusinessPage() {
             personalData={personalData}
           />
         );
-      case 4:
+      case 6:
         return (
           <BusinessStep3
             applyPersonalEmail={applyPersonalEmail}
@@ -252,7 +261,7 @@ export default function AddBusinessPage() {
             personalData={personalData}
           />
         );
-      case 5:
+      case 7:
         return (
           <BusinessStep4
             updateLink={updateLink}
@@ -273,7 +282,11 @@ export default function AddBusinessPage() {
     <>
       <BusinessSuccessModal
         isOpen={isSuccessModalOpen}
-        onManageBusiness={() => router.push(createLocalePath(locale, '/account-management'))}
+        onManageBusiness={() => {
+          const path = createLocalePath(locale, '/account-management');
+          const url = createdBusinessId ? `${path}?businessId=${createdBusinessId}` : path;
+          router.push(url);
+        }}
         onGoHome={() => router.push(createLocalePath(locale, '/'))}
         onAllowNavigation={allowNavigation}
       />

@@ -3,9 +3,9 @@
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { User } from 'lucide-react';
 import { GrUserWorker } from 'react-icons/gr';
+import Logo from '@/components/Logo';
 
 interface RoleSelectionScreenProps {
   onRoleSelect: (role: 'customer' | 'contractor') => void;
@@ -19,17 +19,10 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col text-black md:pt-12">
-      {/* Logo */}
+      {/* Logo (with Pro Bot) */}
       <div className="flex items-center justify-center h-[40px] md:h-[95px] mt-8 md:mt-0 mb-6 md:mb-0 pb-4 md:pb-2 md:w-full animate-fade-in">
         <Link href={`/${locale}/businesslist`} className="cursor-pointer flex-shrink-0 w-full md:w-full">
-          <Image
-            src="/hph-logo-2.3.png"
-            alt="House Pros Hub"
-            width={400}
-            height={100}
-            className="h-full w-full md:w-full max-w-full object-contain"
-            priority
-          />
+          <Logo width={400} height={100} className="h-full w-full md:w-full max-w-full object-contain" />
         </Link>
       </div>
       

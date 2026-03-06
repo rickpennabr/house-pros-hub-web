@@ -19,6 +19,7 @@ import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { resizeImageSquare, validateFileSize } from '@/lib/utils/image';
 import { CHAT_SIGNUP_STEPS, getVisibleSteps, type ChatSignupStep } from './chatSignupSteps';
 import { useAuth } from '@/contexts/AuthContext';
+import { PROBOT_ASSETS } from '@/lib/constants/probot';
 
 const TYPING_SPEED_MS = 30; // Fast typing for form bot
 const TYPING_INITIAL_DELAY_MS = 500;
@@ -559,13 +560,13 @@ export default function ChatSignupForm({
           <div className="flex flex-col gap-2">
             <div className="self-start flex items-end gap-0 min-h-[48px] rounded-2xl overflow-hidden">
               {/* Bot avatar: typing gif while typing, static image when done; stays in place for next step */}
-              <div className="shrink-0 flex-shrink-0 w-12 h-12 flex items-center justify-center" aria-hidden>
+              <div className="shrink-0 flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center" aria-hidden>
                 <img
-                  src={isTypingComplete ? '/pro-bot-typing.png' : '/pro-bot-solo-typing-new.gif'}
+                  src={isTypingComplete ? PROBOT_ASSETS.avatar : PROBOT_ASSETS.avatarAnimated}
                   alt=""
                   width={48}
                   height={48}
-                  className="w-12 h-12 object-contain pointer-events-none"
+                  className="w-full h-full object-contain pointer-events-none"
                 />
               </div>
               {signupTypingStarted && (
@@ -585,7 +586,7 @@ export default function ChatSignupForm({
                   </p>
                 )}
                 {currentStep.type === 'choice' && currentStep.id === 'role' && (
-                  <div className="space-y-3">
+                  <div className="flex flex-col md:flex-row gap-3">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -596,7 +597,7 @@ export default function ChatSignupForm({
                         setError(null);
                         setTimeout(scrollToBottom, 100);
                       }}
-                      className="w-full p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
+                      className="w-full md:flex-1 md:min-w-0 p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0 w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
@@ -622,7 +623,7 @@ export default function ChatSignupForm({
                         setError(null);
                         setTimeout(scrollToBottom, 100);
                       }}
-                      className="w-full p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
+                      className="w-full md:flex-1 md:min-w-0 p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0 w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
@@ -920,14 +921,14 @@ export default function ChatSignupForm({
                     </span>
                   </label>
                 </div>
-              )}
-            </form>
+            )}
+          </form>
             )}
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
-      {/* Bottom bar: Back + primary action (Next / Skip / Sign Up) */}
+      {/* Bottom bar: Back + primary action (Next / Skip / Sign Up) - fixed at page bottom, does not scroll */}
       {isTypingComplete && currentStep && (
         <div className="shrink-0 flex items-center gap-2 p-3 border-t border-gray-200 bg-gray-50 flex-wrap">
           {showBackInBar && (

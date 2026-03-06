@@ -95,7 +95,7 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
   // Use ref as additional backup - persists across re-renders and doesn't get cleared
   const signedUpUserRef = useRef<User | null>(null);
 
-  // Keep form userType in sync with selectedRole so step 3 shows invitation code when signing up as contractor
+  // Keep form userType in sync with selectedRole (invitation code is collected before step 1 for contractors)
   useEffect(() => {
     if (selectedRole) {
       setValue('userType', selectedRole === 'customer' ? USER_TYPES.CUSTOMER : USER_TYPES.CONTRACTOR);
@@ -253,7 +253,7 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
       if (data.email && data.password) {
         try {
           const loginPromise = login(data.email, data.password);
-          const timeoutPromise = new Promise<never>((_, reject) => 
+          const timeoutPromise = new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Login timeout')), 8000)
           );
           await Promise.race([loginPromise, timeoutPromise]);
@@ -264,7 +264,7 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
           console.warn('Auto-login failed, checking auth via cookies:', loginError);
           try {
             const checkAuthPromise = checkAuth();
-            const timeoutPromise = new Promise<never>((_, reject) => 
+            const timeoutPromise = new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error('Auth check timeout')), 5000)
             );
             await Promise.race([checkAuthPromise, timeoutPromise]);
@@ -280,7 +280,7 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
         // For OAuth flows or when email/password are not provided, just check auth
         try {
           const checkAuthPromise = checkAuth();
-          const timeoutPromise = new Promise<never>((_, reject) => 
+          const timeoutPromise = new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Auth check timeout')), 5000)
           );
           await Promise.race([checkAuthPromise, timeoutPromise]);

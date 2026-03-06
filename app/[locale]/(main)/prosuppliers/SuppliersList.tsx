@@ -407,15 +407,15 @@ export default function SuppliersList() {
   const [showSearchInput, setShowSearchInput] = useState(false);
 
   return (
-    <div className={`flex flex-col lg:flex-row gap-2 relative ${isMobile ? 'h-[calc(100vh-200px)]' : 'min-h-[calc(100vh-200px)]'}`}>
-      {/* List Sidebar - Mobile: full height when card/list view, PC: always visible */}
-      <div className={`${isMobile ? (view === 'map' ? 'hidden' : 'w-full h-full') : 'lg:w-[35%]'} ${view === 'map' && isMobile ? 'hidden' : 'block'}`}>
+    <div className={`flex flex-col lg:flex-row gap-2 relative flex-1 min-h-0 ${isMobile ? 'h-[calc(100vh-200px)]' : 'h-full'}`}>
+      {/* List Sidebar - Mobile: full height when card/list view, PC: always visible; only this column scrolls on desktop */}
+      <div className={`${isMobile ? (view === 'map' ? 'hidden' : 'w-full h-full') : 'lg:w-[35%] lg:flex lg:flex-col lg:min-h-0'} ${view === 'map' && isMobile ? 'hidden' : 'block'}`}>
         {/* Mobile: Hide search bar (using top navigation), PC: Show header with Suppliers label and search button */}
         {!isMobile && (
           <>
             {renderPCSidebarHeader()}
             {(showSearchInput || searchTerm) && (
-              <div className="mb-4">
+              <div className="mb-4 flex-shrink-0">
                 <div className="relative">
                   <input
                     type="text"
@@ -442,7 +442,7 @@ export default function SuppliersList() {
             )}
           </>
         )}
-        <div className={`${isMobile && view === 'list' ? 'space-y-2' : 'space-y-4'} ${isMobile ? 'h-full overflow-y-auto' : 'overflow-y-auto max-h-[calc(100vh-280px)]'}`}>
+        <div className={`${isMobile && view === 'list' ? 'space-y-2' : 'space-y-4'} ${isMobile ? 'h-full overflow-y-auto' : 'lg:flex-1 lg:min-h-0 lg:overflow-y-auto'}`}>
           {filteredSuppliers.length === 0 ? (
             <div className="w-full flex items-center justify-center py-12 text-center">
               <p className="text-gray-600 text-lg">
@@ -465,8 +465,8 @@ export default function SuppliersList() {
         </div>
       </div>
       
-      {/* Map Side - Mobile: full height when map view, PC: always visible */}
-      <div className={`${isMobile ? (view === 'map' ? 'w-full h-full' : 'hidden') : 'lg:w-[65%] h-[calc(100vh-200px)]'} relative`}>
+      {/* Map Side - Mobile: full height when map view, PC: always visible; fixed height, no scroll */}
+      <div className={`${isMobile ? (view === 'map' ? 'w-full h-full' : 'hidden') : 'lg:w-[65%] lg:min-h-0 lg:flex-1'} relative flex-1 min-h-0`}>
         {/* Search bar overlay on map removed on mobile - using top navigation instead */}
         {selectedSupplier !== null && (
           <Button

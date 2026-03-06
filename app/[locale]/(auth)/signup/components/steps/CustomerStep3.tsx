@@ -155,30 +155,6 @@ export function CustomerStep3() {
         error={errors.confirmPassword?.message}
       />
 
-      {isContractor && (
-        <FormField
-          label={tFields('invitationCodeLabel')}
-          required
-          error={errors.invitationCode?.message}
-          tip="Enter the code you received from House Pros Hub to sign up as a contractor."
-        >
-          <Input
-            {...register('invitationCode')}
-            id="invitation-code"
-            type="text"
-            value={watch('invitationCode') ?? ''}
-            onChange={(e) => setValue('invitationCode', e.target.value.trim().toUpperCase())}
-            onClear={() => setValue('invitationCode', '')}
-            showClear
-            required
-            placeholder={tFields('invitationCodePlaceholder')}
-            disabled={isSubmitting}
-            error={errors.invitationCode?.message}
-            autoComplete="off"
-          />
-        </FormField>
-      )}
-
       <div>
         <label className="flex items-start">
           <input

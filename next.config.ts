@@ -9,8 +9,13 @@ const supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : null;
 
 const nextConfig: NextConfig = {
   /* config options here */
-  // Allow cross-origin requests from local network during development
-  allowedDevOrigins: ['192.168.0.26'],
+  // Allow cross-origin requests from local network during development (hostname and full origin)
+  allowedDevOrigins: [
+    '192.168.0.26',
+    '192.168.0.25',
+    'http://192.168.0.26:3000',
+    'http://192.168.0.25:3000',
+  ],
   images: {
     remotePatterns: [
       {
@@ -73,7 +78,7 @@ const nextConfig: NextConfig = {
               "font-src 'self' data: https://fonts.gstatic.com",
               // Allow connections to Google Maps APIs
               process.env.NODE_ENV === 'development'
-                ? "connect-src 'self' https: http://localhost:* http://127.0.0.1:* http://127.0.0.1:7243 https://maps.googleapis.com https://*.googleapis.com"
+                ? "connect-src 'self' https: http://localhost:* http://127.0.0.1:* http://192.168.0.25:3000 http://192.168.0.26:3000 http://127.0.0.1:7243 https://maps.googleapis.com https://*.googleapis.com"
                 : "connect-src 'self' https: https://maps.googleapis.com https://*.googleapis.com",
               "frame-ancestors 'self'",
               // Allow Google Maps worker scripts

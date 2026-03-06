@@ -7,7 +7,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useForm, useFieldArray, FormProvider } from 'react-hook-form';
 import type { FieldPath } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronDown, ChevronUp, Building2, Trash2, Globe, X, MessageCircle, Star, Home, Hammer, GripVertical, Phone, MapPin, AtSign, PenTool, Settings, FileText } from 'lucide-react';
+import { ChevronDown, ChevronUp, Building2, Trash2, Globe, X, MessageCircle, Star, Home, Hammer, GripVertical, Phone, MapPin, AtSign, PenTool, Settings, FileText, ImagePlus } from 'lucide-react';
 import { SiNextdoor, SiWhatsapp, SiYelp, SiInstagram, SiFacebook, SiLinkedin, SiTelegram } from 'react-icons/si';
 import { AngiIcon } from '@/components/ui/icons/AngiIcon';
 
@@ -19,13 +19,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import AddressAutocomplete, { AddressData } from '@/components/AddressAutocomplete';
-import { RESIDENTIAL_CONTRACTOR_LICENSES } from '@/lib/constants/contractorLicenses';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { processLinkValue } from '@/lib/utils/link-processor';
 import { LinkItem } from '@/components/proscard/ProLinks';
 import { validateFileSize } from '@/lib/utils/image';
 import { AddressRequiredModal } from '@/app/[locale]/(auth)/signup/components/AddressRequiredModal';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
+import { BackgroundImageEdit } from '@/components/businessdetails/BackgroundImageEdit';
+import { parseObjectPosition, formatObjectPosition } from '@/lib/utils/backgroundPosition';
 import { createSignInUrl } from '@/lib/redirect';
 import type { Locale } from '@/i18n';
 
@@ -92,9 +93,14 @@ export default function EditBusinessPage() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
+  const galleryImageInputRef = useRef<HTMLInputElement>(null);
+  const bgContainerRef = useRef<HTMLDivElement>(null);
+  const [bgDragStart, setBgDragStart] = useState<{ clientX: number; clientY: number; posX: number; posY: number } | null>(null);
 
   const [isBusinessInfoOpen, setIsBusinessInfoOpen] = useState(true);
   const [isAddressInfoOpen, setIsAddressInfoOpen] = useState(false);
+  const [isServicesOpen, setIsServicesOpen] = useState(false);
+  const [isImagesOpen, setIsImagesOpen] = useState(false);
   const [isContactInfoOpen, setIsContactInfoOpen] = useState(false);
   const [isLinksOpen, setIsLinksOpen] = useState(false);
   const [previewLogo, setPreviewLogo] = useState<string | null>(null);
@@ -105,11 +111,33 @@ export default function EditBusinessPage() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [selectedLinkType, setSelectedLinkType] = useState<LinkItem['type'] | ''>('');
   const [showAddressModal, setShowAddressModal] = useState(false);
+  const [galleryUploadError, setGalleryUploadError] = useState('');
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [showAdjustHint, setShowAdjustHint] = useState(false);
+  const [savedBgPosition, setSavedBgPosition] = useState('50% 50%');
+  const [isAdjustMode, setIsAdjustMode] = useState(false);
 
   // We still need the internal business ID for updates
   const [businessId, setBusinessId] = useState<string | null>(null);
   // Track logo URL attempts for fallback
   const [logoUrlAttempts, setLogoUrlAttempts] = useState<Set<string>>(new Set());
+  const [licenseCategories, setLicenseCategories] = useState<Array<{ id: string; code: string; name: string; requires_contractor_license: boolean; sort_order: number }>>([]);
+
+  useEffect(() => {
+    fetch('/api/license-categories')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.categories?.length) setLicenseCategories(data.categories);
+      })
+      .catch(() => {});
+  }, []);
+
+  const nonContractorCategories = useMemo(
+    () => licenseCategories.filter((c) => !c.requires_contractor_license).sort((a, b) => a.sort_order - b.sort_order),
+    [licenseCategories]
+  );
+  const isNonContractorLicense = (code: string) =>
+    nonContractorCategories.some((c) => c.code === code);
 
   const methods = useForm<BusinessFormValues>({
     resolver: zodResolver(businessSchema),
@@ -118,7 +146,10 @@ export default function EditBusinessPage() {
       slug: '',
       businessLogo: '',
       businessBackground: '',
+      businessBackgroundPosition: '50% 50%',
       licenses: [{ license: '', licenseNumber: '' }],
+      services: [],
+      images: [],
       streetAddress: '',
       city: '',
       state: 'NV',
@@ -150,6 +181,11 @@ export default function EditBusinessPage() {
     name: 'licenses',
   });
 
+  const { fields: serviceFields, prepend: prependService, remove: removeService, move: moveService } = useFieldArray({
+    control,
+    name: 'services',
+  });
+
   const { append: appendLink, remove: removeLink, move: moveLink } = useFieldArray({
     control,
     name: 'links',
@@ -157,6 +193,7 @@ export default function EditBusinessPage() {
 
   const watchedLinks = watch('links');
   const links = useMemo(() => watchedLinks ?? [], [watchedLinks]);
+  const businessBackgroundPosition = watch('businessBackgroundPosition') ?? '50% 50%';
   const mobilePhone = watch('mobilePhone');
   const phone = watch('phone');
   const streetAddress = watch('streetAddress');
@@ -170,6 +207,27 @@ export default function EditBusinessPage() {
 
   // Track if data has been loaded to prevent auto-add during initial load
   const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Drag-to-position background image
+  useEffect(() => {
+    if (!bgDragStart || !bgContainerRef.current) return;
+    const onMove = (e: MouseEvent) => {
+      const rect = bgContainerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const deltaX = ((e.clientX - bgDragStart.clientX) / rect.width) * 100;
+      const deltaY = ((e.clientY - bgDragStart.clientY) / rect.height) * 100;
+      const newX = Math.min(100, Math.max(0, bgDragStart.posX - deltaX));
+      const newY = Math.min(100, Math.max(0, bgDragStart.posY - deltaY));
+      setValue('businessBackgroundPosition', formatObjectPosition(newX, newY));
+    };
+    const onUp = () => setBgDragStart(null);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [bgDragStart, setValue]);
 
   // Auto-add phone number if available and not already added (only after data is loaded)
   useEffect(() => {
@@ -334,6 +392,13 @@ export default function EditBusinessPage() {
     }
   }, [isAuthenticated, isAuthLoading, router, slug, locale]);
 
+  // Show "drag to position" hint for a few seconds when user clicks "Adjust image"
+  useEffect(() => {
+    if (!showAdjustHint) return;
+    const t = setTimeout(() => setShowAdjustHint(false), 4000);
+    return () => clearTimeout(t);
+  }, [showAdjustHint]);
+
   // Load business data - fetch from API first to get latest data including images
   useEffect(() => {
     if (!slug) return;
@@ -429,13 +494,22 @@ export default function EditBusinessPage() {
               licenseNumber: license.licenseNumber,
             })) ?? [{ license: '', licenseNumber: '' }];
 
+          const mappedServices = (business.services && Array.isArray(business.services))
+            ? business.services.map((s: string) => ({ name: typeof s === 'string' ? s : (s as { name?: string })?.name ?? '' }))
+            : [];
+
+          const mappedImages = (business.images && Array.isArray(business.images)) ? business.images : [];
+
           const formData: BusinessFormValues = {
             businessName: business.businessName || '',
             slug: business.slug || '',
             companyDescription: business.companyDescription || '',
             businessLogo: business.businessLogo || business.logo || '',
             businessBackground: business.businessBackground || '',
+            businessBackgroundPosition: (business as { businessBackgroundPosition?: string }).businessBackgroundPosition ?? '50% 50%',
             licenses: mappedLicenses,
+            services: mappedServices.length > 0 ? mappedServices : [],
+            images: mappedImages,
             streetAddress: business.streetAddress || '',
             city: business.city || '',
             state: business.state || 'NV',
@@ -466,6 +540,7 @@ export default function EditBusinessPage() {
           
           setPreviewLogo(logoUrl);
           setPreviewBg(bgUrl);
+          setSavedBgPosition((business as { businessBackgroundPosition?: string }).businessBackgroundPosition ?? '50% 50%');
           setDataLoaded(true);
         } else {
           console.error('[Business Edit] Business not found in API or localStorage');
@@ -494,7 +569,7 @@ export default function EditBusinessPage() {
       return;
     }
 
-    if (!validateFileSize(file, 2)) {
+    if (!validateFileSize(file, 5)) {
       setErrorMessage(tBrand('imageSizeError'));
       if (logoInputRef.current) {
         logoInputRef.current.value = '';
@@ -602,7 +677,7 @@ export default function EditBusinessPage() {
       return;
     }
 
-    if (!validateFileSize(file, 2)) {
+    if (!validateFileSize(file, 5)) {
       setErrorMessage(tBrand('imageSizeError'));
       if (bgInputRef.current) {
         bgInputRef.current.value = '';
@@ -660,8 +735,11 @@ export default function EditBusinessPage() {
 
       const result = await response.json();
 
-      // Store the URL instead of base64
+      // Store the URL instead of base64; reset position so Edit (not Save) shows for new image
       setValue('businessBackground', result.url);
+      setValue('businessBackgroundPosition', '50% 50%');
+      setSavedBgPosition('50% 50%');
+      setIsAdjustMode(false);
     } catch (error) {
       console.error('Error uploading background:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to upload background');
@@ -674,6 +752,68 @@ export default function EditBusinessPage() {
     setValue('businessBackground', '');
     if (bgInputRef.current) {
       bgInputRef.current.value = '';
+    }
+  };
+
+  const handleGalleryImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    e.target.value = '';
+    if (!fileList?.length) return;
+
+    if (!businessId) {
+      setGalleryUploadError('Business ID is required. Please wait for the page to finish loading.');
+      return;
+    }
+
+    let current = watch('images') ?? [];
+    if (current.length >= 10) {
+      setGalleryUploadError('Maximum 10 images allowed.');
+      return;
+    }
+
+    const remaining = 10 - current.length;
+    const imageFiles = Array.from(fileList)
+      .filter((f) => f.type.startsWith('image/'))
+      .slice(0, remaining);
+
+    const invalidSize = imageFiles.find((f) => !validateFileSize(f, 5));
+    if (invalidSize) {
+      setGalleryUploadError(tBrand('imageSizeError'));
+      return;
+    }
+    if (imageFiles.length === 0) {
+      setGalleryUploadError(tBrand('imageTypeError'));
+      return;
+    }
+
+    setGalleryUploadError('');
+    setGalleryUploading(true);
+    try {
+      for (const file of imageFiles) {
+        const formDataObj = new FormData();
+        formDataObj.append('file', file);
+        formDataObj.append('businessId', businessId);
+
+        const response = await fetch('/api/storage/upload-business-image', {
+          method: 'POST',
+          body: formDataObj,
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || 'Failed to upload image');
+        }
+
+        const result = await response.json();
+        if (result?.url) {
+          current = [...current, result.url];
+          setValue('images', current);
+        }
+      }
+    } catch (error) {
+      setGalleryUploadError(error instanceof Error ? error.message : 'Failed to upload image');
+    } finally {
+      setGalleryUploading(false);
     }
   };
 
@@ -786,6 +926,7 @@ export default function EditBusinessPage() {
           slug: finalUpdate.slug,
           businessLogo: data.businessLogo || undefined,
           businessBackground: data.businessBackground || undefined,
+          businessBackgroundPosition: data.businessBackgroundPosition || undefined,
           companyDescription: data.companyDescription || undefined,
           email: data.email || undefined,
           phone: data.phone || undefined,
@@ -797,6 +938,8 @@ export default function EditBusinessPage() {
           state: data.state || undefined,
           zipCode: data.zipCode || undefined,
           licenses: data.licenses || undefined,
+          services: data.services || undefined,
+          images: data.images || undefined,
         }),
       });
 
@@ -808,13 +951,18 @@ export default function EditBusinessPage() {
       const updateResult = await updateResponse.json();
       
       // Update localStorage with the response from API (which has the latest data)
+      const storageUpdate = {
+        ...finalUpdate,
+        licenses: transformedData.licenses,
+        services: transformedData.services,
+      };
       if (updateResult.business) {
         businessStorage.updateBusiness(businessId, {
-          ...finalUpdate,
+          ...storageUpdate,
           ...updateResult.business,
         });
       } else {
-        businessStorage.updateBusiness(businessId, finalUpdate);
+        businessStorage.updateBusiness(businessId, storageUpdate);
       }
 
       setSuccessMessage('Business updated successfully!');
@@ -822,6 +970,8 @@ export default function EditBusinessPage() {
       // Collapse all accordions after successful save so user can see the confirmation message
       setIsBusinessInfoOpen(false);
       setIsAddressInfoOpen(false);
+      setIsServicesOpen(false);
+      setIsImagesOpen(false);
       setIsContactInfoOpen(false);
       setIsLinksOpen(false);
       
@@ -870,6 +1020,8 @@ export default function EditBusinessPage() {
                   setIsBusinessInfoOpen(newValue);
                   if (newValue) {
                     setIsAddressInfoOpen(false);
+                    setIsServicesOpen(false);
+                    setIsImagesOpen(false);
                     setIsContactInfoOpen(false);
                     setIsLinksOpen(false);
                   }
@@ -888,10 +1040,10 @@ export default function EditBusinessPage() {
                 <div className="px-4 pb-4 border-t-2 border-black space-y-6 pt-6">
                   {/* Profile Preview Section (Logo & Background) */}
                   <div className="space-y-2">
-                    <label className="block text-sm font-bold text-black uppercase tracking-wider">Business Brand</label>
+                    <label className="block text-sm font-bold text-black uppercase tracking-wider mb-0">Business Brand</label>
                     <div className="relative w-full h-[200px] md:h-[300px] lg:h-[350px] group">
                       {/* Background Container with Overflow Hidden */}
-                      <div className="absolute inset-0 rounded-lg border-2 border-black bg-white overflow-hidden">
+                      <div ref={bgContainerRef} className="absolute inset-0 rounded-lg border-2 border-black bg-white overflow-hidden">
                         {/* Background Image (if exists) */}
                         {previewBg && (
                           <div className="absolute inset-0 w-full h-full pointer-events-none">
@@ -900,7 +1052,8 @@ export default function EditBusinessPage() {
                               alt="Background preview"
                               fill
                               sizes="(max-width: 768px) 100vw, 800px"
-                              className="object-cover object-center"
+                              className="object-cover"
+                              style={{ objectPosition: businessBackgroundPosition }}
                               unoptimized
                               onError={(e) => {
                                 console.error('[Business Edit] Error loading background image:', previewBg);
@@ -913,30 +1066,74 @@ export default function EditBusinessPage() {
                           </div>
                         )}
                         
-                        {/* Background Upload/Click Area - Always covers full area */}
-                        <div 
-                          onClick={() => bgInputRef.current?.click()}
-                          className="absolute inset-0 w-full h-full cursor-pointer hover:bg-gray-50/30 transition-colors z-20"
-                        >
-                          {!previewBg && (
+                        {/* When no image: click to upload. When image: only allow drag when user chose "Adjust image". */}
+                        {previewBg ? (
+                          <>
+                            {showAdjustHint && (
+                              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[25] px-3 py-2 rounded-lg bg-black/80 text-white text-xs font-medium shadow-lg pointer-events-none animate-in fade-in duration-200">
+                                {tBrand('adjustImageHint')}
+                              </div>
+                            )}
+                            {isAdjustMode ? (
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onMouseDown={(e) => {
+                                  if (e.button !== 0) return;
+                                  e.preventDefault();
+                                  const pos = parseObjectPosition(businessBackgroundPosition);
+                                  setBgDragStart({ clientX: e.clientX, clientY: e.clientY, posX: pos.x, posY: pos.y });
+                                }}
+                                onKeyDown={() => {}}
+                                className="absolute inset-0 w-full h-full z-20 cursor-grab active:cursor-grabbing"
+                                aria-label="Drag to position background image"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 w-full h-full z-20 pointer-events-none" aria-hidden />
+                            )}
+                          </>
+                        ) : (
+                          <div
+                            onClick={() => bgInputRef.current?.click()}
+                            className="absolute inset-0 w-full h-full cursor-pointer hover:bg-gray-50/30 transition-colors z-20"
+                          >
                             <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1">
                               <Building2 className="w-8 h-8 opacity-20" />
                               <span className="text-[10px] font-bold uppercase tracking-wider">Click to upload background</span>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                         
-                        {/* Background Remove Control */}
+                        {/* Edit + Remove: only when there is a background image */}
                         {previewBg && (
                           <div className="absolute top-2 right-2 flex gap-2 z-30">
+                            <BackgroundImageEdit
+                              inline
+                              position={businessBackgroundPosition}
+                              savedPosition={savedBgPosition}
+                              onSave={() => {
+                                setSavedBgPosition(businessBackgroundPosition);
+                                setIsAdjustMode(false);
+                              }}
+                              onPositionChange={(pos) => setValue('businessBackgroundPosition', pos)}
+                              onUploadClick={() => bgInputRef.current?.click()}
+                              onAdjustClick={() => {
+                                setSavedBgPosition(businessBackgroundPosition);
+                                setShowAdjustHint(true);
+                                setIsAdjustMode(true);
+                              }}
+                              adjustImageLabel={tBrand('adjustImage')}
+                              uploadNewLabel={tBrand('uploadNew')}
+                            />
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleRemoveBg();
                               }}
-                              className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md cursor-pointer"
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-black shadow hover:bg-gray-50 transition-colors cursor-pointer"
                               title="Remove background"
+                              aria-label="Remove background"
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -1038,6 +1235,14 @@ export default function EditBusinessPage() {
                       type="file"
                       accept="image/*"
                       onChange={handleBgChange}
+                      className="hidden"
+                    />
+                    <input
+                      ref={galleryImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleGalleryImageChange}
                       className="hidden"
                     />
                   </div>
@@ -1167,8 +1372,9 @@ export default function EditBusinessPage() {
                                 {/* Form Fields */}
                                 <div className="space-y-3">
                                   <FormField
-                                    label="License Classification"
+                                    label={tBusinessForm('licenses.licenseClassificationLabel')}
                                     required
+                                    tip={tBusinessForm('licenses.licenseClassificationTip')}
                                     error={licenseErrors?.[index]?.license?.message}
                                   >
                                     <select
@@ -1200,18 +1406,21 @@ export default function EditBusinessPage() {
                                       value={watch(`licenses.${index}.license`) || ''}
                                     >
                                       <option value="">Select classification</option>
-                                      <option value="GENERAL">GENERAL - General Contractor License</option>
-                                      {RESIDENTIAL_CONTRACTOR_LICENSES.map((license) => (
-                                        <option key={license.code} value={license.code}>
-                                          {license.code} - {license.name}
+                                      {[
+                                        ...nonContractorCategories,
+                                        ...licenseCategories.filter((c) => c.requires_contractor_license).sort((a, b) => a.sort_order - b.sort_order),
+                                      ].map((cat) => (
+                                        <option key={cat.id} value={cat.code}>
+                                          {cat.code} - {cat.name}
                                         </option>
                                       ))}
                                     </select>
                                   </FormField>
 
                                   <FormField 
-                                    label="License Number" 
+                                    label={isNonContractorLicense(currentLicenses[index]?.license ?? '') ? tBusinessForm('licenses.licenseNumberLabelHandyman') : tBusinessForm('licenses.licenseNumberLabel')} 
                                     required
+                                    tip={isNonContractorLicense(currentLicenses[index]?.license ?? '') ? tBusinessForm('licenses.licenseNumberTipHandyman') : tBusinessForm('licenses.licenseNumberTip')}
                                     error={licenseErrors?.[index]?.licenseNumber?.message}
                                   >
                                     <Input
@@ -1239,7 +1448,7 @@ export default function EditBusinessPage() {
                                         methods.clearErrors(`licenses.${index}.licenseNumber` as FieldPath<BusinessFormValues>);
                                       }}
                                       showClear
-                                      placeholder="Enter license number"
+                                      placeholder={isNonContractorLicense(currentLicenses[index]?.license ?? '') ? tBusinessForm('licenses.licenseNumberPlaceholderHandyman') : 'Enter license number'}
                                       disabled={isSubmitting}
                                       required
                                       error={licenseErrors?.[index]?.licenseNumber?.message}
@@ -1266,6 +1475,8 @@ export default function EditBusinessPage() {
                   setIsAddressInfoOpen(newValue);
                   if (newValue) {
                     setIsBusinessInfoOpen(false);
+                    setIsServicesOpen(false);
+                    setIsImagesOpen(false);
                     setIsContactInfoOpen(false);
                     setIsLinksOpen(false);
                   }
@@ -1340,6 +1551,154 @@ export default function EditBusinessPage() {
               )}
             </div>
 
+            {/* Services */}
+            <div className="border-2 border-black rounded-lg bg-white">
+              <button
+                type="button"
+                onClick={() => {
+                  const newValue = !isServicesOpen;
+                  setIsServicesOpen(newValue);
+                  if (newValue) {
+                    setIsBusinessInfoOpen(false);
+                    setIsAddressInfoOpen(false);
+                    setIsImagesOpen(false);
+                    setIsContactInfoOpen(false);
+                    setIsLinksOpen(false);
+                  }
+                }}
+                className="w-full flex items-center justify-between p-4 text-left cursor-pointer"
+              >
+                <h2 className="text-xl font-bold text-black">{tBusinessForm('stepLabels.services')}</h2>
+                {isServicesOpen ? (
+                  <ChevronUp className="w-5 h-5 text-black shrink-0 ml-4" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-black shrink-0 ml-4" />
+                )}
+              </button>
+
+              {isServicesOpen && (
+                <div className="px-4 pb-4 border-t-2 border-black space-y-4 pt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">{tBusinessForm('services.servicesHelp')}</span>
+                    <button
+                      type="button"
+                      onClick={() => prependService({ name: '' })}
+                      className="px-3 py-1.5 text-sm border-2 border-black rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 cursor-pointer"
+                      disabled={isSubmitting}
+                    >
+                      {tBusinessForm('services.addServiceButton')}
+                    </button>
+                  </div>
+                  {serviceFields.length === 0 ? (
+                    <p className="text-gray-500 text-sm">{tBusinessForm('services.noServices')}</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {serviceFields.map((field, index) => (
+                        <div key={field.id} className="flex items-center gap-2">
+                          <Input
+                            {...register(`services.${index}.name` as FieldPath<BusinessFormValues>)}
+                            type="text"
+                            value={watch(`services.${index}.name`) ?? ''}
+                            onClear={() => setValue(`services.${index}.name` as FieldPath<BusinessFormValues>, '')}
+                            showClear
+                            placeholder={tBusinessForm('services.serviceNamePlaceholder')}
+                            disabled={isSubmitting}
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeService(index)}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded cursor-pointer"
+                            disabled={isSubmitting}
+                            aria-label={tBusinessForm('services.removeServiceAria', { index: index + 1 })}
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Gallery Images */}
+            <div className="border-2 border-black rounded-lg bg-white">
+              <button
+                type="button"
+                onClick={() => {
+                  const newValue = !isImagesOpen;
+                  setIsImagesOpen(newValue);
+                  if (newValue) {
+                    setGalleryUploadError('');
+                    setIsBusinessInfoOpen(false);
+                    setIsAddressInfoOpen(false);
+                    setIsServicesOpen(false);
+                    setIsContactInfoOpen(false);
+                    setIsLinksOpen(false);
+                  }
+                }}
+                className="w-full flex items-center justify-between p-4 text-left cursor-pointer"
+              >
+                <h2 className="text-xl font-bold text-black">{tBusinessForm('stepLabels.images')}</h2>
+                {isImagesOpen ? (
+                  <ChevronUp className="w-5 h-5 text-black shrink-0 ml-4" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-black shrink-0 ml-4" />
+                )}
+              </button>
+
+              {isImagesOpen && (
+                <div className="px-4 pb-4 border-t-2 border-black space-y-4 pt-4">
+                  <p className="text-sm text-gray-600">
+                    {tBusinessForm('images.imagesHelp', { max: 10 })}
+                  </p>
+                  {galleryUploadError && (
+                    <p className="text-sm text-red-600" role="alert">
+                      {galleryUploadError}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <button
+                      type="button"
+                      onClick={() => galleryImageInputRef.current?.click()}
+                      disabled={(watch('images') ?? []).length >= 10 || !businessId || galleryUploading}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-black bg-white text-black font-medium hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
+                    >
+                      <ImagePlus className="w-4 h-4 shrink-0" />
+                      {galleryUploading ? 'Uploading…' : tBusinessForm('images.addImageButton')}
+                    </button>
+                  </div>
+                  {(watch('images') ?? []).length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {(watch('images') ?? []).map((url: string, index: number) => (
+                        <div key={`${url}-${index}`} className="relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-100">
+                          <Image
+                            src={url}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const list = (watch('images') ?? []).filter((_: string, i: number) => i !== index);
+                              setValue('images', list);
+                            }}
+                            className="absolute top-1 right-1 p-1 rounded-full bg-black/70 text-white hover:bg-black"
+                            aria-label={tBusinessForm('images.removeImageAria', { index: index + 1 })}
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Contact Information */}
             <div className="border-2 border-black rounded-lg bg-white">
               <button
@@ -1350,6 +1709,8 @@ export default function EditBusinessPage() {
                   if (newValue) {
                     setIsBusinessInfoOpen(false);
                     setIsAddressInfoOpen(false);
+                    setIsServicesOpen(false);
+                    setIsImagesOpen(false);
                     setIsLinksOpen(false);
                   }
                 }}
@@ -1419,6 +1780,8 @@ export default function EditBusinessPage() {
                   if (newValue) {
                     setIsBusinessInfoOpen(false);
                     setIsAddressInfoOpen(false);
+                    setIsServicesOpen(false);
+                    setIsImagesOpen(false);
                     setIsContactInfoOpen(false);
                   }
                 }}

@@ -40,6 +40,8 @@ export interface LinkItem {
 interface ProLinksProps {
   links: LinkItem[];
   maxLinks?: number;
+  /** When provided and user is not signed in, calling a protected link invokes this instead of redirecting to sign-in */
+  onSignInRequired?: () => void;
 }
 
 // Type for icon components (both lucide-react and react-icons)
@@ -68,7 +70,7 @@ const iconMap: Partial<Record<LinkItem['type'], IconComponent>> = {
   angi: AngiIcon,
 };
 
-export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
+export default function ProLinks({ links, maxLinks = 7, onSignInRequired }: ProLinksProps) {
   const visibleLinks = links.slice(0, maxLinks);
   const linkCount = visibleLinks.length;
   const shouldSpaceBetween = linkCount === 7;
@@ -121,12 +123,12 @@ export default function ProLinks({ links, maxLinks = 7 }: ProLinksProps) {
     e.stopPropagation();
     
     if (isProtectedLink(link.type)) {
-      // Check authentication for protected links
-      if (isLoading) {
-        return;
-      }
-      
+      if (isLoading) return;
       if (!isAuthenticated) {
+        if (onSignInRequired) {
+          onSignInRequired();
+          return;
+        }
         const signInUrl = createSignInUrl(locale as 'en' | 'es', pathname);
         router.push(signInUrl);
         return;

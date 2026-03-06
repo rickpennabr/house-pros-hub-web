@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
@@ -10,6 +10,13 @@ import { Building2, Check, X } from 'lucide-react';
 import type { BusinessFormValues } from '@/lib/schemas/business';
 import { resizeImage, validateFileSize } from '@/lib/utils/image';
 import { generateSlug } from '@/lib/utils/businessTransform';
+import { parseObjectPosition, formatObjectPosition } from '@/lib/utils/backgroundPosition';
+import { BackgroundImageEdit } from '@/components/businessdetails/BackgroundImageEdit';
+import Modal from '@/components/ui/Modal';
+import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
+
+const LOGO_MAX_MB = 5;
+const BACKGROUND_MAX_MB = 5;
 
 export function BusinessStep1() {
   const t = useTranslations('businessForm.brand');
@@ -17,14 +24,64 @@ export function BusinessStep1() {
   
   const businessLogo = watch('businessLogo');
   const businessBackground = watch('businessBackground');
+  const businessBackgroundPosition = watch('businessBackgroundPosition') ?? '50% 50%';
   const businessName = watch('businessName');
   const slug = watch('slug');
   const logoPreview = businessLogo || null;
   const bgPreview = businessBackground || null;
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
+  const [imageErrorModal, setImageErrorModal] = useState<string | null>(null);
+  const [showAdjustHint, setShowAdjustHint] = useState(false);
+  const [savedBgPosition, setSavedBgPosition] = useState('50% 50%');
+  const [isAdjustMode, setIsAdjustMode] = useState(false);
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
+  const bgContainerRef = useRef<HTMLDivElement>(null);
+  const [dragStart, setDragStart] = useState<{ clientX: number; clientY: number; posX: number; posY: number } | null>(null);
+
+  // Typing animation for placeholders (same idea as customer signup steps)
+  const businessNamePlaceholder = t('businessNamePlaceholder');
+  const userNamePlaceholder = t('userNamePlaceholder');
+  const descriptionPlaceholder = t('descriptionPlaceholder');
+  const placeholders = useMemo(
+    () => [businessNamePlaceholder, userNamePlaceholder, descriptionPlaceholder],
+    [businessNamePlaceholder, userNamePlaceholder, descriptionPlaceholder]
+  );
+  const animatedPlaceholders = useTypingPlaceholder({
+    placeholders,
+    typingSpeed: 50,
+    delayBetweenFields: 300,
+    startDelay: 500,
+  });
+
+  // Show "drag to position" hint for a few seconds when user clicks "Adjust image"
+  useEffect(() => {
+    if (!showAdjustHint) return;
+    const t = setTimeout(() => setShowAdjustHint(false), 4000);
+    return () => clearTimeout(t);
+  }, [showAdjustHint]);
+
+  // Drag-to-position background image
+  useEffect(() => {
+    if (!dragStart || !bgContainerRef.current) return;
+    const onMove = (e: MouseEvent) => {
+      const rect = bgContainerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const deltaX = ((e.clientX - dragStart.clientX) / rect.width) * 100;
+      const deltaY = ((e.clientY - dragStart.clientY) / rect.height) * 100;
+      const newX = Math.min(100, Math.max(0, dragStart.posX - deltaX));
+      const newY = Math.min(100, Math.max(0, dragStart.posY - deltaY));
+      setValue('businessBackgroundPosition', formatObjectPosition(newX, newY));
+    };
+    const onUp = () => setDragStart(null);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [dragStart, setValue]);
 
   // Auto-suggestion logic for slug
   useEffect(() => {
@@ -86,15 +143,15 @@ export function BusinessStep1() {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        alert(t('imageTypeError'));
+        setImageErrorModal(t('imageTypeError'));
         if (logoInputRef.current) {
           logoInputRef.current.value = '';
         }
         return;
       }
 
-      if (!validateFileSize(file, 2)) {
-        alert(t('imageSizeError'));
+      if (!validateFileSize(file, LOGO_MAX_MB)) {
+        setImageErrorModal(t('imageSizeError'));
         if (logoInputRef.current) {
           logoInputRef.current.value = '';
         }
@@ -121,15 +178,15 @@ export function BusinessStep1() {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        alert(t('imageTypeError'));
+        setImageErrorModal(t('imageTypeError'));
         if (bgInputRef.current) {
           bgInputRef.current.value = '';
         }
         return;
       }
 
-      if (!validateFileSize(file, 2)) {
-        alert(t('imageSizeError'));
+      if (!validateFileSize(file, BACKGROUND_MAX_MB)) {
+        setImageErrorModal(t('imageSizeError'));
         if (bgInputRef.current) {
           bgInputRef.current.value = '';
         }
@@ -143,9 +200,14 @@ export function BusinessStep1() {
           // Resize background to 800px width (larger than logo)
           const resized = await resizeImage(result, 800, 400, 0.6);
           setValue('businessBackground', resized);
+          setValue('businessBackgroundPosition', '50% 50%');
+          setSavedBgPosition('50% 50%');
+          setIsAdjustMode(false);
         } catch (error) {
           console.error('Error resizing background image:', error);
           setValue('businessBackground', result);
+          setSavedBgPosition('50% 50%');
+          setIsAdjustMode(false);
         }
       };
       reader.readAsDataURL(file);
@@ -153,13 +215,16 @@ export function BusinessStep1() {
   };
 
   return (
+    <>
     <div className="space-y-6 flex-1">
       {/* Profile Preview Section (Logo & Background) */}
       <div className="space-y-2">
-        <label className="block text-sm font-bold text-black uppercase tracking-wider">{t('sectionTitle')}</label>
-        <div className="relative w-full h-[200px] md:h-[300px] lg:h-[350px] group">
-          {/* Background Container with Overflow Hidden */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] h-[95%] rounded-lg border-2 border-black bg-white overflow-hidden">
+        <label className="block text-sm font-bold text-black uppercase tracking-wider mb-0">{t('sectionTitle')}</label>
+        {/* Full-bleed wrapper: only the background block extends to column edges (matches AuthPageLayout px-3 md:px-12) */}
+        <div className="-mx-3 md:-mx-12 w-[calc(100%+1.5rem)] md:w-[calc(100%+6rem)]">
+          <div className="relative w-full h-[200px] md:h-[300px] lg:h-[350px] group">
+            {/* Background Container - full width of this (full-bleed) area */}
+            <div ref={bgContainerRef} className="absolute inset-0 rounded-lg border-2 border-black bg-white overflow-hidden">
             {/* Background Image (if exists) */}
             {bgPreview && (
               <div className="absolute inset-0 w-full h-full pointer-events-none">
@@ -168,28 +233,72 @@ export function BusinessStep1() {
                   alt="Background preview"
                   fill
                   sizes="(max-width: 768px) 100vw, 800px"
-                  className="object-cover object-center"
+                  className="object-cover"
+                  style={{ objectPosition: businessBackgroundPosition }}
                   unoptimized
                 />
               </div>
             )}
             
-            {/* Background Upload/Click Area - Always covers full area */}
-            <div 
-              onClick={() => bgInputRef.current?.click()}
-              className="absolute inset-0 w-full h-full cursor-pointer hover:bg-gray-50/30 transition-colors z-10"
-            >
-              {!bgPreview && (
+            {/* When no image: click to upload. When image: only allow drag when user chose "Adjust image". */}
+            {bgPreview ? (
+              <>
+                {showAdjustHint && (
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[25] px-3 py-2 rounded-lg bg-black/80 text-white text-xs font-medium shadow-lg pointer-events-none animate-in fade-in duration-200">
+                    {t('adjustImageHint')}
+                  </div>
+                )}
+                {isAdjustMode ? (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onMouseDown={(e) => {
+                      if (e.button !== 0) return;
+                      e.preventDefault();
+                      const pos = parseObjectPosition(businessBackgroundPosition);
+                      setDragStart({ clientX: e.clientX, clientY: e.clientY, posX: pos.x, posY: pos.y });
+                    }}
+                    onKeyDown={() => {}}
+                    className="absolute inset-0 w-full h-full z-10 cursor-grab active:cursor-grabbing"
+                    aria-label="Drag to position background image"
+                  />
+                ) : (
+                  <div className="absolute inset-0 w-full h-full z-10 pointer-events-none" aria-hidden />
+                )}
+              </>
+            ) : (
+              <div
+                onClick={() => bgInputRef.current?.click()}
+                className="absolute inset-0 w-full h-full cursor-pointer hover:bg-gray-50/30 transition-colors z-10"
+              >
                 <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1">
                   <Building2 className="w-8 h-8 opacity-20" />
                   <span className="text-[10px] font-bold uppercase tracking-wider">{t('clickUploadBackground')}</span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
             
-            {/* Background Edit/Remove Controls */}
+            {/* Edit + Remove: only when there is a background image (bottom so they don't overlap the page header when scrolling) */}
             {bgPreview && (
-              <div className="absolute top-2 right-2 flex gap-2 z-20">
+              <div className="absolute bottom-2 right-2 flex gap-2 z-20">
+                <BackgroundImageEdit
+                  inline
+                  position={businessBackgroundPosition}
+                  savedPosition={savedBgPosition}
+                  onSave={() => {
+                    setSavedBgPosition(businessBackgroundPosition);
+                    setIsAdjustMode(false);
+                  }}
+                  onPositionChange={(pos) => setValue('businessBackgroundPosition', pos)}
+                  onUploadClick={() => bgInputRef.current?.click()}
+                  onAdjustClick={() => {
+                    setSavedBgPosition(businessBackgroundPosition);
+                    setShowAdjustHint(true);
+                    setIsAdjustMode(true);
+                  }}
+                  adjustImageLabel={t('adjustImage')}
+                  uploadNewLabel={t('uploadNew')}
+                />
                 <button
                   type="button"
                   onClick={(e) => {
@@ -199,55 +308,57 @@ export function BusinessStep1() {
                       bgInputRef.current.value = '';
                     }
                   }}
-                  className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md cursor-pointer"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-black shadow hover:bg-gray-50 transition-colors cursor-pointer"
                   title={t('removeBackgroundTitle')}
+                  aria-label="Remove background"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             )}
-          </div>
+            </div>
 
-          {/* Logo Upload/Preview (Overlapping Bottom Center) */}
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-10">
-            <div 
-              onClick={() => logoInputRef.current?.click()}
-              className="w-24 h-24 rounded-lg border-4 border-white bg-white shadow-xl overflow-hidden flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform relative"
-            >
-              {logoPreview ? (
-                <div className="relative w-full h-full pointer-events-none">
-                  <Image
-                    src={logoPreview}
-                    alt="Logo preview"
-                    fill
-                    sizes="96px"
-                    className="object-cover object-center"
-                    unoptimized
-                  />
-                </div>
-              ) : (
-                <div className="w-full h-full bg-black flex flex-col items-center justify-center text-white gap-1 p-2">
-                  <Building2 className="w-6 h-6" />
-                  <span className="text-[8px] font-bold uppercase text-center">{t('uploadLogo')}</span>
-                </div>
+            {/* Logo Upload/Preview (Overlapping Bottom Center) */}
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-10">
+              <div 
+                onClick={() => logoInputRef.current?.click()}
+                className="w-24 h-24 rounded-lg border-4 border-white bg-white shadow-xl overflow-hidden flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform relative"
+              >
+                {logoPreview ? (
+                  <div className="relative w-full h-full pointer-events-none">
+                    <Image
+                      src={logoPreview}
+                      alt="Logo preview"
+                      fill
+                      sizes="96px"
+                      className="object-cover object-center"
+                      unoptimized
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full bg-black flex flex-col items-center justify-center text-white gap-1 p-2">
+                    <Building2 className="w-6 h-6" />
+                    <span className="text-[8px] font-bold uppercase text-center">{t('uploadLogo')}</span>
+                  </div>
+                )}
+              </div>
+              {logoPreview && typeof logoPreview === 'string' && logoPreview.trim() !== '' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setValue('businessLogo', '');
+                    if (logoInputRef.current) {
+                      logoInputRef.current.value = '';
+                    }
+                  }}
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors shadow-lg z-20"
+                  title={t('removeLogoTitle')}
+                >
+                  <X className="w-3 h-3 text-white" />
+                </button>
               )}
             </div>
-            {logoPreview && typeof logoPreview === 'string' && logoPreview.trim() !== '' && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setValue('businessLogo', '');
-                  if (logoInputRef.current) {
-                    logoInputRef.current.value = '';
-                  }
-                }}
-                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors shadow-lg z-20"
-                title={t('removeLogoTitle')}
-              >
-                <X className="w-3 h-3 text-white" />
-              </button>
-            )}
           </div>
         </div>
 
@@ -281,7 +392,7 @@ export function BusinessStep1() {
             onClear={() => setValue('businessName', '')}
             showClear
             required
-            placeholder={t('businessNamePlaceholder')}
+            placeholder={animatedPlaceholders[0]}
             disabled={isSubmitting}
             error={errors.businessName?.message}
           />
@@ -310,7 +421,7 @@ export function BusinessStep1() {
                   setValue('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'), { shouldValidate: true });
                 }}
                 className="w-full bg-transparent px-3 py-2.5 pr-9 focus:outline-none text-sm font-bold text-black"
-                placeholder={t('userNamePlaceholder')}
+                placeholder={animatedPlaceholders[1]}
                 disabled={isSubmitting}
               />
               {slug && (
@@ -355,10 +466,32 @@ export function BusinessStep1() {
           className={`w-full px-4 py-2 border-2 border-black rounded-lg focus:outline-none resize-none transition-all ${
             errors.companyDescription ? 'border-red-500 focus:border-red-500' : ''
           }`}
-          placeholder={t('descriptionPlaceholder')}
+          placeholder={animatedPlaceholders[2]}
           disabled={isSubmitting}
         />
       </FormField>
     </div>
+
+    <Modal
+      isOpen={!!imageErrorModal}
+      onClose={() => setImageErrorModal(null)}
+      title="Image upload"
+      showHeader
+      maxWidth="sm"
+    >
+      {imageErrorModal && (
+        <div className="p-4">
+          <p className="text-black">{imageErrorModal}</p>
+          <button
+            type="button"
+            onClick={() => setImageErrorModal(null)}
+            className="mt-4 px-4 py-2 rounded-lg border-2 border-black bg-black text-white cursor-pointer hover:bg-gray-800 transition-colors"
+          >
+            OK
+          </button>
+        </div>
+      )}
+    </Modal>
+    </>
   );
 }

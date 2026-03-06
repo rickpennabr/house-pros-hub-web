@@ -111,7 +111,7 @@ function SortHeader({
         <div className="absolute left-0 top-full mt-1 z-50 min-w-[140px] py-1 bg-white border border-gray-200 rounded-md shadow-lg text-black">
           <button
             type="button"
-            className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+            className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
             onClick={() => {
               onSort(sortKey, 'asc');
               setOpen(false);
@@ -121,7 +121,7 @@ function SortHeader({
           </button>
           <button
             type="button"
-            className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+            className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
             onClick={() => {
               onSort(sortKey, 'desc');
               setOpen(false);
@@ -337,7 +337,7 @@ export function AdminDataTable<T>({
           </div>
           <button
             type="submit"
-            className="h-9 px-4 rounded-md bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors"
+            className="h-9 px-4 rounded-md bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
           >
             Search
           </button>

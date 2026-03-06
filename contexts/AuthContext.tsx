@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isValidEmail, isValidPassword, isNotEmpty } from '@/lib/validation';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
@@ -147,6 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = useMemo(() => createClient(), []);
+  /** Prevents onAuthStateChange from calling loadUserFromSession while login() is doing it (avoids duplicate /api/auth/me). */
+  const loginInProgressRef = useRef(false);
 
   /**
    * Load user data from Supabase session
@@ -187,27 +189,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Map Supabase user and profile to our User interface
       const mappedUser = mapSupabaseUserToUser(session.user, profile, companyName);
       setUser(mappedUser);
-      // Fetch admin status and roles from server (ADMIN_EMAIL not exposed to client)
-      try {
-        const res = await fetch('/api/auth/me', { credentials: 'include' });
-        if (res.ok) {
-          const { isAdmin: admin, roles: userRoles } = await res.json();
+      // Complete loading immediately so login/sign-in can resolve (avoids timeout when
+      // cookies aren't yet updated after sign-in and /api/auth/me would hang or take 5s).
+      setIsLoading(false);
+
+      // Fetch admin status and roles in the background; do not block on this so that
+      // sign-in after sign-out in the same browser completes without hitting the 10s timeout.
+      fetch('/api/auth/me', { credentials: 'include' })
+        .then((res) => (res.ok ? res.json() : { isAdmin: false, roles: [] }))
+        .then(({ isAdmin: admin, roles: userRoles }) => {
           setIsAdmin(!!admin);
           setRoles(Array.isArray(userRoles) ? userRoles : []);
-        } else {
+        })
+        .catch(() => {
           setIsAdmin(false);
           setRoles([]);
-        }
-      } catch {
-        setIsAdmin(false);
-        setRoles([]);
-      }
+        });
     } catch (error) {
       console.error('Error loading user from session:', error);
       setUser(null);
       setIsAdmin(false);
       setRoles([]);
-    } finally {
       setIsLoading(false);
     }
   }, [supabase]);
@@ -215,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = useCallback(async () => {
     try {
       setIsLoading(true);
-      
+
       if (typeof window === 'undefined') {
         setIsLoading(false);
         return;
@@ -248,7 +250,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (response.ok) {
           const { user: apiUser, isAdmin: apiIsAdmin, roles: userRoles } = await response.json();
           if (apiUser) {
-            // Map API user response to our User interface
             setUser({
               id: apiUser.id,
               email: apiUser.email,
@@ -304,7 +305,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        await loadUserFromSession(session);
+        // login() already calls loadUserFromSession; skip duplicate to avoid two /api/auth/me requests
+        if (!loginInProgressRef.current) {
+          await loadUserFromSession(session);
+        }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setIsAdmin(false);
@@ -319,34 +323,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [checkAuth, loadUserFromSession, supabase]);
 
   const login = useCallback(async (email: string, password: string): Promise<void> => {
-    // Normalize email
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Validate input
     if (!isValidEmail(normalizedEmail)) {
       throw new Error('Invalid email format');
     }
-
     if (!isValidPassword(password)) {
       throw new Error('Password must be at least 6 characters');
     }
 
-    // Sign in with Supabase
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
+    loginInProgressRef.current = true;
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
 
-    if (error) {
-      throw new Error(getErrorMessage(error));
+      if (error) {
+        throw new Error(getErrorMessage(error));
+      }
+      if (!data.session) {
+        throw new Error('Failed to create session');
+      }
+
+      await loadUserFromSession(data.session);
+    } finally {
+      loginInProgressRef.current = false;
     }
-
-    if (!data.session) {
-      throw new Error('Failed to create session');
-    }
-
-    // Load user data from session
-    await loadUserFromSession(data.session);
   }, [supabase, loadUserFromSession]);
 
   const signup = useCallback(async (userData: SignupData): Promise<User> => {
@@ -548,13 +551,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase, loadUserFromSession]);
 
   const logout = useCallback(async (): Promise<void> => {
+    // Clear presence so this user/business show offline immediately (e.g. on business list)
+    try {
+      await fetch('/api/chat/presence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'offline' }),
+        credentials: 'include',
+      });
+    } catch {
+      // ignore
+    }
+
     const { error } = await supabase.auth.signOut();
-    
+
     if (error) {
       console.error('Error signing out:', error);
       // Still clear user state even if signOut fails
     }
-    
+
     setUser(null);
     setIsAdmin(false);
     setRoles([]);
@@ -708,6 +723,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Password must be at least 8 characters and contain uppercase, lowercase, and number');
     }
 
+    console.log('[AuthContext] resetPassword: calling /api/auth/reset-password');
     // Call API endpoint
     const response = await fetch('/api/auth/reset-password', {
       method: 'POST',
@@ -718,17 +734,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ password: newPassword }),
     });
 
+    console.log('[AuthContext] resetPassword: response', { status: response.status, ok: response.ok });
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Failed to reset password' }));
+      console.error('[AuthContext] resetPassword: API error', errorData);
       throw new Error(errorData.error || 'Failed to reset password');
     }
 
     // Get user data from response
     const result = await response.json();
-    
+    console.log('[AuthContext] resetPassword: success, user id from response', result.user?.id);
+
     // Refresh session to get updated user data
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
+    console.log('[AuthContext] resetPassword: getSession after reset', { hasSession: !!session, sessionError: sessionError?.message });
+
     if (sessionError || !session) {
       // Try to load user from the response
       if (result.user) {

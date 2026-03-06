@@ -27,6 +27,9 @@ function SignInForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [danceIndex, setDanceIndex] = useState(0);
+  const DANCE_GIFS = ['/dance.gif', '/dance-1.gif'];
+  const DANCE_DURATION_MS = 3000;
 
   // Typing animation for placeholders
   const emailPlaceholder = t('emailPlaceholder');
@@ -116,6 +119,14 @@ function SignInForm() {
     };
   }, [isLoading]);
 
+  // Alternate dance GIFs in sequence in the same spot
+  useEffect(() => {
+    const id = setInterval(() => {
+      setDanceIndex((i) => (i + 1) % DANCE_GIFS.length);
+    }, DANCE_DURATION_MS);
+    return () => clearInterval(id);
+  }, []);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -181,18 +192,19 @@ function SignInForm() {
         {/* Title */}
         <div className="flex items-center justify-center gap-3 mb-4">
           <h2 className="text-3xl font-semibold text-center text-black animate-fade-in">{t('title')}</h2>
-          <span 
-            className="text-3xl animate-wave" 
-            style={{ 
-              display: 'inline-block', 
-              transformOrigin: '70% 70%',
-              fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, Android Emoji, EmojiSymbols, EmojiOne Mozilla, Twemoji Mozilla, Segoe UI Symbol, sans-serif'
-            }}
-            role="img"
-            aria-label="Waving hand"
-          >
-            👋
-          </span>
+          <div className="relative h-12 w-12 flex-shrink-0">
+            {DANCE_GIFS.map((src, i) => (
+              <img
+                key={src}
+                src={src}
+                alt="Robot dancing"
+                className="absolute inset-0 h-full w-full object-contain transition-opacity duration-300"
+                style={{ opacity: danceIndex === i ? 1 : 0, pointerEvents: 'none' }}
+                width={48}
+                height={48}
+              />
+            ))}
+          </div>
         </div>
 
         <ErrorMessage message={error || ''} />

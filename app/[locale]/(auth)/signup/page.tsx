@@ -15,6 +15,7 @@ import { SignupSuccessMessage } from './components/SignupSuccessMessage';
 import { BusinessSuccessMessage } from './components/BusinessSuccessMessage';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { RoleSelectionScreen } from './components/RoleSelectionScreen';
+import { InvitationCodeScreen } from './components/InvitationCodeScreen';
 import { CustomerStep1 } from './components/steps/CustomerStep1';
 import { CustomerStep2 } from './components/steps/CustomerStep2';
 import { CustomerStep3 } from './components/steps/CustomerStep3';
@@ -25,7 +26,7 @@ import { LeavePageWarningModal } from './components/LeavePageWarningModal';
 import { FormProvider } from 'react-hook-form';
 import type { BusinessFormValues } from '@/lib/schemas/business';
 
-type SignupStep = 'role-selection' | 'form' | 'success' | 'business-form';
+type SignupStep = 'role-selection' | 'invitation-code' | 'form' | 'success' | 'business-form';
 
 function SignUpForm() {
   const searchParams = useSearchParams();
@@ -36,11 +37,14 @@ function SignUpForm() {
   const urlRole = searchParams.get('role') as 'customer' | 'contractor' | null;
   const skipRoleSelection = searchParams.get('skipRoleSelection') === 'true';
   
-  // If skipRoleSelection is true, go directly to form step (skip role selection)
-  // Otherwise, show role selection unless role is in URL
-  const [currentStep, setCurrentStep] = useState<SignupStep>(
-    skipRoleSelection || urlRole ? 'form' : 'role-selection'
-  );
+  // If skipRoleSelection is true, go directly to form step (skip role selection). Otherwise,
+  // show role selection unless role is in URL. For contractor from URL, show invitation-code first.
+  const [currentStep, setCurrentStep] = useState<SignupStep>(() => {
+    if (skipRoleSelection) return 'form';
+    if (urlRole === 'contractor') return 'invitation-code';
+    if (urlRole === 'customer') return 'form';
+    return 'role-selection';
+  });
   const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | null>(
     skipRoleSelection ? 'customer' : urlRole
   );
@@ -50,6 +54,7 @@ function SignUpForm() {
     formState,
     methods,
     setUserType,
+    updateField,
     getTotalSteps,
     getStepLabel,
     handleNext,
@@ -82,8 +87,26 @@ function SignUpForm() {
 
   const handleRoleSelect = (role: 'customer' | 'contractor') => {
     setSelectedRole(role);
-    setCurrentStep('form');
+    setCurrentStep(role === 'contractor' ? 'invitation-code' : 'form');
     setIsAuthLoading(false);
+  };
+
+  const handleInvitationCodeValid = (code: string) => {
+    updateField('invitationCode', code);
+    setCurrentStep('form');
+  };
+
+  const handleInvitationCodeBack = () => {
+    setSelectedRole(null);
+    setCurrentStep('role-selection');
+  };
+
+  const handleStepPrevious = () => {
+    if (formState.currentStep === 1 && selectedRole === 'contractor') {
+      setCurrentStep('invitation-code');
+      return;
+    }
+    handlePrevious();
   };
 
   const handleBusinessSubmit = async (businessFormData: BusinessFormValues) => {
@@ -214,6 +237,17 @@ function SignUpForm() {
           />
         )}
 
+        {/* Contractor: Invitation code before personal info */}
+        {currentStep === 'invitation-code' && selectedRole === 'contractor' && (
+          <>
+            <SignupHeader isLoading={false} />
+            <InvitationCodeScreen
+              onValidCode={handleInvitationCodeValid}
+              onBack={handleInvitationCodeBack}
+            />
+          </>
+        )}
+
         {/* Step 2: Form Steps */}
         {currentStep === 'form' && (
           <>
@@ -239,24 +273,42 @@ function SignUpForm() {
               </>
             ) : (
               <FormProvider {...methods}>
-                {/* Header Section */}
-                <SignupHeader
-                  isLoading={formState.isLoading}
-                />
+                {/* Header: Logo + Sign In / Sign Up tabs */}
+                <SignupHeader isLoading={formState.isLoading} />
 
-                {/* Progress Bar Section */}
-                <div>
-                  <SignupStepsIndicator
-                    currentStep={formState.currentStep}
-                    totalSteps={getTotalSteps()}
-                    stepLabel={getStepLabel()}
-                  />
-                </div>
-
-                {/* Form Section */}
+                {/* While creating account: show bot typing GIF; otherwise show progress + form */}
                 <form onSubmit={handleSignUp} className="flex-1 flex flex-col min-h-[400px]">
-                  <ErrorMessage message={formState.error || ''} />
-                  {renderStep()}
+                  {formState.isLoading ? (
+                    <div className="flex-1 flex flex-col items-center justify-center min-h-[320px] py-6 gap-6">
+                      <div className="flex flex-col items-center gap-2 text-center">
+                        <p className="text-lg font-semibold text-black">
+                          {t('navigation.holdOn')}
+                        </p>
+                        <p className="text-base text-gray-700">
+                          {t('navigation.almostDone')}
+                        </p>
+                      </div>
+                      <img
+                        src="/pro-bot-typing-creating-account.gif"
+                        alt={t('navigation.submitting')}
+                        className="w-full max-w-[200px] h-auto object-contain"
+                        width={200}
+                        height={168}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <SignupStepsIndicator
+                          currentStep={formState.currentStep}
+                          totalSteps={getTotalSteps()}
+                          stepLabel={getStepLabel()}
+                        />
+                      </div>
+                      <ErrorMessage message={formState.error || ''} />
+                      {renderStep()}
+                    </>
+                  )}
 
                   <SignupNavigation
                     currentStep={formState.currentStep}
@@ -264,7 +316,7 @@ function SignUpForm() {
                     isLoading={formState.isLoading}
                     agreeToTerms={formState.agreeToTerms}
                     userType={formState.userType}
-                    onPrevious={handlePrevious}
+                    onPrevious={handleStepPrevious}
                     onNext={handleStepNext}
                     onAddBusiness={handleAddBusiness}
                   />

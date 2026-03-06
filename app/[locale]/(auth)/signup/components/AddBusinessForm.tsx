@@ -7,6 +7,8 @@ import { SignupStepsIndicator } from './SignupStepsIndicator';
 import { BusinessFormNavigation } from './BusinessFormNavigation';
 import { BusinessStep1 } from './steps/BusinessStep1';
 import { BusinessStepLicenses } from './steps/BusinessStepLicenses';
+import { BusinessStepServices } from './steps/BusinessStepServices';
+import { BusinessStepImages } from './steps/BusinessStepImages';
 import { BusinessStep2 } from './steps/BusinessStep2';
 import { BusinessStep3 } from './steps/BusinessStep3';
 import { BusinessStep4 } from './steps/BusinessStep4';
@@ -27,6 +29,7 @@ export function AddBusinessForm({
   onSubmit,
 }: AddBusinessFormProps) {
   const t = useTranslations('businessForm');
+  const tSignup = useTranslations('auth.signup.navigation');
   const {
     formState,
     methods,
@@ -39,6 +42,7 @@ export function AddBusinessForm({
     updateLink,
     reorderLinks,
     reorderLicenses,
+    reorderServices,
     setError,
     setLoading,
     getTotalSteps,
@@ -85,6 +89,10 @@ export function AddBusinessForm({
       case 2:
         return <BusinessStepLicenses reorderLicenses={reorderLicenses} />;
       case 3:
+        return <BusinessStepServices reorderServices={reorderServices} />;
+      case 4:
+        return <BusinessStepImages />;
+      case 5:
         return (
           <BusinessStep2
             handleAddressSelect={handleAddressSelect}
@@ -93,7 +101,7 @@ export function AddBusinessForm({
             personalData={personalData}
           />
         );
-      case 4:
+      case 6:
         return (
           <BusinessStep3
             applyPersonalEmail={applyPersonalEmail}
@@ -102,7 +110,7 @@ export function AddBusinessForm({
             personalData={personalData}
           />
         );
-      case 5:
+      case 7:
         return (
           <BusinessStep4
             updateLink={updateLink}
@@ -124,19 +132,42 @@ export function AddBusinessForm({
       />
       <div className="w-full max-w-md mx-auto flex flex-col text-black">
         <FormProvider {...methods}>
-          <div className="md:sticky md:top-0 md:z-20 md:bg-white">
+          <div className="md:sticky md:top-0 md:z-30 -mx-3 md:-mx-12 px-3 md:px-12 pt-0 bg-white md:pb-1">
             <SignupHeader isLoading={formState.isLoading} />
-            <SignupStepsIndicator
-              currentStep={formState.currentStep}
-              totalSteps={getTotalSteps()}
-              stepLabel={t(getStepLabel())}
-            />
+            {/* While creating business: show bot typing (same idea as customer signup); otherwise show progress + form */}
+            {!formState.isLoading && (
+              <SignupStepsIndicator
+                currentStep={formState.currentStep}
+                totalSteps={getTotalSteps()}
+                stepLabel={t(getStepLabel())}
+              />
+            )}
           </div>
 
           <ErrorMessage message={formState.error || ''} />
 
           <form onSubmit={handleFormSubmit} className="space-y-6 flex-1 flex flex-col min-h-[400px]">
-            {renderStep()}
+            {formState.isLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center min-h-[320px] py-6 gap-6">
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <p className="text-lg font-semibold text-black">
+                    {tSignup('holdOn')}
+                  </p>
+                  <p className="text-base text-gray-700">
+                    {tSignup('almostDone')}
+                  </p>
+                </div>
+                <img
+                  src="/pro-bot-typing-creating-account.gif"
+                  alt={t('navigation.finishing')}
+                  className="w-full max-w-[200px] h-auto object-contain"
+                  width={200}
+                  height={168}
+                />
+              </div>
+            ) : (
+              renderStep()
+            )}
 
             <BusinessFormNavigation
               currentStep={formState.currentStep}

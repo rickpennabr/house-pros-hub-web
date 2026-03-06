@@ -45,12 +45,63 @@
     "account": {
       "myBusiness": "My Business",
       "accountManagement": "Account Management",
+      "probot": "ProBot",
       "settings": "Settings",
       "helpSupport": "Help & Support",
       "signIn": "Sign In",
       "signOut": "Sign Out",
       "account": "Account"
     }
+  },
+  "probot": {
+    "sidebar": "Chat",
+    "historyChat": "History Chat",
+    "contacts": "Contacts",
+    "online": "Online",
+    "offline": "Offline",
+    "noRecentChats": "No recent chats",
+    "unread": "Unread",
+    "read": "Read",
+    "sent": "Sent",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "selectContact": "Select a contact to start chatting",
+    "loading": "Loading...",
+    "noMessages": "No messages yet. Say hello!",
+    "chatWithBusiness": "Chat with {name}",
+    "messagePlaceholder": "Chat with a HubAgent now....",
+    "send": "Send message",
+    "hiUser": "Hi {name},",
+    "welcomeToMyPage": "Welcome to my page",
+    "letsGetItDone": "Let's get it Done!",
+    "whereShouldWeStart": "Where should we start?",
+    "howDoYouWantToStart": "How do you want to start?",
+    "guestName": "there",
+    "replyAccountEstimate": "Got it! You can request your free estimate using our form. Our pros will reach out to you.",
+    "replyAccountEstimateLink": "Go to Estimate form",
+    "replyTalkToPro": "I can connect you with a pro. Pick a contact from the list on the left to message them, or tell me what you need below.",
+    "clearMessages": "Clear messages",
+    "clearMessagesConfirm": "Clear all messages in this chat? This cannot be undone.",
+    "conversationWithVisitor": "Conversation with visitor {id}",
+    "conversationWithCustomer": "Conversation with Customer",
+    "conversationWithContractor": "Conversation with Contractor · {name}",
+    "conversationWithName": "Conversation with {name}",
+    "customer": "Customer",
+    "contractor": "Contractor",
+    "backToMyChat": "Back to my chat",
+    "replyToCustomer": "Reply to customer...",
+    "replyAs": "Reply as",
+    "replyAsProBot": "ProBot",
+    "replyAsHubAgent": "Hub Agent",
+    "replyAsBusiness": "Business",
+    "seenAt": "Seen at {time}",
+    "seenByProBotAt": "Seen by ProBot at {time}",
+    "attachFiles": "Attach files",
+    "uploadFiles": "Upload files",
+    "addFromGoogleDrive": "Add from Google Drive",
+    "photos": "Photos",
+    "attachMax10": "Maximum 10 images or PDFs per message",
+    "sendUnavailable": "Unable to send. Please refresh the page and try again."
   },
   "navigation": {
     "prosBlog": "ProsBlog",
@@ -60,10 +111,16 @@
   "bot": {
     "greeting": "HI!",
     "tooltip": "I am the ProBot, click on me to start a conversation...",
-    "welcomeMessage": "Hi, Welcome to HouseProsHub.com, I am the ProBot, I can help connecting with a Pro, or help you to request your Free Estimate.",
+    "welcomeMessage": "Hi! I am the ProBot. WELCOME to HouseProsHub.com",
+    "welcomeLine1": "Hi, I am the ProBot",
+    "welcomeLine2": "WELCOME",
+    "welcomeLine3": "To",
+    "welcomeLine4": "HouseProsHub.com",
     "choiceRequestEstimate": "Request free estimate",
     "choiceTalkToPro": "Talk to a pro now",
+    "choiceChatWithProBot": "Chat with ProBot",
     "choiceAccountEstimate": "Account and Estimate",
+    "createAccountAndFreeEstimate": "Create an account and Get a FREE Estimate",
     "choiceCallHub": "Call the Hub",
     "choiceChatWithHub": "Chat with Hub",
     "choiceMessageAPro": "Message a Pro",
@@ -112,6 +169,12 @@
     }
   },
   "auth": {
+    "signInRequiredModal": {
+      "title": "Sign in required",
+      "message": "To contact a pro or to see his business details page you need to sign in first. Otherwise, if you are new to the Hub you will need a FREE customer account. If you need help, call the Hub: 702-232-0411",
+      "goSignIn": "Go Sign in",
+      "signUpNow": "Sign up Now"
+    },
     "tagline": "Sign In or Sign up to find your House Pro.",
     "tabs": {
       "signin": "Sign In",
@@ -146,7 +209,8 @@
       "backToSignIn": "Back to Sign In",
       "success": {
         "message": "Password reset link sent!",
-        "checkEmail": "Please check your email for instructions to reset your password."
+        "checkEmail": "Please check your email for instructions to reset your password.",
+        "sameBrowserHint": "Open the reset link in the same browser where you requested it (the link may not work in a different browser or device)."
       },
       "validation": {
         "emailRequired": "Email is required",
@@ -176,7 +240,9 @@
       "errors": {
         "generic": "Failed to reset password. Please try again.",
         "invalidToken": "Invalid or expired reset token. Please request a new password reset."
-      }
+      },
+      "requestNewLink": "Request new password reset link",
+      "invalidTokenHint": "Links expire after 1 hour. Request a new one below."
     },
     "signup": {
       "roleSelection": {
@@ -228,14 +294,18 @@
         "next": "Next",
         "submit": "Sign Up",
         "submitting": "Creating account...",
-        "addBusiness": "Add a Business"
+        "holdOn": "Hold On...",
+        "almostDone": "Almost done creating your FREE account...",
+        "addBusiness": "Add a Business",
+        "estimatePreparingJustASecond": "Just a second...",
+        "estimatePreparingMessage": "Preparing the estimate page for you."
       },
       "errors": {
         "googleSignInFailed": "Failed to sign in with Google"
       },
       "fields": {
         "imageTypeError": "Please select an image file",
-        "imageSizeError": "Image size must be less than 2MB",
+        "imageSizeError": "Image size must be less than 5MB",
         "uploadPicture": "Upload Your Picture",
         "removeProfilePicture": "Remove profile picture",
         "referralLabel": "How did you hear about us?",
@@ -245,6 +315,7 @@
         "referralOtherOption": "Other",
         "invitationCodeLabel": "Invitation code",
         "invitationCodePlaceholder": "Enter the code you received",
+        "invitationCodeDescription": "Enter the code you received from House Pros Hub to sign up as a contractor.",
         "firstNameLabel": "First Name",
         "firstNamePlaceholder": "First name",
         "lastNameLabel": "Last Name",
@@ -343,6 +414,20 @@
         "contactInfo": "If you have any questions, please contact us.",
         "unsubscribe": "You are receiving this email because an account was created for you on House Pros Hub."
       }
+    },
+    "passwordResetEmail": {
+      "subject": "Reset your password – House Pros Hub",
+      "greeting": "Hello",
+      "body": "We received a request to reset your password for your House Pros Hub account. Click the button below to reset your password. This link will expire in 1 hour.",
+      "cta": "Reset Password",
+      "securityNote": "Security note:",
+      "securityText": "If you did not request a password reset, please ignore this email. Your password will remain unchanged.",
+      "expiryNote": "This link will expire in 1 hour.",
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "If you have any questions, please contact us.",
+        "unsubscribe": "You are receiving this email because a password reset was requested for your House Pros Hub account."
+      }
     }
   },
   "businessForm": {
@@ -356,6 +441,8 @@
       "businessInformation": "Business Information",
       "brand": "Brand",
       "licenses": "Licenses",
+      "services": "Services",
+      "images": "Images",
       "address": "Address",
       "contact": "Contact",
       "links": "Links"
@@ -363,11 +450,15 @@
     "brand": {
       "sectionTitle": "Business Brand (Logo & Background)",
       "clickUploadBackground": "Click to upload background",
+      "adjustPosition": "Adjust position",
+      "adjustImage": "Adjust image",
+      "adjustImageHint": "Drag the image to position it",
+      "uploadNew": "Upload new",
       "uploadLogo": "Upload Logo",
       "removeLogoTitle": "Remove logo",
       "removeBackgroundTitle": "Remove background",
       "imageTypeError": "Please select an image file",
-      "imageSizeError": "Image size must be less than 2MB",
+      "imageSizeError": "Image size must be less than 5MB",
       "businessNameLabel": "Business Name",
       "businessNamePlaceholder": "Enter your business name",
       "userNameLabel": "User Name",
@@ -406,8 +497,15 @@
       "contractorLicensesHelp": "Select all licenses you hold",
       "addLicenseButton": "+ Add License",
       "licenseClassificationLabel": "License Classification",
+      "licenseClassificationTip": "Use the classification related to your contractors license",
       "licenseClassificationPlaceholder": "Select a license classification",
-      "licenseNumberLabel": "License Number",
+      "handymanOption": "HANDYMAN - Handyman (no contractor license required)",
+      "licenseNumberLabel": "Contractor License Number",
+      "licenseNumberTip": "Licenses are checked in the contractors board website",
+      "licenseNumberLabelHandyman": "Nevada Business License",
+      "licenseNumberPlaceholderHandyman": "Enter your Nevada Business License number",
+      "licenseNumberTipHandyman": "Handyman requires at least a Nevada Business License.",
+      "licenseNumberInvalidNevada": "Nevada Business License must be 11 digits (spaces or dashes are ignored).",
       "licenseNumberPlaceholder": "Enter your license number",
       "duplicateLicenseError": "This license classification has already been added",
       "duplicateLicenseNumberError": "This license number has already been entered",
@@ -420,6 +518,30 @@
       "instructionsLine1": "You can reorder licenses by dragging them using the grip icon",
       "instructionsLine2": "The order determines how licenses appear on your business card",
       "instructionsLine3": "Each license classification and number must be unique"
+    },
+    "services": {
+      "sectionTitle": "Services You Provide",
+      "servicesHelp": "Add the main services you provide.",
+      "addServiceButton": "+ Add Service",
+      "serviceNameLabel": "Service Name",
+      "serviceNamePlaceholder": "e.g. Plumbing, Repairs, Remodeling",
+      "noServices": "No services added yet.",
+      "removeServiceAria": "Remove service {index}",
+      "position": "Position",
+      "service": "Service",
+      "instructionsTitle": "Services Instructions",
+      "instructionsLine1": "Add the services you offer so customers can find you when they search.",
+      "instructionsLine2": "You can reorder services by dragging them using the grip icon."
+    },
+    "images": {
+      "sectionTitle": "Gallery Images",
+      "imagesHelp": "Add up to {max} photos. They will appear in the Images tab on your business page.",
+      "addImageButton": "+ Add Image",
+      "noImages": "No images added yet. Click \"Add Image\" to upload photos.",
+      "removeImageAria": "Remove image {index}",
+      "instructionsTitle": "Gallery Instructions",
+      "instructionsLine1": "Add photos of your work or business (e.g. projects, team, office).",
+      "instructionsLine2": "These will appear in the Images tab on your business details page."
     },
     "links": {
       "sectionTitle": "Business Links",
@@ -758,6 +880,8 @@
   "accountManagement": {
     "title": "Account Management",
     "selectAccount": "Select Account",
+    "personalAccountFallback": "Personal",
+    "businessAccountFallback": "Business",
     "quickActions": "Quick Actions",
     "access": "Access",
     "actions": {
@@ -773,6 +897,10 @@
         "addBusiness": {
           "title": "Add Business",
           "description": "New Business"
+        },
+        "proscrm": {
+          "title": "ProsCRM",
+          "description": "Customers, estimates, projects & calendar"
         }
       },
       "business": {
@@ -837,7 +965,7 @@
     },
     "errors": {
       "imageFile": "Please select an image file",
-      "imageSizeError": "Image size must be less than 2MB",
+      "imageSizeError": "Image size must be less than 5MB",
       "mustBeLoggedIn": "You must be logged in to upload images",
       "firstNameRequired": "First name is required",
       "lastNameRequired": "Last name is required",

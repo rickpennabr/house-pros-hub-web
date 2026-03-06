@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const VISITOR_ID_KEY = 'probot_visitor_id';
 
@@ -26,15 +27,22 @@ function generateUUID(): string {
 
 function getOrCreateVisitorId(): string {
   if (typeof window === 'undefined') return '';
-  let id = localStorage.getItem(VISITOR_ID_KEY);
-  if (!id) {
-    id = generateUUID();
-    localStorage.setItem(VISITOR_ID_KEY, id);
+  try {
+    let id = localStorage.getItem(VISITOR_ID_KEY);
+    if (!id) {
+      id = generateUUID();
+      localStorage.setItem(VISITOR_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    // localStorage unavailable (private browsing, quota, or blocked on some mobile browsers)
+    return generateUUID();
   }
-  return id;
 }
 
 export type ChatOpenChoice = 'account_estimate' | null;
+
+const CHAT_UNREAD_POLL_MS = 15_000;
 
 interface ChatContextType {
   isOpen: boolean;
@@ -48,6 +56,10 @@ interface ChatContextType {
   /** Set by drawer when it consumes the initial choice; used so estimate flow stays in chat. */
   initialChoiceForDrawer: ChatOpenChoice;
   clearInitialChoiceForDrawer: () => void;
+  /** Clear conversation and reset visitor id so chat shows fresh state (e.g. after sign out). */
+  clearChat: () => void;
+  /** ProBot unread count (single source, polled by provider). Admin/contractor/visitor depending on auth. */
+  chatUnreadCount: number;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -57,10 +69,49 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [initialChoiceForDrawer, setInitialChoiceForDrawer] = useState<ChatOpenChoice>(null);
   const [visitorId, setVisitorId] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+
+  const { user, isAdmin } = useAuth();
+  const isContractor = !isAdmin && !!user?.businessId;
 
   useEffect(() => {
     setVisitorId(getOrCreateVisitorId());
   }, []);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        if (isAdmin) {
+          const res = await fetch('/api/chat/admin/unread-count', { cache: 'no-store', credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            if (typeof data.count === 'number') setChatUnreadCount(data.count);
+          }
+          return;
+        }
+        if (isContractor) {
+          const res = await fetch('/api/chat/contractor/unread-count', { cache: 'no-store', credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            if (typeof data.count === 'number') setChatUnreadCount(data.count);
+          }
+          return;
+        }
+        if (visitorId) {
+          const res = await fetch(`/api/chat/unread-count?visitorId=${encodeURIComponent(visitorId)}`, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (typeof data.count === 'number') setChatUnreadCount(data.count);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, CHAT_UNREAD_POLL_MS);
+    return () => clearInterval(interval);
+  }, [isAdmin, isContractor, visitorId]);
 
   const openChat = useCallback(() => {
     setInitialChoiceForDrawer(null);
@@ -72,6 +123,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
   const closeChat = useCallback(() => setIsOpen(false), []);
   const clearInitialChoiceForDrawer = useCallback(() => setInitialChoiceForDrawer(null), []);
+
+  const clearChat = useCallback(() => {
+    setConversationId(null);
+    if (typeof window !== 'undefined') {
+      const newId = generateUUID();
+      localStorage.setItem(VISITOR_ID_KEY, newId);
+      setVisitorId(newId);
+    }
+  }, [setConversationId]);
+
+  const prevUserRef = useRef<unknown>(undefined);
+  useEffect(() => {
+    const hadUser = prevUserRef.current != null;
+    prevUserRef.current = user;
+    if (hadUser && user === null) clearChat();
+  }, [user, clearChat]);
 
   return (
     <ChatContext.Provider
@@ -85,6 +152,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setConversationId,
         initialChoiceForDrawer,
         clearInitialChoiceForDrawer,
+        clearChat,
+        chatUnreadCount,
       }}
     >
       {children}

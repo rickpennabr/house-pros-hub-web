@@ -1,8 +1,39 @@
 import { z } from 'zod';
 import { LINK_TYPES } from '@/lib/constants/linkTypes';
+import { HANDYMAN_LICENSE_CODE } from '@/lib/constants/contractorLicenses';
 
 const phoneRegex = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
 const zipRegex = /^\d{5}(-\d{4})?$/;
+
+/** Nevada Business License (NV Business ID) is 11 digits. Spaces/dashes are stripped for validation. */
+export const NEVADA_BUSINESS_LICENSE_DIGITS = 11;
+export const NEVADA_BUSINESS_LICENSE_REGEX = /^\d{11}$/;
+
+export function normalizeNevadaBusinessLicense(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
+export function isValidNevadaBusinessLicense(value: string): boolean {
+  const digits = normalizeNevadaBusinessLicense(value);
+  return digits.length === NEVADA_BUSINESS_LICENSE_DIGITS && NEVADA_BUSINESS_LICENSE_REGEX.test(digits);
+}
+
+const licenseItemSchema = z.object({
+  license: z.string().min(1, 'License classification is required'),
+  licenseNumber: z.string().trim().optional().default(''),
+}).superRefine((data, ctx) => {
+  // Only validate Nevada Business License format when Handyman and a value is provided
+  if (data.license === HANDYMAN_LICENSE_CODE && (data.licenseNumber ?? '').trim()) {
+    const digits = normalizeNevadaBusinessLicense(data.licenseNumber!);
+    if (digits.length !== NEVADA_BUSINESS_LICENSE_DIGITS) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Nevada Business License must be ${NEVADA_BUSINESS_LICENSE_DIGITS} digits (spaces or dashes are ignored)`,
+        path: ['licenseNumber'],
+      });
+    }
+  }
+});
 
 export const businessSchema = z.object({
   businessName: z.string().trim().min(1, 'Business name is required'),
@@ -13,10 +44,12 @@ export const businessSchema = z.object({
   companyDescription: z.string().trim().optional(),
   businessLogo: z.string().optional(),
   businessBackground: z.string().optional(),
-  licenses: z.array(z.object({
-    license: z.string().min(1, 'License classification is required'),
-    licenseNumber: z.string().trim().min(1, 'License number is required'),
-  })).min(1, 'At least one license is required'),
+  businessBackgroundPosition: z.string().optional(),
+  licenses: z.array(licenseItemSchema).min(1, 'At least one license is required'),
+  services: z.array(z.object({
+    name: z.string().trim().min(1, 'Service name is required'),
+  })).optional().default([]),
+  images: z.array(z.string()).max(10, 'Maximum 10 images allowed').optional().default([]),
   streetAddress: z.string().trim().min(1, 'Street address is required'),
   city: z.string().trim().min(1, 'City is required'),
   state: z.string().trim().length(2, 'Use 2-letter state code').default('NV'),

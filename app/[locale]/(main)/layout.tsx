@@ -29,7 +29,7 @@ export default function MainLayout({
         <ChatProvider>
           <WelcomeProvider>
             <ProBotWelcomeOverlay />
-            <div className="min-h-screen w-full flex items-center justify-center p-2 md:p-0 bg-black md:bg-transparent">
+            <div className="min-h-screen w-full flex items-center justify-center p-2 md:p-0 bg-white">
               <PageContainer>
                 <PageHeader>
                 </PageHeader>
@@ -40,9 +40,9 @@ export default function MainLayout({
                 <PageContent>
                   {children}
                 </PageContent>
-                {!isMapView && <BotFloatingButton />}
                 <Footer />
               </PageContainer>
+              {!isMapView && <BotFloatingButton />}
               <Suspense fallback={null}>
                 <BotChatDrawer />
               </Suspense>

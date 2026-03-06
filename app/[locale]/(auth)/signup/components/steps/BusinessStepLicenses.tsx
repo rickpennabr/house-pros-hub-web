@@ -1,14 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useFormContext, useFieldArray } from 'react-hook-form';
 import type { FieldPath } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
-import { RESIDENTIAL_CONTRACTOR_LICENSES } from '@/lib/constants/contractorLicenses';
+import { NEVADA_BUSINESS_LICENSE_DIGITS, isValidNevadaBusinessLicense } from '@/lib/schemas/business';
 import { X, FileText, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import type { BusinessFormValues } from '@/lib/schemas/business';
+
+export interface LicenseCategoryFromApi {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  requires_contractor_license: boolean;
+  sort_order: number;
+}
 
 interface BusinessStepLicensesProps {
   reorderLicenses?: (fromIndex: number, toIndex: number) => void;
@@ -27,6 +36,26 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
   const [showExplanation, setShowExplanation] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [categories, setCategories] = useState<LicenseCategoryFromApi[]>([]);
+
+  useEffect(() => {
+    fetch('/api/license-categories')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.categories?.length) setCategories(data.categories);
+      })
+      .catch(() => {});
+  }, []);
+
+  const nonContractorCodes = useMemo(
+    () => categories.filter((c) => !c.requires_contractor_license).map((c) => c.code),
+    [categories]
+  );
+  const nonContractorCategories = useMemo(
+    () => categories.filter((c) => !c.requires_contractor_license).sort((a, b) => a.sort_order - b.sort_order),
+    [categories]
+  );
+  const isNonContractorLicense = (code: string) => nonContractorCodes.includes(code);
 
   const licenseErrors = errors.licenses as unknown as
     | Array<{
@@ -88,7 +117,7 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
 
       {/* Licenses Section */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-8">
           <div>
             <label className="block text-sm font-medium mb-1 text-gray-700">
               {t('contractorLicensesLabel')} <span className="text-red-500">*</span>
@@ -100,7 +129,7 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
           <button
             type="button"
             onClick={() => prepend({ license: '', licenseNumber: '' })}
-            className="px-3 py-1.5 text-sm border-2 border-black rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="px-3 py-1.5 text-sm border-2 border-black rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0"
             disabled={isSubmitting}
           >
             {t('addLicenseButton')}
@@ -182,6 +211,7 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
                       <FormField
                         label={t('licenseClassificationLabel')}
                         required
+                        tip={t('licenseClassificationTip')}
                         error={licenseErrors?.[index]?.license?.message}
                       >
                         <select
@@ -214,22 +244,29 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
                           disabled={isSubmitting}
                         >
                           <option value="">{t('licenseClassificationPlaceholder')}</option>
-                          <option value="GENERAL">GENERAL - General Contractor License</option>
-                          {RESIDENTIAL_CONTRACTOR_LICENSES.map((license) => (
-                            <option key={license.code} value={license.code}>
-                              {license.code} - {license.name}
+                          {[...nonContractorCategories, ...categories.filter((c) => c.requires_contractor_license).sort((a, b) => a.sort_order - b.sort_order)].map((cat) => (
+                            <option key={cat.id} value={cat.code}>
+                              {cat.code} - {cat.name}
                             </option>
                           ))}
                         </select>
                       </FormField>
 
                       <FormField 
-                        label={t('licenseNumberLabel')} 
+                        label={isNonContractorLicense(licenses?.[index]?.license ?? '') ? t('licenseNumberLabelHandyman') : t('licenseNumberLabel')} 
                         required
+                        tip={isNonContractorLicense(licenses?.[index]?.license ?? '') ? t('licenseNumberTipHandyman') : t('licenseNumberTip')}
                         error={licenseErrors?.[index]?.licenseNumber?.message}
                       >
                         <Input
-                          {...register(`licenses.${index}.licenseNumber` as FieldPath<BusinessFormValues>)}
+                          {...register(`licenses.${index}.licenseNumber` as FieldPath<BusinessFormValues>, {
+                            validate: (value) => {
+                              const license = licenses?.[index]?.license;
+                              if (!license || !isNonContractorLicense(license)) return true;
+                              const str: string = typeof value === 'string' ? value : Array.isArray(value) ? (typeof value[0] === 'string' ? value[0] : '') : '';
+                              return isValidNevadaBusinessLicense(str) || `Nevada Business License must be ${NEVADA_BUSINESS_LICENSE_DIGITS} digits (spaces or dashes are ignored)`;
+                            },
+                          })}
                           type="text"
                           value={licenses?.[index]?.licenseNumber || ''}
                           onChange={(e) => {
@@ -254,7 +291,7 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
                             clearErrors(`licenses.${index}.licenseNumber` as FieldPath<BusinessFormValues>);
                           }}
                           showClear
-                          placeholder={t('licenseNumberPlaceholder')}
+                          placeholder={isNonContractorLicense(licenses?.[index]?.license ?? '') ? t('licenseNumberPlaceholderHandyman') : t('licenseNumberPlaceholder')}
                           disabled={isSubmitting}
                           required
                           error={licenseErrors?.[index]?.licenseNumber?.message}

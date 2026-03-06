@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { Share2, Phone } from 'lucide-react';
+import { Share2, Phone, MessageCircle } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -23,7 +23,10 @@ interface ProCardHeaderProps {
   phone?: string;
   isListMode?: boolean;
   onShare?: () => void;
+  onMessage?: () => void;
   onPhoneClick?: (e: React.MouseEvent) => void;
+  /** Pro online status: show green (online) or gray (offline) indicator */
+  online?: boolean;
 }
 
 function getInitials(name: string): string {
@@ -151,7 +154,9 @@ export default function ProCardHeader({
   phone,
   isListMode = false,
   onShare,
-  onPhoneClick
+  onMessage,
+  onPhoneClick,
+  online,
 }: ProCardHeaderProps) {
   const t = useTranslations('estimate.options.trades');
   const initials = getInitials(businessName);
@@ -175,34 +180,44 @@ export default function ProCardHeader({
   // Don't show category if we have licenses array - licenses should be the source of truth
   const showCategory = false;
 
-  // Calculate right padding based on number of buttons
-  // In list mode: always show share, phone only if exists
-  // share (right-10) + phone (right-1) = need pr-16 if both, pr-10 if only share
-  const rightPadding = isListMode ? (phone ? 'pr-16' : 'pr-10') : 'pr-10';
+  // Calculate right padding for right-side buttons: message (left of share) + share + phone
+  const rightPadding = isListMode
+    ? (onMessage && phone ? 'pr-24' : onMessage ? 'pr-20' : phone ? 'pr-16' : 'pr-10')
+    : onMessage ? 'pr-20' : 'pr-10';
 
   return (
     <div className={`relative ${showCategory ? 'min-h-[60px]' : 'h-[60px]'} flex items-center p-2 ${isListMode ? '' : 'border-b border-black'}`}>
       <div className={`flex items-center gap-3 md:gap-2 flex-1 ${rightPadding} min-w-0`}>
-        {/* Avatar Box - Shows only Logo or Initials */}
-        <div className={`w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden relative aspect-square ${logo && !imageError ? 'bg-white' : 'bg-black'}`}>
-          {logo && !imageError ? (
-            <Image
-              src={logo}
-              alt={businessName}
-              fill
-              className="object-cover"
-              sizes="48px"
-              unoptimized
-              onError={() => {
-                setImageErrorState({ logo, hasError: true });
-              }}
-              onLoad={() => {
-                // Image loaded successfully
-              }}
-            />
-          ) : (
-            <span className="text-lg font-bold text-white">{initials}</span>
-          )}
+        {/* Avatar Box - Shows only Logo or Initials + status dot (dot in wrapper so it stays on top and isn't clipped) */}
+        <div className="relative w-12 h-12 shrink-0">
+          <div className={`w-full h-full rounded-lg border-2 border-black flex items-center justify-center overflow-hidden relative aspect-square ${logo && !imageError ? 'bg-white' : 'bg-black'}`}>
+            {logo && !imageError ? (
+              <Image
+                src={logo}
+                alt={businessName}
+                fill
+                className="object-cover"
+                sizes="48px"
+                unoptimized
+                onError={() => {
+                  setImageErrorState({ logo, hasError: true });
+                }}
+                onLoad={() => {
+                  // Image loaded successfully
+                }}
+              />
+            ) : (
+              <span className="text-lg font-bold text-white">{initials}</span>
+            )}
+          </div>
+          {/* Status indicator on top layer so it always appears above the logo */}
+          <span
+            className={`absolute bottom-[-5px] right-[-5px] w-3 h-3 rounded-full border-2 border-white shrink-0 z-[100] ${
+              online ? 'bg-green-500' : 'bg-gray-400'
+            }`}
+            title={online ? 'Online' : 'Offline'}
+            aria-hidden
+          />
         </div>
 
         {/* Text Content */}
@@ -250,14 +265,27 @@ export default function ProCardHeader({
           </div>
         </div>
       </div>
-      {/* Share button on left (closer to center) - always show in list mode */}
+      {/* Message button (left of share) - list mode */}
+      {isListMode && onMessage && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onMessage();
+          }}
+          className="absolute right-20 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+          aria-label="Message"
+        >
+          <MessageCircle className="w-5 h-5 text-black" />
+        </button>
+      )}
+      {/* Share button - always show in list mode */}
       {isListMode && (
         <button
           onClick={(e) => {
             e.stopPropagation();
             onShare?.();
           }}
-          className={`absolute ${phone ? 'right-10' : 'right-1'} w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0`}
+          className={`absolute ${phone ? 'right-10' : onMessage ? 'right-10' : 'right-1'} w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0`}
           aria-label="Share"
         >
           <Share2 className="w-5 h-5 text-black" />
@@ -269,7 +297,7 @@ export default function ProCardHeader({
           onClick={(e) => {
             e.stopPropagation();
             onPhoneClick?.(e);
-            if (phone) {
+            if (!e.defaultPrevented && phone) {
               window.location.href = `tel:${phone}`;
             }
           }}
@@ -279,18 +307,32 @@ export default function ProCardHeader({
           <Phone className="h-10 w-5 text-black" />
         </button>
       )}
-      {/* Share button for non-list mode */}
+      {/* Message + Share buttons for non-list mode */}
       {!isListMode && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onShare?.();
-          }}
-          className="absolute right-2 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
-          aria-label="Share"
-        >
-          <Share2 className="w-5 h-5 text-black" />
-        </button>
+        <>
+          {onMessage && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onMessage();
+              }}
+              className="absolute right-12 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+              aria-label="Message"
+            >
+              <MessageCircle className="w-5 h-5 text-black" />
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onShare?.();
+            }}
+            className={`absolute ${onMessage ? 'right-2' : 'right-2'} w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0`}
+            aria-label="Share"
+          >
+            <Share2 className="w-5 h-5 text-black" />
+          </button>
+        </>
       )}
     </div>
   );

@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
-import { createSignInUrl, createLocalePath } from '@/lib/redirect';
+import { createLocalePath } from '@/lib/redirect';
 import ProCardHeader from './ProCardHeader';
 import ProLinks from './ProLinks';
 import ProReactions from './ProReactions';
 import ShareBusinessModal from '@/components/businessdetails/ShareBusinessModal';
+import SignInRequiredModal from '@/components/auth/SignInRequiredModal';
 
 import { LinkItem } from './ProLinks';
 
@@ -18,6 +19,7 @@ export interface ProCardData {
   logo?: string;
   businessLogo?: string; // Form-sync field
   businessBackground?: string;
+  businessBackgroundPosition?: string;
   businessName: string;
   contractorType: string;
   tradeIcon?: string; // Icon name from lucide-react (deprecated - use licenses array)
@@ -37,6 +39,8 @@ export interface ProCardData {
   ownerTitle?: string;
   ownerDescription?: string;
   companyDescription?: string;
+  services?: string[];
+  images?: string[];
   links: LinkItem[];
   reactions?: {
     love?: number;
@@ -44,6 +48,8 @@ export interface ProCardData {
     link?: number;
     save?: number;
   };
+  /** Pro online status for status indicator on card (green = online, gray = offline) */
+  online?: boolean;
 }
 
 interface ProCardProps {
@@ -58,6 +64,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
   const locale = useLocale();
   const { isAuthenticated, isLoading } = useAuth();
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isSignInRequiredOpen, setIsSignInRequiredOpen] = useState(false);
   const [shareBusinessUrl, setShareBusinessUrl] = useState('');
 
   useEffect(() => {
@@ -65,20 +72,13 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
   }, [data.slug, data.id]);
 
   const handleCardClick = () => {
-    // Check authentication before navigating to business details
-    if (isLoading) {
-      return;
-    }
-    
+    if (isLoading) return;
     const slug = data.slug || data.id;
     const businessPath = `/business/${slug}`;
-    
     if (!isAuthenticated) {
-      const signInUrl = createSignInUrl(locale as 'en' | 'es', businessPath);
-      router.push(signInUrl);
+      setIsSignInRequiredOpen(true);
       return;
     }
-    
     router.push(createLocalePath(locale as 'en' | 'es', businessPath));
   };
 
@@ -88,12 +88,29 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
     }
   };
 
+  const handleMessageClick = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!isAuthenticated) {
+      setIsSignInRequiredOpen(true);
+      return;
+    }
+    const slugOrId = data.slug || data.id;
+    router.push(createLocalePath(locale as 'en' | 'es', `/probot?contact=${encodeURIComponent(slugOrId)}`));
+  };
+
+  const showSignInRequired = () => setIsSignInRequiredOpen(true);
+
   // In list mode, only show the header
   if (isListMode) {
-    // Get phone from direct props or from links array
     const phoneLink = data.links?.find(link => link.type === 'phone');
     const phoneNumber = data.phone || data.mobilePhone || phoneLink?.value || phoneLink?.url?.replace('tel:', '');
-    
+    const handlePhoneClick = (e: React.MouseEvent) => {
+      if (!isAuthenticated) {
+        e.preventDefault();
+        setIsSignInRequiredOpen(true);
+      }
+    };
+
     return (
       <div 
         className="border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
@@ -108,6 +125,8 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
           licenses={data.licenses}
           phone={phoneNumber}
           isListMode={true}
+          online={data.online}
+          onMessage={handleMessageClick}
           onShare={() => {
             if (onShare) {
               onShare(data.id);
@@ -115,6 +134,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
               setIsShareModalOpen(true);
             }
           }}
+          onPhoneClick={!isAuthenticated ? handlePhoneClick : undefined}
         />
         <ShareBusinessModal
           isOpen={isShareModalOpen}
@@ -124,6 +144,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
           logo={data.logo}
           businessUrl={shareBusinessUrl}
         />
+        <SignInRequiredModal isOpen={isSignInRequiredOpen} onClose={() => setIsSignInRequiredOpen(false)} />
       </div>
     );
   }
@@ -140,6 +161,8 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
         tradeIcon={data.tradeIcon}
         category={data.category}
         licenses={data.licenses}
+        online={data.online}
+        onMessage={handleMessageClick}
         onShare={() => {
           if (onShare) {
             onShare(data.id);
@@ -148,7 +171,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
           }
         }}
       />
-      <ProLinks links={data.links} maxLinks={7} />
+      <ProLinks links={data.links} maxLinks={7} onSignInRequired={!isAuthenticated ? showSignInRequired : undefined} />
       <ProReactions 
         initialReactions={data.reactions}
         onReaction={handleReaction}
@@ -156,6 +179,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
         contractorType={data.contractorType}
         logo={data.logo}
         businessId={data.id}
+        onSignInRequired={!isAuthenticated ? showSignInRequired : undefined}
       />
       
       <ShareBusinessModal
@@ -166,6 +190,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
         logo={data.logo}
         businessUrl={shareBusinessUrl}
       />
+      <SignInRequiredModal isOpen={isSignInRequiredOpen} onClose={() => setIsSignInRequiredOpen(false)} />
     </div>
   );
 }

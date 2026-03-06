@@ -1,6 +1,9 @@
 'use client';
 
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+
+const EMERGING_FROM_PROBOT_KEY = 'emergingFromProbot';
+const EMERGE_DURATION_MS = 500;
 
 interface PageContainerProps {
   children: ReactNode;
@@ -8,6 +11,8 @@ interface PageContainerProps {
 
 export default function PageContainer({ children }: PageContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [emerging, setEmerging] = useState(false);
+  const [emerged, setEmerged] = useState(false);
 
   // #region agent log - Development only
   useEffect(() => {
@@ -69,12 +74,33 @@ export default function PageContainer({ children }: PageContainerProps) {
   }, []);
   // #endregion
 
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+    const key = sessionStorage.getItem(EMERGING_FROM_PROBOT_KEY);
+    if (!key) return;
+    setEmerging(true);
+    sessionStorage.removeItem(EMERGING_FROM_PROBOT_KEY);
+  }, []);
+
+  useEffect(() => {
+    if (!emerging) return;
+    const t = setTimeout(() => setEmerged(true), 50);
+    const t2 = setTimeout(() => setEmerging(false), EMERGE_DURATION_MS + 100);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(t2);
+    };
+  }, [emerging]);
+
+  const scaleClass = emerging && !emerged ? 'scale-0' : 'scale-100';
+
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="w-full max-w-[960px] mx-auto bg-white flex flex-col min-h-0
+      className={`w-full max-w-[960px] mx-auto bg-white flex flex-col min-h-0
       border-2 border-black h-[calc(100vh-1rem)] overflow-y-auto overflow-x-hidden
-      md:mt-2 md:rounded-lg md:min-h-screen md:h-auto md:overflow-visible">
+      md:my-2 md:rounded-lg md:h-[calc(100vh-1rem)]
+      transition-transform duration-[500ms] ease-out origin-center ${scaleClass}`}>
       {children}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/Button';
 import { USER_TYPES, type UserType } from '@/lib/constants/auth';
 import { createLocalePath, getRedirectPath } from '@/lib/redirect';
@@ -20,13 +20,15 @@ interface SignupSuccessMessageProps {
 export function SignupSuccessMessage({ userType, onAddBusiness, returnUrl }: SignupSuccessMessageProps) {
   const router = useRouter();
   const locale = useLocale() as 'en' | 'es';
+  const t = useTranslations('auth.signup.navigation');
   const { checkAuth } = useAuth();
   const [isNavigating, setIsNavigating] = useState(false);
+  const [isNavigatingToEstimate, setIsNavigatingToEstimate] = useState(false);
   const isBusinessSignup = userType === USER_TYPES.CONTRACTOR;
   const isCustomerSignup = userType === USER_TYPES.CUSTOMER;
 
-  /** path can be locale-prefixed (e.g. /en/estimate) or relative (e.g. /estimate) */
-  const ensureAuthAndNavigate = async (path: string) => {
+  /** path can be locale-prefixed (e.g. /en/estimate) or relative (e.g. /estimate). onFinally called when navigation flow finishes. */
+  const ensureAuthAndNavigate = async (path: string, onFinally?: () => void) => {
     if (isNavigating) return;
 
     setIsNavigating(true);
@@ -71,7 +73,10 @@ export function SignupSuccessMessage({ userType, onAddBusiness, returnUrl }: Sig
       console.error('Error navigating:', error);
       router.push(targetPath);
     } finally {
-      setTimeout(() => setIsNavigating(false), 500);
+      setTimeout(() => {
+        setIsNavigating(false);
+        onFinally?.();
+      }, 500);
     }
   };
 
@@ -84,8 +89,32 @@ export function SignupSuccessMessage({ userType, onAddBusiness, returnUrl }: Sig
     : createLocalePath(locale, '/estimate');
 
   const handleGetEstimate = () => {
-    void ensureAuthAndNavigate(estimatePath);
+    setIsNavigatingToEstimate(true);
+    void ensureAuthAndNavigate(estimatePath, () => setIsNavigatingToEstimate(false));
   };
+
+  // While navigating to estimate: show bot typing (same idea as account/business creating)
+  if (isNavigating && isNavigatingToEstimate) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] py-6 gap-6">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <p className="text-lg font-semibold text-black">
+            {t('estimatePreparingJustASecond')}
+          </p>
+          <p className="text-base text-gray-700">
+            {t('estimatePreparingMessage')}
+          </p>
+        </div>
+        <img
+          src="/pro-bot-typing-creating-account.gif"
+          alt=""
+          className="w-full max-w-[200px] h-auto object-contain"
+          width={200}
+          height={168}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 flex-1 flex flex-col min-h-[400px]">

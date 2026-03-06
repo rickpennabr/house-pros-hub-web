@@ -35,6 +35,7 @@ export interface ChatSignupStep {
 
 export const CHAT_SIGNUP_STEPS: ChatSignupStep[] = [
   { id: 'role', messageKey: 'role', type: 'choice', field: 'userType' },
+  { id: 'invitationCode', messageKey: 'invitationCode', type: 'text', field: 'invitationCode', skipWhen: (v) => v.userType !== 'contractor' },
   { id: 'userPicture', messageKey: 'userPicture', type: 'upload', field: 'userPicture' },
   { id: 'firstName', messageKey: 'firstName', type: 'text', field: 'firstName' },
   { id: 'lastName', messageKey: 'lastName', type: 'text', field: 'lastName' },
@@ -48,7 +49,6 @@ export const CHAT_SIGNUP_STEPS: ChatSignupStep[] = [
   { id: 'email', messageKey: 'email', type: 'email', field: 'email' },
   { id: 'password', messageKey: 'password', type: 'password', field: 'password' },
   { id: 'confirmPassword', messageKey: 'confirmPassword', type: 'password', field: 'confirmPassword' },
-  { id: 'invitationCode', messageKey: 'invitationCode', type: 'text', field: 'invitationCode', skipWhen: (v) => v.userType !== 'contractor' },
   { id: 'agreeToTerms', messageKey: 'agreeToTerms', type: 'checkbox', field: 'agreeToTerms' },
 ];
 

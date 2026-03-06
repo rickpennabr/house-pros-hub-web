@@ -13,6 +13,16 @@ npm install
 npm run dev
 ```
 
+### Testing on mobile (HTTPS)
+
+Features like ProBot realtime (WebSockets) require a secure context. To test on your phone over the LAN:
+
+```bash
+npm run dev:https
+```
+
+Then on your phone open **https://&lt;your-machine-ip&gt;:3000** (e.g. `https://192.168.0.26:3000`). Accept the browser’s self-signed certificate warning once; after that, WebSockets and realtime will work.
+
 ## Quality gates (to avoid “build broke again”)
 
 Run these before pushing:

@@ -14,6 +14,7 @@ import {
   X,
   MessageCircle,
   Key,
+  FileCheck,
   LucideIcon 
 } from 'lucide-react';
 import { useAdminSearch } from './AdminSearchContext';
@@ -32,6 +33,7 @@ export const navItems: NavItem[] = [
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/businesses', label: 'Businesses', icon: Building2 },
   { href: '/admin/suppliers', label: 'Suppliers', icon: Package },
+  { href: '/admin/license-categories', label: 'License categories', icon: FileCheck },
   { href: '/admin/invitation-codes', label: 'Invitation codes', icon: Key },
   { href: '/admin/storage', label: 'Storage', icon: Folder },
   { href: '/admin/clear-data', label: 'Clear Data', icon: Eraser },

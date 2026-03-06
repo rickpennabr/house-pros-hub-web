@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Send, MessageCircle } from 'lucide-react';
+import { X, Send, MessageCircle, Bell, BellOff } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useTranslations } from 'next-intl';
 import { useChat } from '@/contexts/ChatContext';
@@ -11,6 +11,7 @@ import ChatSignupForm from '@/components/chat/ChatSignupForm';
 import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
 import { LeavePageWarningModal } from '@/app/[locale]/(auth)/signup/components/LeavePageWarningModal';
 import ProCard, { type ProCardData } from '@/components/proscard/ProCard';
+import { PROBOT_ASSETS } from '@/lib/constants/probot';
 
 export interface ChatMessage {
   id: string;
@@ -26,6 +27,15 @@ const CHOICE_TYPING_MS = 43; // 1.2x faster
 const CHOICE_INITIAL_DELAY_MS = 909; // 1200/1.2
 const CHOICE_BUTTON_DELAY_MS = 303; // 400/1.2
 const HUB_PHONE = '702-232-0411';
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const output = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) output[i] = rawData.charCodeAt(i);
+  return output;
+}
 
 /**
  * ProBot chat drawer: choice options (guest: 2 buttons, logged-in: 5), then chat or form.
@@ -64,8 +74,13 @@ export default function BotChatDrawer() {
   const [chatProList, setChatProList] = useState<ProCardData[]>([]);
   const [chatProListLoading, setChatProListLoading] = useState(false);
   const [chatProListError, setChatProListError] = useState<string | null>(null);
+  const [visitorPushEnabled, setVisitorPushEnabled] = useState<boolean | null>(null);
+  const [visitorPushRegistering, setVisitorPushRegistering] = useState(false);
+  const [visualHeight, setVisualHeight] = useState<number | null>(null);
+  const bodyScrollRef = useRef<number>(0);
 
   const choiceButtonCount = isAuthenticated ? 5 : 2;
+  const vapidPublicKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY : null;
 
   const loadConversationAndMessages = useCallback(async () => {
     if (!visitorId) return;
@@ -147,7 +162,6 @@ export default function BotChatDrawer() {
     };
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
       // Only load conversation when opening the drawer, not when user is already in the signup form
       // (otherwise signupStepIndex changes would re-run this effect, set loading=true, and unmount the form)
       if (userChoice !== 'account_estimate') {
@@ -168,9 +182,39 @@ export default function BotChatDrawer() {
     }
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
     };
   }, [isOpen, userChoice, loadConversationAndMessages]);
+
+  // iOS-compatible body scroll lock: position:fixed preserves scroll position and prevents rubber-band scroll behind the drawer.
+  useEffect(() => {
+    if (!isOpen) return;
+    bodyScrollRef.current = window.scrollY;
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${bodyScrollRef.current}px`;
+    document.body.style.width = '100%';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, bodyScrollRef.current);
+    };
+  }, [isOpen]);
+
+  // Track the visual viewport height so the drawer shrinks when the on-screen keyboard appears on mobile.
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setVisualHeight(vv.height);
+    update();
+    vv.addEventListener('resize', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      setVisualHeight(null);
+    };
+  }, [isOpen]);
 
   // Lock position to “centered” after user leaves the first modal so it doesn’t jump right → center
   useEffect(() => {
@@ -307,6 +351,45 @@ export default function BotChatDrawer() {
     [visitorId, conversationId, setConversationId, sending]
   );
 
+  const registerVisitorPush = useCallback(async () => {
+    if (!vapidPublicKey || !conversationId || !visitorId || visitorPushRegistering || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    setVisitorPushRegistering(true);
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await reg.update();
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        setVisitorPushEnabled(false);
+        return;
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
+      });
+      const payload = sub.toJSON();
+      const res = await fetch('/api/chat/visitor/push-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId,
+          visitorId,
+          endpoint: payload.endpoint,
+          keys: payload.keys,
+        }),
+      });
+      setVisitorPushEnabled(res.ok);
+    } catch {
+      setVisitorPushEnabled(false);
+    } finally {
+      setVisitorPushRegistering(false);
+    }
+  }, [vapidPublicKey, conversationId, visitorId, visitorPushRegistering]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    setVisitorPushEnabled(Notification.permission === 'granted');
+  }, []);
+
   const handleCallHub = () => setShowCallHubModal(true);
   const handleConfirmCallHub = () => {
     setShowCallHubModal(false);
@@ -356,46 +439,63 @@ export default function BotChatDrawer() {
         onClick={handleCloseChat}
       />
       <div
-        className={`fixed inset-0 z-[110] flex flex-col md:inset-auto md:bottom-[244px] md:top-auto md:max-w-[calc(100vw-2rem)] md:rounded-none md:shadow-xl bg-transparent pointer-events-none md:pointer-events-auto ${
+        className={`fixed inset-0 z-[110] flex flex-col h-[100dvh] max-h-[100dvh] md:inset-auto md:bottom-[244px] md:top-auto md:h-auto md:max-h-none md:max-w-[calc(100vw-2rem)] md:rounded-none md:shadow-xl bg-transparent pointer-events-none md:pointer-events-auto ${
           (showChoice || (loading && !hasLeftChoiceScreen))
             ? 'md:right-[calc(max(1rem,calc((100vw-960px)/2+1rem))+40px)] md:left-auto'
             : 'md:left-1/2 md:right-auto md:-translate-x-1/2'
         } ${isAccountEstimate ? 'md:w-[462px] md:h-[520px]' : userChoice === 'chat_with_hub' ? 'md:w-[420px] md:h-[480px]' : userChoice === 'talk_to_pro' || userChoice === 'message_a_pro' ? 'md:w-[400px] md:h-[520px]' : 'md:w-[352px] md:h-[380px]'}`}
+        style={visualHeight ? { height: `${visualHeight}px`, maxHeight: `${visualHeight}px` } : undefined}
         role="dialog"
         aria-label="ProBot chat"
         ref={drawerRef}
       >
         <div
-          className="relative z-10 flex flex-col h-full md:flex-col md:items-center md:h-full pointer-events-auto"
+          className="relative z-10 flex flex-col h-full min-h-0 md:flex-col md:items-center md:h-full pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
           role="presentation"
         >
-          <div className="flex flex-col h-full md:h-[calc(100%-10px)] md:w-full md:max-h-full bg-white md:rounded-lg overflow-hidden border border-black">
+          <div className="flex flex-col h-full min-h-0 md:h-[calc(100%-10px)] md:w-full md:max-h-full bg-white md:rounded-lg overflow-hidden border border-black">
             <header className="flex items-center justify-between shrink-0 h-[60px] md:h-11 px-3 border-b border-black bg-white">
               <div className="flex items-center gap-2">
                 {!isBotTyping && (
-                  <img
-                    src="/pro-bot-typing.png"
-                    alt=""
-                    width={28}
-                    height={28}
-                    className="w-7 h-7 object-contain shrink-0"
-                  />
+                  <div className="shrink-0 w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center">
+                    <img
+                      src={PROBOT_ASSETS.avatar}
+                      alt=""
+                      width={28}
+                      height={28}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
                 )}
                 <h2 className="text-lg font-semibold text-black md:text-base">ProBot</h2>
               </div>
-              <button
-                type="button"
-                onClick={handleCloseChat}
-                className="p-2 rounded-full hover:bg-gray-200 text-black transition-colors focus:outline-none focus:ring-2 focus:ring-black min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
-                aria-label="Close chat"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                {showMessageInput && conversationId && vapidPublicKey && (
+                  <button
+                    type="button"
+                    onClick={registerVisitorPush}
+                    disabled={visitorPushRegistering || visitorPushEnabled === true}
+                    className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-white shrink-0 hover:bg-gray-50 transition-colors disabled:opacity-60 cursor-pointer"
+                    title={visitorPushEnabled ? 'Reply notifications on' : 'Get notified when you receive a reply'}
+                    aria-label={visitorPushEnabled ? 'Reply notifications on' : 'Enable reply notifications'}
+                  >
+                    {visitorPushEnabled ? <Bell className="w-5 h-5 text-green-600" /> : <BellOff className="w-5 h-5 text-black" />}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCloseChat}
+                  className="p-2 rounded-full hover:bg-gray-200 text-black transition-colors focus:outline-none focus:ring-2 focus:ring-black min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
+                  aria-label="Close chat"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </header>
-        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0 basis-0">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 flex flex-col gap-2 min-h-0 overscroll-contain touch-pan-y chat-bg-gradient" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
             {error && (
               <p className="text-base text-red-600 text-center py-2 md:text-sm" role="alert">
                 {error}
@@ -408,13 +508,13 @@ export default function BotChatDrawer() {
                 <div className="flex flex-col gap-2">
                   <div className="self-start flex items-end gap-0 min-h-[48px] rounded-2xl overflow-hidden">
                     {/* Bot avatar: typing gif while typing, static image when done; stays in place for next question */}
-                    <div className="shrink-0 flex-shrink-0 w-12 h-12 flex items-center justify-center" aria-hidden>
+                    <div className="shrink-0 flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center" aria-hidden>
                       <img
-                        src={choiceQuestionTyped < CHOICE_QUESTION.length ? '/pro-bot-solo-typing-new.gif' : '/pro-bot-typing.png'}
+                        src={choiceQuestionTyped < CHOICE_QUESTION.length ? PROBOT_ASSETS.avatarAnimated : PROBOT_ASSETS.avatar}
                         alt=""
                         width={48}
                         height={48}
-                        className="w-12 h-12 object-contain pointer-events-none"
+                        className="w-full h-full object-contain pointer-events-none"
                       />
                     </div>
                     {choiceQuestionTyped > 0 && (
@@ -671,7 +771,7 @@ export default function BotChatDrawer() {
           {showMessageInput && (
             <form
               onSubmit={handleSubmit}
-              className="shrink-0 p-2 border-t border-gray-200 bg-gray-50 flex gap-2 items-end"
+              className="shrink-0 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] border-t border-gray-200 bg-gray-50 flex gap-2 items-end"
             >
               <textarea
                 value={inputValue}

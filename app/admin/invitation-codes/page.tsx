@@ -67,8 +67,16 @@ export default function InvitationCodesPage() {
     }
   };
 
-  const copyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const copyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch {
+      setCopiedCode(null);
+    }
   };
 
   return (
@@ -106,9 +114,13 @@ export default function InvitationCodesPage() {
             <button
               type="button"
               onClick={() => copyCode(newCode.code)}
-              className="px-3 py-2 rounded border-2 border-black bg-white text-black text-sm font-medium hover:bg-gray-100 cursor-pointer"
+              className={`px-3 py-2 rounded border-2 text-sm font-medium cursor-pointer transition-all duration-300 ease-out min-w-[4.5rem] ${
+                copiedCode === newCode.code
+                  ? 'border-green-600 bg-green-600 text-white scale-105'
+                  : 'border-black bg-white text-black hover:bg-gray-100'
+              }`}
             >
-              Copy
+              {copiedCode === newCode.code ? 'Copied!' : 'Copy'}
             </button>
           </div>
           <p className="text-sm text-gray-600">Expires: {formatDate(newCode.expiresAt)}</p>

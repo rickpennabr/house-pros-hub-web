@@ -4,6 +4,12 @@ export interface ContractorLicense {
   description: string;
 }
 
+/** License code for Handyman — the only classification that does not require a contractor license. */
+export const HANDYMAN_LICENSE_CODE = 'HANDYMAN';
+
+/** Classifications that do not require a contractor license number. */
+export const NON_CONTRACTOR_LICENSE_CODES: string[] = [HANDYMAN_LICENSE_CODE];
+
 export const RESIDENTIAL_CONTRACTOR_LICENSES: ContractorLicense[] = [
   // General Building
   { 

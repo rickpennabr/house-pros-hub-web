@@ -18,6 +18,7 @@ interface BusinessAboutTabProps {
   description?: string;
   logo?: string;
   licenses?: LicenseInfo[];
+  services?: string[];
   ownerImage?: string;
   ownerName?: string;
   ownerTitle?: string;
@@ -141,6 +142,7 @@ export default function BusinessAboutTab({
   description,
   logo,
   licenses,
+  services,
   ownerImage,
   ownerName,
   ownerTitle,
@@ -234,6 +236,21 @@ export default function BusinessAboutTab({
                 <p className="text-base text-black leading-relaxed">
                   {companyDescription || description}
                 </p>
+              </div>
+            )}
+            {services && services.length > 0 && (
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Services</p>
+                <ul className="flex flex-wrap gap-2">
+                  {services.map((name, index) => (
+                    <li
+                      key={`${name}-${index}`}
+                      className="px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-black"
+                    >
+                      {name}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </div>

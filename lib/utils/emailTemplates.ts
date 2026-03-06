@@ -114,6 +114,22 @@ export interface SetPasswordEmailTranslations {
   };
 }
 
+/** For forgot-password (user-initiated) reset email */
+export interface PasswordResetEmailTranslations {
+  subject: string;
+  greeting: string;
+  body: string;
+  cta: string;
+  securityNote: string;
+  securityText: string;
+  expiryNote: string;
+  footer: {
+    companyName: string;
+    contactInfo: string;
+    unsubscribe: string;
+  };
+}
+
 export interface NewSignupAdminNotificationData {
   type: 'customer' | 'contractor' | 'business';
   /** For customer/contractor: full name. For business: business name. */
@@ -580,6 +596,71 @@ export function generateSetPasswordEmail(
                   </td>
                 </tr>
               </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px; background-color: #f9fafb; border-top: 2px solid #000000; text-align: center;">
+              <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">${translations.footer.companyName}</p>
+              <p style="margin: 0 0 10px 0; font-size: 12px; color: #666;">${translations.footer.contactInfo}</p>
+              ${getFooterContactCta()}
+              <p style="margin: 0; font-size: 11px; color: #999;">${translations.footer.unsubscribe}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+/**
+ * Generate HTML email template for forgot-password (user-initiated reset)
+ */
+export function generatePasswordResetEmail(
+  firstName: string,
+  resetLink: string,
+  translations: PasswordResetEmailTranslations
+): string {
+  const greeting = firstName ? `${translations.greeting} ${firstName},` : `${translations.greeting},`;
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${translations.subject}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style="padding: 30px;">
+              <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${greeting}</p>
+              <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${translations.body}</p>
+              <table cellpadding="0" cellspacing="0" style="margin: 24px 0 0 0;">
+                <tr>
+                  <td style="border-radius: 8px; background-color: #000000; padding: 0;">
+                    <a href="${resetLink}" style="display: inline-block; padding: 14px 28px; color: #ffffff; font-size: 16px; font-weight: bold; text-decoration: none;">${translations.cta}</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 20px 0 0 0; font-size: 13px; color: #666; font-style: italic;">${translations.expiryNote}</p>
+              <div style="margin-top: 24px; padding: 16px; background-color: #f9fafb; border-left: 4px solid #000000; border-radius: 4px;">
+                <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: bold; color: #333;">${translations.securityNote}</p>
+                <p style="margin: 0; font-size: 14px; color: #333;">${translations.securityText}</p>
+              </div>
             </td>
           </tr>
           <!-- Footer -->

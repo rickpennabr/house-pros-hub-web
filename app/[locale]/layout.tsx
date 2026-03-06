@@ -5,6 +5,10 @@ import Script from 'next/script';
 import { locales } from '@/i18n';
 import type { Locale } from '@/i18n';
 import AuthProviderWrapper from '@/components/providers/AuthProviderWrapper';
+import { GlobalHashHandler } from '@/components/auth/GlobalHashHandler';
+import ContractorPresenceHeartbeat from '@/components/presence/ContractorPresenceHeartbeat';
+import UserPresenceHeartbeat from '@/components/presence/UserPresenceHeartbeat';
+import { ProBotTransitionProvider } from '@/contexts/ProBotTransitionContext';
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -86,7 +90,7 @@ export async function generateMetadata({
         : 'Connect with dedicated trade owners who collaborate to bring your home improvement dreams to life.',
       images: [
         {
-          url: '/hph-logo-2.3.png',
+          url: '/house-pros-hub-logo-simble-bot.png',
           width: 1200,
           height: 630,
           alt: isSpanish
@@ -103,7 +107,7 @@ export async function generateMetadata({
       description: isSpanish
         ? 'Conéctate con propietarios de oficios dedicados que colaboran para hacer realidad tus sueños de mejoras para el hogar.'
         : 'Connect with dedicated trade owners who collaborate to bring your home improvement dreams to life.',
-      images: ['/hph-logo-2.3.png'],
+      images: ['/house-pros-hub-logo-simble-bot.png'],
       creator: '@houseproshub',
     },
     robots: {
@@ -141,7 +145,7 @@ export default async function RootLayout({
     name: 'House Pros Hub',
     description: 'Connect with dedicated trade owners who collaborate to bring your home improvement dreams to life. Personal attention, collective expertise, built to last.',
     url: baseUrl,
-    logo: `${baseUrl}/hph-logo-2.3.png`,
+    logo: `${baseUrl}/house-pros-hub-logo-simble-bot.png`,
     areaServed: {
       '@type': 'Country',
       name: 'United States',
@@ -150,6 +154,30 @@ export default async function RootLayout({
 
   return (
     <>
+      {/* Redirect to reset-password with hash when recovery tokens land on another page (before React loads) */}
+      <Script
+        id="hash-fragment-recovery-redirect"
+        strategy="beforeInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+(function() {
+  if (typeof window === 'undefined') return;
+  var pathname = window.location.pathname || '';
+  if (pathname.indexOf('reset-password') !== -1) return;
+  var hash = window.location.hash || '';
+  if (hash.length < 10) return;
+  try {
+    var p = new URLSearchParams(hash.substring(1));
+    if (p.get('access_token') && p.get('refresh_token') && p.get('type') === 'recovery') {
+      var seg = pathname.split('/')[1];
+      var locale = (seg === 'es' || seg === 'en') ? seg : 'en';
+      window.location.replace('/' + locale + '/reset-password' + hash);
+    }
+  } catch (e) {}
+})();
+          `.trim(),
+        }}
+      />
       {/* Organization Structured Data for SEO */}
       <Script
         id="organization-structured-data"
@@ -160,9 +188,14 @@ export default async function RootLayout({
       />
       <NextIntlClientProvider locale={resolvedLocale} messages={messages}>
         <AuthProviderWrapper>
-          <Suspense fallback={null}>
-            {children}
-          </Suspense>
+          <ProBotTransitionProvider>
+            <UserPresenceHeartbeat />
+            <ContractorPresenceHeartbeat />
+            <GlobalHashHandler />
+            <Suspense fallback={null}>
+              {children}
+            </Suspense>
+          </ProBotTransitionProvider>
         </AuthProviderWrapper>
       </NextIntlClientProvider>
     </>

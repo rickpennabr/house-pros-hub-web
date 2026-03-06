@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import ProCardGrid from '@/components/proscard/ProCardGrid';
 import ViewToggle, { ViewType } from '@/components/pageslayout/ViewToggle';
@@ -13,6 +13,8 @@ import { useWindowDimensions } from '@/hooks/useWindowDimensions';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { ProCardData } from '@/components/proscard/ProCard';
 
+const PRESENCE_POLL_MS = 45_000;
+
 interface BusinessListClientProps {
   initialBusinesses: ProCardData[];
 }
@@ -21,6 +23,9 @@ export default function BusinessListClient({ initialBusinesses }: BusinessListCl
   const t = useTranslations('businessList');
   const { activeCategory, searchQuery } = useCategory();
   const { businesses, isLoading } = useBusinesses(initialBusinesses);
+  const [onlineByBusiness, setOnlineByBusiness] = useState<Record<string, boolean>>({});
+  const businessesRef = useRef<ProCardData[]>([]);
+  businessesRef.current = businesses;
   const [savedView, setSavedView] = useLocalStorage<string>('businessListView', 'card');
   const view = (savedView === 'card' || savedView === 'list') ? (savedView as ViewType) : 'card';
   const setView = (newView: ViewType) => setSavedView(newView);
@@ -35,9 +40,32 @@ export default function BusinessListClient({ initialBusinesses }: BusinessListCl
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // Poll presence so business cards show green online indicator when the pro is on the platform
+  useEffect(() => {
+    const run = () => {
+      const ids = businessesRef.current.slice(0, 100).map((b) => b.id);
+      if (ids.length === 0) return;
+      fetch(`/api/chat/presence?businessIds=${ids.join(',')}`)
+        .then((res) => (res.ok ? res.json() : { onlineByBusiness: {} }))
+        .then((data) => setOnlineByBusiness((data.onlineByBusiness ?? {}) as Record<string, boolean>))
+        .catch(() => {});
+    };
+    run();
+    const earlyPoll = setTimeout(run, 2_000);
+    const interval = setInterval(run, PRESENCE_POLL_MS);
+    return () => {
+      clearTimeout(earlyPoll);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const businessesWithPresence = useMemo(() => {
+    return businesses.map((b) => ({ ...b, online: onlineByBusiness[b.id] === true }));
+  }, [businesses, onlineByBusiness]);
+
   const filteredCards = useMemo(() => {
-    return filterBusinesses(businesses, activeCategory, searchQuery);
-  }, [businesses, activeCategory, searchQuery]);
+    return filterBusinesses(businessesWithPresence, activeCategory, searchQuery);
+  }, [businessesWithPresence, activeCategory, searchQuery]);
 
   const itemsPerPage = view === 'list' ? 21 : 12;
   const totalPages = Math.ceil(filteredCards.length / itemsPerPage);

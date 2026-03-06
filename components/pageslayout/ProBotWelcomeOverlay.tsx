@@ -6,8 +6,8 @@ import { useWelcome } from '@/contexts/WelcomeContext';
 
 const SESSION_KEY = 'houseproshub_welcome_shown';
 const TYPEWRITER_MS = 48;
-/** Pause with full message visible (2s) after typing finishes, then go to site */
-const PAUSE_AFTER_TYPING_MS = 2000;
+/** Pause with full 4-line message visible before fading to black */
+const PAUSE_AFTER_TYPING_MS = 2500;
 const FADE_TO_BLACK_MS = 2000;
 const MOVE_DURATION_MS = 800;
 /** Floating button size (1.2x scale) */
@@ -24,7 +24,11 @@ type Phase = 'typewriter' | 'fadeToBlack' | 'moveToCorner' | 'done';
 export default function ProBotWelcomeOverlay() {
   const t = useTranslations('bot');
   const { setWelcomeOverlayVisible } = useWelcome();
-  const welcomeMessage = t('welcomeMessage');
+  const line1 = t('welcomeLine1');
+  const line2 = t('welcomeLine2');
+  const line3 = t('welcomeLine3');
+  const line4 = t('welcomeLine4');
+  const fullText = `${line1}\n${line2}\n${line3}\n${line4}`;
   const [hasChecked, setHasChecked] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const [phase, setPhase] = useState<Phase>('typewriter');
@@ -48,18 +52,18 @@ export default function ProBotWelcomeOverlay() {
     setHasChecked(true);
   }, [setWelcomeOverlayVisible]);
 
-  // Typewriter: run once, then brief pause and fade to black
+  // Typewriter: type all 4 lines, then pause and fade to black
   useEffect(() => {
-    if (!showOverlay || phase !== 'typewriter' || !welcomeMessage) return;
+    if (!showOverlay || phase !== 'typewriter') return;
 
-    if (typedLength >= welcomeMessage.length) {
+    if (typedLength >= fullText.length) {
       const next = setTimeout(() => setPhase('fadeToBlack'), PAUSE_AFTER_TYPING_MS);
       return () => clearTimeout(next);
     }
 
     const id = setTimeout(() => setTypedLength((n) => n + 1), TYPEWRITER_MS);
     return () => clearTimeout(id);
-  }, [showOverlay, phase, typedLength, welcomeMessage]);
+  }, [showOverlay, phase, typedLength, fullText.length]);
 
   // Phase: fade to black (2s)
   useEffect(() => {
@@ -97,10 +101,18 @@ export default function ProBotWelcomeOverlay() {
   // This way the first paint is always the robot + message screen, never a generic white box.
   if (!showOverlay && hasChecked) return null;
 
-  const displayText = welcomeMessage?.slice(0, typedLength) ?? '';
-  const isTyping = typedLength < (welcomeMessage?.length ?? 0);
+  const displayText = fullText.slice(0, typedLength);
+  const lines = displayText.split('\n');
+  const isTyping = typedLength < fullText.length;
   const isFadeToBlack = phase === 'fadeToBlack';
   const isMoveToCorner = phase === 'moveToCorner' && cornerPosition;
+
+  const lineStyles = [
+    'text-[1.75rem] md:text-[2rem] font-medium',
+    'text-[2rem] md:text-[2.5rem] font-bold',
+    'text-[1.75rem] md:text-[2rem]',
+    'text-[1.75rem] md:text-[2rem] font-semibold',
+  ];
 
   return (
     <>
@@ -138,14 +150,18 @@ export default function ProBotWelcomeOverlay() {
           {!isMoveToCorner && (
             <div className="mb-2 flex flex-col items-center bg-transparent">
               <div
-                className="w-[360px] min-h-[264px] max-w-[408px] flex flex-col items-center justify-center gap-1 p-6 rounded-xl bg-gray-900 text-white text-lg md:text-xl leading-snug text-center"
+                className="w-[360px] min-h-[220px] max-w-[420px] flex flex-col items-center justify-center gap-0.5 p-6 rounded-xl bg-gray-900 text-white text-center"
                 role="status"
                 aria-live="polite"
               >
-                <span className="inline-flex items-baseline flex-wrap justify-center gap-0">
-                  <span>{displayText}</span>
-                  {isTyping && <span className="animate-pulse shrink-0" aria-hidden>|</span>}
-                </span>
+                {lines.map((line, i) => (
+                  <p key={i} className={`min-h-[1.5em] ${lineStyles[i] ?? lineStyles[0]}`}>
+                    {line}
+                    {isTyping && i === lines.length - 1 && (
+                      <span className="animate-pulse" aria-hidden>|</span>
+                    )}
+                  </p>
+                ))}
               </div>
               <div
                 className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[12px] border-t-gray-900 -mt-px"

@@ -10,26 +10,22 @@ export default async function AdminLayoutWrapper({
 }) {
   const supabase = await createClient();
 
-  // Check authentication
+  // Check authentication (use getUser so identity is validated with Supabase Auth server)
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
-  // Redirect to sign-in if not authenticated
-  if (!session) {
+  if (error || !user) {
     redirect('/en/signin');
   }
 
-  // Get user email from session
-  const userEmail = session.user.email?.toLowerCase().trim();
+  const userEmail = user.email?.toLowerCase().trim();
 
-  // Check if user is admin (case-insensitive comparison)
   if (userEmail !== ADMIN_EMAIL.toLowerCase().trim()) {
-    // Redirect non-admin users to home
     redirect('/');
   }
 
-  // Pass user email to AdminLayout
-  return <AdminLayout userEmail={session.user.email || ''}>{children}</AdminLayout>;
+  return <AdminLayout userEmail={user.email || ''}>{children}</AdminLayout>;
 }
 

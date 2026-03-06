@@ -8,6 +8,7 @@ export const ALLOWED_STORAGE_BUCKETS = [
   'profile-pictures',
   'business-logos',
   'business-backgrounds',
+  'business-images',
   'estimate-images',
 ] as const;
 

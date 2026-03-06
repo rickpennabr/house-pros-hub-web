@@ -1,12 +1,11 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useFormContext, useFieldArray } from 'react-hook-form';
 import { Input } from '@/components/ui/Input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
-import { RESIDENTIAL_CONTRACTOR_LICENSES } from '@/lib/constants/contractorLicenses';
 import { SignupSchema } from '@/lib/schemas/auth';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,6 +45,20 @@ export function ContractorStep2() {
   const licenses = watch('licenses');
   const companyRole = watch('companyRole');
   const companyRoleOther = watch('companyRoleOther');
+
+  const [licenseCategories, setLicenseCategories] = useState<Array<{ id: string; code: string; name: string; requires_contractor_license: boolean; sort_order: number }>>([]);
+  useEffect(() => {
+    fetch('/api/license-categories')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.categories?.length) setLicenseCategories(data.categories);
+      })
+      .catch(() => {});
+  }, []);
+  const contractorLicenseOptions = useMemo(
+    () => licenseCategories.filter((c) => c.requires_contractor_license).sort((a, b) => a.sort_order - b.sort_order),
+    [licenseCategories]
+  );
 
   // Typing animation for placeholders (only when not authenticated)
   const emailPlaceholder = tFields('emailPlaceholder');
@@ -228,9 +241,9 @@ export function ContractorStep2() {
                     error={errors.licenses?.[index]?.license?.message}
                   >
                     <option value="">{tFields('licenseClassificationPlaceholder')}</option>
-                    {RESIDENTIAL_CONTRACTOR_LICENSES.map((license) => (
-                      <option key={license.code} value={license.code}>
-                        {license.code} - {license.name}
+                    {contractorLicenseOptions.map((cat) => (
+                      <option key={cat.id} value={cat.code}>
+                        {cat.code} - {cat.name}
                       </option>
                     ))}
                   </Select>

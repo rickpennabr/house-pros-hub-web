@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Database } from '@/lib/types/supabase';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { sendMessageSchema, getMessagesSchema } from '@/lib/schemas/chat';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
-import { sendAdminPushNotification } from '@/lib/services/pushNotificationService';
+import { filterAllowedAttachments } from '@/lib/utils/chatAttachmentAllowlist';
+import { sendAdminPushNotification, sendBusinessPushNotification } from '@/lib/services/pushNotificationService';
 
 /**
  * POST /api/chat/messages
@@ -20,7 +22,14 @@ export async function POST(request: NextRequest) {
       const msg = parsed.error.flatten().fieldErrors?.body?.[0] ?? 'Invalid request';
       return NextResponse.json({ error: msg }, { status: 400 });
     }
-    const { conversationId: providedConvId, visitorId, body: messageBody, businessId } = parsed.data;
+    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments } = parsed.data;
+
+    const attachments = rawAttachments?.length
+      ? filterAllowedAttachments(rawAttachments)
+      : undefined;
+    if (rawAttachments?.length && attachments === null) {
+      return NextResponse.json({ error: 'Invalid attachment URL. Attachments must be uploaded via the chat upload endpoint.' }, { status: 400 });
+    }
 
     const supabase = createServiceRoleClient();
     let conversationId = providedConvId;
@@ -30,9 +39,11 @@ export async function POST(request: NextRequest) {
         .from('probot_conversations')
         .select('id')
         .eq('visitor_id', visitorId)
-        .single();
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
       if (existing) {
-        conversationId = existing.id;
+        conversationId = (existing as { id: string }).id;
       } else {
         const { data: inserted, error: insertErr } = await supabase
           .from('probot_conversations')
@@ -57,29 +68,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const insertPayload: { conversation_id: string; sender: 'visitor' | 'admin'; body: string; business_id?: string } = {
+    const insertPayload: {
+      conversation_id: string;
+      sender: 'visitor' | 'admin';
+      body: string;
+      business_id?: string;
+      attachments?: unknown;
+    } = {
       conversation_id: conversationId,
       sender: 'visitor',
-      body: messageBody,
+      body: (messageBody ?? '').trim() || ' ',
     };
     if (businessId) insertPayload.business_id = businessId;
+    if (attachments?.length) insertPayload.attachments = attachments;
 
-    // Select only columns that exist without migration 018 (business_id may not exist yet)
-    const selectCols = 'id, conversation_id, sender, body, created_at';
+    const selectCols = 'id, conversation_id, sender, body, created_at, attachments';
 
+    type InsertRow = Database['public']['Tables']['probot_messages']['Insert'];
     let result = await supabase
       .from('probot_messages')
-      .insert(insertPayload)
+      .insert(insertPayload as InsertRow)
       .select(selectCols)
       .single();
 
     if (result.error && (result.error.code === '42703' || String(result.error.message).includes('does not exist'))) {
-      delete insertPayload.business_id;
+      delete insertPayload.attachments;
+      const colsWithoutAttachments = 'id, conversation_id, sender, body, created_at';
       result = await supabase
         .from('probot_messages')
-        .insert(insertPayload)
-        .select(selectCols)
+        .insert(insertPayload as InsertRow)
+        .select(colsWithoutAttachments)
         .single();
+      if (result.data) {
+        (result.data as Record<string, unknown>).attachments = attachments ?? [];
+      }
     }
 
     if (result.error) {
@@ -89,15 +111,52 @@ export async function POST(request: NextRequest) {
 
     const message = result.data;
 
-    const pushTitle = businessId ? 'New message to a Pro' : 'New ProBot message';
-    await sendAdminPushNotification(
-      pushTitle,
-      messageBody.slice(0, 80) + (messageBody.length > 80 ? '…' : ''),
-      '/admin/chat'
-    );
+    if (displayName && conversationId) {
+      const updateRes = await supabase
+        .from('probot_conversations')
+        .update({ visitor_display_name: displayName.slice(0, 200) })
+        .eq('id', conversationId)
+        .eq('visitor_id', visitorId);
+      if (updateRes.error?.code === '42703') {
+        // Column visitor_display_name may not exist yet (migration 025 not applied)
+      }
+    }
 
+    if (userId && conversationId) {
+      const supabaseAuth = await createClient();
+      const { data: { user } } = await supabaseAuth.auth.getUser();
+      if (user?.id === userId) {
+        const updateUserRes = await supabase
+          .from('probot_conversations')
+          .update({ user_id: userId })
+          .eq('id', conversationId)
+          .eq('visitor_id', visitorId);
+        if (updateUserRes.error?.code === '42703') {
+          // Column user_id may not exist yet (migration 026 not applied)
+        }
+      }
+    }
+
+    const pushTitle = businessId ? 'New message to a Pro' : 'New ProBot message';
+    const pushBody = messageBody.slice(0, 80) + (messageBody.length > 80 ? '…' : '');
+    await sendAdminPushNotification(pushTitle, pushBody, '/admin/chat');
+    if (businessId) {
+      await sendBusinessPushNotification(businessId, pushTitle, pushBody, '/probot');
+    }
+
+    const msg = message as unknown as { id: string; conversation_id: string; sender: string; body: string; created_at: string; attachments?: unknown };
     return NextResponse.json(
-      { message: { id: message.id, conversationId: message.conversation_id, sender: message.sender, body: message.body, created_at: message.created_at, businessId: businessId ?? undefined } },
+      {
+        message: {
+          id: msg.id,
+          conversationId: msg.conversation_id,
+          sender: msg.sender,
+          body: msg.body,
+          created_at: msg.created_at,
+          businessId: businessId ?? undefined,
+          attachments: msg.attachments ?? attachments ?? [],
+        },
+      },
       { status: 200 }
     );
   } catch (e) {
@@ -125,58 +184,175 @@ export async function GET(request: NextRequest) {
 
     const supabaseServer = await createClient();
     const {
-      data: { session },
-    } = await supabaseServer.auth.getSession();
+      data: { user },
+      error: userError,
+    } = await supabaseServer.auth.getUser();
     const isAdmin =
-      !!session?.user?.email &&
-      session.user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+      !userError &&
+      !!user?.email &&
+      user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
     const supabase = createServiceRoleClient();
 
+    let contractorReadBusinessId: string | null = null;
     if (!isAdmin) {
-      if (!visitorId) {
-        return NextResponse.json({ error: 'visitorId required for visitor' }, { status: 400 });
+      if (visitorId) {
+        const { data: conv } = await supabase
+          .from('probot_conversations')
+          .select('id')
+          .eq('id', parsed.data.conversationId)
+          .eq('visitor_id', visitorId)
+          .single();
+        if (!conv) {
+          return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+        }
+      } else {
+        if (!user?.id) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const { data: profile } = await supabaseServer
+          .from('profiles')
+          .select('business_id')
+          .eq('id', user.id)
+          .single();
+        const userBusinessId = (profile as { business_id?: string } | null)?.business_id ?? null;
+        if (!userBusinessId) {
+          return NextResponse.json({ error: 'visitorId required for visitor' }, { status: 400 });
+        }
+        contractorReadBusinessId = userBusinessId;
+        const { data: msgRow } = await supabase
+          .from('probot_messages')
+          .select('id')
+          .eq('conversation_id', parsed.data.conversationId)
+          .eq('business_id', userBusinessId)
+          .limit(1)
+          .maybeSingle();
+        if (!msgRow) {
+          return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+        }
       }
-      const { data: conv } = await supabase
+    }
+
+    // WhatsApp-style: one thread per profile. For admin/contractor, load messages from all conversations for this visitor and merge.
+    let conversationIds: string[] = [parsed.data.conversationId];
+    const isVisitorContext = Boolean(parsed.data.visitorId?.trim());
+    if (!isVisitorContext) {
+      const { data: convRow } = await supabase
         .from('probot_conversations')
-        .select('id')
+        .select('visitor_id')
         .eq('id', parsed.data.conversationId)
-        .eq('visitor_id', visitorId)
         .single();
-      if (!conv) {
-        return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      if (convRow?.visitor_id) {
+        const vid = (convRow as { visitor_id: string }).visitor_id;
+        const { data: allConvs } = await supabase
+          .from('probot_conversations')
+          .select('id')
+          .eq('visitor_id', vid);
+        let ids = (allConvs ?? []) as { id: string }[];
+        if (contractorReadBusinessId && ids.length > 0) {
+          const { data: msgConvs } = await supabase
+            .from('probot_messages')
+            .select('conversation_id')
+            .in('conversation_id', ids.map((c) => c.id))
+            .eq('business_id', contractorReadBusinessId);
+          const allowed = new Set((msgConvs ?? []).map((r) => (r as { conversation_id: string }).conversation_id));
+          ids = ids.filter((c) => allowed.has(c.id));
+        }
+        if (ids.length) conversationIds = ids.map((c) => c.id);
       }
     }
 
-    // Select messages; business_id may not exist if migration 018 not run yet
-    let rawMessages: { id: string; sender: string; body: string; created_at: string; business_id?: string | null }[] | null = null;
+    type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null; read_at?: string | null; attachments?: unknown; admin_sent_as?: string | null; admin_user_id?: string | null };
+    let rawMessages: MessageRow[] | null = null;
 
-    const withBusinessId = await supabase
+    const selectCols = 'id, sender, body, created_at, business_id, read_at, attachments, admin_sent_as, admin_user_id';
+    const withAttachments = await supabase
       .from('probot_messages')
-      .select('id, sender, body, created_at, business_id')
-      .eq('conversation_id', parsed.data.conversationId)
+      .select(selectCols)
+      .in('conversation_id', conversationIds)
       .order('created_at', { ascending: true })
-      .limit(100);
+      .limit(300);
 
-    type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null };
-    if (withBusinessId.error) {
-      // Fallback: column business_id may not exist yet (migration 018 not applied)
-      const fallback = await supabase
+    if (!withAttachments.error) {
+      rawMessages = withAttachments.data as unknown as MessageRow[] | null;
+    } else if (withAttachments.error.code === '42703' || String(withAttachments.error.message).includes('does not exist')) {
+      const withoutAdminUserId = await supabase
         .from('probot_messages')
-        .select('id, sender, body, created_at')
-        .eq('conversation_id', parsed.data.conversationId)
+        .select('id, sender, body, created_at, business_id, read_at, attachments, admin_sent_as')
+        .in('conversation_id', conversationIds)
         .order('created_at', { ascending: true })
-        .limit(100);
-      if (fallback.error) {
-        console.error('ProBot messages GET error:', fallback.error);
-        return NextResponse.json({ error: 'Failed to load messages' }, { status: 500 });
+        .limit(300);
+      if (!withoutAdminUserId.error) {
+        rawMessages = (withoutAdminUserId.data ?? []).map((m) => ({ ...m, admin_user_id: null })) as MessageRow[];
+      } else {
+        const withReadAt = await supabase
+          .from('probot_messages')
+          .select('id, sender, body, created_at, business_id, read_at, admin_sent_as')
+          .in('conversation_id', conversationIds)
+          .order('created_at', { ascending: true })
+          .limit(300);
+        if (!withReadAt.error) {
+          rawMessages = (withReadAt.data ?? []).map((m) => ({ ...m, attachments: [], admin_user_id: null })) as MessageRow[];
+        } else {
+          const min = await supabase
+            .from('probot_messages')
+            .select('id, sender, body, created_at, business_id')
+            .in('conversation_id', conversationIds)
+            .order('created_at', { ascending: true })
+            .limit(300);
+          if (min.error) {
+            console.error('ProBot messages GET error:', min.error);
+            return NextResponse.json({ error: 'Failed to load messages' }, { status: 500 });
+          }
+          const minData = min.data ?? [];
+          rawMessages = minData.map((m) => ({
+            ...m,
+            business_id: m.business_id ?? null,
+            read_at: null,
+            attachments: [],
+            admin_sent_as: null,
+            admin_user_id: null,
+          })) as MessageRow[];
+        }
       }
-      rawMessages = fallback.data as unknown as MessageRow[] | null;
     } else {
-      rawMessages = withBusinessId.data as unknown as MessageRow[] | null;
+      console.error('ProBot messages GET error:', withAttachments.error);
+      return NextResponse.json({ error: 'Failed to load messages' }, { status: 500 });
     }
 
-    const rows = rawMessages ?? [];
+    let rows = rawMessages ?? [];
+    if (contractorReadBusinessId) {
+      rows = rows.filter(
+        (m) => m.sender === 'admin' || m.business_id === contractorReadBusinessId
+      );
+    }
+
+    // Mark as read by context: visitor viewing (has visitorId) = mark admin messages read only;
+    // admin/contractor viewing = mark visitor messages read across all conversations in this thread (WhatsApp-style one thread per profile).
+    const nowIso = new Date().toISOString();
+    let readAtUpdated = false;
+    if (isVisitorContext) {
+      const up = await supabase
+        .from('probot_messages')
+        .update({ read_at: nowIso })
+        .eq('conversation_id', parsed.data.conversationId)
+        .eq('sender', 'admin')
+        .is('read_at', null);
+      readAtUpdated = !up.error || up.error.code !== '42703';
+    } else {
+      let up = supabase
+        .from('probot_messages')
+        .update({ read_at: nowIso })
+        .in('conversation_id', conversationIds)
+        .eq('sender', 'visitor')
+        .is('read_at', null);
+      if (contractorReadBusinessId) {
+        up = up.eq('business_id', contractorReadBusinessId);
+      }
+      const upResult = await up;
+      readAtUpdated = !upResult.error || upResult.error.code !== '42703';
+    }
+
     const businessIds = [...new Set(rows.map((m) => m.business_id).filter(Boolean))] as string[];
     let businessNames: Record<string, string> = {};
     if (businessIds.length > 0) {
@@ -189,14 +365,44 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const messages = rows.map((m) => ({
-      id: m.id,
-      sender: m.sender,
-      body: m.body,
-      created_at: m.created_at,
-      business_id: m.business_id ?? undefined,
-      business_name: m.business_id ? businessNames[m.business_id] : undefined,
-    }));
+    const adminUserIds = [...new Set(rows.filter((m) => m.sender === 'admin' && m.admin_sent_as === 'hub_agent' && m.admin_user_id).map((m) => m.admin_user_id!))];
+    type ProfileRow = { id: string; first_name: string | null; last_name: string | null; user_picture: string | null };
+    let adminProfiles: Record<string, { admin_avatar_url: string | null; admin_display_name: string | null }> = {};
+    if (adminUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, user_picture')
+        .in('id', adminUserIds);
+      for (const p of profiles ?? []) {
+        const row = p as ProfileRow;
+        const name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim() || null;
+        adminProfiles[row.id] = { admin_avatar_url: row.user_picture ?? null, admin_display_name: name };
+      }
+    }
+
+    const messages = rows.map((m) => {
+      const justMarked = readAtUpdated && (
+        (isVisitorContext && m.sender === 'admin') ||
+        (!isVisitorContext && m.sender === 'visitor' && (!contractorReadBusinessId || m.business_id === contractorReadBusinessId))
+      );
+      const readAt = m.read_at ?? (justMarked ? nowIso : undefined);
+      const adminUserId = m.admin_user_id ?? undefined;
+      const adminProfile = adminUserId ? adminProfiles[adminUserId] : undefined;
+      return {
+        id: m.id,
+        sender: m.sender,
+        body: m.body,
+        created_at: m.created_at,
+        business_id: m.business_id ?? undefined,
+        business_name: m.business_id ? businessNames[m.business_id] : undefined,
+        read_at: readAt ?? undefined,
+        attachments: Array.isArray(m.attachments) ? m.attachments : [],
+        admin_sent_as: m.admin_sent_as ?? undefined,
+        admin_user_id: adminUserId,
+        admin_avatar_url: adminProfile?.admin_avatar_url ?? undefined,
+        admin_display_name: adminProfile?.admin_display_name ?? undefined,
+      };
+    });
     return NextResponse.json({ messages }, { status: 200 });
   } catch (e) {
     console.error('ProBot messages GET error:', e);

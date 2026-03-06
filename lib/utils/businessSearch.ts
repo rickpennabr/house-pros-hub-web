@@ -103,11 +103,20 @@ export function matchesSearchQuery(business: ProCardData, query: string): boolea
     return true;
   }
 
-  // Extract keywords from business data
+  // Match against services (e.g. "Plumbing", "Repairs")
+  if (business.services && business.services.length > 0) {
+    const serviceMatch = business.services.some(
+      (s) => s && s.toLowerCase().includes(normalizedQuery)
+    );
+    if (serviceMatch) return true;
+  }
+
+  // Extract keywords from business data (including services)
   const businessKeywords = [
     ...extractKeywords(business.businessName),
     ...extractKeywords(business.contractorType),
     ...(business.category ? extractKeywords(business.category) : []),
+    ...(business.services || []).flatMap((s) => (s ? extractKeywords(s) : [])),
   ];
 
   // Check if any keyword matches

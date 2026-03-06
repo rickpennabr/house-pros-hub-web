@@ -46,6 +46,31 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Standard black scrollbar for all scrollable areas (Chrome, Safari, Edge) */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #000000;
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #1a1a1a;
+}
+
+/* Standard black scrollbar for all scrollable areas (Firefox) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #000000 transparent;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
@@ -57,63 +82,33 @@ body {
   scrollbar-width: none;  /* Firefox */
 }
 
-/* Custom scrollbar styling - transparent by default, black on hover */
+/* Custom scrollbar - same black standard, optional smaller height for horizontal rails */
 .scrollbar-custom::-webkit-scrollbar {
   height: 6px;
 }
 
-.scrollbar-custom::-webkit-scrollbar-track {
-  background: transparent;
-}
-
 .scrollbar-custom::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.15);
+  background-color: #000000;
   border-radius: 3px;
-  transition: background-color 0.2s ease;
 }
 
-.scrollbar-custom:hover::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 1);
-}
-
-/* Firefox */
 .scrollbar-custom {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+  scrollbar-color: #000000 transparent;
 }
 
-.scrollbar-custom:hover {
-  scrollbar-color: rgba(0, 0, 0, 1) transparent;
-}
-
-/* Category carousel scrollbar - PC only, 1px thicker */
+/* Category carousel scrollbar - PC only, same black, slightly thicker */
 @media (min-width: 768px) {
   .scrollbar-category::-webkit-scrollbar {
     height: 7px;
   }
 
-  .scrollbar-category::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
   .scrollbar-category::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.15);
+    background-color: #000000;
     border-radius: 3.5px;
-    transition: background-color 0.2s ease;
   }
 
-  .scrollbar-category:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 1);
-  }
-
-  /* Firefox */
   .scrollbar-category {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
-  }
-
-  .scrollbar-category:hover {
-    scrollbar-color: rgba(0, 0, 0, 1) transparent;
+    scrollbar-color: #000000 transparent;
   }
 }
 
@@ -246,6 +241,31 @@ body {
 }
 .animate-backdrop-fade-in {
   animation: backdrop-fade-in 2s ease-out forwards;
+}
+
+/* Chat messages area: dynamic techy light gradient */
+@keyframes chat-bg-gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+.chat-bg-gradient {
+  background: linear-gradient(
+    135deg,
+    #e8f4fc 0%,
+    #f0e8fc 25%,
+    #e8faf0 50%,
+    #e0f4fc 75%,
+    #f5e8fc 100%
+  );
+  background-size: 200% 200%;
+  animation: chat-bg-gradient-shift 12s ease infinite;
 }
 
 /* Chat typing cursor – mimics texting */
@@ -427,5 +447,522 @@ body {
   select,
   textarea {
     font-size: 16px !important;
+  }
+}
+
+/* ProBot send button: grow from center → wiggle 3x → takeoff → shrink to nothing at position → reappear growing from center. No reverse fly-back. */
+@keyframes send-plane-sequence {
+  /* 1. Reappear: grow from 0 to 100% at button center */
+  0% {
+    transform: translate(0, 0) scale(0);
+  }
+  8% {
+    transform: translate(0, 0) scale(1);
+  }
+  /* 2. Back and forth 10px in takeoff direction (up-right), 3 times */
+  10% {
+    transform: translate(0, 0) scale(1);
+  }
+  15% {
+    transform: translate(5px, -5px) scale(1);
+  }
+  20% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(5px, -5px) scale(1);
+  }
+  30% {
+    transform: translate(0, 0) scale(1);
+  }
+  35% {
+    transform: translate(5px, -5px) scale(1);
+  }
+  40% {
+    transform: translate(0, 0) scale(1);
+  }
+  45% {
+    transform: translate(5px, -5px) scale(1);
+  }
+  50% {
+    transform: translate(0, 0) scale(1);
+  }
+  55% {
+    transform: translate(5px, -5px) scale(1);
+  }
+  60% {
+    transform: translate(0, 0) scale(1);
+  }
+  65% {
+    transform: translate(5px, -5px) scale(1);
+  }
+  70% {
+    transform: translate(0, 0) scale(1);
+  }
+  /* 3. Take off (no return movement) */
+  78% {
+    transform: translate(20px, -20px) scale(1);
+  }
+  /* 4. At takeoff position: shrink to nothing */
+  88% {
+    transform: translate(20px, -20px) scale(0);
+  }
+  /* 5. Invisible at center, ready for next cycle (grow from 0 at 0%) */
+  90%,
+  100% {
+    transform: translate(0, 0) scale(0);
+  }
+}
+
+@keyframes send-plane-wiggle {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(5px, -5px);
+  }
+}
+
+/* Only on hover-capable devices (not mobile): when text present = sequence; on hover = wiggle only */
+@media (hover: hover) {
+  .send-button-plane.has-text .send-plane-icon {
+    transform-origin: center center;
+    animation: send-plane-sequence 3.2s ease-in-out infinite;
+  }
+
+  .send-button-plane.has-text:hover .send-plane-icon {
+    animation: send-plane-wiggle 0.5s ease-in-out infinite;
+  }
+}
+
+/* ─── ProBot sky: animatable CSS custom properties (@property) ───────────────── */
+/* These allow smooth color interpolation inside gradient stops.                  */
+@property --probot-sky-a {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #7ec8e3;
+}
+@property --probot-sky-b {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #a8d8ea;
+}
+@property --probot-sky-c {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #d4eef8;
+}
+/* "Invisible white" so star fade stays white, not grey */
+@property --probot-star-c {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(255, 255, 255, 0);
+}
+/* Gray-silver moon (matches reference) */
+@property --probot-moon-fill {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(207, 216, 220, 0);
+}
+@property --probot-moon-halo {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(176, 190, 197, 0);
+}
+@property --probot-cloud-c {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(255, 255, 255, 0.5);
+}
+/* Sun glow layers — position driven by --probot-sun-x / --probot-sun-y */
+@property --probot-sun-fill {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(255, 253, 200, 0);
+}
+@property --probot-sun-halo {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(255, 248, 160, 0);
+}
+@property --probot-sun-x {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 60%;
+}
+@property --probot-sun-y {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 18%;
+}
+/* UI text/element colors — dark by day, light by night */
+@property --probot-text {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #111827;
+}
+@property --probot-text-sub {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #4b5563;
+}
+@property --probot-input-bg {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(249, 250, 251, 0.8);
+}
+@property --probot-input-border {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #000000;
+}
+@property --probot-btn-bg {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #ffffff;
+}
+@property --probot-btn-text {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #374151;
+}
+@property --probot-btn-border {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #d1d5db;
+}
+
+/* ─── ProBot chat area: animated day→sunset→night→dawn sky ──────────────────── */
+/*
+ * 24 background layers (top → bottom):
+ *   1      Sun  (position animated via --probot-sun-x/y custom props)
+ *   2      Moon (gray-silver; fixed position top-right)
+ *   3–20   18 star dots (fixed; fade in/out via --probot-star-c)
+ *   21–23  3 cloud blobs (drift via background-position)
+ *   24     Sky base linear-gradient (large canvas, slow drift)
+ *
+ * Two simultaneous animations keep clouds/sun-position independent of day length:
+ *   probot-sky-colors  — 72 s: all color + sun-position custom props
+ *   probot-clouds-move — 28 s: cloud & sky canvas background-position drift
+ */
+.probot-sky-bg {
+  background-image:
+    /* ── Sun ── */
+    radial-gradient(circle 42px at var(--probot-sun-x) var(--probot-sun-y),
+      var(--probot-sun-fill)  0%,
+      var(--probot-sun-fill) 38%,
+      var(--probot-sun-halo) 58%,
+      transparent 80%),
+    /* ── Moon (gray-silver, top-right) ── */
+    radial-gradient(circle 26px at 78% 14%,
+      var(--probot-moon-fill)  0%,
+      var(--probot-moon-fill) 44%,
+      var(--probot-moon-halo) 64%,
+      transparent 82%),
+    /* ── 18 Stars ── */
+    radial-gradient(circle 1.5px at 14%  7%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1px   at 27%  4%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 2px   at 41% 10%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1px   at 54%  6%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1.5px at 67%  3%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1px   at 88%  8%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1px   at 34% 17%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1.5px at 47% 14%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 2px   at 61% 19%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1px   at 74% 15%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1.5px at 91% 11%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1px   at 19% 24%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1px   at 37% 27%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1.5px at 51% 21%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1px   at 69% 25%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 2px   at 84% 29%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1px   at  9% 13%,  var(--probot-star-c) 0%, transparent 100%),
+    radial-gradient(circle 1px   at 93% 21%,  var(--probot-star-c) 0%, transparent 100%),
+    /* ── 3 Cloud blobs (drift via background-position) ── */
+    radial-gradient(ellipse 70% 28% at 50% 50%, var(--probot-cloud-c) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 22% at 50% 50%, var(--probot-cloud-c) 0%, transparent 68%),
+    radial-gradient(ellipse 38% 18% at 50% 50%, var(--probot-cloud-c) 0%, transparent 62%),
+    /* ── Sky base ── */
+    linear-gradient(180deg,
+      var(--probot-sky-a)  0%,
+      var(--probot-sky-b) 55%,
+      var(--probot-sky-c) 100%);
+
+  /* sun+moon+stars at 100% 100%; clouds oversized; sky large canvas */
+  background-size:
+    100% 100%,                                                          /* sun */
+    100% 100%,                                                          /* moon */
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,  /* stars 1-6 */
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,             /* stars 7-11 */
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, /* stars 12-18 */
+    200% 160%, 200% 160%, 200% 160%,                                    /* clouds */
+    300% 300%;                                                          /* sky */
+
+  animation:
+    probot-sky-colors  72s ease-in-out infinite,
+    probot-clouds-move 28s ease-in-out infinite;
+}
+
+/* ── Color + sun-position cycle ── */
+/* Reference palette: day=light blue, sunset=orange→yellow, night=dark navy, dawn=orange-pink */
+@keyframes probot-sky-colors {
+  /* ── Day: clear blue, sun high ── */
+  0%, 100% {
+    --probot-sky-a:        #7ec8e3;
+    --probot-sky-b:        #a8d8ea;
+    --probot-sky-c:        #d4eef8;
+    --probot-cloud-c:      rgba(255, 255, 255, 0.52);
+    --probot-star-c:       rgba(255, 255, 255, 0);
+    --probot-moon-fill:    rgba(207, 216, 220, 0);
+    --probot-moon-halo:    rgba(176, 190, 197, 0);
+    --probot-sun-fill:     rgba(255, 253, 210, 0.95);
+    --probot-sun-halo:     rgba(255, 248, 160, 0.5);
+    --probot-sun-x:        62%;
+    --probot-sun-y:        18%;
+    /* UI – dark on bright sky */
+    --probot-text:         #111827;
+    --probot-text-sub:     #4b5563;
+    --probot-input-bg:     rgba(249, 250, 251, 0.8);
+    --probot-input-border: #000000;
+    --probot-btn-bg:       #ffffff;
+    --probot-btn-text:     #374151;
+    --probot-btn-border:   #d1d5db;
+  }
+  /* ── Sunset: deep orange→golden yellow, sun at horizon ── */
+  30% {
+    --probot-sky-a:        #e65100;
+    --probot-sky-b:        #fb8c00;
+    --probot-sky-c:        #ffc107;
+    --probot-cloud-c:      rgba(255, 200, 100, 0.35);
+    --probot-star-c:       rgba(255, 255, 255, 0);
+    --probot-moon-fill:    rgba(207, 216, 220, 0);
+    --probot-moon-halo:    rgba(176, 190, 197, 0);
+    --probot-sun-fill:     rgba(255, 214, 0, 0.95);
+    --probot-sun-halo:     rgba(255, 179, 0, 0.55);
+    --probot-sun-x:        50%;
+    --probot-sun-y:        50%;
+    /* UI – dark on warm orange */
+    --probot-text:         #1c0800;
+    --probot-text-sub:     #3d1800;
+    --probot-input-bg:     rgba(255, 255, 255, 0.72);
+    --probot-input-border: rgba(80, 30, 0, 0.7);
+    --probot-btn-bg:       rgba(255, 255, 255, 0.75);
+    --probot-btn-text:     #1c0800;
+    --probot-btn-border:   rgba(80, 30, 0, 0.45);
+  }
+  /* ── Dusk: sun gone, first stars, UI starts going light ── */
+  40% {
+    --probot-sky-a:        #1c2951;
+    --probot-sky-b:        #243263;
+    --probot-sky-c:        #1a2040;
+    --probot-cloud-c:      rgba(160, 180, 220, 0.1);
+    --probot-star-c:       rgba(255, 255, 255, 0.45);
+    --probot-moon-fill:    rgba(207, 216, 220, 0.6);
+    --probot-moon-halo:    rgba(176, 190, 197, 0.22);
+    --probot-sun-fill:     rgba(255, 179, 0, 0);
+    --probot-sun-halo:     rgba(255, 152, 0, 0);
+    --probot-sun-x:        50%;
+    --probot-sun-y:        80%;
+    /* UI – dark text on light translucent controls for readability */
+    --probot-text:         rgba(220, 236, 250, 0.95);
+    --probot-text-sub:     #374151;
+    --probot-input-bg:     rgba(255, 255, 255, 0.18);
+    --probot-input-border: rgba(255, 255, 255, 0.60);
+    --probot-btn-bg:       rgba(255, 255, 255, 0.20);
+    --probot-btn-text:     #1f2937;
+    --probot-btn-border:   rgba(255, 255, 255, 0.55);
+  }
+  /* ── Deep night: dark navy, stars bright, gray moon, UI fully light ── */
+  48%, 58% {
+    --probot-sky-a:        #0d1421;
+    --probot-sky-b:        #111e30;
+    --probot-sky-c:        #1a2840;
+    --probot-cloud-c:      rgba(150, 170, 210, 0.05);
+    --probot-star-c:       rgba(255, 255, 255, 0.88);
+    --probot-moon-fill:    #cfd8dc;
+    --probot-moon-halo:    rgba(176, 190, 197, 0.3);
+    --probot-sun-fill:     rgba(255, 179, 0, 0);
+    --probot-sun-halo:     rgba(255, 152, 0, 0);
+    --probot-sun-x:        50%;
+    --probot-sun-y:        110%;
+    /* UI – dark text on light translucent controls for readability */
+    --probot-text:         rgba(236, 246, 255, 0.97);
+    --probot-text-sub:     #374151;
+    --probot-input-bg:     rgba(255, 255, 255, 0.16);
+    --probot-input-border: rgba(255, 255, 255, 0.65);
+    --probot-btn-bg:       rgba(255, 255, 255, 0.18);
+    --probot-btn-text:     #1f2937;
+    --probot-btn-border:   rgba(255, 255, 255, 0.60);
+  }
+  /* ── Star shimmer (gentle twinkle mid-night) ── */
+  53% {
+    --probot-sky-a:        #0b1220;
+    --probot-sky-b:        #0e1a2c;
+    --probot-sky-c:        #16243a;
+    --probot-cloud-c:      rgba(150, 170, 210, 0.04);
+    --probot-star-c:       rgba(255, 255, 255, 0.68);
+    --probot-moon-fill:    #cfd8dc;
+    --probot-moon-halo:    rgba(176, 190, 197, 0.26);
+    --probot-sun-fill:     rgba(255, 179, 0, 0);
+    --probot-sun-halo:     rgba(255, 152, 0, 0);
+    --probot-sun-x:        50%;
+    --probot-sun-y:        110%;
+    /* UI – dark text on light translucent controls (match star dimming) */
+    --probot-text:         rgba(218, 240, 255, 0.92);
+    --probot-text-sub:     #374151;
+    --probot-input-bg:     rgba(255, 255, 255, 0.14);
+    --probot-input-border: rgba(255, 255, 255, 0.55);
+    --probot-btn-bg:       rgba(255, 255, 255, 0.16);
+    --probot-btn-text:     #1f2937;
+    --probot-btn-border:   rgba(255, 255, 255, 0.50);
+  }
+  /* ── Pre-dawn: stars fade, moon dims ── */
+  68% {
+    --probot-sky-a:        #1c2951;
+    --probot-sky-b:        #2e3e70;
+    --probot-sky-c:        #7b3f1e;
+    --probot-cloud-c:      rgba(200, 170, 150, 0.1);
+    --probot-star-c:       rgba(255, 255, 255, 0.25);
+    --probot-moon-fill:    rgba(207, 216, 220, 0.4);
+    --probot-moon-halo:    rgba(176, 190, 197, 0.14);
+    --probot-sun-fill:     rgba(255, 179, 0, 0);
+    --probot-sun-halo:     rgba(255, 152, 0, 0);
+    --probot-sun-x:        50%;
+    --probot-sun-y:        90%;
+    /* UI – dark text on light translucent controls, still readable */
+    --probot-text:         rgba(210, 230, 248, 0.95);
+    --probot-text-sub:     #374151;
+    --probot-input-bg:     rgba(255, 255, 255, 0.18);
+    --probot-input-border: rgba(255, 255, 255, 0.58);
+    --probot-btn-bg:       rgba(255, 255, 255, 0.20);
+    --probot-btn-text:     #1f2937;
+    --probot-btn-border:   rgba(255, 255, 255, 0.52);
+  }
+  /* ── Dawn: orange sky, sun rising ── */
+  80% {
+    --probot-sky-a:        #bf360c;
+    --probot-sky-b:        #f4511e;
+    --probot-sky-c:        #ffca28;
+    --probot-cloud-c:      rgba(255, 180, 120, 0.3);
+    --probot-star-c:       rgba(255, 255, 255, 0);
+    --probot-moon-fill:    rgba(207, 216, 220, 0);
+    --probot-moon-halo:    rgba(176, 190, 197, 0);
+    --probot-sun-fill:     rgba(255, 245, 120, 0.85);
+    --probot-sun-halo:     rgba(255, 200, 60, 0.45);
+    --probot-sun-x:        50%;
+    --probot-sun-y:        72%;
+    /* UI – dark on warm dawn */
+    --probot-text:         #1c0800;
+    --probot-text-sub:     #3d1800;
+    --probot-input-bg:     rgba(255, 255, 255, 0.72);
+    --probot-input-border: rgba(80, 30, 0, 0.7);
+    --probot-btn-bg:       rgba(255, 255, 255, 0.75);
+    --probot-btn-text:     #1c0800;
+    --probot-btn-border:   rgba(80, 30, 0, 0.45);
+  }
+  /* ── Morning: blue returning, sun climbing ── */
+  92% {
+    --probot-sky-a:        #7ec8e3;
+    --probot-sky-b:        #a8d8ea;
+    --probot-sky-c:        #d4eef8;
+    --probot-cloud-c:      rgba(255, 255, 255, 0.52);
+    --probot-star-c:       rgba(255, 255, 255, 0);
+    --probot-moon-fill:    rgba(207, 216, 220, 0);
+    --probot-moon-halo:    rgba(176, 190, 197, 0);
+    --probot-sun-fill:     rgba(255, 253, 210, 0.95);
+    --probot-sun-halo:     rgba(255, 248, 160, 0.5);
+    --probot-sun-x:        62%;
+    --probot-sun-y:        18%;
+    /* UI – dark on bright sky */
+    --probot-text:         #111827;
+    --probot-text-sub:     #4b5563;
+    --probot-input-bg:     rgba(249, 250, 251, 0.8);
+    --probot-input-border: #000000;
+    --probot-btn-bg:       #ffffff;
+    --probot-btn-text:     #374151;
+    --probot-btn-border:   #d1d5db;
+  }
+}
+
+/* ─── ProBot welcome screen: night-aware text & UI ──────────────────────────── */
+/*
+ * Selectors have higher specificity than Tailwind's single-class utilities,
+ * so no !important is needed. Only .probot-welcome elements are targeted,
+ * keeping message bubbles and the rest of the page untouched.
+ */
+
+/* Primary text (text-gray-700/800/900/black) → --probot-text */
+.probot-sky-bg .probot-welcome [class*="text-gray-"],
+.probot-sky-bg .probot-welcome [class*="text-black"] {
+  color: var(--probot-text);
+}
+
+/* Input text & caret */
+.probot-sky-bg .probot-welcome input[type="text"] {
+  color: var(--probot-text);
+  caret-color: var(--probot-text);
+}
+
+/* Input placeholder */
+.probot-sky-bg .probot-welcome input[type="text"]::placeholder {
+  color: var(--probot-text-sub);
+}
+
+/* Message input form container (border + background) */
+.probot-sky-bg .probot-welcome form {
+  background-color: var(--probot-input-bg);
+  border-color: var(--probot-input-border);
+}
+
+/* Option/choice button */
+.probot-sky-bg .probot-sky-btn {
+  background-color: var(--probot-btn-bg);
+  color: var(--probot-btn-text);
+  border-color: var(--probot-btn-border);
+}
+
+/* ── Cloud & sky canvas drift (background-position, 24 layers) ── */
+/* sun (1) + moon (1) + stars (18) fixed at 0 0; clouds (3) + sky (1) animate */
+@keyframes probot-clouds-move {
+  0%, 100% {
+    background-position:
+      0 0,
+      0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+      15% 22%, 72% 55%, 40% 75%,
+      0%  30%;
+  }
+  25% {
+    background-position:
+      0 0,
+      0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+      28% 18%, 58% 62%, 55% 68%,
+      80% 0%;
+  }
+  50% {
+    background-position:
+      0 0,
+      0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+      20% 32%, 80% 48%, 30% 80%,
+      60% 100%;
+  }
+  75% {
+    background-position:
+      0 0,
+      0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0,
+      0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+      10% 25%, 65% 58%, 48% 72%,
+      100% 40%;
   }
 }

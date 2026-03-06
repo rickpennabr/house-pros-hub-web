@@ -13,6 +13,7 @@ import PhoneButton from './PhoneButton';
 import { NotificationBellDropdown } from '@/components/admin/NotificationBellDropdown';
 import { Phone } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useChat } from '@/contexts/ChatContext';
 
 interface PageHeaderProps {
   children?: ReactNode;
@@ -52,7 +53,8 @@ export default function PageHeader({ children }: PageHeaderProps) {
   const pathname = usePathname();
   const locale = useLocale();
   const headerRef = useRef<HTMLElement>(null);
-  const { isAdmin, roles } = useAuth();
+  const { isAdmin, isAuthenticated, roles } = useAuth();
+  const { chatUnreadCount } = useChat();
   const [notificationCount, setNotificationCount] = useState(0);
 
   const fetchNewSignupsCount = useCallback(async () => {
@@ -81,7 +83,10 @@ export default function PageHeader({ children }: PageHeaderProps) {
   const isHomePage = pathname?.includes('/businesslist') || pathname === `/${locale}` || pathname === `/${locale}/`;
   const isSuppliersPage = pathname?.includes('/prosuppliers');
   const isContractor = roles.includes('contractor');
+  const isCustomer = !isAdmin && !isContractor;
   const showFreeEstimate = (isHomePage || isSuppliersPage) && !isAdmin && !isContractor;
+  /** Mobile header logo: customers get bot-v1; contractors and admin keep current logo */
+  const mobileLogoSrc = isCustomer ? '/hph-logo-simble-bot-v1.png' : '/hph-logo-with-pro-bot-mobile.png';
 
   // #region agent log - Development only
   useEffect(() => {
@@ -173,7 +178,7 @@ export default function PageHeader({ children }: PageHeaderProps) {
         ) : (
           <div className="flex items-center justify-center flex-shrink min-w-0">
             <Link href={`/${locale}/businesslist`} className="cursor-pointer">
-              <Logo width={200} height={50} className="h-9 md:h-12 w-auto object-contain" />
+              <Logo width={200} height={50} className="h-9 md:h-12 w-auto object-contain" mobileSrc={mobileLogoSrc} />
             </Link>
           </div>
         )}
@@ -181,24 +186,29 @@ export default function PageHeader({ children }: PageHeaderProps) {
         {/* Right: Actions */}
         <div className="flex items-center flex-shrink-0 gap-2 z-[100]">
           {showFreeEstimate && <FreeEstimateButton />}
-          {!isLegalPage && (
+          {!isLegalPage && !isAdmin && (
             <>
-              {isAdmin ? (
-                <NotificationBellDropdown
-                  notificationCount={notificationCount}
-                  onMarkAllRead={fetchNewSignupsCount}
-                />
-              ) : (
-                <>
-                  <div className="hidden md:block">
-                    <PhoneButton />
-                  </div>
-                  <div className="md:hidden">
-                    <CallButton />
-                  </div>
-                </>
-              )}
+              <div className="hidden md:block">
+                <PhoneButton />
+              </div>
+              <div className="md:hidden">
+                <CallButton />
+              </div>
             </>
+          )}
+          {isAuthenticated && !isLegalPage && (
+            isAdmin ? (
+              <NotificationBellDropdown
+                notificationCount={notificationCount}
+                onMarkAllRead={fetchNewSignupsCount}
+              />
+            ) : (
+              <NotificationBellDropdown
+                variant="chat"
+                notificationCount={chatUnreadCount}
+                locale={locale}
+              />
+            )
           )}
           <ProfileIcon />
         </div>

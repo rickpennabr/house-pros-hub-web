@@ -36,6 +36,8 @@ interface DbBusinessRow {
   phone: string | null;
   mobile_phone: string | null;
   links: unknown;
+  services?: string[] | null;
+  images?: string[] | null;
   owner_id: string;
   addresses?: DbAddressRow | DbAddressRow[] | null;
   licenses?: DbLicenseRow[] | null;
@@ -75,6 +77,15 @@ async function fetchBusinessesFromDb(): Promise<ProCardData[]> {
     return [];
   }
 
+  const { data: licenseCategories } = await supabase
+    .from('license_categories')
+    .select('code, name');
+
+  const licenseCategoriesList = (licenseCategories ?? []).map((r: { code: string; name: string }) => ({
+    code: r.code,
+    name: r.name,
+  }));
+
   const rows = businesses as unknown as DbBusinessRow[];
   return rows.map((business) => {
     const licenses = (business.licenses || []).map((l) => ({
@@ -87,26 +98,31 @@ async function fetchBusinessesFromDb(): Promise<ProCardData[]> {
     }
     const address = Array.isArray(business.addresses) ? business.addresses[0] : business.addresses;
     const links = normalizeLinks(business.links);
-    const transformed = transformBusinessToProCardData({
-      id: business.id,
-      businessName: business.business_name,
-      businessLogo: business.business_logo || undefined,
-      businessBackground: business.business_background || undefined,
-      slug: business.slug || undefined,
-      companyDescription: business.company_description || undefined,
-      licenses,
-      address: address?.street_address || undefined,
-      streetAddress: address?.street_address || undefined,
-      city: address?.city || undefined,
-      state: address?.state || undefined,
-      zipCode: address?.zip_code || undefined,
-      apartment: address?.apartment || undefined,
-      email: business.email || undefined,
-      phone: business.phone || undefined,
-      mobilePhone: business.mobile_phone || undefined,
-      links,
-      userId: business.owner_id,
-    });
+    const transformed = transformBusinessToProCardData(
+      {
+        id: business.id,
+        businessName: business.business_name,
+        businessLogo: business.business_logo || undefined,
+        businessBackground: business.business_background || undefined,
+        slug: business.slug || undefined,
+        companyDescription: business.company_description || undefined,
+        licenses,
+        services: business.services ?? [],
+        images: business.images ?? [],
+        address: address?.street_address || undefined,
+        streetAddress: address?.street_address || undefined,
+        city: address?.city || undefined,
+        state: address?.state || undefined,
+        zipCode: address?.zip_code || undefined,
+        apartment: address?.apartment || undefined,
+        email: business.email || undefined,
+        phone: business.phone || undefined,
+        mobilePhone: business.mobile_phone || undefined,
+        links,
+        userId: business.owner_id,
+      },
+      { licenseCategories: licenseCategoriesList }
+    );
     if (!transformed.category) transformed.category = 'General';
     return transformed;
   });

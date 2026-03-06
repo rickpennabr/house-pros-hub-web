@@ -158,7 +158,7 @@ export default function Pagination({
                   ${
                     isActive
                       ? 'bg-black text-white border-black'
-                      : 'bg-white text-black border-black hover:bg-gray-50 active:scale-95'
+                      : 'bg-white text-black border-black hover:bg-gray-50 active:scale-95 cursor-pointer'
                   }
                 `}
               >

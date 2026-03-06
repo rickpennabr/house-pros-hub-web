@@ -35,10 +35,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size first (before reading into buffer)
+    // Validate file size first (before reading into buffer) — logo allowed up to 5MB
     if (!validateFileSize(file.size, 'logo')) {
       return NextResponse.json(
-        { error: 'File size must be less than 2MB' },
+        { error: 'Logo must be 5MB or less' },
         { status: 400 }
       );
     }

@@ -10,13 +10,13 @@ import { createLocalePath, createSignInUrl } from '@/lib/redirect';
 import SettingsModal from '@/components/settings/SettingsModal';
 import type { Locale } from '@/i18n';
 import { 
-  Building2, 
   Settings, 
   LogIn, 
   LogOut, 
   HelpCircle,
   Users,
-  LayoutDashboard
+  LayoutDashboard,
+  MessageCircle
 } from 'lucide-react';
 
 interface ProfileIconProps {
@@ -44,8 +44,6 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
   const dropdownImageError =
     dropdownImageErrorState.url === pictureUrl ? dropdownImageErrorState.hasError : false;
   
-  // Check if user is a contractor (has companyName) or has businesses
-  const hasBusiness = !!user?.companyName;
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -199,17 +197,6 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   </span>
                 </div>
               </div>
-              {hasBusiness && (
-                <div className="p-2">
-                  <button
-                    onClick={() => handleMenuItemClick('/businesslist')}
-                    className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
-                  >
-                    <Building2 className="w-4 h-4" />
-                    <span>{t('myBusiness')}</span>
-                  </button>
-                </div>
-              )}
               {/* Account / Admin section - same style as Settings and Help */}
               <div className="border-t-2 border-black"></div>
               <div className="p-2">
@@ -229,6 +216,13 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                 >
                   <Users className="w-4 h-4" />
                   <span>{t('accountManagement')}</span>
+                </button>
+                <button
+                  onClick={() => handleMenuItemClick('/probot')}
+                  className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{t('probot')}</span>
                 </button>
               </div>
             </>

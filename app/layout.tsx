@@ -1,6 +1,14 @@
 import "./globals.css";
 import { Suspense } from "react";
+import type { Viewport } from "next";
 import { validateEnvVarsOrThrow } from "@/lib/utils/envValidation";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-visual",
+};
 
 // Validate environment variables at runtime (not during build)
 // This will throw an error if critical variables are missing

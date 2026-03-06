@@ -348,7 +348,7 @@ export default function FeedbackModal({
                         {canReply && !isReplying && (
                           <button
                             onClick={() => handleStartReply(comment.id)}
-                            className="flex items-center gap-1 text-xs text-gray-600 hover:text-black transition-colors"
+                            className="flex items-center gap-1 text-xs text-gray-600 hover:text-black transition-colors cursor-pointer"
                           >
                             <Reply className="w-3 h-3" />
                             Reply
@@ -405,14 +405,14 @@ export default function FeedbackModal({
                               <div className="flex items-center gap-2">
                                 <button
                                   onClick={() => handleCancelReply(comment.id)}
-                                  className="px-3 py-1 text-xs border-2 border-gray-400 rounded-lg hover:bg-gray-100 transition-colors"
+                                  className="px-3 py-1 text-xs border-2 border-gray-400 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                                 >
                                   Cancel
                                 </button>
                                 <button
                                   onClick={() => handleSubmitReply(comment.id)}
                                   disabled={!replyText[comment.id]?.trim() || (replyText[comment.id]?.length || 0) > MAX_COMMENT_LENGTH}
-                                  className="px-3 py-1 text-xs bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                  className="px-3 py-1 text-xs bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
                                 >
                                   <Send className="w-3 h-3" />
                                   Reply

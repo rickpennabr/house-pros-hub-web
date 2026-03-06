@@ -203,24 +203,89 @@ export interface Database {
           { foreignKeyName: "admin_push_subscriptions_user_id_fkey"; columns: ["user_id"]; referencedRelation: "users"; referencedColumns: ["id"] }
         ];
       };
+      business_push_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          endpoint?: string;
+          p256dh?: string;
+          auth?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "business_push_subscriptions_user_id_fkey"; columns: ["user_id"]; referencedRelation: "users"; referencedColumns: ["id"] }
+        ];
+      };
+      visitor_push_subscriptions: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          visitor_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          visitor_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          conversation_id?: string;
+          visitor_id?: string;
+          endpoint?: string;
+          p256dh?: string;
+          auth?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       probot_conversations: {
         Row: {
           id: string;
           visitor_id: string;
           created_at: string;
           updated_at: string;
+          visitor_display_name: string | null;
+          user_id: string | null;
         };
         Insert: {
           id?: string;
           visitor_id: string;
           created_at?: string;
           updated_at?: string;
+          visitor_display_name?: string | null;
+          user_id?: string | null;
         };
         Update: {
           id?: string;
           visitor_id?: string;
           created_at?: string;
           updated_at?: string;
+          visitor_display_name?: string | null;
+          user_id?: string | null;
         };
         Relationships: [];
       };
@@ -231,6 +296,11 @@ export interface Database {
           sender: 'visitor' | 'admin';
           body: string;
           created_at: string;
+          business_id: string | null;
+          read_at: string | null;
+          attachments: Json;
+          admin_sent_as: string | null;
+          admin_user_id: string | null;
         };
         Insert: {
           id?: string;
@@ -238,6 +308,11 @@ export interface Database {
           sender: 'visitor' | 'admin';
           body: string;
           created_at?: string;
+          business_id?: string | null;
+          read_at?: string | null;
+          attachments?: Json;
+          admin_sent_as?: string | null;
+          admin_user_id?: string | null;
         };
         Update: {
           id?: string;
@@ -245,10 +320,45 @@ export interface Database {
           sender?: 'visitor' | 'admin';
           body?: string;
           created_at?: string;
+          business_id?: string | null;
+          read_at?: string | null;
+          attachments?: Json;
+          admin_sent_as?: string | null;
+          admin_user_id?: string | null;
         };
         Relationships: [
           { foreignKeyName: "probot_messages_conversation_id_fkey"; columns: ["conversation_id"]; referencedRelation: "probot_conversations"; referencedColumns: ["id"] }
         ];
+      };
+      chat_presence: {
+        Row: {
+          id: string;
+          key: string;
+          visitor_id: string | null;
+          user_id: string | null;
+          business_id: string | null;
+          last_seen_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          key: string;
+          visitor_id?: string | null;
+          user_id?: string | null;
+          business_id?: string | null;
+          last_seen_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          key?: string;
+          visitor_id?: string | null;
+          user_id?: string | null;
+          business_id?: string | null;
+          last_seen_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
       addresses: {
         Row: {
@@ -316,12 +426,15 @@ export interface Database {
           slug: string | null;
           business_logo: string | null;
           business_background: string | null;
+          business_background_position: string | null;
           company_description: string | null;
           email: string | null;
           phone: string | null;
           mobile_phone: string | null;
           business_address_id: string | null;
           links: Json | null;
+          services: string[] | null;
+          images: Json | null;
           operating_hours: Json | null;
           timezone: string;
           is_active: boolean;
@@ -336,12 +449,15 @@ export interface Database {
           slug?: string | null;
           business_logo?: string | null;
           business_background?: string | null;
+          business_background_position?: string | null;
           company_description?: string | null;
           email?: string | null;
           phone?: string | null;
           mobile_phone?: string | null;
           business_address_id?: string | null;
           links?: Json | null;
+          services?: string[] | null;
+          images?: Json | null;
           operating_hours?: Json | null;
           timezone?: string;
           is_active?: boolean;
@@ -356,12 +472,15 @@ export interface Database {
           slug?: string | null;
           business_logo?: string | null;
           business_background?: string | null;
+          business_background_position?: string | null;
           company_description?: string | null;
           email?: string | null;
           phone?: string | null;
           mobile_phone?: string | null;
           business_address_id?: string | null;
           links?: Json | null;
+          services?: string[] | null;
+          images?: Json | null;
           operating_hours?: Json | null;
           timezone?: string;
           is_active?: boolean;
@@ -388,7 +507,7 @@ export interface Database {
         Row: {
           id: string;
           business_id: string;
-          license_number: string;
+          license_number: string | null;
           license_type: string;
           license_name: string | null;
           issued_date: string | null;
@@ -402,7 +521,7 @@ export interface Database {
         Insert: {
           id?: string;
           business_id: string;
-          license_number: string;
+          license_number: string | null;
           license_type: string;
           license_name?: string | null;
           issued_date?: string | null;
@@ -416,7 +535,7 @@ export interface Database {
         Update: {
           id?: string;
           business_id?: string;
-          license_number?: string;
+          license_number?: string | null;
           license_type?: string;
           license_name?: string | null;
           issued_date?: string | null;
@@ -435,6 +554,60 @@ export interface Database {
             referencedColumns: ["id"];
           }
         ];
+      };
+      license_categories: {
+        Row: {
+          id: string;
+          code: string;
+          name: string;
+          description: string | null;
+          requires_contractor_license: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          name: string;
+          description?: string | null;
+          requires_contractor_license?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          name?: string;
+          description?: string | null;
+          requires_contractor_license?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      password_reset_attempts: {
+        Row: {
+          id: string;
+          email: string;
+          ip_address: string | null;
+          attempted_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          ip_address?: string | null;
+          attempted_at?: string;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          ip_address?: string | null;
+          attempted_at?: string;
+        };
+        Relationships: [];
       };
       estimates: {
         Row: {
@@ -522,6 +695,229 @@ export interface Database {
             referencedRelation: "users";
             referencedColumns: ["id"];
           }
+        ];
+      };
+      pro_crm_customers: {
+        Row: {
+          id: string;
+          owner_id: string;
+          first_name: string;
+          last_name: string;
+          email: string | null;
+          phone: string | null;
+          street_address: string | null;
+          apartment: string | null;
+          city: string | null;
+          state: string | null;
+          zip_code: string | null;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          first_name: string;
+          last_name: string;
+          email?: string | null;
+          phone?: string | null;
+          street_address?: string | null;
+          apartment?: string | null;
+          city?: string | null;
+          state?: string | null;
+          zip_code?: string | null;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          first_name?: string;
+          last_name?: string;
+          email?: string | null;
+          phone?: string | null;
+          street_address?: string | null;
+          apartment?: string | null;
+          city?: string | null;
+          state?: string | null;
+          zip_code?: string | null;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pro_crm_customers_owner_id_fkey";
+            columns: ["owner_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      pro_crm_estimates: {
+        Row: {
+          id: string;
+          owner_id: string;
+          customer_id: string;
+          amount_cents: number;
+          line_items: Json | null;
+          status: 'draft' | 'sent' | 'accepted' | 'declined';
+          due_date: string | null;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          customer_id: string;
+          amount_cents?: number;
+          line_items?: Json | null;
+          status?: 'draft' | 'sent' | 'accepted' | 'declined';
+          due_date?: string | null;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          customer_id?: string;
+          amount_cents?: number;
+          line_items?: Json | null;
+          status?: 'draft' | 'sent' | 'accepted' | 'declined';
+          due_date?: string | null;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "pro_crm_estimates_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "users"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_estimates_customer_id_fkey"; columns: ["customer_id"]; referencedRelation: "pro_crm_customers"; referencedColumns: ["id"] }
+        ];
+      };
+      pro_crm_projects: {
+        Row: {
+          id: string;
+          owner_id: string;
+          customer_id: string;
+          estimate_id: string | null;
+          name: string;
+          status: 'planned' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
+          start_date: string | null;
+          end_date: string | null;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          customer_id: string;
+          estimate_id?: string | null;
+          name: string;
+          status?: 'planned' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
+          start_date?: string | null;
+          end_date?: string | null;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          customer_id?: string;
+          estimate_id?: string | null;
+          name?: string;
+          status?: 'planned' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
+          start_date?: string | null;
+          end_date?: string | null;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "pro_crm_projects_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "users"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_projects_customer_id_fkey"; columns: ["customer_id"]; referencedRelation: "pro_crm_customers"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_projects_estimate_id_fkey"; columns: ["estimate_id"]; referencedRelation: "pro_crm_estimates"; referencedColumns: ["id"] }
+        ];
+      };
+      pro_crm_expenses: {
+        Row: {
+          id: string;
+          owner_id: string;
+          project_id: string | null;
+          amount_cents: number;
+          category: string;
+          expense_date: string;
+          note: string | null;
+          receipt_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          project_id?: string | null;
+          amount_cents?: number;
+          category?: string;
+          expense_date?: string;
+          note?: string | null;
+          receipt_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          project_id?: string | null;
+          amount_cents?: number;
+          category?: string;
+          expense_date?: string;
+          note?: string | null;
+          receipt_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "pro_crm_expenses_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "users"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_expenses_project_id_fkey"; columns: ["project_id"]; referencedRelation: "pro_crm_projects"; referencedColumns: ["id"] }
+        ];
+      };
+      pro_crm_availability: {
+        Row: {
+          id: string;
+          owner_id: string;
+          type: 'available' | 'unavailable' | 'appointment';
+          start_at: string;
+          end_at: string;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          type: 'available' | 'unavailable' | 'appointment';
+          start_at: string;
+          end_at: string;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          type?: 'available' | 'unavailable' | 'appointment';
+          start_at?: string;
+          end_at?: string;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "pro_crm_availability_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "users"; referencedColumns: ["id"] }
         ];
       };
       csrf_tokens: {
@@ -666,7 +1062,10 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      cleanup_expired_password_reset_attempts: {
+        Args: Record<string, never>;
+        Returns: void;
+      };
     };
     Enums: {
       [_ in never]: never;

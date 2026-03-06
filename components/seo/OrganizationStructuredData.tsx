@@ -15,7 +15,7 @@ export default function OrganizationStructuredData() {
     name: 'House Pros Hub',
     description: 'Connect with dedicated trade owners who collaborate to bring your home improvement dreams to life. Personal attention, collective expertise, built to last.',
     url: baseUrl,
-    logo: `${baseUrl}/hph-logo-2.3.png`,
+    logo: `${baseUrl}/house-pros-hub-logo-simble-bot.png`,
     sameAs: [
       // Add your social media profiles here when available
       // 'https://www.facebook.com/houseproshub',

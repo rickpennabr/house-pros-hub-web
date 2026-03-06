@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { pushSubscriptionSchema } from '@/lib/schemas/chat';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 
@@ -8,18 +9,21 @@ import { ADMIN_EMAIL } from '@/lib/constants/admin';
  * Store Web Push subscription for the current admin (for new message notifications).
  */
 export async function POST(request: NextRequest) {
+  const rateLimitRes = await checkRateLimit(request, 'pushSubscription');
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const supabaseAuth = await createClient();
     const {
-      data: { session },
-      error: sessionError,
-    } = await supabaseAuth.auth.getSession();
+      data: { user },
+      error: userError,
+    } = await supabaseAuth.auth.getUser();
 
-    if (sessionError || !session?.user?.id || !session?.user?.email) {
+    if (userError || !user?.id || !user?.email) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     const isAdmin =
-      session.user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+      user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
     if (!isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -34,7 +38,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceRoleClient();
     const { error } = await supabase.from('admin_push_subscriptions').upsert(
       {
-        user_id: session.user.id,
+        user_id: user.id,
         endpoint,
         p256dh: keys.p256dh,
         auth: keys.auth,

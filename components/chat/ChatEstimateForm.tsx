@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { estimateSchema, type EstimateSchema } from '@/lib/schemas/estimate';
 import { SERVICE_CATEGORIES } from '@/lib/constants/categories';
+import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import type { EstimateSchema as EstimateSchemaType } from '@/lib/schemas/estimate';
 
 const TYPING_SPEED_MS = 30; // Fast typing for form bot
@@ -164,8 +165,14 @@ export default function ChatEstimateForm({
   const estimateImageInputRef = useRef<HTMLInputElement>(null);
 
   const visibleSteps = useMemo(
-    () => STEPS.filter((step) => !step.skipWhen?.(values)),
-    [values]
+    () =>
+      STEPS.filter((step) => {
+        if (step.id === 'useSameAddress') {
+          return !isAuthenticated;
+        }
+        return !step.skipWhen?.(values);
+      }),
+    [values, isAuthenticated]
   );
   const currentStep = visibleSteps[stepIndex];
   const isFirstStep = stepIndex === 0;
@@ -512,13 +519,13 @@ export default function ChatEstimateForm({
             }
           >
             <div className="self-start flex items-end gap-0 min-h-[48px] rounded-2xl overflow-hidden">
-              <div className="shrink-0 w-12 h-12 flex items-center justify-center" aria-hidden>
+              <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center" aria-hidden>
                 <img
-                  src={isTypingComplete ? '/pro-bot-typing.png' : '/pro-bot-solo-typing-new.gif'}
+                  src={isTypingComplete ? PROBOT_ASSETS.avatar : PROBOT_ASSETS.avatarAnimated}
                   alt=""
                   width={48}
                   height={48}
-                  className="w-12 h-12 object-contain pointer-events-none"
+                  className="w-full h-full object-contain pointer-events-none"
                 />
               </div>
               {typingStarted && (
@@ -820,7 +827,6 @@ export default function ChatEstimateForm({
         </div>
         <div ref={messagesEndRef} />
       </div>
-
       {isTypingComplete && (
         <div className="shrink-0 flex items-center gap-2 p-3 border-t border-gray-200 bg-gray-50 flex-wrap">
           {showBackInBar && (

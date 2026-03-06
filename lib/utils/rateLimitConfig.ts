@@ -50,6 +50,20 @@ export const RATE_LIMIT_CONFIGS = {
     maxRequests: 30,
     message: 'Too many messages. Please slow down.',
   } as RateLimitConfig,
+
+  // Chat presence (GET businessIds/for=hub/visitorId + POST heartbeat) - allow polling + heartbeats without 429
+  presence: {
+    windowMs: 2 * 60 * 1000, // 2 minutes
+    maxRequests: 24,
+    message: 'Too many presence updates. Please slow down.',
+  } as RateLimitConfig,
+
+  // Push subscription (admin, contractor, visitor) - prevent subscription spam
+  pushSubscription: {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 10,
+    message: 'Too many push subscription updates. Please try again later.',
+  } as RateLimitConfig,
 } as const;
 
 export type RateLimitType = keyof typeof RATE_LIMIT_CONFIGS;

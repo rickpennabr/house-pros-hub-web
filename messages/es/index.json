@@ -45,12 +45,63 @@
     "account": {
       "myBusiness": "Mi Negocio",
       "accountManagement": "Gestión de Cuenta",
+      "probot": "ProBot",
       "settings": "Configuración",
       "helpSupport": "Ayuda y Soporte",
       "signIn": "Iniciar Sesión",
       "signOut": "Cerrar Sesión",
       "account": "Cuenta"
     }
+  },
+  "probot": {
+    "sidebar": "Chat",
+    "historyChat": "Historial de chat",
+    "contacts": "Contactos",
+    "online": "En línea",
+    "offline": "Desconectado",
+    "noRecentChats": "No hay chats recientes",
+    "unread": "No leído",
+    "read": "Leído",
+    "sent": "Enviado",
+    "collapseSidebar": "Contraer barra lateral",
+    "expandSidebar": "Expandir barra lateral",
+    "selectContact": "Selecciona un contacto para chatear",
+    "loading": "Cargando...",
+    "noMessages": "Aún no hay mensajes. ¡Di hola!",
+    "chatWithBusiness": "Chatea con {name}",
+    "messagePlaceholder": "Chatea con un HubAgent ahora....",
+    "send": "Enviar mensaje",
+    "hiUser": "Hola {name},",
+    "welcomeToMyPage": "Bienvenido a mi página",
+    "letsGetItDone": "¡Hagámoslo!",
+    "whereShouldWeStart": "¿Por dónde empezamos?",
+    "howDoYouWantToStart": "¿Cómo quieres empezar?",
+    "guestName": "ahí",
+    "replyAccountEstimate": "Entendido. Puedes solicitar tu estimado gratis en nuestro formulario. Nuestros pros te contactarán.",
+    "replyAccountEstimateLink": "Ir al formulario de estimado",
+    "replyTalkToPro": "Puedo conectarte con un pro. Elige un contacto de la lista a la izquierda para escribirle, o cuéntame qué necesitas abajo.",
+    "clearMessages": "Borrar mensajes",
+    "clearMessagesConfirm": "¿Borrar todos los mensajes de este chat? No se puede deshacer.",
+    "conversationWithVisitor": "Conversación con visitante {id}",
+    "conversationWithCustomer": "Conversación con Cliente",
+    "conversationWithContractor": "Conversación con Contratista · {name}",
+    "conversationWithName": "Conversación con {name}",
+    "customer": "Cliente",
+    "contractor": "Contratista",
+    "backToMyChat": "Volver a mi chat",
+    "replyToCustomer": "Responder al cliente...",
+    "replyAs": "Responder como",
+    "replyAsProBot": "ProBot",
+    "replyAsHubAgent": "Agente del Hub",
+    "replyAsBusiness": "Negocio",
+    "seenAt": "Visto a las {time}",
+    "seenByProBotAt": "Visto por ProBot a las {time}",
+    "attachFiles": "Adjuntar archivos",
+    "uploadFiles": "Subir archivos",
+    "addFromGoogleDrive": "Añadir desde Google Drive",
+    "photos": "Fotos",
+    "attachMax10": "Máximo 10 imágenes o PDFs por mensaje",
+    "sendUnavailable": "No se pudo enviar. Actualiza la página e inténtalo de nuevo."
   },
   "navigation": {
     "prosBlog": "ProsBlog",
@@ -60,10 +111,16 @@
   "bot": {
     "greeting": "¡Hola!",
     "tooltip": "Soy el ProBot, haz clic en mí para iniciar una conversación...",
-    "welcomeMessage": "Hola, bienvenido a HouseProsHub.com, soy el ProBot, puedo ayudarte a conectarte con un Pro o a solicitar tu estimado gratuito.",
+    "welcomeMessage": "¡Hola! Soy el ProBot. BIENVENIDO a HouseProsHub.com",
+    "welcomeLine1": "Hola, soy el ProBot",
+    "welcomeLine2": "BIENVENIDO",
+    "welcomeLine3": "A",
+    "welcomeLine4": "HouseProsHub.com",
     "choiceRequestEstimate": "Solicitar estimado gratis",
     "choiceTalkToPro": "Hablar con un pro ahora",
+    "choiceChatWithProBot": "Chatear con ProBot",
     "choiceAccountEstimate": "Cuenta y estimado",
+    "createAccountAndFreeEstimate": "Crear cuenta y obtener un estimado GRATIS",
     "choiceCallHub": "Llamar al Hub",
     "choiceChatWithHub": "Chatear con el Hub",
     "choiceMessageAPro": "Mensaje a un pro",
@@ -112,6 +169,12 @@
     }
   },
   "auth": {
+    "signInRequiredModal": {
+      "title": "Iniciar sesión requerido",
+      "message": "Para contactar a un pro o ver la página de detalles de su negocio necesitas iniciar sesión primero. Si eres nuevo en el Hub, necesitarás una cuenta GRATUITA de cliente. Si necesitas ayuda, llama al Hub: 702-232-0411",
+      "goSignIn": "Ir a Iniciar sesión",
+      "signUpNow": "Registrarse ahora"
+    },
     "tagline": "Inicia sesión o regístrate para encontrar a tu House Pro.",
     "tabs": {
       "signin": "Iniciar sesión",
@@ -146,7 +209,8 @@
       "backToSignIn": "Volver a Iniciar sesión",
       "success": {
         "message": "¡Enlace de restablecimiento enviado!",
-        "checkEmail": "Por favor revisa tu correo electrónico para las instrucciones de restablecimiento de contraseña."
+        "checkEmail": "Por favor revisa tu correo electrónico para las instrucciones de restablecimiento de contraseña.",
+        "sameBrowserHint": "Abre el enlace de restablecimiento en el mismo navegador donde lo solicitaste (el enlace puede no funcionar en otro navegador o dispositivo)."
       },
       "validation": {
         "emailRequired": "El correo electrónico es requerido",
@@ -176,7 +240,9 @@
       "errors": {
         "generic": "No se pudo restablecer la contraseña. Por favor intenta de nuevo.",
         "invalidToken": "Token de restablecimiento inválido o expirado. Por favor solicita un nuevo restablecimiento de contraseña."
-      }
+      },
+      "requestNewLink": "Solicitar nuevo enlace de restablecimiento",
+      "invalidTokenHint": "Los enlaces expiran en 1 hora. Solicita uno nuevo a continuación."
     },
     "signup": {
       "roleSelection": {
@@ -228,12 +294,16 @@
         "next": "Siguiente",
         "submit": "Registrarse",
         "submitting": "Creando cuenta...",
-        "addBusiness": "Agregar un Negocio"
+        "holdOn": "Espera...",
+        "almostDone": "Casi listo creando tu cuenta GRATIS...",
+        "addBusiness": "Agregar un Negocio",
+        "estimatePreparingJustASecond": "Un momento...",
+        "estimatePreparingMessage": "Preparando la página de estimado para ti."
       },
       "errors": {},
       "fields": {
         "imageTypeError": "Por favor selecciona un archivo de imagen",
-        "imageSizeError": "El tamaño de la imagen debe ser menor a 2MB",
+        "imageSizeError": "El tamaño de la imagen debe ser menor a 5MB",
         "uploadPicture": "Sube tu foto",
         "removeProfilePicture": "Eliminar foto de perfil",
         "referralLabel": "¿Cómo supiste de nosotros?",
@@ -243,6 +313,7 @@
         "referralOtherOption": "Otro",
         "invitationCodeLabel": "Código de invitación",
         "invitationCodePlaceholder": "Ingresa el código que recibiste",
+        "invitationCodeDescription": "Ingresa el código que recibiste de House Pros Hub para registrarte como contratista.",
         "firstNameLabel": "Nombre",
         "firstNamePlaceholder": "Nombre",
         "lastNameLabel": "Apellido",
@@ -341,6 +412,20 @@
         "contactInfo": "Si tienes alguna pregunta, por favor contáctanos.",
         "unsubscribe": "Estás recibiendo este correo porque se creó una cuenta para ti en House Pros Hub."
       }
+    },
+    "passwordResetEmail": {
+      "subject": "Restablece tu contraseña – House Pros Hub",
+      "greeting": "Hola",
+      "body": "Recibimos una solicitud para restablecer la contraseña de tu cuenta de House Pros Hub. Haz clic en el botón de abajo para restablecer tu contraseña. Este enlace expirará en 1 hora.",
+      "cta": "Restablecer contraseña",
+      "securityNote": "Nota de seguridad:",
+      "securityText": "Si no solicitaste un restablecimiento de contraseña, ignora este correo. Tu contraseña permanecerá sin cambios.",
+      "expiryNote": "Este enlace expirará en 1 hora.",
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "Si tienes alguna pregunta, por favor contáctanos.",
+        "unsubscribe": "Estás recibiendo este correo porque se solicitó un restablecimiento de contraseña para tu cuenta de House Pros Hub."
+      }
     }
   },
   "businessForm": {
@@ -354,6 +439,8 @@
       "businessInformation": "Información del Negocio",
       "brand": "Marca",
       "licenses": "Licencias",
+      "services": "Servicios",
+      "images": "Imágenes",
       "address": "Dirección",
       "contact": "Contacto",
       "links": "Enlaces"
@@ -361,11 +448,15 @@
     "brand": {
       "sectionTitle": "Marca del negocio (logotipo y fondo)",
       "clickUploadBackground": "Haz clic para subir el fondo",
+      "adjustPosition": "Ajustar posición",
+      "adjustImage": "Ajustar imagen",
+      "adjustImageHint": "Arrastra la imagen para colocarla",
+      "uploadNew": "Subir nueva",
       "uploadLogo": "Subir logotipo",
       "removeLogoTitle": "Eliminar logotipo",
       "removeBackgroundTitle": "Eliminar fondo",
       "imageTypeError": "Por favor selecciona un archivo de imagen",
-      "imageSizeError": "El tamaño de la imagen debe ser menor a 2MB",
+      "imageSizeError": "El tamaño de la imagen debe ser menor a 5MB",
       "businessNameLabel": "Nombre del negocio",
       "businessNamePlaceholder": "Ingresa el nombre de tu negocio",
       "userNameLabel": "Nombre de usuario",
@@ -404,8 +495,15 @@
       "contractorLicensesHelp": "Selecciona todas las licencias que posees",
       "addLicenseButton": "+ Agregar licencia",
       "licenseClassificationLabel": "Clasificación de licencia",
+      "licenseClassificationTip": "Usa la clasificación relacionada con tu licencia de contratista",
       "licenseClassificationPlaceholder": "Selecciona una clasificación de licencia",
-      "licenseNumberLabel": "Número de licencia",
+      "handymanOption": "HANDYMAN - Handyman (no se requiere licencia de contratista)",
+      "licenseNumberLabel": "Número de licencia de contratista",
+      "licenseNumberTip": "Las licencias se verifican en el sitio web de la junta de contratistas",
+      "licenseNumberLabelHandyman": "Licencia de negocio de Nevada",
+      "licenseNumberPlaceholderHandyman": "Ingresa tu número de licencia de negocio de Nevada",
+      "licenseNumberTipHandyman": "Handyman requiere al menos la licencia de negocio de Nevada.",
+      "licenseNumberInvalidNevada": "La licencia de negocio de Nevada debe tener 11 dígitos (se ignoran espacios o guiones).",
       "licenseNumberPlaceholder": "Ingresa tu número de licencia",
       "duplicateLicenseError": "Esta clasificación de licencia ya fue agregada",
       "duplicateLicenseNumberError": "Este número de licencia ya fue ingresado",
@@ -418,6 +516,30 @@
       "instructionsLine1": "Puedes reordenar las licencias arrastrándolas usando el icono de agarre",
       "instructionsLine2": "El orden determina cómo aparecen las licencias en tu tarjeta de negocio",
       "instructionsLine3": "Cada clasificación y número de licencia debe ser único"
+    },
+    "services": {
+      "sectionTitle": "Servicios que ofreces",
+      "servicesHelp": "Agrega los principales servicios que ofreces.",
+      "addServiceButton": "+ Agregar servicio",
+      "serviceNameLabel": "Nombre del servicio",
+      "serviceNamePlaceholder": "ej. Plomería, Reparaciones, Remodelación",
+      "noServices": "Aún no se han agregado servicios.",
+      "removeServiceAria": "Eliminar servicio {index}",
+      "position": "Posición",
+      "service": "Servicio",
+      "instructionsTitle": "Instrucciones de servicios",
+      "instructionsLine1": "Agrega los servicios que ofreces para que los clientes puedan encontrarte al buscar.",
+      "instructionsLine2": "Puedes reordenar los servicios arrastrándolos con el icono de agarre."
+    },
+    "images": {
+      "sectionTitle": "Imágenes de galería",
+      "imagesHelp": "Agrega hasta {max} fotos. Aparecerán en la pestaña Imágenes de tu negocio.",
+      "addImageButton": "+ Agregar imagen",
+      "noImages": "Aún no hay imágenes. Haz clic en \"Agregar imagen\" para subir fotos.",
+      "removeImageAria": "Eliminar imagen {index}",
+      "instructionsTitle": "Instrucciones de galería",
+      "instructionsLine1": "Agrega fotos de tu trabajo o negocio (ej. proyectos, equipo, oficina).",
+      "instructionsLine2": "Aparecerán en la pestaña Imágenes de la página de tu negocio."
     },
     "links": {
       "sectionTitle": "Enlaces del negocio",
@@ -756,6 +878,8 @@
   "accountManagement": {
     "title": "Gestión de Cuenta",
     "selectAccount": "Seleccionar Cuenta",
+    "personalAccountFallback": "Personal",
+    "businessAccountFallback": "Negocio",
     "quickActions": "Acciones Rápidas",
     "access": "Acceder",
     "actions": {
@@ -771,6 +895,10 @@
         "addBusiness": {
           "title": "Agregar Negocio",
           "description": "Nuevo Negocio"
+        },
+        "proscrm": {
+          "title": "ProsCRM",
+          "description": "Clientes, estimados, proyectos y calendario"
         }
       },
       "business": {
@@ -835,7 +963,7 @@
     },
     "errors": {
       "imageFile": "Por favor selecciona un archivo de imagen",
-      "imageSizeError": "El tamaño de la imagen debe ser menor a 2MB",
+      "imageSizeError": "El tamaño de la imagen debe ser menor a 5MB",
       "mustBeLoggedIn": "Debes iniciar sesión para subir imágenes",
       "firstNameRequired": "El nombre es requerido",
       "lastNameRequired": "El apellido es requerido",

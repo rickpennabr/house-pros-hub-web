@@ -19,9 +19,19 @@ export const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'] as co
  */
 export const MAX_FILE_SIZES = {
   profile: 5 * 1024 * 1024, // 5MB
-  logo: 2 * 1024 * 1024, // 2MB
+  logo: 5 * 1024 * 1024, // 5MB
   background: 5 * 1024 * 1024, // 5MB
+  gallery: 5 * 1024 * 1024, // 5MB per gallery image
+  chat: 10 * 1024 * 1024, // 10MB per chat attachment (images + PDF)
 } as const;
+
+/** Allowed chat attachment MIME types (images + PDF) */
+export const ALLOWED_CHAT_ATTACHMENT_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+] as const;
 
 export type FileType = keyof typeof MAX_FILE_SIZES;
 
@@ -104,8 +114,31 @@ export function getExtensionFromMimeType(mimeType: string): string {
     'image/jpeg': '.jpg',
     'image/png': '.png',
     'image/webp': '.webp',
+    'application/pdf': '.pdf',
   };
-  
-  return mimeToExt[mimeType] || '.jpg';
+  return mimeToExt[mimeType] || '.bin';
+}
+
+/**
+ * Validates chat attachment (images + PDF) using magic bytes.
+ */
+export async function validateChatAttachmentMagicBytes(
+  buffer: Buffer | ArrayBuffer | Uint8Array
+): Promise<{ isValid: boolean; mimeType: string | null }> {
+  try {
+    const fileType = await fileTypeFromBuffer(buffer);
+    if (!fileType) {
+      // PDF magic is %PDF - file-type may detect it
+      const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer);
+      if (buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
+        return { isValid: true, mimeType: 'application/pdf' };
+      }
+      return { isValid: false, mimeType: null };
+    }
+    const isValid = (ALLOWED_CHAT_ATTACHMENT_TYPES as readonly string[]).includes(fileType.mime);
+    return { isValid, mimeType: fileType.mime };
+  } catch {
+    return { isValid: false, mimeType: null };
+  }
 }
 

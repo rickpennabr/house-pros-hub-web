@@ -31,6 +31,8 @@ interface ProReactionsProps {
   businessId?: string;
   layout?: 'between' | 'around';
   gap?: string;
+  /** When provided and user is not signed in, clicking a reaction invokes this instead of redirecting to sign-in */
+  onSignInRequired?: () => void;
 }
 
 export default function ProReactions({ 
@@ -41,7 +43,8 @@ export default function ProReactions({
   logo,
   businessId = '',
   layout = 'between',
-  gap = 'gap-0.5'
+  gap = 'gap-0.5',
+  onSignInRequired,
 }: ProReactionsProps) {
   const [reactions, setReactions] = useState(initialReactions);
   const [activeReactions, setActiveReactions] = useState<Set<string>>(new Set());
@@ -177,18 +180,16 @@ export default function ProReactions({
 
   const handleReaction = (e: React.MouseEvent, type: 'love' | 'feedback' | 'link' | 'save') => {
     e.stopPropagation();
-    
-    // Check authentication
-    if (isLoading) {
-      return;
-    }
-    
+    if (isLoading) return;
     if (!isAuthenticated) {
+      if (onSignInRequired) {
+        onSignInRequired();
+        return;
+      }
       const signInUrl = createSignInUrl(locale as 'en' | 'es', pathname);
       router.push(signInUrl);
       return;
     }
-    
     performReaction(type);
   };
 

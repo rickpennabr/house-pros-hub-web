@@ -10,16 +10,16 @@ export async function GET() {
   try {
     const supabase = await createClient();
     const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    if (sessionError || !session?.user?.email) {
+    if (userError || !user?.email) {
       return NextResponse.json({ isAdmin: false }, { status: 200 });
     }
 
     const isAdmin =
-      session.user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+      user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
     return NextResponse.json({ isAdmin }, { status: 200 });
   } catch {

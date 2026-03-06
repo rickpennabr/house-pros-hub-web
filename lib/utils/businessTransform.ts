@@ -4,7 +4,7 @@
 
 import { ProCardData } from '@/components/proscard/ProCard';
 import { LinkItem } from '@/components/proscard/ProLinks';
-import { RESIDENTIAL_CONTRACTOR_LICENSES } from '@/lib/constants/contractorLicenses';
+import { RESIDENTIAL_CONTRACTOR_LICENSES, HANDYMAN_LICENSE_CODE } from '@/lib/constants/contractorLicenses';
 
 /**
  * Maps license codes to categories
@@ -37,6 +37,7 @@ const licenseToCategoryMap: Record<string, string> = {
   'A-7': 'General Contractor',
   'A-10': 'Pools & Spas',
   'GENERAL': 'General Contractor',
+  [HANDYMAN_LICENSE_CODE]: 'Handyman',
 };
 
 /**
@@ -69,6 +70,7 @@ const licenseToIconMap: Record<string, string> = {
   'A-7': 'Layers',
   'A-10': 'Waves',
   'GENERAL': 'Home',
+  [HANDYMAN_LICENSE_CODE]: 'Hammer',
 };
 
 /**
@@ -97,6 +99,24 @@ export function generateSlug(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/** Optional context for resolving license display names from DB (e.g. license_categories). */
+export type TransformBusinessOptions = {
+  licenseCategories?: Array<{ code: string; name: string }>;
+};
+
+function getLicenseDisplayName(
+  code: string,
+  licenseCategoriesMap: Map<string, string> | null
+): string {
+  if (licenseCategoriesMap?.has(code)) {
+    return licenseCategoriesMap.get(code)!;
+  }
+  if (code === 'GENERAL') return 'General Contractor';
+  if (code === HANDYMAN_LICENSE_CODE) return 'Handyman';
+  const licenseInfo = RESIDENTIAL_CONTRACTOR_LICENSES.find(l => l.code === code);
+  return licenseInfo ? licenseInfo.name : 'General Contractor';
+}
+
 /**
  * Transform business form data to ProCardData format
  */
@@ -106,10 +126,13 @@ export function transformBusinessToProCardData(
     businessName: string;
     businessLogo?: string | null;
     businessBackground?: string | null;
+    businessBackgroundPosition?: string | null;
     slug?: string;
     reactions?: ProCardData['reactions'];
     companyDescription?: string;
-    licenses: Array<{ license: string; trade?: string; licenseNumber: string }>;
+    licenses: Array<{ license: string; trade?: string; licenseNumber?: string }>;
+    services?: string[] | Array<{ name: string }>;
+    images?: string[];
     streetAddress?: string;
     city?: string;
     state?: string;
@@ -121,27 +144,19 @@ export function transformBusinessToProCardData(
     mobilePhone?: string;
     links?: LinkItem[];
     userId: string;
-  }
+  },
+  options?: TransformBusinessOptions
 ): ProCardData & { userId: string } {
+  const licenseCategoriesMap = options?.licenseCategories?.length
+    ? new Map(options.licenseCategories.map((c) => [c.code, c.name]))
+    : null;
+
   // Ensure licenses array exists and has at least one license
   const licenses = businessData.licenses || [];
   const primaryLicense = licenses[0];
   const licenseCode = primaryLicense?.license || 'GENERAL';
-  
-  // Find trade name from constants
-  let contractorType = '';
-  
-  // Logic to determine contractor type:
-  // 1. If it's a known license code, get the name from RESIDENTIAL_CONTRACTOR_LICENSES
-  // 2. If it's 'GENERAL', use 'General Contractor'
-  // 3. If primaryLicense.trade exists and isn't just a number (license number), use it
-  
-  if (licenseCode === 'GENERAL') {
-    contractorType = 'General Contractor';
-  } else {
-    const licenseInfo = RESIDENTIAL_CONTRACTOR_LICENSES.find(l => l.code === licenseCode);
-    contractorType = licenseInfo ? licenseInfo.name : 'General Contractor';
-  }
+
+  let contractorType = getLicenseDisplayName(licenseCode, licenseCategoriesMap);
 
   // If we have a trade string that isn't just numbers, it might be a custom trade name
   const tradeValue = primaryLicense?.trade;
@@ -153,29 +168,26 @@ export function transformBusinessToProCardData(
   const category = getCategoryFromLicense(licenseCode);
   const tradeIcon = getTradeIconFromLicense(licenseCode);
 
-  // Process all licenses to include trade name and icon
+  // Process all licenses to include trade name and icon (use DB names when available)
   const processedLicenses = businessData.licenses.map(license => {
     const licenseCodeForLicense = license.license || 'GENERAL';
-    let tradeName = '';
-    
-    if (licenseCodeForLicense === 'GENERAL') {
-      tradeName = 'General Contractor';
-    } else {
-      const licenseInfo = RESIDENTIAL_CONTRACTOR_LICENSES.find(l => l.code === licenseCodeForLicense);
-      tradeName = licenseInfo ? licenseInfo.name.replace(/\s*Contractor\s*/gi, '').trim() : 'General Contractor';
+    let tradeName = getLicenseDisplayName(licenseCodeForLicense, licenseCategoriesMap);
+    // Card display often uses shortened form (e.g. without "Contractor" suffix) for some codes; keep full name from DB
+    if (!licenseCategoriesMap?.has(licenseCodeForLicense)) {
+      tradeName = tradeName.replace(/\s*Contractor\s*/gi, ' ').trim() || tradeName;
     }
 
     // If we have a trade string that isn't just numbers, use it
-    const tradeValue = license.trade;
-    if (tradeValue && typeof tradeValue === 'string' && !/^\d+$/.test(tradeValue.trim())) {
-      tradeName = tradeValue.replace(/\s*Contractor\s*/gi, '').trim();
+    const licenseTradeValue = license.trade;
+    if (licenseTradeValue && typeof licenseTradeValue === 'string' && !/^\d+$/.test(licenseTradeValue.trim())) {
+      tradeName = licenseTradeValue.replace(/\s*Contractor\s*/gi, ' ').trim();
     }
 
     const tradeIconForLicense = getTradeIconFromLicense(licenseCodeForLicense);
-    
+
     return {
       license: license.license,
-      licenseNumber: license.licenseNumber,
+      licenseNumber: license.licenseNumber ?? '',
       tradeName,
       tradeIcon: tradeIconForLicense,
     };
@@ -218,16 +230,25 @@ export function transformBusinessToProCardData(
   const shortId = businessData.id.split('_').pop() || Math.random().toString(36).substring(7);
   const slug = businessData.slug?.trim() || `${baseSlug}-${shortId}`;
 
+  const services: string[] = (businessData.services || []).map((s) =>
+    typeof s === 'string' ? s : (s as { name?: string })?.name ?? ''
+  ).filter(Boolean);
+
+  const images: string[] = Array.isArray(businessData.images) ? businessData.images : [];
+
   return {
     id: businessData.id,
     logo: businessData.businessLogo || undefined,
     businessLogo: businessData.businessLogo || undefined,
     businessBackground: businessData.businessBackground || undefined,
+    businessBackgroundPosition: businessData.businessBackgroundPosition ?? '50% 50%',
     businessName: businessData.businessName,
     contractorType,
     category,
     tradeIcon,
     licenses: processedLicenses,
+    services,
+    images,
     streetAddress: businessData.streetAddress,
     city: businessData.city,
     state: businessData.state,

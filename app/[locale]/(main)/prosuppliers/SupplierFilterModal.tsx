@@ -101,7 +101,7 @@ export default function SupplierFilterModal({
           {hasActiveFilters && (
             <button
               onClick={handleClearFilters}
-              className="w-full px-4 py-2.5 border-2 border-black rounded-lg bg-white hover:bg-gray-50 transition-colors font-medium text-black"
+              className="w-full px-4 py-2.5 border-2 border-black rounded-lg bg-white hover:bg-gray-50 transition-colors font-medium text-black cursor-pointer"
             >
               Clear Filters
             </button>

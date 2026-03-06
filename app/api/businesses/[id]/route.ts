@@ -25,11 +25,14 @@ interface BusinessUpdateBody {
   slug?: string;
   businessLogo?: string;
   businessBackground?: string;
+  businessBackgroundPosition?: string;
   companyDescription?: string;
   email?: string;
   phone?: string;
   mobilePhone?: string;
   links?: unknown;
+  services?: Array<{ name: string }>;
+  images?: string[];
   operatingHours?: unknown;
   streetAddress?: string;
   apartment?: string;
@@ -120,26 +123,42 @@ async function handleGetBusiness(
 
     const links = normalizeLinks(business.links);
 
-    const transformed = transformBusinessToProCardData({
-      id: business.id,
-      businessName: business.business_name,
-      businessLogo: business.business_logo || undefined,
-      businessBackground: business.business_background || undefined,
-      slug: business.slug || undefined,
-      companyDescription: business.company_description || undefined,
-      licenses: licensesForTransform,
-      address: address?.street_address || undefined,
-      streetAddress: address?.street_address || undefined,
-      city: address?.city || undefined,
-      state: address?.state || undefined,
-      zipCode: address?.zip_code || undefined,
-      apartment: address?.apartment || undefined,
-      email: business.email || undefined,
-      phone: business.phone || undefined,
-      mobilePhone: business.mobile_phone || undefined,
-      links,
-      userId: business.owner_id,
-    });
+    const { data: licenseCategories } = await supabase
+      .from('license_categories')
+      .select('code, name');
+    const licenseCategoriesList = (licenseCategories ?? []).map((r: { code: string; name: string }) => ({
+      code: r.code,
+      name: r.name,
+    }));
+
+    const businessServices = (business as { services?: string[] }).services;
+    const businessImages = (business as { images?: string[] }).images;
+    const transformed = transformBusinessToProCardData(
+      {
+        id: business.id,
+        businessName: business.business_name,
+        businessLogo: business.business_logo || undefined,
+        businessBackground: business.business_background || undefined,
+        businessBackgroundPosition: (business as { business_background_position?: string | null }).business_background_position ?? '50% 50%',
+        slug: business.slug || undefined,
+        companyDescription: business.company_description || undefined,
+        licenses: licensesForTransform,
+        services: Array.isArray(businessServices) ? businessServices : [],
+        images: Array.isArray(businessImages) ? businessImages : [],
+        address: address?.street_address || undefined,
+        streetAddress: address?.street_address || undefined,
+        city: address?.city || undefined,
+        state: address?.state || undefined,
+        zipCode: address?.zip_code || undefined,
+        apartment: address?.apartment || undefined,
+        email: business.email || undefined,
+        phone: business.phone || undefined,
+        mobilePhone: business.mobile_phone || undefined,
+        links,
+        userId: business.owner_id,
+      },
+      { licenseCategories: licenseCategoriesList }
+    );
 
     return NextResponse.json({ business: transformed });
   } catch (error) {
@@ -204,6 +223,15 @@ async function handleUpdateBusiness(
               return { ...link, url: safeUrl ?? link.url, value: value ?? link.value };
             })
           : rawBody.links,
+      services:
+        rawBody.services && Array.isArray(rawBody.services)
+          ? rawBody.services
+              .map((s: { name?: string } | string) => {
+                const name = typeof s === 'string' ? s : (s?.name != null ? String(s.name).trim() : '');
+                return name ? { name: sanitizeText(name) || name } : null;
+              })
+              .filter((item): item is { name: string } => item != null && item.name.length > 0)
+          : rawBody.services,
       licenses:
         rawBody.licenses && Array.isArray(rawBody.licenses)
           ? rawBody.licenses.map((lic) => ({
@@ -217,7 +245,7 @@ async function handleUpdateBusiness(
     // Verify ownership
     const { data: existingBusiness, error: fetchError } = await supabase
       .from('businesses')
-      .select('owner_id, business_address_id, business_logo, business_background')
+      .select('owner_id, business_address_id, business_logo, business_background, business_background_position')
       .eq('id', businessId)
       .single();
 
@@ -262,11 +290,14 @@ async function handleUpdateBusiness(
     if (body.slug) updateData.slug = body.slug;
     if (body.businessLogo !== undefined) updateData.business_logo = body.businessLogo;
     if (body.businessBackground !== undefined) updateData.business_background = body.businessBackground;
+    if (body.businessBackgroundPosition !== undefined) updateData.business_background_position = body.businessBackgroundPosition;
     if (body.companyDescription !== undefined) updateData.company_description = body.companyDescription;
     if (body.email !== undefined) updateData.email = body.email;
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.mobilePhone !== undefined) updateData.mobile_phone = body.mobilePhone;
     if (body.links !== undefined) updateData.links = body.links;
+    if (body.services !== undefined) updateData.services = body.services;
+    if (body.images !== undefined) updateData.images = body.images;
     if (body.operatingHours !== undefined) updateData.operating_hours = body.operatingHours;
 
     const { error: updateError } = await supabase
@@ -309,24 +340,54 @@ async function handleUpdateBusiness(
 
     // Update licenses if provided
     if (body.licenses && Array.isArray(body.licenses)) {
+      const { data: licenseCategories } = await supabase
+        .from('license_categories')
+        .select('code')
+        .eq('requires_contractor_license', false);
+      const nonContractorCodes = new Set(
+        (licenseCategories ?? []).map((r: { code: string }) => r.code)
+      );
+      const { isValidNevadaBusinessLicense } = await import('@/lib/schemas/business');
+      for (let i = 0; i < body.licenses.length; i++) {
+        const lic = body.licenses[i];
+        if (lic?.license && nonContractorCodes.has(lic.license)) {
+          const num = (lic.licenseNumber ?? '').trim();
+          if (num && !isValidNevadaBusinessLicense(num)) {
+            return NextResponse.json(
+              { error: `License ${i + 1}: Nevada Business License must be 11 digits (spaces or dashes are ignored)` },
+              { status: 400 }
+            );
+          }
+        }
+      }
       // Delete existing licenses
       await supabase
         .from('licenses')
         .delete()
         .eq('business_id', businessId);
 
-      // Insert new licenses
-      const licenseInserts = body.licenses.map((license) => ({
-        business_id: businessId,
-        license_number: license.licenseNumber,
-        license_type: license.license,
-        license_name: license.trade || null,
-        is_active: true,
-      }));
+      // Insert new licenses (null license_number when empty for non-contractor types)
+      const licenseInserts = body.licenses.map((license) => {
+        const num = (license.licenseNumber ?? '').trim();
+        return {
+          business_id: businessId,
+          license_number: num || null,
+          license_type: license.license,
+          license_name: license.trade || null,
+          is_active: true,
+        };
+      });
 
-      await supabase
+      const { error: insertError } = await supabase
         .from('licenses')
         .insert(licenseInserts);
+      if (insertError) {
+        logger.error('Error inserting licenses', { endpoint: '/api/businesses/[id]' }, insertError as Error);
+        return NextResponse.json(
+          { error: insertError.code === '23505' ? 'A license with this number already exists' : 'Failed to save licenses' },
+          { status: 400 }
+        );
+      }
     }
 
     // Fetch complete updated business
@@ -377,26 +438,41 @@ async function handleUpdateBusiness(
       ? completeBusiness.addresses[0]
       : completeBusiness.addresses;
 
-    const transformed = transformBusinessToProCardData({
-      id: completeBusiness.id,
-      businessName: completeBusiness.business_name,
-      businessLogo: completeBusiness.business_logo || undefined,
-      businessBackground: completeBusiness.business_background || undefined,
-      slug: completeBusiness.slug || undefined,
-      companyDescription: completeBusiness.company_description || undefined,
-      licenses: licensesForTransform,
-      address: address?.street_address || undefined,
-      streetAddress: address?.street_address || undefined,
-      city: address?.city || undefined,
-      state: address?.state || undefined,
-      zipCode: address?.zip_code || undefined,
-      apartment: address?.apartment || undefined,
-      email: completeBusiness.email || undefined,
-      phone: completeBusiness.phone || undefined,
-      mobilePhone: completeBusiness.mobile_phone || undefined,
-      links: normalizeLinks(completeBusiness.links),
-      userId: completeBusiness.owner_id,
-    });
+    const { data: licenseCategories } = await supabase
+      .from('license_categories')
+      .select('code, name');
+    const licenseCategoriesList = (licenseCategories ?? []).map((r: { code: string; name: string }) => ({
+      code: r.code,
+      name: r.name,
+    }));
+
+    const completeBusinessServices = (completeBusiness as { services?: string[] }).services;
+    const completeBusinessImages = (completeBusiness as { images?: string[] }).images;
+    const transformed = transformBusinessToProCardData(
+      {
+        id: completeBusiness.id,
+        businessName: completeBusiness.business_name,
+        businessLogo: completeBusiness.business_logo || undefined,
+        businessBackground: completeBusiness.business_background || undefined,
+        slug: completeBusiness.slug || undefined,
+        companyDescription: completeBusiness.company_description || undefined,
+        licenses: licensesForTransform,
+        services: Array.isArray(completeBusinessServices) ? completeBusinessServices : [],
+        images: Array.isArray(completeBusinessImages) ? completeBusinessImages : [],
+        address: address?.street_address || undefined,
+        streetAddress: address?.street_address || undefined,
+        city: address?.city || undefined,
+        state: address?.state || undefined,
+        zipCode: address?.zip_code || undefined,
+        apartment: address?.apartment || undefined,
+        email: completeBusiness.email || undefined,
+        phone: completeBusiness.phone || undefined,
+        mobilePhone: completeBusiness.mobile_phone || undefined,
+        links: normalizeLinks(completeBusiness.links),
+        userId: completeBusiness.owner_id,
+      },
+      { licenseCategories: licenseCategoriesList }
+    );
 
     return NextResponse.json({ business: transformed });
   } catch (error) {

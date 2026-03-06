@@ -113,6 +113,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ businesses: [] });
     }
 
+    const { data: licenseCategories } = await supabase
+      .from('license_categories')
+      .select('code, name');
+    const licenseCategoriesList = (licenseCategories ?? []).map((r: { code: string; name: string }) => ({
+      code: r.code,
+      name: r.name,
+    }));
+
     // Transform to ProCardData format
     const businessRows = businesses as unknown as DbBusinessRow[];
     const transformedBusinesses = businessRows.map((business) => {
@@ -139,26 +147,29 @@ export async function GET(request: NextRequest) {
 
       const links = normalizeLinks(business.links);
 
-      const transformed = transformBusinessToProCardData({
-        id: business.id,
-        businessName: business.business_name,
-        businessLogo: business.business_logo || undefined,
-        businessBackground: business.business_background || undefined,
-        slug: business.slug || undefined,
-        companyDescription: business.company_description || undefined,
-        licenses,
-        address: address?.street_address || undefined,
-        streetAddress: address?.street_address || undefined,
-        city: address?.city || undefined,
-        state: address?.state || undefined,
-        zipCode: address?.zip_code || undefined,
-        apartment: address?.apartment || undefined,
-        email: business.email || undefined,
-        phone: business.phone || undefined,
-        mobilePhone: business.mobile_phone || undefined,
-        links,
-        userId: business.owner_id,
-      });
+      const transformed = transformBusinessToProCardData(
+        {
+          id: business.id,
+          businessName: business.business_name,
+          businessLogo: business.business_logo || undefined,
+          businessBackground: business.business_background || undefined,
+          slug: business.slug || undefined,
+          companyDescription: business.company_description || undefined,
+          licenses,
+          address: address?.street_address || undefined,
+          streetAddress: address?.street_address || undefined,
+          city: address?.city || undefined,
+          state: address?.state || undefined,
+          zipCode: address?.zip_code || undefined,
+          apartment: address?.apartment || undefined,
+          email: business.email || undefined,
+          phone: business.phone || undefined,
+          mobilePhone: business.mobile_phone || undefined,
+          links,
+          userId: business.owner_id,
+        },
+        { licenseCategories: licenseCategoriesList }
+      );
 
       // Ensure category is always set (should be set by transform, but double-check)
       if (!transformed.category) {

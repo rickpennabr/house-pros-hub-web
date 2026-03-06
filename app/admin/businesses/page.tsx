@@ -7,15 +7,21 @@ import {
   Trash2,
   AlertTriangle,
   ExternalLink,
+  ArrowLeft,
+  Plus,
+  Pencil,
 } from 'lucide-react';
 import type { AdminBusinessRow } from '@/app/api/admin/businesses/route';
 import { AdminDataTable } from '@/components/admin/AdminDataTable';
 import type { AdminDataTableColumn } from '@/components/admin/AdminDataTable';
+import { AdminBusinessForm, type AdminBusinessFormInitial } from '@/components/admin/AdminBusinessForm';
+import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 
 const PAGE_SIZE = 25;
 
+type ViewMode = 'table' | 'add' | 'edit';
 type SortKey = 'created_at' | 'updated_at' | 'business_name' | 'email' | 'is_active' | 'is_verified';
 
 function formatDate(iso: string | null) {
@@ -50,6 +56,9 @@ export default function BusinessesPage() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const hasLoadedOnceRef = useRef(false);
 
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingInitial, setEditingInitial] = useState<AdminBusinessFormInitial | null>(null);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -105,6 +114,32 @@ export default function BusinessesPage() {
   useEffect(() => {
     fetchBusinesses();
   }, [fetchBusinesses]);
+
+  useEffect(() => {
+    if (viewMode !== 'edit' || !editingId) return;
+    let cancelled = false;
+    setEditingInitial(null);
+    fetch(`/api/admin/businesses/${editingId}`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.error || !data.business) {
+          setError(data.error || 'Failed to load business');
+          return;
+        }
+        setEditingInitial({
+          business: data.business,
+          is_active: data.is_active ?? true,
+          is_verified: data.is_verified ?? false,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setError('Failed to load business');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, editingId]);
 
   useEffect(() => {
     if (!openActionsId) return;
@@ -179,8 +214,8 @@ export default function BusinessesPage() {
   };
 
   const handleBulkEdit = (row: AdminBusinessRow) => {
-    const slug = row.slug || row.id;
-    window.open(`/en/business/${slug}`, '_blank', 'noopener,noreferrer');
+    setEditingId(row.id);
+    setViewMode('edit');
   };
 
   const renderCell = (row: AdminBusinessRow, columnId: string) => {
@@ -218,8 +253,8 @@ export default function BusinessesPage() {
   };
 
   const handleRowClick = (row: AdminBusinessRow) => {
-    const slug = row.slug || row.id;
-    window.open(`/en/business/${slug}`, '_blank', 'noopener,noreferrer');
+    setEditingId(row.id);
+    setViewMode('edit');
   };
 
   const renderActions = (row: AdminBusinessRow) => (
@@ -252,21 +287,97 @@ export default function BusinessesPage() {
 
   return (
     <div className="w-full">
-      <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
-        <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Businesses</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            <span className="md:hidden">Manage businesses.</span>
-            <span className="hidden md:inline">
-              View and manage contractor businesses.
-            </span>
-          </p>
-        </div>
-        <div className="md:hidden h-9 px-4 rounded-md border-2 border-black bg-white flex items-center justify-center shrink-0 text-sm font-medium text-black">
-          {total} business{total !== 1 ? 'es' : ''}
-        </div>
-      </div>
+      {viewMode === 'table' && (
+        <>
+          <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
+            <div className="min-w-0">
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Businesses</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                <span className="md:hidden">Manage businesses.</span>
+                <span className="hidden md:inline">
+                  View and manage contractor businesses.
+                </span>
+              </p>
+            </div>
+            <div className="md:hidden h-9 px-4 rounded-md border-2 border-black bg-white flex items-center justify-center shrink-0 text-sm font-medium text-black">
+              {total} business{total !== 1 ? 'es' : ''}
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              className="hidden md:flex items-center gap-2 shrink-0"
+              onClick={() => setViewMode('add')}
+            >
+              <Plus className="w-4 h-4" />
+              Add Business
+            </Button>
+          </div>
+          <AdminFloatingAddButton onClick={() => setViewMode('add')} ariaLabel="Add business" />
+        </>
+      )}
 
+      {(viewMode === 'add' || viewMode === 'edit') && (
+        <div className="w-full md:max-w-2xl md:mx-auto">
+          <div className="py-2 md:py-0 md:mb-6 flex items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('table');
+                setEditingId(null);
+                setEditingInitial(null);
+                setError(null);
+              }}
+              className="flex items-center gap-2 text-gray-700 hover:text-black font-medium cursor-pointer"
+              aria-label="Back to businesses"
+            >
+              <ArrowLeft className="w-5 h-5 shrink-0" />
+              <span className="hidden md:inline">Back</span>
+            </button>
+            <span className="text-lg md:text-xl font-semibold text-gray-900">
+              {viewMode === 'add' ? 'Add Business' : 'Edit Business'}
+            </span>
+          </div>
+
+          {viewMode === 'add' && (
+            <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 text-sm">
+              <p className="mb-2">
+                New contractor businesses are created when a user signs up as a contractor and completes the business signup flow.
+              </p>
+              <p>
+                Send contractors to the signup page to create a new business. You can then edit any business from this list by clicking a row.
+              </p>
+            </div>
+          )}
+
+          {viewMode === 'edit' && editingId && (
+            <>
+              {editingInitial ? (
+                <AdminBusinessForm
+                  businessId={editingId}
+                  initial={editingInitial}
+                  onCancel={() => {
+                    setViewMode('table');
+                    setEditingId(null);
+                    setEditingInitial(null);
+                    setError(null);
+                  }}
+                  onSuccess={() => {
+                    setViewMode('table');
+                    setEditingId(null);
+                    setEditingInitial(null);
+                    fetchBusinesses();
+                  }}
+                />
+              ) : (
+                <div className="p-12 text-center text-gray-500 text-sm">Loading business…</div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {viewMode === 'table' && (
+      <>
       <AdminDataTable<AdminBusinessRow>
         columns={BUSINESS_COLUMNS}
         data={businesses}
@@ -298,6 +409,8 @@ export default function BusinessesPage() {
         itemLabel="businesses"
         primaryColumnId="name"
       />
+      </>
+      )}
 
       {/* Bulk delete confirmation modal */}
       {bulkDeleteIds && bulkDeleteIds.length > 0 && (
@@ -412,6 +525,23 @@ export default function BusinessesPage() {
               <ExternalLink className="w-3.5 h-3.5" />
               View
             </a>
+            <button
+              type="button"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                const row = businesses.find((b) => b.id === openActionsId);
+                if (row) {
+                  setEditingId(row.id);
+                  setViewMode('edit');
+                  setOpenActionsId(null);
+                  setMenuPosition(null);
+                }
+              }}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Edit
+            </button>
             <button
               type="button"
               className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600 hover:text-red-700 cursor-pointer"

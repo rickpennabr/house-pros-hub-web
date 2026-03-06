@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { List } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useScrollPosition } from '@/hooks/useScrollPosition';
-import { useWindowDimensions } from '@/hooks/useWindowDimensions';
 import { LuIdCard } from 'react-icons/lu';
 
 export type ViewType = 'card' | 'list';
@@ -22,8 +21,6 @@ interface ViewOption {
 
 export default function ViewToggle({ currentView, onViewChange }: ViewToggleProps) {
   const t = useTranslations('common');
-  const { isAtBottom } = useScrollPosition({ threshold: 50, useRequestAnimationFrame: false });
-  const { isDesktop } = useWindowDimensions();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -40,12 +37,13 @@ export default function ViewToggle({ currentView, onViewChange }: ViewToggleProp
     },
   ];
 
-  return (
+  const isHidden = false;
+  const toggleEl = (
     <div 
-      className={`fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${
-        mounted && isAtBottom && isDesktop
-          ? 'bottom-[90px]' // Move up when at bottom on desktop
-          : 'bottom-[35px] md:bottom-[75px]' // Mobile: 30px lower than before (was 65px)
+      className={`fixed left-1/2 -translate-x-1/2 z-50 bottom-[35px] md:bottom-[75px] transition-all duration-300 ease-out ${
+        isHidden
+          ? 'opacity-0 translate-y-4 pointer-events-none'
+          : 'opacity-100 translate-y-0 pointer-events-auto'
       }`}
     >
       <div className="
@@ -55,7 +53,6 @@ export default function ViewToggle({ currentView, onViewChange }: ViewToggleProp
         font-bold text-[11px] md:text-[13px]
         flex items-center justify-center gap-2
         cursor-pointer overflow-hidden
-        transition-all duration-300
         shadow-lg
       ">
         {views.map((view) => {
@@ -88,4 +85,7 @@ export default function ViewToggle({ currentView, onViewChange }: ViewToggleProp
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined' || !mounted) return null;
+  return createPortal(toggleEl, document.body);
 }
