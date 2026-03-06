@@ -5,11 +5,10 @@ import { Database } from '@/lib/types/supabase';
 
 /**
  * GET /api/auth/callback
- * Handles OAuth and other code-based auth flows. For password reset (recovery), the app
- * uses a BrazaLink-style flow: forgot-password sends a custom email with a link that
- * goes directly to /[locale]/reset-password with tokens in the URL hash; the reset page
- * sets the session from the hash. This callback is not used for recovery in that flow.
- * If a recovery code is present here (e.g. legacy link), we exchange it and redirect to reset-password.
+ * Handles OAuth and PKCE-based auth flows. For password reset (recovery), the forgot-password
+ * API sends an email link that points here. Supabase redirects with ?code=...; we exchange
+ * the code for a session, set cookies, and redirect to /[locale]/reset-password. The reset
+ * page then relies on getSession() (cookies) only — no hash tokens.
  */
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);

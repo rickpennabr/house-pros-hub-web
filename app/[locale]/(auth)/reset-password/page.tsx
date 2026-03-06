@@ -54,7 +54,7 @@ function ResetPasswordForm() {
     }
   }, [searchParams]);
 
-  // Recover session from password reset link (Supabase puts tokens in URL hash, or sometimes in query when opening in new tab)
+  // Session comes from cookies set by /api/auth/callback (PKCE flow). No hash/query tokens.
   useEffect(() => {
     if (searchParams.get('error')) {
       return;
@@ -62,47 +62,6 @@ function ResetPasswordForm() {
 
     const VALIDATION_TIMEOUT_MS = 15_000;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const search = typeof window !== 'undefined' ? window.location.search : '';
-    const hasHash = typeof window !== 'undefined' && !!window.location.hash;
-    console.log('[ResetPassword] page load search=', search, 'hasHash=', hasHash);
-
-    // Use URLSearchParams so values containing & or = (e.g. encoded refresh_token) are parsed correctly.
-    const getParamFromHash = (name: string): string | null => {
-      if (typeof window === 'undefined' || !window.location.hash) return null;
-      try {
-        const params = new URLSearchParams(window.location.hash.substring(1));
-        const value = params.get(name);
-        if (value == null) return null;
-        // JWTs can use + (base64); URLSearchParams decodes + as space, so restore + for tokens.
-        if (name === 'access_token' || name === 'refresh_token') {
-          return value.replace(/ /g, '+');
-        }
-        return value;
-      } catch {
-        return null;
-      }
-    };
-
-    /** Read from query string (Supabase sometimes redirects with tokens in ? instead of #). Same + fix for tokens. */
-    const getParamFromSearch = (name: string): string | null => {
-      if (typeof window === 'undefined' || !window.location.search) return null;
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const value = params.get(name);
-        if (value == null) return null;
-        if (name === 'access_token' || name === 'refresh_token') {
-          return value.replace(/ /g, '+');
-        }
-        return value;
-      } catch {
-        return null;
-      }
-    };
-
-    /** Tokens may be in hash (primary) or query (fallback when e.g. opening link in new tab). */
-    const getParamFromHashOrSearch = (name: string): string | null =>
-      getParamFromHash(name) ?? getParamFromSearch(name);
 
     const clearValidationTimeout = () => {
       if (timeoutId != null) {
@@ -113,86 +72,17 @@ function ResetPasswordForm() {
 
     const succeedWithForm = () => {
       clearValidationTimeout();
-      // Remove token params from URL (hash or query) so we don't leave secrets in the address bar
-      if (typeof window !== 'undefined') {
-        const search = new URLSearchParams(window.location.search);
-        search.delete('access_token');
-        search.delete('refresh_token');
-        search.delete('type');
-        const cleanSearch = search.toString();
-        const cleanUrl = window.location.pathname + (cleanSearch ? `?${cleanSearch}` : '');
-        window.history.replaceState(null, '', cleanUrl);
-      }
       setIsValidatingToken(false);
     };
-
-    // Supabase may redirect with error in hash (e.g. otp_expired when redirect URL not allowlisted or token consumed).
-    // Read hash first so we show that message instead of generic "invalid token".
-    const hashError = getParamFromHash('error');
-    const hashErrorCode = getParamFromHash('error_code');
-    const hashErrorDescription = getParamFromHash('error_description');
-    if (hashError || hashErrorCode || hashErrorDescription) {
-      const message =
-        hashErrorDescription ||
-        (hashErrorCode === 'otp_expired' ? t('errors.invalidToken') : null) ||
-        hashError ||
-        t('errors.invalidToken');
-      console.log('[ResetPassword] error from URL hash (Supabase redirect):', { hashError, hashErrorCode, hashErrorDescription });
-      setError(typeof message === 'string' ? decodeURIComponent(message.replace(/\+/g, ' ')) : message);
-      setIsValidatingToken(false);
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      return;
-    }
 
     const checkSession = async () => {
       try {
         const supabase = createClient();
-
-        const accessToken = getParamFromHashOrSearch('access_token');
-        const refreshToken = getParamFromHashOrSearch('refresh_token');
-        const type = getParamFromHashOrSearch('type');
-
-        console.log('[ResetPassword] token params (hash or query)', {
-          hasAccessToken: !!accessToken,
-          accessTokenLen: accessToken?.length ?? 0,
-          hasRefreshToken: !!refreshToken,
-          refreshTokenLen: refreshToken?.length ?? 0,
-          type,
-        });
-
-        if (accessToken && refreshToken && type === 'recovery') {
-          const { data, error: sessionErr } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-
-          if (sessionErr) {
-            console.error('[ResetPassword] setSession failed', sessionErr.message, sessionErr);
-            setError(sessionErr.message || t('errors.invalidToken'));
-            setIsValidatingToken(false);
-            clearValidationTimeout();
-            return;
-          }
-
-          // Use session from setSession response, or fall back to getSession() from the same
-          // singleton instance (both share in-memory state, so this is always fast/reliable).
-          const session = data?.session ?? (await supabase.auth.getSession()).data.session;
-          console.log('[ResetPassword] setSession ok, session userId:', session?.user?.id ?? null);
-          if (session?.user) {
-            succeedWithForm();
-            return;
-          }
-        }
-
-        // No tokens in hash or query — check if a session already exists (e.g. arrived via callback route)
-        const { data: { session: existingSession } } = await supabase.auth.getSession();
-        console.log('[ResetPassword] getSession (no hash tokens):', !!existingSession?.user);
-        if (existingSession?.user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
           succeedWithForm();
           return;
         }
-
-        console.log('[ResetPassword] no valid session');
         setError(t('errors.invalidToken'));
         setIsValidatingToken(false);
         clearValidationTimeout();

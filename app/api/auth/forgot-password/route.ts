@@ -11,8 +11,9 @@ const RATE_LIMIT_WINDOW_HOURS = 1;
 
 /**
  * POST /api/auth/forgot-password
- * BrazaLink-style: custom Resend email with Supabase admin generateLink (hash-based link),
- * DB-backed per-email rate limiting. Only sends email if account exists (BrazaLink-style messaging).
+ * Custom Resend email with Supabase admin generateLink. Link points to /api/auth/callback
+ * (PKCE flow); callback exchanges code, sets session cookie, redirects to reset-password.
+ * DB-backed per-email rate limiting. Only sends email if account exists.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Generate recovery link (redirectTo = app reset-password page with locale; tokens in hash)
+    // 3. Generate recovery link (redirectTo = callback so PKCE code exchange runs; callback redirects to reset-password)
     const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || (() => {
       try {
         return new URL(request.url).origin;
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
         return 'https://houseproshub.com';
       }
     })()).replace(/\/$/, '');
-    const redirectTo = `${baseUrl}/${validLocale}/reset-password`;
+    const redirectTo = `${baseUrl}/api/auth/callback?locale=${validLocale}`;
 
     const { data: linkData, error: linkError } = await service.auth.admin.generateLink({
       type: 'recovery',

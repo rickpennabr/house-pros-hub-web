@@ -113,6 +113,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [isAdmin, isContractor, visitorId]);
 
+  // Sync app icon badge (e.g. iPhone home screen) with unread count. Supported in iOS 16.4+ PWA.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) return;
+    const nav = navigator as Navigator & { setAppBadge?: (count: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (chatUnreadCount > 0) {
+      nav.setAppBadge?.(Math.min(chatUnreadCount, 99));
+    } else {
+      nav.clearAppBadge?.();
+    }
+  }, [chatUnreadCount]);
+
   const openChat = useCallback(() => {
     setInitialChoiceForDrawer(null);
     setIsOpen(true);

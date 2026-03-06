@@ -18,9 +18,13 @@ self.addEventListener('push', function (event) {
     tag: 'probot-chat',
     renotify: true,
   };
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
+  const showNotif = self.registration.showNotification(title, options);
+  // Update app icon badge when push received in background (e.g. iPhone home screen).
+  const setBadge =
+    typeof self.navigator !== 'undefined' && 'setAppBadge' in self.navigator
+      ? self.navigator.setAppBadge(1).catch(function () {})
+      : Promise.resolve();
+  event.waitUntil(Promise.all([showNotif, setBadge]));
 });
 
 self.addEventListener('notificationclick', function (event) {

@@ -76,6 +76,7 @@ export default function BotChatDrawer() {
   const [chatProListError, setChatProListError] = useState<string | null>(null);
   const [visitorPushEnabled, setVisitorPushEnabled] = useState<boolean | null>(null);
   const [visitorPushRegistering, setVisitorPushRegistering] = useState(false);
+  const [notificationHintDismissed, setNotificationHintDismissed] = useState(true);
   const [visualHeight, setVisualHeight] = useState<number | null>(null);
   const bodyScrollRef = useRef<number>(0);
 
@@ -388,6 +389,14 @@ export default function BotChatDrawer() {
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     setVisitorPushEnabled(Notification.permission === 'granted');
+  }, []);
+
+  useEffect(() => {
+    try {
+      setNotificationHintDismissed(sessionStorage.getItem('probot_notification_hint_dismissed') === '1');
+    } catch {
+      setNotificationHintDismissed(false);
+    }
   }, []);
 
   const handleCallHub = () => setShowCallHubModal(true);
@@ -752,6 +761,40 @@ export default function BotChatDrawer() {
               </div>
             ) : (
               <>
+                {showMessageInput && conversationId && vapidPublicKey && visitorPushEnabled !== true && !notificationHintDismissed && (
+                  <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-gray-100 border border-gray-200 text-sm text-gray-700 mb-2">
+                    <span>Get notifications when we reply (banner + app icon badge)</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          registerVisitorPush();
+                          try {
+                            sessionStorage.setItem('probot_notification_hint_dismissed', '1');
+                          } catch {}
+                          setNotificationHintDismissed(true);
+                        }}
+                        disabled={visitorPushRegistering}
+                        className="px-2 py-1 rounded bg-black text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-60 cursor-pointer"
+                      >
+                        {visitorPushRegistering ? '…' : 'Enable'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            sessionStorage.setItem('probot_notification_hint_dismissed', '1');
+                          } catch {}
+                          setNotificationHintDismissed(true);
+                        }}
+                        className="p-1 rounded hover:bg-gray-200 text-gray-500 cursor-pointer"
+                        aria-label="Dismiss"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {messages.map((m) => (
                   <div
                     key={m.id}
