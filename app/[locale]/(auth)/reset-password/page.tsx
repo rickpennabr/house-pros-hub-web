@@ -75,6 +75,25 @@ function ResetPasswordForm() {
       setIsValidatingToken(false);
     };
 
+    /** Log when we show "invalid token" so we can tell if user arrived with URL tokens (old link) vs no tokens. */
+    const logInvalidTokenDiagnostic = (source: string) => {
+      if (typeof window === 'undefined') return;
+      const query = new URLSearchParams(window.location.search);
+      const hash = window.location.hash || '';
+      const hashParsed = hash ? new URLSearchParams(hash.slice(1)) : null;
+      const has = (name: string) => query.has(name) || (hashParsed?.has(name) ?? false);
+      console.warn('[ResetPassword] No session; showing invalid token', {
+        source,
+        pathname: window.location.pathname,
+        hasAccessToken: has('access_token'),
+        hasRefreshToken: has('refresh_token'),
+        hasCode: has('code'),
+        hint: has('access_token') || has('refresh_token')
+          ? 'URL has token params — user may have used an old reset link that bypasses the callback (PKCE). Request a new reset link.'
+          : 'No token params — user likely went straight to this page or callback did not set session.',
+      });
+    };
+
     const checkSession = async () => {
       try {
         const supabase = createClient();
@@ -83,11 +102,13 @@ function ResetPasswordForm() {
           succeedWithForm();
           return;
         }
+        logInvalidTokenDiagnostic('checkSession');
         setError(t('errors.invalidToken'));
         setIsValidatingToken(false);
         clearValidationTimeout();
       } catch (err) {
         console.error('[ResetPassword] Error checking session:', err);
+        logInvalidTokenDiagnostic('checkSession catch');
         setError(err instanceof Error ? err.message : t('errors.invalidToken'));
         setIsValidatingToken(false);
         clearValidationTimeout();
@@ -96,6 +117,7 @@ function ResetPasswordForm() {
 
     timeoutId = setTimeout(() => {
       timeoutId = null;
+      logInvalidTokenDiagnostic('timeout');
       setError(t('errors.invalidToken'));
       setIsValidatingToken(false);
     }, VALIDATION_TIMEOUT_MS);

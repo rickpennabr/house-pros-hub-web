@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { Database } from '@/lib/types/supabase';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * GET /api/auth/callback
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get('code');
   const locale = requestUrl.searchParams.get('locale') || 'en';
 
-  console.log('[Auth Callback] GET', {
+  logger.info('[Auth Callback] GET', {
     path: requestUrl.pathname,
     codePresent: !!code,
     codeLength: code?.length ?? 0,
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
   const errorDescription = requestUrl.searchParams.get('error_description');
   if (errorParam || errorCode) {
     const message = errorDescription || errorParam || 'Link expired or invalid';
-    console.log('[Auth Callback] redirecting to reset-password with error:', message);
+    logger.info('[Auth Callback] redirecting to reset-password with error', { message });
     return NextResponse.redirect(
       new URL(`/${locale}/reset-password?error=${encodeURIComponent(message)}`, normalizedBaseUrl)
     );
@@ -67,9 +68,9 @@ export async function GET(request: NextRequest) {
     const { data: exchangeData, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (error) {
-      console.log('[Auth Callback] exchangeCodeForSession error:', error.message);
+      logger.error('[Auth Callback] exchangeCodeForSession failed', { error: error.message });
       if (error.message?.toLowerCase().includes('verifier') || error.message?.toLowerCase().includes('code_verifier')) {
-        console.log('[Auth Callback] PKCE hint: open the reset link in the SAME browser where you requested the reset.');
+        logger.info('[Auth Callback] PKCE hint: open the reset link in the SAME browser where you requested the reset.');
       }
       const message = error.message || 'Link expired or invalid';
       return NextResponse.redirect(
@@ -78,17 +79,19 @@ export async function GET(request: NextRequest) {
     }
 
     if (exchangeData?.user ?? exchangeData?.session) {
-      console.log('[Auth Callback] exchangeCodeForSession: ok, redirecting to', successRedirectUrl.pathname);
+      logger.info('[Auth Callback] exchangeCodeForSession ok, redirecting to reset-password', {
+        redirectPath: successRedirectUrl.pathname,
+      });
       return redirectResponse;
     }
 
-    console.log('[Auth Callback] exchange ok but no user/session, redirecting to signin');
+    logger.info('[Auth Callback] exchange ok but no user/session, redirecting to signin');
     return NextResponse.redirect(
       new URL(`/${locale}/signin?error=${encodeURIComponent('Authentication failed')}`, normalizedBaseUrl)
     );
   }
 
-  console.log('[Auth Callback] no code, redirecting to signin');
+  logger.info('[Auth Callback] no code param, redirecting to signin');
   return NextResponse.redirect(
     new URL(`/${locale}/signin?error=${encodeURIComponent('No authentication code provided')}`, normalizedBaseUrl)
   );
