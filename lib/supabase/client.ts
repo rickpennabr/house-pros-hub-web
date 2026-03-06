@@ -9,8 +9,9 @@ import { Database } from '@/lib/types/supabase';
  * would return a cold instance that has no knowledge of the session set by the first
  * instance (e.g. on the reset-password page), causing spurious "invalid token" errors.
  *
- * detectSessionInUrl: true so the client can pick up the session set by the auth
- * callback (PKCE flow). Session arrives via cookies set by the callback, not URL hash.
+ * detectSessionInUrl: false so the reset-password page can read recovery tokens from
+ * the URL hash and call setSession() itself. AuthProvider creates this client on mount;
+ * if we used true, the client would consume the hash before the reset page's effect runs.
  */
 let browserClient: ReturnType<typeof createBrowserClient<Database>> | null = null;
 
@@ -24,7 +25,7 @@ export function createClient() {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: true,
+        detectSessionInUrl: false,
       },
     }
   );
