@@ -54,7 +54,7 @@ function ResetPasswordForm() {
     }
   }, [searchParams]);
 
-  // Session comes from cookies set by /api/auth/callback (PKCE flow). No hash/query tokens.
+  // Session: from cookies (PKCE callback) or from URL hash/query (Supabase sometimes redirects here with tokens).
   useEffect(() => {
     if (searchParams.get('error')) {
       return;
@@ -72,7 +72,44 @@ function ResetPasswordForm() {
 
     const succeedWithForm = () => {
       clearValidationTimeout();
+      // Clear token params from URL so we don't leave secrets in the address bar
+      if (typeof window !== 'undefined') {
+        const u = new URL(window.location.href);
+        u.hash = '';
+        u.searchParams.delete('access_token');
+        u.searchParams.delete('refresh_token');
+        u.searchParams.delete('type');
+        u.searchParams.delete('expires_at');
+        u.searchParams.delete('expires_in');
+        u.searchParams.delete('token_type');
+        const clean = u.pathname + (u.search !== '?' ? u.search : '');
+        window.history.replaceState(null, '', clean);
+      }
       setIsValidatingToken(false);
+    };
+
+    /** Parse token params from hash or query (Supabase may redirect with tokens in either). */
+    const getParamFromHashOrSearch = (name: string): string | null => {
+      if (typeof window === 'undefined') return null;
+      const fromHash = () => {
+        if (!window.location.hash) return null;
+        try {
+          const p = new URLSearchParams(window.location.hash.slice(1));
+          let v = p.get(name);
+          if (v && (name === 'access_token' || name === 'refresh_token')) v = v.replace(/ /g, '+');
+          return v;
+        } catch { return null; }
+      };
+      const fromSearch = () => {
+        if (!window.location.search) return null;
+        try {
+          const p = new URLSearchParams(window.location.search);
+          let v = p.get(name);
+          if (v && (name === 'access_token' || name === 'refresh_token')) v = v.replace(/ /g, '+');
+          return v;
+        } catch { return null; }
+      };
+      return fromHash() ?? fromSearch();
     };
 
     /** Log when we show "invalid token" so we can tell if user arrived with URL tokens (old link) vs no tokens. */
@@ -97,6 +134,31 @@ function ResetPasswordForm() {
     const checkSession = async () => {
       try {
         const supabase = createClient();
+        const accessToken = getParamFromHashOrSearch('access_token');
+        const refreshToken = getParamFromHashOrSearch('refresh_token');
+        const type = getParamFromHashOrSearch('type');
+
+        // Supabase may redirect here with tokens in hash (implicit flow) even when redirect_to was the callback.
+        if (accessToken && refreshToken && type === 'recovery') {
+          const { data, error: sessionErr } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (sessionErr) {
+            console.error('[ResetPassword] setSession from URL failed', sessionErr);
+            logInvalidTokenDiagnostic('setSession');
+            setError(sessionErr.message || t('errors.invalidToken'));
+            setIsValidatingToken(false);
+            clearValidationTimeout();
+            return;
+          }
+          const session = data?.session ?? (await supabase.auth.getSession()).data.session;
+          if (session?.user) {
+            succeedWithForm();
+            return;
+          }
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           succeedWithForm();
