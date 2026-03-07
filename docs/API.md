@@ -19,7 +19,6 @@ Summary of `app/api` routes and how they are protected.
 - `GET /api/businesses/[id]` – get one business by id or slug.
 - `GET /api/health` – health check.
 - `POST /api/auth/login`, `POST /api/auth/signup`, `GET /api/auth/callback`.
-- `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`.
 - `POST /api/estimate` – submit estimate form (rate-limited).
 
 ### Authenticated (CSRF for state changes)

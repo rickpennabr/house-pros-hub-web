@@ -114,22 +114,6 @@ export interface SetPasswordEmailTranslations {
   };
 }
 
-/** For forgot-password (user-initiated) reset email */
-export interface PasswordResetEmailTranslations {
-  subject: string;
-  greeting: string;
-  body: string;
-  cta: string;
-  securityNote: string;
-  securityText: string;
-  expiryNote: string;
-  footer: {
-    companyName: string;
-    contactInfo: string;
-    unsubscribe: string;
-  };
-}
-
 export interface NewSignupAdminNotificationData {
   type: 'customer' | 'contractor' | 'business';
   /** For customer/contractor: full name. For business: business name. */
@@ -616,60 +600,91 @@ export function generateSetPasswordEmail(
   `.trim();
 }
 
+export interface PasswordResetEmailData {
+  resetLink: string;
+  userName?: string;
+  language: 'en' | 'es';
+}
+
+const passwordResetTranslations = {
+  en: {
+    title: 'Reset Your Password',
+    subtitle: 'We received a request to reset your password for your House Pros Hub account.',
+    greeting: (name?: string) => (name ? `Hello ${name},` : 'Hello,'),
+    instruction: 'Click the button below to reset your password. This link will expire in 1 hour.',
+    securityNote: 'Security Note:',
+    securityText: 'If you did not request a password reset, please ignore this email. Your password will remain unchanged.',
+    buttonText: 'Reset Password',
+    alternativeText: "If the button doesn't work, copy and paste this link into your browser:",
+    expiryNote: 'This link will expire in 1 hour.',
+    thankYou: 'Thank you for using House Pros Hub!',
+    questions: 'Questions? Contact us at',
+  },
+  es: {
+    title: 'Restablece tu contraseña',
+    subtitle: 'Recibimos una solicitud para restablecer la contraseña de tu cuenta de House Pros Hub.',
+    greeting: (name?: string) => (name ? `Hola ${name},` : 'Hola,'),
+    instruction: 'Haz clic en el botón de abajo para restablecer tu contraseña. Este enlace caducará en 1 hora.',
+    securityNote: 'Nota de seguridad:',
+    securityText: 'Si no solicitaste un restablecimiento de contraseña, ignora este correo. Tu contraseña no cambiará.',
+    buttonText: 'Restablecer contraseña',
+    alternativeText: "Si el botón no funciona, copia y pega este enlace en tu navegador:",
+    expiryNote: 'Este enlace caducará en 1 hora.',
+    thankYou: '¡Gracias por usar House Pros Hub!',
+    questions: '¿Preguntas? Contáctanos en',
+  },
+} as const;
+
 /**
- * Generate HTML email template for forgot-password (user-initiated reset)
+ * Generate HTML email template for password reset (forgot password flow).
  */
-export function generatePasswordResetEmail(
-  firstName: string,
-  resetLink: string,
-  translations: PasswordResetEmailTranslations
-): string {
-  const greeting = firstName ? `${translations.greeting} ${firstName},` : `${translations.greeting},`;
+export function generatePasswordResetEmail(data: PasswordResetEmailData): string {
+  const t = passwordResetTranslations[data.language];
+  const greeting = t.greeting(data.userName);
   return `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="${data.language}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${translations.subject}</title>
+  <title>${t.title} - House Pros Hub</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
     <tr>
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
-          <!-- Header -->
           <tr>
             <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
               <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
             </td>
           </tr>
-          <!-- Content -->
           <tr>
             <td style="padding: 30px;">
-              <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${greeting}</p>
-              <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${translations.body}</p>
+              <p style="margin: 0 0 16px 0; font-size: 16px; color: #333;">${greeting}</p>
+              <p style="margin: 0 0 16px 0; font-size: 16px; color: #333;">${t.subtitle}</p>
+              <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${t.instruction}</p>
               <table cellpadding="0" cellspacing="0" style="margin: 24px 0 0 0;">
                 <tr>
                   <td style="border-radius: 8px; background-color: #000000; padding: 0;">
-                    <a href="${resetLink}" style="display: inline-block; padding: 14px 28px; color: #ffffff; font-size: 16px; font-weight: bold; text-decoration: none;">${translations.cta}</a>
+                    <a href="${data.resetLink}" style="display: inline-block; padding: 14px 28px; color: #ffffff; font-size: 16px; font-weight: bold; text-decoration: none;">${t.buttonText}</a>
                   </td>
                 </tr>
               </table>
-              <p style="margin: 20px 0 0 0; font-size: 13px; color: #666; font-style: italic;">${translations.expiryNote}</p>
-              <div style="margin-top: 24px; padding: 16px; background-color: #f9fafb; border-left: 4px solid #000000; border-radius: 4px;">
-                <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: bold; color: #333;">${translations.securityNote}</p>
-                <p style="margin: 0; font-size: 14px; color: #333;">${translations.securityText}</p>
+              <p style="margin: 20px 0 8px 0; font-size: 14px; color: #666;">${t.alternativeText}</p>
+              <p style="margin: 0 0 20px 0; font-size: 13px; color: #666; word-break: break-all;">${data.resetLink}</p>
+              <p style="margin: 0 0 20px 0; font-size: 13px; color: #666; font-style: italic;">${t.expiryNote}</p>
+              <div style="background-color: #f9fafb; border-left: 4px solid #000000; padding: 16px; margin: 20px 0 0 0;">
+                <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: bold; color: #333;">${t.securityNote}</p>
+                <p style="margin: 0; font-size: 14px; color: #333;">${t.securityText}</p>
               </div>
             </td>
           </tr>
-          <!-- Footer -->
           <tr>
             <td style="padding: 20px; background-color: #f9fafb; border-top: 2px solid #000000; text-align: center;">
-              <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">${translations.footer.companyName}</p>
-              <p style="margin: 0 0 10px 0; font-size: 12px; color: #666;">${translations.footer.contactInfo}</p>
+              <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">House Pros Hub</p>
+              <p style="margin: 0 0 10px 0; font-size: 12px; color: #666;">${t.questions} <a href="mailto:${COMPANY_INFO.email.contact}" style="color: #000000;">${COMPANY_INFO.email.contact}</a></p>
               ${getFooterContactCta()}
-              <p style="margin: 0; font-size: 11px; color: #999;">${translations.footer.unsubscribe}</p>
             </td>
           </tr>
         </table>

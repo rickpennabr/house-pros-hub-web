@@ -1,322 +1,296 @@
 'use client';
 
-import { useState, useEffect, Suspense, useMemo } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import Logo from '@/components/Logo';
-import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Button } from '@/components/ui/Button';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout';
-import { isValidPassword, isNotEmpty } from '@/lib/validation';
 import { createClient } from '@/lib/supabase/client';
-import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
-import { getReturnUrl, getRedirectPath } from '@/lib/redirect';
+import { updatePassword } from '@/app/actions/auth-actions';
+import { passwordSchema } from '@/lib/schemas/auth';
 
-function ResetPasswordForm() {
+const SESSION_STORAGE_KEY_DONE = 'hph_reset_session_done';
+const SESSION_STORAGE_KEY_IN_PROGRESS = 'hph_reset_session_in_progress';
+/** Give setSession time to complete; Supabase can be slow on first request or under load. */
+const SET_SESSION_TIMEOUT_MS = 45000;
+const POLL_INTERVAL_MS = 400;
+const POLL_MAX_ATTEMPTS = 40; // ~16s
+
+function ResetPasswordContent() {
   const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const t = useTranslations('auth.resetPassword');
-  const { resetPassword } = useAuth();
-  const [error, setError] = useState<string | null>(null);
-  const [password, setPassword] = useState('');
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isValidatingToken, setIsValidatingToken] = useState(true);
-  const [fieldErrors, setFieldErrors] = useState<{ password?: string; confirmPassword?: string }>({});
+  const [isValidatingSession, setIsValidatingSession] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [isValidToken, setIsValidToken] = useState(false);
 
-  // Typing animation for placeholders
-  const passwordPlaceholder = t('passwordPlaceholder');
-  const confirmPasswordPlaceholder = t('confirmPasswordPlaceholder');
-  const placeholders = useMemo(
-    () => [passwordPlaceholder, confirmPasswordPlaceholder],
-    [passwordPlaceholder, confirmPasswordPlaceholder]
-  );
-  const animatedPlaceholders = useTypingPlaceholder({
-    placeholders,
-    typingSpeed: 100,
-    delayBetweenFields: 300,
-    startDelay: 500,
-  });
-
-  // Read error from URL (callback may redirect with ?error=... when code exchange fails)
   useEffect(() => {
-    const urlError = searchParams.get('error');
-    if (urlError) {
-      const decoded = decodeURIComponent(urlError);
-      console.log('[ResetPassword] error from URL (from callback):', decoded);
-      setError(decoded);
-      setIsValidatingToken(false);
-      return;
-    }
-  }, [searchParams]);
-
-  // Session: from cookies (PKCE callback) or from URL hash/query (Supabase sometimes redirects here with tokens).
-  useEffect(() => {
-    if (searchParams.get('error')) {
-      return;
-    }
-
-    const VALIDATION_TIMEOUT_MS = 15_000;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const clearValidationTimeout = () => {
-      if (timeoutId != null) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-    };
-
-    const succeedWithForm = () => {
-      clearValidationTimeout();
-      // Clear token params from URL so we don't leave secrets in the address bar
-      if (typeof window !== 'undefined') {
-        const u = new URL(window.location.href);
-        u.hash = '';
-        u.searchParams.delete('access_token');
-        u.searchParams.delete('refresh_token');
-        u.searchParams.delete('type');
-        u.searchParams.delete('expires_at');
-        u.searchParams.delete('expires_in');
-        u.searchParams.delete('token_type');
-        const clean = u.pathname + (u.search !== '?' ? u.search : '');
-        window.history.replaceState(null, '', clean);
-      }
-      setIsValidatingToken(false);
-    };
-
-    /** Parse token params from hash or query (Supabase may redirect with tokens in either). */
-    const getParamFromHashOrSearch = (name: string): string | null => {
-      if (typeof window === 'undefined') return null;
-      const fromHash = () => {
-        if (!window.location.hash) return null;
-        try {
-          const p = new URLSearchParams(window.location.hash.slice(1));
-          let v = p.get(name);
-          if (v && (name === 'access_token' || name === 'refresh_token')) v = v.replace(/ /g, '+');
-          return v;
-        } catch { return null; }
-      };
-      const fromSearch = () => {
-        if (!window.location.search) return null;
-        try {
-          const p = new URLSearchParams(window.location.search);
-          let v = p.get(name);
-          if (v && (name === 'access_token' || name === 'refresh_token')) v = v.replace(/ /g, '+');
-          return v;
-        } catch { return null; }
-      };
-      return fromHash() ?? fromSearch();
-    };
-
-    /** Log when we show "invalid token" so we can tell if user arrived with URL tokens (old link) vs no tokens. */
-    const logInvalidTokenDiagnostic = (source: string) => {
-      if (typeof window === 'undefined') return;
-      const query = new URLSearchParams(window.location.search);
-      const hash = window.location.hash || '';
-      const hashParsed = hash ? new URLSearchParams(hash.slice(1)) : null;
-      const has = (name: string) => query.has(name) || (hashParsed?.has(name) ?? false);
-      console.warn('[ResetPassword] No session; showing invalid token', {
-        source,
-        pathname: window.location.pathname,
-        hasAccessToken: has('access_token'),
-        hasRefreshToken: has('refresh_token'),
-        hasCode: has('code'),
-        hint: has('access_token') || has('refresh_token')
-          ? 'URL has token params — user may have used an old reset link that bypasses the callback (PKCE). Request a new reset link.'
-          : 'No token params — user likely went straight to this page or callback did not set session.',
-      });
-    };
+    const getT = () => tRef.current;
 
     const checkSession = async () => {
-      try {
-        const supabase = createClient();
-        const accessToken = getParamFromHashOrSearch('access_token');
-        const refreshToken = getParamFromHashOrSearch('refresh_token');
-        const type = getParamFromHashOrSearch('type');
+      if (typeof window === 'undefined') return;
+      setIsValidatingSession(true);
+      const supabase = createClient();
+      console.info('[ResetPassword] checkSession', { pathname: window.location.pathname, hasHash: !!window.location.hash });
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const hashError = hashParams.get('error');
+      const hashErrorCode = hashParams.get('error_code');
+      const hashErrorDescription = hashParams.get('error_description');
+      const queryError = searchParams.get('error');
 
-        // Supabase may redirect here with tokens in hash (implicit flow) even when redirect_to was the callback.
-        if (accessToken && refreshToken && type === 'recovery') {
-          const { data, error: sessionErr } = await supabase.auth.setSession({
+      if (hashError || hashErrorCode || queryError) {
+        const errorMessage =
+          hashErrorDescription ||
+          (typeof queryError === 'string' ? decodeURIComponent(queryError) : null) ||
+          getT()('errors.invalidToken');
+        console.info('[ResetPassword] error from URL', { hasHashError: !!hashError, hasQueryError: !!queryError });
+        setError(errorMessage);
+        window.history.replaceState(null, '', window.location.pathname);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY_DONE);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY_IN_PROGRESS);
+        setIsValidatingSession(false);
+        return;
+      }
+
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const type = hashParams.get('type');
+
+      if (accessToken && refreshToken && type === 'recovery') {
+        const alreadyDone = sessionStorage.getItem(SESSION_STORAGE_KEY_DONE) === '1';
+        if (alreadyDone) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            console.info('[ResetPassword] session restored from storage (post-HMR)');
+            setIsValidToken(true);
+          } else {
+            sessionStorage.removeItem(SESSION_STORAGE_KEY_DONE);
+            setError(getT()('errors.invalidToken'));
+          }
+          setIsValidatingSession(false);
+          return;
+        }
+
+        const inProgress = sessionStorage.getItem(SESSION_STORAGE_KEY_IN_PROGRESS) === '1';
+        if (inProgress) {
+          for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              console.info('[ResetPassword] session found after in-progress (HMR recovery)');
+              sessionStorage.setItem(SESSION_STORAGE_KEY_DONE, '1');
+              sessionStorage.removeItem(SESSION_STORAGE_KEY_IN_PROGRESS);
+              window.history.replaceState(null, '', window.location.pathname);
+              setIsValidToken(true);
+              setIsValidatingSession(false);
+              return;
+            }
+            await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+          }
+          sessionStorage.removeItem(SESSION_STORAGE_KEY_IN_PROGRESS);
+          setError(getT()('errors.invalidToken'));
+          setIsValidatingSession(false);
+          return;
+        }
+
+        sessionStorage.setItem(SESSION_STORAGE_KEY_IN_PROGRESS, '1');
+        console.info('[ResetPassword] hash tokens present, setting session');
+        try {
+          const setSessionPromise = supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           });
-          if (sessionErr) {
-            console.error('[ResetPassword] setSession from URL failed', sessionErr);
-            logInvalidTokenDiagnostic('setSession');
-            setError(sessionErr.message || t('errors.invalidToken'));
-            setIsValidatingToken(false);
-            clearValidationTimeout();
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('setSession timeout')), SET_SESSION_TIMEOUT_MS)
+          );
+          const { data, error: setSessionError } = await Promise.race([
+            setSessionPromise,
+            timeoutPromise,
+          ]);
+          if (setSessionError) {
+            console.error('[ResetPassword] setSession error', setSessionError);
+            sessionStorage.removeItem(SESSION_STORAGE_KEY_IN_PROGRESS);
+            setError(getT()('errors.invalidToken'));
+            window.history.replaceState(null, '', window.location.pathname);
+            setIsValidatingSession(false);
             return;
           }
-          const session = data?.session ?? (await supabase.auth.getSession()).data.session;
-          if (session?.user) {
-            succeedWithForm();
-            return;
+          if (data?.session) {
+            sessionStorage.setItem(SESSION_STORAGE_KEY_DONE, '1');
+            sessionStorage.removeItem(SESSION_STORAGE_KEY_IN_PROGRESS);
+            window.history.replaceState(null, '', window.location.pathname);
+            console.info('[ResetPassword] session set from hash');
+            setIsValidToken(true);
+          }
+        } catch (err) {
+          console.info('[ResetPassword] setSession from hash failed', err);
+          sessionStorage.removeItem(SESSION_STORAGE_KEY_IN_PROGRESS);
+          const isTimeout = err instanceof Error && err.message === 'setSession timeout';
+          setError(
+            isTimeout
+              ? getT()('errors.timeout') ?? getT()('errors.invalidToken')
+              : getT()('errors.invalidToken')
+          );
+          // Don't clear hash on timeout so user can refresh and retry
+          if (!isTimeout) {
+            window.history.replaceState(null, '', window.location.pathname);
           }
         }
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          succeedWithForm();
-          return;
-        }
-        logInvalidTokenDiagnostic('checkSession');
-        setError(t('errors.invalidToken'));
-        setIsValidatingToken(false);
-        clearValidationTimeout();
-      } catch (err) {
-        console.error('[ResetPassword] Error checking session:', err);
-        logInvalidTokenDiagnostic('checkSession catch');
-        setError(err instanceof Error ? err.message : t('errors.invalidToken'));
-        setIsValidatingToken(false);
-        clearValidationTimeout();
+        setIsValidatingSession(false);
+        return;
       }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.info('[ResetPassword] session from getSession (e.g. callback)');
+        setIsValidToken(true);
+      } else {
+        console.info('[ResetPassword] no session, no hash tokens');
+        setError(getT()('errors.invalidToken'));
+      }
+      setIsValidatingSession(false);
     };
+    checkSession();
+  }, [searchParams]);
 
-    timeoutId = setTimeout(() => {
-      timeoutId = null;
-      logInvalidTokenDiagnostic('timeout');
-      setError(t('errors.invalidToken'));
-      setIsValidatingToken(false);
-    }, VALIDATION_TIMEOUT_MS);
-
-    void checkSession();
-
-    return () => clearValidationTimeout();
-  }, [t, searchParams]);
-
-  const validateField = (field: 'password' | 'confirmPassword', value: string): string | undefined => {
-    if (field === 'password') {
-      if (!isNotEmpty(value)) {
-        return t('validation.passwordRequired');
-      }
-      if (!isValidPassword(value)) {
-        return t('validation.passwordInvalid');
-      }
-    } else if (field === 'confirmPassword') {
-      if (!isNotEmpty(value)) {
-        return t('validation.confirmPasswordRequired');
-      }
-      if (value !== password) {
-        return t('validation.passwordsDoNotMatch');
-      }
-    }
-    return undefined;
-  };
-
-  const validateForm = (): boolean => {
-    const errors: { password?: string; confirmPassword?: string } = {};
-    
-    const passwordError = validateField('password', password);
-    if (passwordError) errors.password = passwordError;
-    
-    const confirmPasswordError = validateField('confirmPassword', confirmPassword);
-    if (confirmPasswordError) errors.confirmPassword = confirmPasswordError;
-
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handlePasswordChange = (value: string) => {
-    setPassword(value);
-    // Clear error when user starts typing
-    if (fieldErrors.password) {
-      setFieldErrors(prev => ({ ...prev, password: undefined }));
-    }
-    // Re-validate confirm password if it has a value
-    if (confirmPassword && fieldErrors.confirmPassword) {
-      const confirmError = validateField('confirmPassword', confirmPassword);
-      setFieldErrors(prev => ({ ...prev, confirmPassword: confirmError }));
-    }
-    if (error) {
-      setError(null);
-    }
-  };
-
-  const handleConfirmPasswordChange = (value: string) => {
-    setConfirmPassword(value);
-    // Clear error when user starts typing
-    if (fieldErrors.confirmPassword) {
-      setFieldErrors(prev => ({ ...prev, confirmPassword: undefined }));
-    }
-    if (error) {
-      setError(null);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    console.log('[ResetPassword] handleSubmit: form submitted');
-
-    // Validate form before submitting
-    if (!validateForm()) {
-      console.log('[ResetPassword] handleSubmit: validation failed', fieldErrors);
+  useEffect(() => {
+    if (!newPassword) {
+      setPasswordError(null);
       return;
     }
+    const result = passwordSchema.safeParse(newPassword);
+    setPasswordError(
+      result.success ? null : (result.error.issues[0]?.message ?? t('validation.passwordInvalid'))
+    );
+  }, [newPassword, t]);
 
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+    setPasswordError(null);
+    if (newPassword !== confirmPassword) {
+      setError(t('validation.passwordsDoNotMatch'));
+      return;
+    }
+    const parsed = passwordSchema.safeParse(newPassword);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? t('validation.passwordInvalid'));
+      return;
+    }
     setIsLoading(true);
-    console.log('[ResetPassword] handleSubmit: calling resetPassword...');
-
     try {
-      // Get token from URL hash (Supabase puts it there)
-      // But actually, Supabase already created a session, so we don't need the token
-      await resetPassword(password);
-      console.log('[ResetPassword] handleSubmit: resetPassword succeeded');
-      // Redirect after successful password reset
-      const returnUrl = getReturnUrl(searchParams);
-      const redirectPath = getRedirectPath(returnUrl, locale as 'en' | 'es');
-      console.log('[ResetPassword] handleSubmit: redirecting to', redirectPath);
-      router.push(redirectPath);
-    } catch (err) {
-      console.error('[ResetPassword] handleSubmit error:', err);
-      setError(err instanceof Error ? err.message : t('errors.generic'));
+      const result = await updatePassword(newPassword);
+      if (result.error) {
+        const errLower = result.error.toLowerCase();
+        if (
+          errLower.includes('same') ||
+          errLower.includes('previous') ||
+          errLower.includes('current')
+        ) {
+          setError(t('errors.samePassword'));
+        } else {
+          setError(result.error);
+        }
+        return;
+      }
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY_DONE);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY_IN_PROGRESS);
+      }
+      setSuccess(true);
+      console.info('[ResetPassword] password updated, redirecting to signin');
+      setTimeout(() => {
+        router.push(`/${locale}/signin`);
+      }, 3000);
+    } catch {
+      setError(t('errors.generic'));
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (isValidatingToken) {
+  if (success) {
     return (
       <AuthPageLayout>
-        <div className="w-full max-w-md mx-auto flex flex-col items-center justify-center min-h-[400px]">
+        <div className="w-full max-w-md mx-auto flex flex-col text-black">
+          <div className="md:sticky md:top-0 md:z-20 md:bg-white flex-shrink-0">
+            <div className="flex flex-col py-3 md:pt-6 md:pb-0 md:mb-2">
+              <section className="flex items-center justify-center md:pt-0 pb-3 md:pb-2 w-full max-h-20 md:max-h-24 animate-slide-down">
+                <Link
+                  href={`/${locale}/businesslist`}
+                  className="cursor-pointer flex-shrink-0 w-full flex items-center justify-center"
+                >
+                  <Logo width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
+                </Link>
+              </section>
+            </div>
+          </div>
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <h2 className="text-3xl font-semibold text-center text-black animate-fade-in">
+              {t('success.title')}
+            </h2>
+          </div>
+          <p className="text-center text-gray-600 mb-6 animate-fade-in">{t('success.message')}</p>
+          <p className="text-center text-sm text-gray-500 mb-6">{t('success.redirecting')}</p>
+          <Link
+            href={`/${locale}/signin`}
+            className="inline-flex justify-center rounded-lg border-2 border-black bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+          >
+            {t('backToSignIn')}
+          </Link>
+        </div>
+      </AuthPageLayout>
+    );
+  }
+
+  if (isValidatingSession) {
+    return (
+      <AuthPageLayout>
+        <div className="w-full max-w-md mx-auto flex flex-col items-center justify-center min-h-[300px] text-black">
           <p className="text-gray-600">{t('validatingToken')}</p>
         </div>
       </AuthPageLayout>
     );
   }
 
-  return (
-    <AuthPageLayout>
-      <div className="w-full max-w-md mx-auto flex flex-col text-black">
-        {/* Header with Logo - constrained so it does not overflow or cut off */}
-        <div className="md:sticky md:top-0 md:z-20 md:bg-white flex-shrink-0">
-          <div className="flex flex-col py-3 md:pt-6 md:pb-0 md:mb-2">
-            <section className="flex items-center justify-center md:pt-0 pb-3 md:pb-2 w-full max-h-20 md:max-h-24 animate-slide-down">
-              <Link href={`/${locale}/businesslist`} className="cursor-pointer flex-shrink-0 w-full flex items-center justify-center">
-                <Logo width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
-              </Link>
-            </section>
+  if (!isValidToken) {
+    return (
+      <AuthPageLayout>
+        <div className="w-full max-w-md mx-auto flex flex-col text-black">
+          <div className="md:sticky md:top-0 md:z-20 md:bg-white flex-shrink-0">
+            <div className="flex flex-col py-3 md:pt-6 md:pb-0 md:mb-2">
+              <section className="flex items-center justify-center md:pt-0 pb-3 md:pb-2 w-full max-h-20 md:max-h-24 animate-slide-down">
+                <Link
+                  href={`/${locale}/businesslist`}
+                  className="cursor-pointer flex-shrink-0 w-full flex items-center justify-center"
+                >
+                  <Logo width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
+                </Link>
+              </section>
+            </div>
           </div>
-        </div>
-
-        {/* Title */}
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <h2 className="text-3xl font-semibold text-center text-black animate-fade-in">{t('title')}</h2>
-        </div>
-
-        <p className="text-center text-gray-600 mb-6 animate-fade-in">{t('subtitle')}</p>
-
-        {/* Invalid/expired token (or error from callback or from Supabase hash): show message and link to request new reset */}
-        {error && (error === t('errors.invalidToken') || searchParams.get('error') || /expired|invalid/i.test(error)) ? (
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <h2 className="text-3xl font-semibold text-center text-black animate-fade-in">{t('title')}</h2>
+          </div>
+          <p className="text-center text-gray-600 mb-6 animate-fade-in">{t('subtitle')}</p>
           <div className="space-y-6">
-            <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4 text-center">
-              <p className="text-amber-800 font-medium">{error}</p>
-              <p className="text-amber-700 text-sm mt-2">{t('invalidTokenHint')}</p>
+            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 text-center">
+              <p className="text-red-800 font-medium">{error ?? t('errors.invalidToken')}</p>
+              <p className="text-red-700 text-sm mt-2">{t('invalidTokenHint')}</p>
             </div>
             <div className="flex flex-col gap-3">
               <Link
@@ -333,41 +307,59 @@ function ResetPasswordForm() {
               </Link>
             </div>
           </div>
-        ) : (
-          <>
-            <ErrorMessage message={error || ''} />
+        </div>
+      </AuthPageLayout>
+    );
+  }
 
-            {/* Reset Password Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
+  return (
+    <AuthPageLayout>
+      <div className="w-full max-w-md mx-auto flex flex-col text-black">
+        <div className="md:sticky md:top-0 md:z-20 md:bg-white flex-shrink-0">
+          <div className="flex flex-col py-3 md:pt-6 md:pb-0 md:mb-2">
+            <section className="flex items-center justify-center md:pt-0 pb-3 md:pb-2 w-full max-h-20 md:max-h-24 animate-slide-down">
+              <Link
+                href={`/${locale}/businesslist`}
+                className="cursor-pointer flex-shrink-0 w-full flex items-center justify-center"
+              >
+                <Logo width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
+              </Link>
+            </section>
+          </div>
+        </div>
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <h2 className="text-3xl font-semibold text-center text-black animate-fade-in">{t('title')}</h2>
+        </div>
+        <p className="text-center text-gray-600 mb-6 animate-fade-in">{t('subtitle')}</p>
+        <ErrorMessage message={error ?? ''} />
+        <form onSubmit={handleSubmit} className="space-y-6">
           <PasswordInput
-            id="password"
+            id="new-password"
             label={t('passwordLabel')}
-            value={password}
-            onChange={(e) => handlePasswordChange(e.target.value)}
             required
-            placeholder={animatedPlaceholders[0]}
+            value={newPassword}
+            onChange={(e) => {
+              setNewPassword(e.target.value);
+              setError(null);
+            }}
+            placeholder={t('passwordPlaceholder')}
             disabled={isLoading}
-            error={fieldErrors.password}
-            autoFocus
+            error={passwordError ?? undefined}
+            autoComplete="new-password"
           />
-
           <PasswordInput
-            id="confirmPassword"
+            id="confirm-password"
             label={t('confirmPasswordLabel')}
-            value={confirmPassword}
-            onChange={(e) => handleConfirmPasswordChange(e.target.value)}
             required
-            placeholder={animatedPlaceholders[1]}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder={t('confirmPasswordPlaceholder')}
             disabled={isLoading}
-            error={fieldErrors.confirmPassword}
+            autoComplete="new-password"
           />
-
-          {/* Submit Button */}
           <Button type="submit" variant="primary" disabled={isLoading} className="w-full">
             {isLoading ? t('submitting') : t('submit')}
           </Button>
-
-          {/* Back to Sign In */}
           <div className="text-center">
             <Link
               href={`/${locale}/signin`}
@@ -377,8 +369,6 @@ function ResetPasswordForm() {
             </Link>
           </div>
         </form>
-          </>
-        )}
       </div>
     </AuthPageLayout>
   );
@@ -387,15 +377,16 @@ function ResetPasswordForm() {
 export default function ResetPasswordPage() {
   const t = useTranslations('common');
   return (
-    <Suspense fallback={
-      <AuthPageLayout>
-        <div className="w-full max-w-md mx-auto flex flex-col items-center justify-center min-h-[400px]">
-          <p className="text-gray-600">{t('message.loading')}</p>
-        </div>
-      </AuthPageLayout>
-    }>
-      <ResetPasswordForm />
+    <Suspense
+      fallback={
+        <AuthPageLayout>
+          <div className="w-full max-w-md mx-auto flex flex-col items-center justify-center min-h-[400px]">
+            <p className="text-gray-600">{t('message.loading')}</p>
+          </div>
+        </AuthPageLayout>
+      }
+    >
+      <ResetPasswordContent />
     </Suspense>
   );
 }
-

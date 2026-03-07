@@ -6,17 +6,20 @@ export const US_PHONE_REGEX = /^\(?([2-9][0-9]{2})\)?[-. ]?([0-9]{3})[-. ]?([0-9
 const phoneRegex = US_PHONE_REGEX;
 const zipRegex = /^\d{5}(-\d{4})?$/;
 
+/** Shared password validation: 8+ chars, one upper, one lower, one number. Used by signup and reset password. */
+export const passwordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+  .regex(/[0-9]/, 'Password must contain at least one number');
+
 const signupSchemaBaseObject = z.object({
   userType: z.enum(['customer', 'contractor']),
   firstName: z.string().trim().min(1, 'First name is required'),
   lastName: z.string().trim().min(1, 'Last name is required'),
   email: z.string().trim().lowercase().email('Invalid email format').optional(),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number')
-    .optional(),
+  password: passwordSchema.optional(),
   confirmPassword: z.string().min(1, 'Please confirm your password').optional(),
   referral: z.string().min(1, 'Please select how you heard about us'),
   referralOther: z.string().trim().optional(),
@@ -111,32 +114,4 @@ export const signupSchema = signupSchemaBaseObject.refine((data) => {
 });
 
 export type SignupSchema = z.infer<typeof signupSchema>;
-
-/**
- * Schema for forgot password request
- * Validates email format
- */
-export const forgotPasswordSchema = z.object({
-  email: z.string().trim().toLowerCase().email('Invalid email format'),
-});
-
-export type ForgotPasswordSchema = z.infer<typeof forgotPasswordSchema>;
-
-/**
- * Schema for password reset
- * Validates password strength and confirmation match
- */
-export const resetPasswordSchema = z.object({
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number'),
-  confirmPassword: z.string().min(1, 'Please confirm your password'),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
-
-export type ResetPasswordSchema = z.infer<typeof resetPasswordSchema>;
 

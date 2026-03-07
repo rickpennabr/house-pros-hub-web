@@ -181,6 +181,7 @@ export default function ProCardHeader({
   const showCategory = false;
 
   // Calculate right padding for right-side buttons: message (left of share) + share + phone
+  // Match visual space to left of logo (p-2 = 8px): share at right-2, message just left of it
   const rightPadding = isListMode
     ? (onMessage && phone ? 'pr-24' : onMessage ? 'pr-20' : phone ? 'pr-16' : 'pr-10')
     : onMessage ? 'pr-20' : 'pr-10';
@@ -272,26 +273,26 @@ export default function ProCardHeader({
             e.stopPropagation();
             onMessage();
           }}
-          className="absolute right-20 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+          className={`absolute ${phone ? 'right-20' : 'right-10'} w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0`}
           aria-label="Message"
         >
           <MessageCircle className="w-5 h-5 text-black" />
         </button>
       )}
-      {/* Share button - always show in list mode */}
+      {/* Share button - always show in list mode; right-2 when no phone to match left logo padding (p-2) */}
       {isListMode && (
         <button
           onClick={(e) => {
             e.stopPropagation();
             onShare?.();
           }}
-          className={`absolute ${phone ? 'right-10' : onMessage ? 'right-10' : 'right-1'} w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0`}
+          className={`absolute ${phone ? 'right-10' : 'right-2'} w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0`}
           aria-label="Share"
         >
           <Share2 className="w-5 h-5 text-black" />
         </button>
       )}
-      {/* Phone button on right (farthest right) */}
+      {/* Phone button on right (farthest right); right-2 matches left logo padding (p-2) */}
       {isListMode && phone && (
         <button
           onClick={(e) => {
@@ -301,13 +302,13 @@ export default function ProCardHeader({
               window.location.href = `tel:${phone}`;
             }
           }}
-          className="absolute right-1 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+          className="absolute right-2 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
           aria-label="Phone"
         >
           <Phone className="h-10 w-5 text-black" />
         </button>
       )}
-      {/* Message + Share buttons for non-list mode */}
+      {/* Message + Share buttons for non-list mode; share at right-2 to match left logo padding (p-2) */}
       {!isListMode && (
         <>
           {onMessage && (
@@ -316,7 +317,7 @@ export default function ProCardHeader({
                 e.stopPropagation();
                 onMessage();
               }}
-              className="absolute right-12 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+              className="absolute right-10 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
               aria-label="Message"
             >
               <MessageCircle className="w-5 h-5 text-black" />
@@ -327,7 +328,7 @@ export default function ProCardHeader({
               e.stopPropagation();
               onShare?.();
             }}
-            className={`absolute ${onMessage ? 'right-2' : 'right-2'} w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0`}
+            className="absolute right-2 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
             aria-label="Share"
           >
             <Share2 className="w-5 h-5 text-black" />

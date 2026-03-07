@@ -207,6 +207,10 @@
       "submit": "Send Reset Link",
       "submitting": "Sending...",
       "backToSignIn": "Back to Sign In",
+      "notAvailable": {
+        "title": "Password reset is not available",
+        "message": "Please contact support."
+      },
       "success": {
         "message": "Password reset link sent!",
         "checkEmail": "Please check your email for instructions to reset your password.",
@@ -231,6 +235,10 @@
       "submitting": "Resetting...",
       "validatingToken": "Validating reset token...",
       "backToSignIn": "Back to Sign In",
+      "notAvailable": {
+        "title": "Password reset is not available",
+        "message": "Please contact support."
+      },
       "validation": {
         "passwordRequired": "Password is required",
         "passwordInvalid": "Password must be at least 8 characters and contain uppercase, lowercase, and number",
@@ -239,10 +247,17 @@
       },
       "errors": {
         "generic": "Failed to reset password. Please try again.",
-        "invalidToken": "Invalid or expired reset token. Please request a new password reset."
+        "invalidToken": "Invalid or expired reset token. Please request a new password reset.",
+        "samePassword": "New password cannot be the same as your current password. Please choose a different password.",
+        "timeout": "Validation is taking longer than usual. Refresh the page to try again."
       },
       "requestNewLink": "Request new password reset link",
-      "invalidTokenHint": "Links expire after 1 hour. Request a new one below."
+      "invalidTokenHint": "Links expire after 1 hour. Request a new one below.",
+      "success": {
+        "title": "Password updated",
+        "message": "Your password has been reset successfully. You can now sign in with your new password.",
+        "redirecting": "Redirecting to sign in..."
+      }
     },
     "signup": {
       "roleSelection": {

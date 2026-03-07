@@ -207,6 +207,10 @@
       "submit": "Enviar enlace de restablecimiento",
       "submitting": "Enviando...",
       "backToSignIn": "Volver a Iniciar sesión",
+      "notAvailable": {
+        "title": "El restablecimiento de contraseña no está disponible",
+        "message": "Por favor contacta a soporte."
+      },
       "success": {
         "message": "¡Enlace de restablecimiento enviado!",
         "checkEmail": "Por favor revisa tu correo electrónico para las instrucciones de restablecimiento de contraseña.",
@@ -231,6 +235,10 @@
       "submitting": "Restableciendo...",
       "validatingToken": "Validando token de restablecimiento...",
       "backToSignIn": "Volver a Iniciar sesión",
+      "notAvailable": {
+        "title": "El restablecimiento de contraseña no está disponible",
+        "message": "Por favor contacta a soporte."
+      },
       "validation": {
         "passwordRequired": "La contraseña es requerida",
         "passwordInvalid": "La contraseña debe tener al menos 8 caracteres y contener mayúsculas, minúsculas y números",
@@ -239,10 +247,17 @@
       },
       "errors": {
         "generic": "No se pudo restablecer la contraseña. Por favor intenta de nuevo.",
-        "invalidToken": "Token de restablecimiento inválido o expirado. Por favor solicita un nuevo restablecimiento de contraseña."
+        "invalidToken": "Token de restablecimiento inválido o expirado. Por favor solicita un nuevo restablecimiento de contraseña.",
+        "samePassword": "La nueva contraseña no puede ser igual a tu contraseña actual. Por favor elige una contraseña diferente.",
+        "timeout": "La validación está tardando más de lo habitual. Actualiza la página para intentar de nuevo."
       },
       "requestNewLink": "Solicitar nuevo enlace de restablecimiento",
-      "invalidTokenHint": "Los enlaces expiran en 1 hora. Solicita uno nuevo a continuación."
+      "invalidTokenHint": "Los enlaces expiran en 1 hora. Solicita uno nuevo a continuación.",
+      "success": {
+        "title": "Contraseña actualizada",
+        "message": "Tu contraseña se ha restablecido correctamente. Ahora puedes iniciar sesión con tu nueva contraseña.",
+        "redirecting": "Redirigiendo a iniciar sesión..."
+      }
     },
     "signup": {
       "roleSelection": {

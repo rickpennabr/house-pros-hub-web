@@ -4,7 +4,6 @@ import { useState, Suspense, useMemo } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import Logo from '@/components/Logo';
-import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
@@ -14,13 +13,13 @@ import { AuthNavigationButtons } from '@/components/auth/AuthNavigationButtons';
 import { ConfirmationMessage } from '@/components/auth/ConfirmationMessage';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
+import { resetPassword } from '@/app/actions/auth-actions';
 
 function ForgotPasswordForm() {
   const locale = useLocale();
   const t = useTranslations('auth.forgotPassword');
-  const { requestPasswordReset } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string }>({});
@@ -71,21 +70,22 @@ function ForgotPasswordForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccess(false);
-    
-    // Validate form before submitting
+    setShowSuccess(false);
+
     if (!validateForm()) {
       return;
     }
 
     setIsLoading(true);
-
     try {
-      await requestPasswordReset(email.trim());
-      setSuccess(true);
-      setEmail('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('errors.generic'));
+      const result = await resetPassword(email);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setShowSuccess(true);
+    } catch {
+      setError(t('errors.generic'));
     } finally {
       setIsLoading(false);
     }
@@ -115,13 +115,13 @@ function ForgotPasswordForm() {
 
         <p className="text-center text-gray-600 mb-6 animate-fade-in">{t('subtitle')}</p>
 
-        {success ? (
+        {showSuccess ? (
           <ConfirmationMessage
             title={t('success.message')}
             message={
               <>
                 <p>{t('success.checkEmail')}</p>
-                <p className="text-sm mt-2 text-gray-600">{t('success.sameBrowserHint')}</p>
+                <p className="mt-2 text-sm text-gray-600">{t('success.sameBrowserHint')}</p>
               </>
             }
           >

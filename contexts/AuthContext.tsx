@@ -42,8 +42,6 @@ interface AuthContextType {
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
-  requestPasswordReset: (email: string) => Promise<void>;
-  resetPassword: (newPassword: string) => Promise<void>;
 }
 
 interface SignupData {
@@ -300,14 +298,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     checkAuth();
 
-    // Listen for auth state changes
+    // Listen for auth state changes.
+    // Workaround for Supabase deadlock: do NOT await any Supabase call inside this callback,
+    // or setSession() (e.g. on reset-password) will hang. Defer async work with setTimeout(0).
+    // See: https://supabase.com/docs/guides/troubleshooting/why-is-my-supabase-api-call-not-returning-PGzXw0
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // login() already calls loadUserFromSession; skip duplicate to avoid two /api/auth/me requests
         if (!loginInProgressRef.current) {
-          await loadUserFromSession(session);
+          setTimeout(() => {
+            loadUserFromSession(session).catch((err) =>
+              console.error('Error loading user from session:', err)
+            );
+          }, 0);
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
@@ -686,108 +690,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, [user, supabase, loadUserFromSession]);
 
-  const requestPasswordReset = useCallback(async (email: string): Promise<void> => {
-    // Normalize email
-    const normalizedEmail = email.trim().toLowerCase();
-
-    // Validate input
-    if (!isValidEmail(normalizedEmail)) {
-      throw new Error('Invalid email format');
-    }
-
-    // Extract locale from current pathname (format: /en/... or /es/...)
-    const pathname = window.location.pathname;
-    const localeMatch = pathname.match(/^\/(en|es)(\/|$)/);
-    const locale = localeMatch ? localeMatch[1] : 'en';
-
-    // Call API endpoint
-    const response = await fetch('/api/auth/forgot-password', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-locale': locale,
-      },
-      credentials: 'include',
-      body: JSON.stringify({ email: normalizedEmail }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Failed to request password reset' }));
-      throw new Error(errorData.error || 'Failed to request password reset');
-    }
-  }, []);
-
-  const resetPassword = useCallback(async (newPassword: string): Promise<void> => {
-    // Validate input
-    if (!isValidPassword(newPassword)) {
-      throw new Error('Password must be at least 8 characters and contain uppercase, lowercase, and number');
-    }
-
-    console.log('[AuthContext] resetPassword: calling /api/auth/reset-password');
-    // Call API endpoint
-    const response = await fetch('/api/auth/reset-password', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({ password: newPassword }),
-    });
-
-    console.log('[AuthContext] resetPassword: response', { status: response.status, ok: response.ok });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Failed to reset password' }));
-      console.error('[AuthContext] resetPassword: API error', errorData);
-      throw new Error(errorData.error || 'Failed to reset password');
-    }
-
-    // Get user data from response
-    const result = await response.json();
-    console.log('[AuthContext] resetPassword: success, user id from response', result.user?.id);
-
-    // Refresh session to get updated user data
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    console.log('[AuthContext] resetPassword: getSession after reset', { hasSession: !!session, sessionError: sessionError?.message });
-
-    if (sessionError || !session) {
-      // Try to load user from the response
-      if (result.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', result.user.id)
-          .single();
-        
-        // Fetch business name if business_id exists
-        let companyName: string | null = null;
-        if (profile?.business_id) {
-          const { data: business } = await supabase
-            .from('businesses')
-            .select('business_name')
-            .eq('id', profile.business_id)
-            .single();
-          companyName = business?.business_name || null;
-        }
-        
-        const mappedUser = mapSupabaseUserToUser(
-          { 
-            id: result.user.id, 
-            email: result.user.email || '', 
-            user_metadata: {} 
-          } as SupabaseUser,
-          profile,
-          companyName
-        );
-        setUser(mappedUser);
-      }
-      return;
-    }
-
-    // Load user data from session
-    await loadUserFromSession(session);
-  }, [supabase, loadUserFromSession]);
-
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
@@ -799,8 +701,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     checkAuth,
     updateUser,
-    requestPasswordReset,
-    resetPassword,
   };
 
   return (

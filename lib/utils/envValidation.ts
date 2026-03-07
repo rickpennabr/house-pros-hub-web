@@ -97,7 +97,7 @@ const OPTIONAL_ENV_VARS: EnvVar[] = [
   {
     name: 'RESEND_API_KEY',
     required: false,
-    description: 'Resend API key for sending email (required for forgot-password, estimate emails)',
+    description: 'Resend API key for sending email (required for estimate emails, welcome emails, etc.)',
   },
   {
     name: 'RESEND_FROM_EMAIL',

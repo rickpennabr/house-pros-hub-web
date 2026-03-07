@@ -4,14 +4,15 @@ Use this checklist when the reset-password page shows "Invalid or expired reset 
 
 ---
 
-## Flow summary
+## Flow summary (current implementation)
 
-1. **Forgot password** → User enters email → `POST /api/auth/forgot-password` → Supabase sends email with link. A **PKCE code_verifier** is stored in a cookie in the **same browser**.
-2. **Email link** → User clicks link → goes to Supabase `/auth/v1/verify?token=...&redirect_to=...` → Supabase redirects to `{SITE_URL}/api/auth/callback?type=recovery&next=/{locale}/reset-password&code=...`.
-3. **Callback** → `GET /api/auth/callback` exchanges `code` for session (requires the **same browser** so the code_verifier cookie is sent), sets session cookies, redirects to `/{locale}/reset-password`.
-4. **Reset page** → Reads session from cookies (or from URL hash if present), shows form or "invalid token".
+1. **Forgot password** → User enters email on `/[locale]/forgot-password` → **server action** `resetPassword(email)` runs: rate limit check, user lookup (auth.admin + profiles), `admin.generateLink({ type: 'recovery', options: { redirectTo } })`, **custom Resend email** with `action_link`. No Supabase default email. **No PKCE**; link points directly to the reset page URL.
+2. **redirectTo** → `${NEXT_PUBLIC_SITE_URL}/${locale}/reset-password` (locale from `profiles.preferred_locale` or `en`). Supabase redirect URLs must allowlist these paths (see below).
+3. **Email link** → User clicks link → goes to Supabase verify → Supabase redirects to `redirectTo` with **hash fragment**: `#access_token=...&refresh_token=...&type=recovery` (or `#error=...&error_description=...` if expired/invalid).
+4. **Reset page** → `/[locale]/reset-password` reads hash (and query for errors from callback). If tokens in hash: `setSession()`, clear hash, show form. Else if `getSession()` has session (e.g. from callback): show form. Else: show invalid-token view with "Request new link".
+5. **Submit** → Server action `updatePassword(newPassword)` (cookie-based session), then client `signOut()`, success state, redirect to `/[locale]/signin` after 3s.
 
-**Important:** The reset link must be opened in the **same browser** (and ideally same device) where the user requested the reset. Otherwise the code exchange fails (e.g. "code verifier should be non-empty").
+**Primary flow is hash-based.** The link in the email does **not** go to `/api/auth/callback`; it goes to Supabase, which redirects to `/{locale}/reset-password` with tokens in the hash. The callback route is still used if Supabase ever sends `?code=...` (e.g. if redirect URL were set to callback); no PKCE is required for the hash flow.
 
 ---
 
@@ -20,10 +21,11 @@ Use this checklist when the reset-password page shows "Invalid or expired reset 
 ### 1. Supabase Dashboard – Redirect URLs
 
 - [ ] Open [Supabase Dashboard](https://supabase.com/dashboard) → your project → **Authentication** → **URL Configuration**.
-- [ ] Under **Redirect URLs**, ensure these are listed (no trailing slash):
-  - Dev: `http://localhost:3000/api/auth/callback`
-  - Prod: `https://yourdomain.com/api/auth/callback`
-- [ ] If the callback URL is missing, add it and save. Supabase will not append `code` to unknown URLs.
+- [ ] Under **Redirect URLs**, ensure the **direct reset page** URLs are allowlisted (no trailing slash):
+  - Dev: `http://localhost:3000/en/reset-password`, `http://localhost:3000/es/reset-password` (or `http://localhost:3000/**`)
+  - Prod: `https://yourdomain.com/en/reset-password`, `https://yourdomain.com/es/reset-password` (or `https://yourdomain.com/**`)
+- [ ] The email link uses `redirectTo = ${NEXT_PUBLIC_SITE_URL}/${locale}/reset-password`, so Supabase will redirect to one of these URLs with tokens in the hash. If these paths are not allowlisted, the redirect may fail or land without tokens.
+- [ ] Optionally keep `https://yourdomain.com/api/auth/callback` for flows that use `?code=...`; the primary flow does not require it.
 
 ### 2. Environment – Site URL
 
@@ -33,35 +35,27 @@ Use this checklist when the reset-password page shows "Invalid or expired reset 
 ### 3. Email link (what the user actually clicks)
 
 - [ ] Request a reset, then open the email and **inspect the link** (right‑click → Copy link, or view source).
-- [ ] Expected pattern: `{NEXT_PUBLIC_SITE_URL}/api/auth/callback?type=recovery&next=/en/reset-password` and Supabase adds `&code=...` (or similar).
-- [ ] If the link goes to `/reset-password` directly (no `/api/auth/callback`), the redirect URL passed to Supabase is wrong (see step 1–2).
-- [ ] If the link has no `code=` (and no hash with tokens), the redirect URL may not be allowlisted or the flow is misconfigured in Supabase.
+- [ ] The link goes to Supabase; after verify, Supabase redirects to `{NEXT_PUBLIC_SITE_URL}/{locale}/reset-password` with **hash** `#access_token=...&refresh_token=...&type=recovery`.
+- [ ] If the link goes somewhere else (e.g. callback with `?code=...`), the `redirectTo` in the server action may be wrong (check `NEXT_PUBLIC_SITE_URL` and locale).
+- [ ] If you land on reset-password but with `#error=...` in the hash, the token is expired or invalid; the page shows that message and "Request new link".
 
-### 4. Server logs – Callback hit and code exchange
+### 4. Server logs – Request and callback (if used)
 
-- [ ] Request a new reset, click the link, then check the **terminal where `next dev` is running**.
-- [ ] Look for:
-  - `[Auth Callback] GET ...` – confirms the request reached the callback.
-  - `[Auth Callback] code present: true` – Supabase sent a code.
-  - `[Auth Callback] exchangeCodeForSession: ok` – session created and cookies set.
-  - `[Auth Callback] redirecting to ...` – where the user is sent (should be `/en/reset-password` or your locale).
-- [ ] If you see `code present: false` → link in email is wrong or Supabase didn’t add `code` (check redirect URLs and flow type).
-- [ ] If you see `exchangeCodeForSession: error` → note the message (e.g. expired, already used). Request a **new** reset link and try again within the validity window.
+- [ ] When user submits forgot-password, server action `resetPassword` runs (see terminal for any logger output). No API route is called.
+- [ ] If the user lands via **callback** (e.g. `?code=...`), look for `[Auth Callback] GET ...`, `exchangeCodeForSession`, and redirect to `/{locale}/reset-password`.
+- [ ] For the **hash flow** (primary), there is no callback request; the browser lands directly on `/{locale}/reset-password#access_token=...`.
 
 ### 5. Browser – Reset page load
 
-- [ ] After clicking the link, open **DevTools → Console** on the reset-password page.
-- [ ] Look for:
-  - `[ResetPassword] page load` – full URL (path + search + whether hash exists). Confirms what the page received.
-  - `[ResetPassword] checkSession: hash params` – if no hash, session must come from cookies set by callback.
-  - `[ResetPassword] getSession attempt` – if `hasSession: false` for all attempts, cookies weren’t set or aren’t sent (see step 6).
-- [ ] If there is an `error` in the URL (e.g. `?error=...`), the page should show that message (from the callback). Check that it’s visible.
+- [ ] After clicking the link, you should land on `/{locale}/reset-password` with either (a) hash containing `access_token`, `refresh_token`, `type=recovery`, or (b) query/cookie session if you came via callback.
+- [ ] If the URL has `#error=...` or `?error=...`, the page shows that message and "Request new password reset link" and does not show the form.
+- [ ] If the URL has tokens in the hash, the page runs `setSession()` and then shows the new-password form.
 
 ### 6. Cookies after redirect
 
-- [ ] On the reset-password page, open **DevTools → Application** (Chrome) or **Storage** (Firefox) → **Cookies** → `http://localhost:3000` (or your origin).
-- [ ] Check for Supabase auth cookies (e.g. `sb-<project-ref>-auth-token` or similar). If they’re missing after clicking the link, the callback either didn’t run or didn’t set cookies (same-site, secure, path).
-- [ ] If you use a different domain for frontend vs API, cookies may not be sent; same origin for callback and app is recommended.
+- [ ] For **hash flow**: the reset page uses `setSession()` with tokens from the hash; session is in memory and stored in cookies by Supabase client. No callback is involved.
+- [ ] For **callback flow**: after `exchangeCodeForSession`, the callback sets cookies and redirects to reset-password; the page then uses `getSession()`.
+- [ ] If session is missing, ensure you’re on the same origin and that the hash (or callback) was processed correctly.
 
 ### 7. Token expiry
 
@@ -86,11 +80,9 @@ Use this checklist when the reset-password page shows "Invalid or expired reset 
 
 | Log prefix            | Location        | What it tells you |
 |----------------------|-----------------|-------------------|
-| `[Forgot Password API]` | Server (terminal) | Redirect URL sent to Supabase |
-| `[Auth Callback]`    | Server (terminal) | Callback hit, code present, exchange result, redirect |
-| `[ResetPassword]`    | Browser console | Page URL, hash, session checks, form submit |
-| `[ResetPassword] error from URL hash (Supabase redirect):` | Browser console | Hash contained `error` / `error_code` / `error_description`; page showed that error and stopped validating. |
-| `[Reset Password API]` | Server (terminal) | Reset request, getUser, updateUser result |
+| Server action / logger | Server (terminal) | `resetPassword` rate limit, user lookup, link generation, email send |
+| `[Auth Callback]`    | Server (terminal) | Only if user lands with `?code=...`; callback hit, exchange result, redirect |
+| Reset page           | Browser         | Hash or query parsed; setSession or getSession; form submit, updatePassword |
 
 ---
 
@@ -98,15 +90,10 @@ Use this checklist when the reset-password page shows "Invalid or expired reset 
 
 | Symptom | Likely cause |
 |--------|----------------|
-| Link has no `code=` | Redirect URL not in Supabase allowlist or wrong `NEXT_PUBLIC_SITE_URL` |
-| Callback logs "code present: false" | Same as above, or link opened from another client that altered the URL |
-| Callback logs "exchangeCodeForSession: error" | Code expired, already used, or invalid (request new link) |
-| Reset page: no session, no hash | Callback didn’t set cookies or cookies not sent (same-site/domain/path) |
-| Reset page: URL has `?error=...` | Callback intentionally redirected with error; message should be shown on page |
-| Reset page: URL has `#error=...` | Page now reads hash and shows `error_description` (or friendly message); "Request new link" UI is shown. If tokens still not in hash, ensure Redirect URLs allowlisted (Step 1). |
-| Callback log: "code verifier" / "verifier" in error | User opened the link in a different browser or device; request reset again and open link in the **same** browser |
-
-After making changes (e.g. redirect URLs, env), request a **new** password reset and test with the new link. Always open the email link in the **same browser** where you requested the reset.
+| Link lands on wrong path or no hash | Redirect URLs in Supabase must include `{origin}/en/reset-password`, `{origin}/es/reset-password` (or `/**`). Wrong `NEXT_PUBLIC_SITE_URL` in server action. |
+| Reset page: no session, no hash | User opened link after it expired; or redirect URL not allowlisted so Supabase didn’t redirect with tokens. Request a new reset. |
+| Reset page: URL has `?error=...` or `#error=...` | Token expired or invalid. Page shows that message and "Request new link". |
+| Rate limit error | Per-email limit (e.g. 3 per hour) in `password_reset_attempts`; wait or check `cleanup_expired_password_reset_attempts`. |
 
 ---
 
