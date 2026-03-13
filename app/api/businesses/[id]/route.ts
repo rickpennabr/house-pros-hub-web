@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
 import { transformBusinessToProCardData } from '@/lib/utils/businessTransform';
 import { normalizeLinks } from '@/lib/utils/normalizeLinks';
@@ -53,7 +53,9 @@ async function handleGetBusiness(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
+    // Use service role so public profile fetches match the business list (same DB access).
+    // Avoids production 404s when anon/RLS differs from list (which uses service role).
+    const supabase = createServiceRoleClient();
     const { id } = await params;
     const businessId = id;
 
@@ -61,7 +63,7 @@ async function handleGetBusiness(
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(businessId);
     
     // Build query - try by ID if it's a UUID, otherwise try by slug
-    // Note: For edit pages, we should allow inactive businesses too
+    // For slug lookup, only return active businesses (same as list).
     const baseQuery = supabase
       .from('businesses')
       .select(`
@@ -84,7 +86,7 @@ async function handleGetBusiness(
     
     const query = isUUID
       ? baseQuery.eq('id', businessId).single()
-      : baseQuery.eq('slug', businessId).single();
+      : baseQuery.eq('slug', businessId).eq('is_active', true).single();
 
     const { data: business, error } = await query;
 
