@@ -1,12 +1,32 @@
-import DOMPurify from 'isomorphic-dompurify';
-
 /**
  * Sanitization utilities for user input
+ *
+ * In Node (API routes, SSR) we use regex-based stripping to avoid loading
+ * isomorphic-dompurify → jsdom → parse5 (ESM), which causes ERR_REQUIRE_ESM on Vercel.
+ * In the browser we lazy-load DOMPurify for full XSS protection.
  */
+
+/** Strip HTML tags and normalize whitespace (server-safe, no DOM) */
+function stripHtmlTagsServer(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+/** Lazy-load DOMPurify only in browser so Node never loads jsdom */
+function getDOMPurify(): { sanitize: (html: string, options?: object) => string } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return require('isomorphic-dompurify').default;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Sanitizes HTML content to prevent XSS attacks
- * 
+ *
  * @param html - HTML string to sanitize
  * @param allowHtml - Whether to allow HTML tags (default: false, only text)
  * @returns Sanitized string
@@ -16,16 +36,20 @@ export function sanitizeHtml(html: string, allowHtml: boolean = false): string {
     return '';
   }
 
+  if (typeof window === 'undefined') {
+    return stripHtmlTagsServer(html);
+  }
+
+  const DOMPurify = getDOMPurify();
+  if (!DOMPurify) return stripHtmlTagsServer(html);
+
   if (allowHtml) {
-    // Allow safe HTML tags
     return DOMPurify.sanitize(html, {
       ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li'],
       ALLOWED_ATTR: ['href', 'target', 'rel'],
       ALLOW_DATA_ATTR: false,
     });
   }
-
-  // Strip all HTML tags, return plain text
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [],
     ALLOWED_ATTR: [],
@@ -34,7 +58,7 @@ export function sanitizeHtml(html: string, allowHtml: boolean = false): string {
 
 /**
  * Sanitizes plain text input (removes HTML and dangerous characters)
- * 
+ *
  * @param text - Text to sanitize
  * @returns Sanitized text
  */
@@ -43,14 +67,19 @@ export function sanitizeText(text: string): string {
     return '';
   }
 
-  // Remove HTML tags and normalize whitespace
-  const sanitized = DOMPurify.sanitize(text, {
+  if (typeof window === 'undefined') {
+    return stripHtmlTagsServer(text);
+  }
+
+  const DOMPurify = getDOMPurify();
+  if (!DOMPurify) return stripHtmlTagsServer(text);
+
+  return DOMPurify.sanitize(text, {
     ALLOWED_TAGS: [],
     ALLOWED_ATTR: [],
-  });
-
-  // Trim and normalize whitespace
-  return sanitized.trim().replace(/\s+/g, ' ');
+  })
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 /**

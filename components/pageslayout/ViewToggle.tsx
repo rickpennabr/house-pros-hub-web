@@ -69,7 +69,9 @@ export default function ViewToggle({ currentView, onViewChange, embedded = false
             onClick={() => onViewChange(view.type)}
             className={`
               flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 shrink-0
-              ${embedded ? `w-11 h-11 min-w-[2.75rem] min-h-[2.75rem] rounded-lg border-2 ${isActive ? 'border-black' : 'border-white'}` : 'px-2 md:px-3 py-1.5 rounded'}
+              ${embedded
+                ? `w-11 h-11 min-w-[2.75rem] min-h-[2.75rem] rounded-lg border-2 ${isActive ? 'border-black' : 'border-white'}`
+                : `px-2 md:px-3 py-1.5 rounded border-2 ${isActive ? 'border-black' : 'border-white'}`}
               ${isActive
                 ? 'bg-white text-black'
                 : 'hover:bg-gray-800 text-white'
