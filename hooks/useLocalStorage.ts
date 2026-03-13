@@ -13,45 +13,33 @@ export function useLocalStorage<T>(
   key: string,
   initialValue: T
 ): [T, (value: T | ((val: T) => T)) => void] {
-  // State to store our value
-  // Pass initial state function to useState so logic is only executed once
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    if (typeof window === 'undefined') {
-      return initialValue;
-    }
+  // Always start with initialValue so server and client first render match (avoids hydration mismatch).
+  // We sync from localStorage in useEffect after mount.
+  const [storedValue, setStoredValue] = useState<T>(initialValue);
+
+  // After mount, read from localStorage and sync state (client-only).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
-      // Get from local storage by key
       const item = window.localStorage.getItem(key);
-      if (!item) {
-        return initialValue;
-      }
-      
-      // Try to parse as JSON
+      if (!item) return;
       try {
-        return JSON.parse(item);
+        const parsed = JSON.parse(item) as T;
+        setStoredValue(parsed);
       } catch (parseError) {
-        // If parsing fails, check if it's a simple string value that was stored incorrectly
-        // This handles cases where old code stored values without JSON.stringify
         const trimmed = item.trim();
-        // If it looks like it might be a valid string (wrapped in quotes or simple value)
-        // Try to fix it by wrapping in quotes
         if (trimmed && !trimmed.startsWith('{') && !trimmed.startsWith('[') && !trimmed.startsWith('"')) {
           console.warn(`Invalid JSON in localStorage key "${key}". Clearing corrupted value.`);
-          // Clear the corrupted value
           window.localStorage.removeItem(key);
-          return initialValue;
+        } else {
+          console.error(`Error parsing localStorage key "${key}":`, parseError);
+          window.localStorage.removeItem(key);
         }
-        // If it already looks like JSON but failed to parse, clear it
-        console.error(`Error parsing localStorage key "${key}":`, parseError);
-        window.localStorage.removeItem(key);
-        return initialValue;
       }
     } catch (error) {
-      // If error also return initialValue
       console.error(`Error reading localStorage key "${key}":`, error);
-      return initialValue;
     }
-  });
+  }, [key]);
 
   // Return a wrapped version of useState's setter function that
   // persists the new value to localStorage.

@@ -22,6 +22,7 @@ export interface User {
   gateCode?: string;
   addressNote?: string;
   businessId?: string;
+  businessLogo?: string;
   companyName?: string;
   companyRole?: string;
   companyRoleOther?: string;
@@ -264,6 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               gateCode: apiUser.gateCode,
               addressNote: apiUser.addressNote,
               businessId: apiUser.businessId,
+              businessLogo: apiUser.businessLogo,
               companyName: apiUser.companyName,
               companyRole: apiUser.companyRole,
               companyRoleOther: apiUser.companyRoleOther,

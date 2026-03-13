@@ -1,6 +1,6 @@
 'use client';
 
-import { InputHTMLAttributes } from 'react';
+import { forwardRef, InputHTMLAttributes } from 'react';
 import { ClearButton } from './ClearButton';
 
 interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> {
@@ -10,15 +10,19 @@ interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'classN
   className?: string;
 }
 
-export function Input({ showClear, onClear, value, disabled, error, className = '', ...props }: InputProps) {
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+  { showClear, onClear, value, disabled, error, className = '', ...props },
+  ref
+) {
   const hasError = !!error;
-  const borderClass = hasError 
-    ? 'border-red-500 focus:border-red-500' 
+  const borderClass = hasError
+    ? 'border-red-500 focus:border-red-500'
     : 'border-black';
 
   return (
     <div className="relative">
       <input
+        ref={ref}
         {...props}
         value={value}
         disabled={disabled}
@@ -29,5 +33,5 @@ export function Input({ showClear, onClear, value, disabled, error, className = 
       )}
     </div>
   );
-}
+});
 

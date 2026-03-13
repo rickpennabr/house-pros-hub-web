@@ -24,7 +24,7 @@ export function SignupSuccessMessage({ userType, onAddBusiness, returnUrl }: Sig
   const { checkAuth } = useAuth();
   const [isNavigating, setIsNavigating] = useState(false);
   const [isNavigatingToEstimate, setIsNavigatingToEstimate] = useState(false);
-  const isBusinessSignup = userType === USER_TYPES.CONTRACTOR;
+  const isBusinessSignup = userType === USER_TYPES.CONTRACTOR || userType === USER_TYPES.REALTOR;
   const isCustomerSignup = userType === USER_TYPES.CUSTOMER;
 
   /** path can be locale-prefixed (e.g. /en/estimate) or relative (e.g. /estimate). onFinally called when navigation flow finishes. */

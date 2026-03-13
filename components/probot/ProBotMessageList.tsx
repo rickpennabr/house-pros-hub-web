@@ -1,12 +1,24 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import ProBotMessageBubble from './ProBotMessageBubble';
 import type { ChatMessage } from '@/lib/types/chat';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
 
+/** Dedupe by id so React keys are unique (e.g. when merging conversations or after refetch). */
+function dedupeMessagesById(messages: ChatMessage[]): ChatMessage[] {
+  const seen = new Set<string>();
+  return messages.filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+}
+
 interface ProBotMessageListProps {
   messages: ChatMessage[];
+  /** When set, we scroll this container to the end instead of scrollIntoView (avoids page/window scroll on mobile). */
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
   isAdminView: boolean;
   adminViewingConversation: ProBotRecentConversation | null;
   selectedContact: ProBotContact | null;
@@ -15,20 +27,28 @@ interface ProBotMessageListProps {
 
 export default function ProBotMessageList({
   messages,
+  scrollContainerRef,
   isAdminView,
   adminViewingConversation,
   selectedContact,
   visitorAvatarUrl,
 }: ProBotMessageListProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const uniqueMessages = useMemo(() => dedupeMessagesById(messages), [messages]);
 
+  // Scroll to end when messages change. Use scroll container ref so only the messages panel scrolls (no page scroll on mobile).
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const container = scrollContainerRef?.current;
+    if (container && uniqueMessages.length > 0) {
+      const scrollToEnd = () => {
+        container.scrollTop = container.scrollHeight - container.clientHeight;
+      };
+      requestAnimationFrame(scrollToEnd);
+    }
+  }, [uniqueMessages, scrollContainerRef]);
 
   return (
-    <div className="p-4 space-y-3">
-      {messages.map((msg) => (
+    <div className="p-4 space-y-3 min-h-0">
+      {uniqueMessages.map((msg) => (
         <ProBotMessageBubble
           key={msg.id}
           msg={msg}
@@ -38,7 +58,6 @@ export default function ProBotMessageList({
           visitorAvatarUrl={visitorAvatarUrl}
         />
       ))}
-      <div ref={messagesEndRef} />
     </div>
   );
 }

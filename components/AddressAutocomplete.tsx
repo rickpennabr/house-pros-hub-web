@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useAddressSearch } from './AddressAutocomplete/hooks/useAddressSearch';
 import { formatAddress, parseAddressData, parseFreeformAddress, GooglePlacesResult } from './AddressAutocomplete/utils/addressParser';
@@ -40,7 +41,9 @@ export default function AddressAutocomplete({
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const { suggestions, isLoading, searchAddresses, clearSuggestions, getPlaceDetails } = useAddressSearch();
+  /** Position for portal-rendered dropdown so it's not clipped by overflow (e.g. mobile chat scroll). */
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const { suggestions, isLoading, searchError, searchAddresses, clearSuggestions, getPlaceDetails } = useAddressSearch();
 
   const canUseTypedAddress = value.trim().length >= 3 && !isLoading && suggestions.length === 0 && !!onAddressSelect;
   const showUseThisAddress = showSuggestions && canUseTypedAddress;
@@ -202,6 +205,34 @@ export default function AddressAutocomplete({
     };
   }, []);
 
+  const showDropdown = (showSuggestions && suggestions.length > 0) || showUseThisAddress;
+
+  // Position dropdown for portal: measure input so dropdown isn't clipped by parent overflow (e.g. mobile chat)
+  useLayoutEffect(() => {
+    if (!showDropdown || typeof document === 'undefined') {
+      setDropdownPosition(null);
+      return;
+    }
+    const input = inputRef.current;
+    if (!input) return;
+    const update = () => {
+      const rect = input.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    };
+    update();
+    const win = window;
+    win.addEventListener('scroll', update, true);
+    win.addEventListener('resize', update);
+    return () => {
+      win.removeEventListener('scroll', update, true);
+      win.removeEventListener('resize', update);
+    };
+  }, [showDropdown, suggestions.length, showUseThisAddress]);
+
   return (
     <div className="relative">
       <input
@@ -245,62 +276,75 @@ export default function AddressAutocomplete({
         </div>
       )}
 
-      {(showSuggestions && suggestions.length > 0) || showUseThisAddress ? (
-        <div
-          ref={suggestionsRef}
-          className="absolute z-50 w-full mt-1 bg-white dark:bg-[#1a1a1a] border-2 border-black dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
-          onMouseDown={(e) => {
-            e.preventDefault();
-          }}
-        >
-          {suggestions.map((suggestion, index) => {
-            const formattedAddress = formatAddress(suggestion);
-            const isHighlighted = index === highlightedIndex;
-            return (
-              <button
-                key={suggestion.place_id || index}
-                ref={isHighlighted ? highlightedButtonRef : undefined}
-                type="button"
-                role="option"
-                aria-selected={isHighlighted}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleSelectSuggestion(suggestion);
-                }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleSelectSuggestion(suggestion);
-                }}
-                className={`w-full text-left px-4 py-3 transition-colors border-b border-gray-200 dark:border-gray-600 last:border-b-0 cursor-pointer ${isHighlighted ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700'}`}
-              >
-                <div className="text-sm font-medium text-black dark:text-gray-100">{formattedAddress}</div>
-              </button>
-            );
-          })}
-          {showUseThisAddress && (
-            <button
-              type="button"
-              role="option"
-              className="w-full text-left px-4 py-3 transition-colors cursor-pointer border-t border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700 text-sm text-gray-600 dark:text-gray-400"
+      {showDropdown && dropdownPosition && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={suggestionsRef}
+              className="fixed z-[9999] bg-white dark:bg-[#1a1a1a] border-2 border-black dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+              style={{
+                top: dropdownPosition.top,
+                left: dropdownPosition.left,
+                width: dropdownPosition.width,
+              }}
               onMouseDown={(e) => {
                 e.preventDefault();
-                e.stopPropagation();
-                handleUseTypedAddress();
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleUseTypedAddress();
               }}
             >
-              Address not in list? <span className="font-medium text-black dark:text-gray-100">Use this address</span>
-            </button>
-          )}
-        </div>
-      ) : null}
+              {suggestions.map((suggestion, index) => {
+                const formattedAddress = formatAddress(suggestion);
+                const isHighlighted = index === highlightedIndex;
+                return (
+                  <button
+                    key={suggestion.place_id || index}
+                    ref={isHighlighted ? highlightedButtonRef : undefined}
+                    type="button"
+                    role="option"
+                    aria-selected={isHighlighted}
+                    onMouseEnter={() => setHighlightedIndex(index)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSelectSuggestion(suggestion);
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSelectSuggestion(suggestion);
+                    }}
+                    className={`w-full text-left px-4 py-3 transition-colors border-b border-gray-200 dark:border-gray-600 last:border-b-0 cursor-pointer ${isHighlighted ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700'}`}
+                  >
+                    <div className="text-sm font-medium text-black dark:text-gray-100">{formattedAddress}</div>
+                  </button>
+                );
+              })}
+              {searchError && value.trim().length >= 2 && (
+                <p className="px-4 py-2 text-xs text-amber-700 dark:text-amber-400 border-b border-gray-200 dark:border-gray-600" role="status">
+                  {searchError}
+                </p>
+              )}
+              {showUseThisAddress && (
+                <button
+                  type="button"
+                  role="option"
+                  className="w-full text-left px-4 py-3 transition-colors cursor-pointer border-t border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700 text-sm text-gray-600 dark:text-gray-400"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleUseTypedAddress();
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleUseTypedAddress();
+                  }}
+                >
+                  Address not in list? <span className="font-medium text-black dark:text-gray-100">Use this address</span>
+                </button>
+              )}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

@@ -78,6 +78,7 @@ export default function BotChatDrawer() {
   const [visitorPushRegistering, setVisitorPushRegistering] = useState(false);
   const [notificationHintDismissed, setNotificationHintDismissed] = useState(true);
   const [visualHeight, setVisualHeight] = useState<number | null>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const bodyScrollRef = useRef<number>(0);
 
   const choiceButtonCount = isAuthenticated ? 5 : 2;
@@ -216,6 +217,15 @@ export default function BotChatDrawer() {
       setVisualHeight(null);
     };
   }, [isOpen]);
+
+  // Detect mobile viewport so drawer height is capped above browser nav (56px strip).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const check = () => setIsMobileViewport(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // Lock position to “centered” after user leaves the first modal so it doesn’t jump right → center
   useEffect(() => {
@@ -448,12 +458,21 @@ export default function BotChatDrawer() {
         onClick={handleCloseChat}
       />
       <div
-        className={`fixed inset-0 z-[110] flex flex-col h-[100dvh] max-h-[100dvh] md:inset-auto md:bottom-[244px] md:top-auto md:h-auto md:max-h-none md:max-w-[calc(100vw-2rem)] md:rounded-none md:shadow-xl bg-transparent pointer-events-none md:pointer-events-auto ${
+        className={`fixed left-0 right-0 bottom-[56px] top-auto z-[110] flex flex-col h-[calc(100dvh-56px)] max-h-[calc(100dvh-56px)] md:inset-auto md:bottom-[244px] md:top-auto md:h-auto md:max-h-none md:max-w-[calc(100vw-2rem)] md:rounded-none md:shadow-xl bg-transparent pointer-events-none md:pointer-events-auto ${
           (showChoice || (loading && !hasLeftChoiceScreen))
             ? 'md:right-[calc(max(1rem,calc((100vw-960px)/2+1rem))+40px)] md:left-auto'
             : 'md:left-1/2 md:right-auto md:-translate-x-1/2'
         } ${isAccountEstimate ? 'md:w-[462px] md:h-[520px]' : userChoice === 'chat_with_hub' ? 'md:w-[420px] md:h-[480px]' : userChoice === 'talk_to_pro' || userChoice === 'message_a_pro' ? 'md:w-[400px] md:h-[520px]' : 'md:w-[352px] md:h-[380px]'}`}
-        style={visualHeight ? { height: `${visualHeight}px`, maxHeight: `${visualHeight}px` } : undefined}
+        style={
+          visualHeight != null && isMobileViewport
+            ? {
+                height: `min(${visualHeight}px, calc(100dvh - 56px))`,
+                maxHeight: `min(${visualHeight}px, calc(100dvh - 56px))`,
+              }
+            : visualHeight != null
+              ? { height: `${visualHeight}px`, maxHeight: `${visualHeight}px` }
+              : undefined
+        }
         role="dialog"
         aria-label="ProBot chat"
         ref={drawerRef}
@@ -464,7 +483,7 @@ export default function BotChatDrawer() {
           onKeyDown={(e) => e.stopPropagation()}
           role="presentation"
         >
-          <div className="flex flex-col h-full min-h-0 md:h-[calc(100%-10px)] md:w-full md:max-h-full bg-white md:rounded-lg overflow-hidden border border-black">
+          <div className="flex flex-col h-full min-h-0 md:h-[calc(100%-10px)] md:w-full md:max-h-full bg-white rounded-t-xl md:rounded-t-none md:rounded-lg overflow-hidden border border-black">
             <header className="flex items-center justify-between shrink-0 h-[60px] md:h-11 px-3 border-b border-black bg-white">
               <div className="flex items-center gap-2">
                 {!isBotTyping && (

@@ -104,7 +104,7 @@ export interface Database {
         Row: {
           id: string;
           user_id: string;
-          role: 'customer' | 'contractor';
+          role: 'customer' | 'contractor' | 'realtor';
           is_active: boolean;
           activated_at: string | null;
           deactivated_at: string | null;
@@ -113,7 +113,7 @@ export interface Database {
         Insert: {
           id?: string;
           user_id: string;
-          role: 'customer' | 'contractor';
+          role: 'customer' | 'contractor' | 'realtor';
           is_active?: boolean;
           activated_at?: string | null;
           deactivated_at?: string | null;
@@ -122,7 +122,7 @@ export interface Database {
         Update: {
           id?: string;
           user_id?: string;
-          role?: 'customer' | 'contractor';
+          role?: 'customer' | 'contractor' | 'realtor';
           is_active?: boolean;
           activated_at?: string | null;
           deactivated_at?: string | null;
@@ -132,6 +132,40 @@ export interface Database {
           {
             foreignKeyName: "user_roles_user_id_fkey";
             columns: ["user_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      realtor_invitation_codes: {
+        Row: {
+          id: string;
+          code: string;
+          created_at: string;
+          expires_at: string;
+          used_at: string | null;
+          used_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          created_at?: string;
+          expires_at: string;
+          used_at?: string | null;
+          used_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          created_at?: string;
+          expires_at?: string;
+          used_at?: string | null;
+          used_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "realtor_invitation_codes_used_by_fkey";
+            columns: ["used_by"];
             referencedRelation: "users";
             referencedColumns: ["id"];
           }
@@ -713,6 +747,36 @@ export interface Database {
           note: string | null;
           created_at: string;
           updated_at: string;
+          title: string | null;
+          middle_name: string | null;
+          suffix: string | null;
+          company_name: string | null;
+          display_name: string | null;
+          cc: string | null;
+          bcc: string | null;
+          mobile_number: string | null;
+          fax: string | null;
+          other: string | null;
+          website: string | null;
+          name_on_checks: string | null;
+          billing_address_street_1: string | null;
+          billing_address_street_2: string | null;
+          billing_address_city: string | null;
+          billing_address_state: string | null;
+          billing_address_zip_code: string | null;
+          billing_address_country: string | null;
+          shipping_same_as_billing: boolean;
+          shipping_address_street_1: string | null;
+          shipping_address_street_2: string | null;
+          shipping_address_city: string | null;
+          shipping_address_state: string | null;
+          shipping_address_zip_code: string | null;
+          shipping_address_country: string | null;
+          notes: string | null;
+          primary_payment_method: string | null;
+          payment_terms: string | null;
+          invoice_language: 'en' | 'es';
+          opening_balance: number | null;
         };
         Insert: {
           id?: string;
@@ -729,6 +793,36 @@ export interface Database {
           note?: string | null;
           created_at?: string;
           updated_at?: string;
+          title?: string | null;
+          middle_name?: string | null;
+          suffix?: string | null;
+          company_name?: string | null;
+          display_name?: string | null;
+          cc?: string | null;
+          bcc?: string | null;
+          mobile_number?: string | null;
+          fax?: string | null;
+          other?: string | null;
+          website?: string | null;
+          name_on_checks?: string | null;
+          billing_address_street_1?: string | null;
+          billing_address_street_2?: string | null;
+          billing_address_city?: string | null;
+          billing_address_state?: string | null;
+          billing_address_zip_code?: string | null;
+          billing_address_country?: string | null;
+          shipping_same_as_billing?: boolean;
+          shipping_address_street_1?: string | null;
+          shipping_address_street_2?: string | null;
+          shipping_address_city?: string | null;
+          shipping_address_state?: string | null;
+          shipping_address_zip_code?: string | null;
+          shipping_address_country?: string | null;
+          notes?: string | null;
+          primary_payment_method?: string | null;
+          payment_terms?: string | null;
+          invoice_language?: 'en' | 'es';
+          opening_balance?: number | null;
         };
         Update: {
           id?: string;
@@ -745,10 +839,83 @@ export interface Database {
           note?: string | null;
           created_at?: string;
           updated_at?: string;
+          title?: string | null;
+          middle_name?: string | null;
+          suffix?: string | null;
+          company_name?: string | null;
+          display_name?: string | null;
+          cc?: string | null;
+          bcc?: string | null;
+          mobile_number?: string | null;
+          fax?: string | null;
+          other?: string | null;
+          website?: string | null;
+          name_on_checks?: string | null;
+          billing_address_street_1?: string | null;
+          billing_address_street_2?: string | null;
+          billing_address_city?: string | null;
+          billing_address_state?: string | null;
+          billing_address_zip_code?: string | null;
+          billing_address_country?: string | null;
+          shipping_same_as_billing?: boolean;
+          shipping_address_street_1?: string | null;
+          shipping_address_street_2?: string | null;
+          shipping_address_city?: string | null;
+          shipping_address_state?: string | null;
+          shipping_address_zip_code?: string | null;
+          shipping_address_country?: string | null;
+          notes?: string | null;
+          primary_payment_method?: string | null;
+          payment_terms?: string | null;
+          invoice_language?: 'en' | 'es';
+          opening_balance?: number | null;
         };
         Relationships: [
           {
             foreignKeyName: "pro_crm_customers_owner_id_fkey";
+            columns: ["owner_id"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      pro_crm_customer_attachments: {
+        Row: {
+          id: string;
+          customer_id: string;
+          owner_id: string;
+          file_name: string;
+          storage_path: string;
+          file_size_bytes: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          customer_id: string;
+          owner_id: string;
+          file_name: string;
+          storage_path: string;
+          file_size_bytes: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          customer_id?: string;
+          owner_id?: string;
+          file_name?: string;
+          storage_path?: string;
+          file_size_bytes?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pro_crm_customer_attachments_customer_id_fkey";
+            columns: ["customer_id"];
+            referencedRelation: "pro_crm_customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "pro_crm_customer_attachments_owner_id_fkey";
             columns: ["owner_id"];
             referencedRelation: "users";
             referencedColumns: ["id"];

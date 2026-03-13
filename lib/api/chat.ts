@@ -19,6 +19,8 @@ export interface GetMessagesResponse {
     admin_avatar_url?: string | null;
     admin_display_name?: string | null;
   }>;
+  /** When visitor fetches ProBot conversation: display name + avatar of hub agent (admin who replied). */
+  hubAgent?: { displayName: string; avatarUrl: string | null };
 }
 
 export async function getMessages(

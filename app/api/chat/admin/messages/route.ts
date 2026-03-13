@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
     if (sentAs !== undefined) {
       if (sentAs === 'probot') {
         insertPayload.admin_sent_as = sentAs;
+        insertPayload.admin_user_id = user.id;
       } else if (sentAs === 'hub_agent') {
         if (!isAdmin) {
           return NextResponse.json({ error: 'Only admins can reply as Hub Agent' }, { status: 403 });
@@ -107,8 +108,9 @@ export async function POST(request: NextRequest) {
         insertPayload.business_id = sentAs.businessId;
       }
     } else if (isAdmin) {
-      // Admin replies always show as ProBot in contacts/history when no identity specified
+      // Admin always replies as ProBot; store admin_user_id so their picture shows in the chat
       insertPayload.admin_sent_as = 'probot';
+      insertPayload.admin_user_id = user.id;
     }
 
     type InsertRow = Database['public']['Tables']['probot_messages']['Insert'];
@@ -154,7 +156,7 @@ export async function POST(request: NextRequest) {
     const message = result.data as unknown as { id: string; conversation_id: string; sender: string; body: string; created_at: string; attachments?: unknown; admin_sent_as?: string | null; business_id?: string | null; admin_user_id?: string | null };
     let admin_avatar_url: string | undefined;
     let admin_display_name: string | undefined;
-    if (message.admin_sent_as === 'hub_agent' && message.admin_user_id) {
+    if (message.admin_user_id) {
       const { data: profile } = await supabase
         .from('profiles')
         .select('first_name, last_name, user_picture')

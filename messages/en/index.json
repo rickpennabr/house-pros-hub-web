@@ -13,7 +13,8 @@
       "confirm": "Confirm",
       "continue": "Continue",
       "skip": "Skip",
-      "freeEstimate": "Free Estimate"
+      "freeEstimate": "Free Estimate",
+      "estimate": "Estimate"
     },
     "label": {
       "firstName": "First Name",
@@ -33,7 +34,10 @@
     "view": {
       "card": "Card",
       "list": "List",
-      "map": "Map"
+      "map": "Map",
+      "bgToggle": "BG",
+      "bgToggleRegular": "Background: regular",
+      "bgToggleDynamic": "Background: dynamic"
     },
     "search": {
       "categories": "Search categories...",
@@ -45,12 +49,16 @@
     "account": {
       "myBusiness": "My Business",
       "accountManagement": "Account Management",
+      "proscrm": "ProsCRM",
       "probot": "ProBot",
       "settings": "Settings",
       "helpSupport": "Help & Support",
       "signIn": "Sign In",
       "signOut": "Sign Out",
       "account": "Account"
+    },
+    "settings": {
+      "languagePreferenceSaved": "Your choice is saved to your account and used whenever you sign in."
     }
   },
   "probot": {
@@ -65,15 +73,24 @@
     "sent": "Sent",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
+    "backToContacts": "Back to contacts",
+    "backToWelcome": "Back to ProBot welcome",
+    "searchHistory": "Search history…",
+    "searchContacts": "Search contacts…",
+    "closeSearch": "Close search",
     "selectContact": "Select a contact to start chatting",
     "loading": "Loading...",
     "noMessages": "No messages yet. Say hello!",
     "chatWithBusiness": "Chat with {name}",
     "messagePlaceholder": "Chat with a HubAgent now....",
+    "messagePlaceholderAdmin": "Type a message...",
     "send": "Send message",
     "hiUser": "Hi {name},",
     "welcomeToMyPage": "Welcome to my page",
     "letsGetItDone": "Let's get it Done!",
+    "letsConnectCustomerWithPros": "Let's Connect Customer with PROS!",
+    "letsConnect": "Let's Connect",
+    "customerWithPros": "Customer with PROS!",
     "whereShouldWeStart": "Where should we start?",
     "howDoYouWantToStart": "How do you want to start?",
     "guestName": "there",
@@ -101,7 +118,9 @@
     "addFromGoogleDrive": "Add from Google Drive",
     "photos": "Photos",
     "attachMax10": "Maximum 10 images or PDFs per message",
-    "sendUnavailable": "Unable to send. Please refresh the page and try again."
+    "sendUnavailable": "Unable to send. Please refresh the page and try again.",
+    "photoPlaceholder": "Photo",
+    "openImage": "Open image"
   },
   "navigation": {
     "prosBlog": "ProsBlog",
@@ -117,10 +136,51 @@
     "welcomeLine3": "To",
     "welcomeLine4": "HouseProsHub.com",
     "choiceRequestEstimate": "Request free estimate",
+    "getFreeEstimate": "Get Free Estimate",
+    "addCustomer": "Add a customer",
+    "addCustomerSuccess": "Customer added to your CRM.",
+    "addCustomerSubmit": "Add customer",
+    "addCustomerNext": "Next",
+    "addCustomerAdding": "Adding...",
+    "addCustomerSteps": {
+      "firstName": "What's the customer first name?",
+      "lastName": "What's the customer last name?",
+      "companyName": "Company name? (optional)",
+      "displayName": "Display name for forms? (optional)",
+      "email": "What's the customer email? (optional)",
+      "phone": "What's the customer phone number?",
+      "mobileNumber": "Customer mobile number? (optional)",
+      "website": "Customer website? (optional)",
+      "streetAddress": "Customer street address? (optional)",
+      "apartment": "Apt, suite, unit? (optional)",
+      "city": "Customer city? (optional)",
+      "state": "Customer state? (optional)",
+      "zipCode": "Customer ZIP code? (optional)",
+      "notes": "Any notes? (optional)"
+    },
+    "addCustomerPlaceholders": {
+      "firstName": "Enter customer first name",
+      "lastName": "Enter customer last name",
+      "companyName": "Enter company name",
+      "displayName": "Enter display name",
+      "email": "Enter customer email",
+      "phone": "Enter customer phone number",
+      "mobileNumber": "Enter mobile number",
+      "website": "Enter website",
+      "streetAddress": "Enter street address",
+      "apartment": "Enter apt, suite, unit",
+      "city": "Enter city",
+      "state": "Enter state",
+      "zipCode": "Enter ZIP code",
+      "notes": "Enter notes"
+    },
+    "continueToChat": "Chat with a HubAgent now",
     "choiceTalkToPro": "Talk to a pro now",
     "choiceChatWithProBot": "Chat with ProBot",
     "choiceAccountEstimate": "Account and Estimate",
     "createAccountAndFreeEstimate": "Create an account and Get a FREE Estimate",
+    "createAccount": "Create an account",
+    "chatWithAPro": "Chat with a Pro",
     "choiceCallHub": "Call the Hub",
     "choiceChatWithHub": "Chat with Hub",
     "choiceMessageAPro": "Message a Pro",
@@ -171,9 +231,14 @@
   "auth": {
     "signInRequiredModal": {
       "title": "Sign in required",
-      "message": "To contact a pro or to see his business details page you need to sign in first. Otherwise, if you are new to the Hub you will need a FREE customer account. If you need help, call the Hub: 702-232-0411",
+      "message": "To interact with ProCard features you need to be signed in, here are your options:",
       "goSignIn": "Go Sign in",
-      "signUpNow": "Sign up Now"
+      "signUpNow": "Sign up Now",
+      "phone": "Phone",
+      "callTheHub": "Call the Hub",
+      "whatsapp": "WhatsApp",
+      "chatWithProBot": "Chat with ProBot",
+      "orContactHub": "Or for any other help contact the Hub"
     },
     "tagline": "Sign In or Sign up to find your House Pro.",
     "tabs": {
@@ -261,7 +326,7 @@
     },
     "signup": {
       "roleSelection": {
-        "title": "How would you like to use The Hub?",
+        "title": "How you want to use the Hub?",
         "subtitle": "Choose the option that best describes you",
         "customer": {
           "title": "I'm a Customer",
@@ -270,7 +335,14 @@
         "contractor": {
           "title": "I'm a Contractor",
           "titleWithCode": "I'm a Contractor (invitation code required)",
+          "invitationCodeRequired": "(invitation code required)",
           "description": "I provide services to customers"
+        },
+        "realtor": {
+          "title": "I'm a Realtor",
+          "titleWithCode": "I'm a Realtor (invitation code required)",
+          "invitationCodeRequired": "(invitation code required)",
+          "description": "I help clients buy and sell homes"
         },
         "both": {
           "title": "I'm Both",
@@ -280,7 +352,7 @@
         "signInLink": "Sign in"
       },
       "chat": {
-        "role": "Are you here as a customer or a contractor?",
+        "role": "How you want to use the Hub?",
         "userPicture": "Add a profile photo (optional). It helps pros recognize you!",
         "firstName": "What's your first name?",
         "lastName": "And your last name?",

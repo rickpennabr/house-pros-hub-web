@@ -44,17 +44,24 @@ export const RATE_LIMIT_CONFIGS = {
     message: 'Too many business operations. Please try again later.',
   } as RateLimitConfig,
 
-  // ProBot chat - prevent spam
+  // ProBot chat - prevent spam (POST send message)
   chat: {
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 30,
     message: 'Too many messages. Please slow down.',
   } as RateLimitConfig,
 
+  // Chat read (GET messages) - separate from send so polling does not block sending
+  chatRead: {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 90,
+    message: 'Too many requests. Please slow down.',
+  } as RateLimitConfig,
+
   // Chat presence (GET businessIds/for=hub/visitorId + POST heartbeat) - allow polling + heartbeats without 429
   presence: {
     windowMs: 2 * 60 * 1000, // 2 minutes
-    maxRequests: 24,
+    maxRequests: 60,
     message: 'Too many presence updates. Please slow down.',
   } as RateLimitConfig,
 

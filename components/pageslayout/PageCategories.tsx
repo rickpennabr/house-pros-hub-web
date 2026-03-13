@@ -7,10 +7,13 @@ import { Filter } from 'lucide-react';
 import { useCategory } from '@/contexts/CategoryContext';
 import ExpandableSearchbar from './ExpandableSearchbar';
 import { 
-  CATEGORIES_WITH_ALL,
+  ALL_CATEGORY,
+  SERVICE_CATEGORIES,
+  getCategoryItemForLabel,
 } from '@/lib/constants/categories';
 import { getBusinessCategories } from '@/lib/utils/businessSearch';
 import { useBusinesses } from '@/hooks/useBusinesses';
+import { sendAnalyticsIngest } from '@/lib/utils/analyticsIngest';
 
 interface ServiceCategoriesProps {
   children?: ReactNode;
@@ -51,13 +54,11 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
     }
   }, [activeBusinessCategories, activeCategory, setActiveCategory]);
 
-  // Filter categories to only show those that have businesses
+  // Filter categories to only show those that have businesses.
+  // Use real business list categories (contractorType, tradeName) so the bar shows e.g. "Handyman Interior" not only "General Contractor".
   const filteredCategories = useMemo(() => {
-    const categories = CATEGORIES_WITH_ALL.filter(cat => 
-      cat.label === 'All' || activeBusinessCategories.includes(cat.label)
-    );
-
-    return categories;
+    const items = activeBusinessCategories.map((label) => getCategoryItemForLabel(label));
+    return [ALL_CATEGORY, ...items];
   }, [activeBusinessCategories]);
 
   const handleSearchChange = (query: string) => {
@@ -90,19 +91,15 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
         isSearchOpen,
       };
       
-      fetch('http://127.0.0.1:7243/ingest/461d373c-ca6e-41da-982f-915e017b1f50', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          location: 'PageCategories.tsx:70',
-          message: 'Categories dimensions',
-          data: logData,
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'run1',
-          hypothesisId: 'E',
-        }),
-      }).catch(() => {});
+      sendAnalyticsIngest({
+        location: 'PageCategories.tsx:70',
+        message: 'Categories dimensions',
+        data: logData,
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'E',
+      });
     };
     
     checkDimensions();
@@ -126,7 +123,7 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
   };
 
   return (
-    <div ref={categoriesRef} className="w-full min-h-[60px] h-[60px] border-b-2 border-black px-2 flex items-center relative overflow-hidden py-2 md:py-0 flex-shrink-0">
+    <div ref={categoriesRef} className="w-full min-h-[60px] h-[60px] border-b-2 border-black p-1 md:px-2 md:py-0 flex items-center relative overflow-hidden flex-shrink-0">
       {/* Filter button - Only on suppliers page, positioned to the right of search button */}
       {isSuppliersPage && (
         <button
@@ -153,19 +150,20 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
       }`}>
         {filteredCategories.map((category) => {
           const Icon = category.icon;
-          // Get translation key by converting label to lowercase
           const translationKey = category.label.toLowerCase();
           const translatedLabel =
             category.label === 'All'
               ? t('all')
-              : t(translationKey as Parameters<typeof t>[0]);
+              : SERVICE_CATEGORIES.some((c) => c.label === category.label)
+                ? t(translationKey as Parameters<typeof t>[0])
+                : category.label;
           return (
             <button
               key={category.label}
               onClick={() => setActiveCategory(category.label)}
               className={categoryClasses(category.label)}
             >
-              <Icon className={`w-4 h-4 transition-transform duration-300 group-hover:scale-110 ${category.color}`} />
+              <Icon className={`w-4 h-4 transition-transform duration-300 group-hover:scale-110 ${category.label === 'All' ? '!text-black' : category.color}`} />
               {translatedLabel}
             </button>
           );

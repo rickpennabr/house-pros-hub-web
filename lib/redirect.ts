@@ -1,5 +1,5 @@
 import { ReadonlyURLSearchParams } from 'next/navigation';
-import { Locale } from '@/i18n';
+import { Locale, locales } from '@/i18n';
 
 /**
  * Creates a locale-aware path
@@ -11,12 +11,17 @@ export function createLocalePath(locale: Locale, path?: string | null): string {
   const safePath = path ?? '/';
   // Remove leading slash if present
   const cleanPath = safePath.startsWith('/') ? safePath.slice(1) : safePath;
-  // Remove locale prefix if already present
-  const pathWithoutLocale = cleanPath.startsWith(`${locale}/`) 
+  // Remove locale prefix if already present (support en, es, pt)
+  const hasLocalePrefix = cleanPath.startsWith(`${locale}/`) ||
+    (locales as readonly string[]).some((l) => cleanPath.startsWith(`${l}/`));
+  const isOnlyLocale = (locales as readonly string[]).includes(cleanPath);
+  const pathWithoutLocale = cleanPath.startsWith(`${locale}/`)
     ? cleanPath.replace(`${locale}/`, '')
-    : cleanPath.startsWith('en/') || cleanPath.startsWith('es/')
-    ? cleanPath.split('/').slice(1).join('/')
-    : cleanPath;
+    : isOnlyLocale
+      ? ''
+      : hasLocalePrefix
+        ? cleanPath.split('/').slice(1).join('/')
+        : cleanPath;
   return pathWithoutLocale ? `/${locale}/${pathWithoutLocale}` : `/${locale}`;
 }
 
@@ -72,7 +77,7 @@ export function getRedirectPath(returnUrl: string | null, locale?: Locale): stri
     // This prevents open redirect vulnerabilities
     if (decoded.startsWith('/') && !decoded.startsWith('//')) {
       // If returnUrl already has locale prefix, use it
-      if (decoded.startsWith('/en/') || decoded.startsWith('/es/')) {
+      if ((locales as readonly string[]).some((l) => decoded.startsWith(`/${l}/`) || decoded === `/${l}`)) {
         return decoded;
       }
       // Otherwise, add locale prefix if provided

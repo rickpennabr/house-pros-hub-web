@@ -42,6 +42,8 @@ interface AutocompleteResponse {
 export function useAddressSearch() {
   const [suggestions, setSuggestions] = useState<GooglePlacesResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  /** Set when API is blocked (e.g. 403 from mobile IP); UI can show "use address below" message. */
+  const [searchError, setSearchError] = useState<string | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const searchAddresses = async (query: string) => {
@@ -54,9 +56,11 @@ export function useAddressSearch() {
     if (!apiKey) {
       console.error('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set');
       setSuggestions([]);
+      setSearchError('Address search is not configured.');
       return;
     }
 
+    setSearchError(null);
     setIsLoading(true);
     try {
       const searchQuery = query.trim();
@@ -103,13 +107,16 @@ export function useAddressSearch() {
         // Fix: Google Cloud Console → APIs & Services → Credentials → your API key → Application restrictions →
         // add "192.168.0.0/16" or your dev URL (e.g. http://192.168.0.26:3000/*). Don't log to avoid dev overlay.
         const isReferrerBlocked = response.status === 403 || (errorText && /PERMISSION_DENIED|API_KEY_HTTP_REFERER_BLOCKED/i.test(errorText));
-        if (!isReferrerBlocked && process.env.NODE_ENV === 'development') {
+        if (isReferrerBlocked) {
+          setSearchError('Address search unavailable on this network. Type your full address and use the button below.');
+        } else if (process.env.NODE_ENV === 'development') {
           console.warn('Places API error:', response.status, errorText?.slice(0, 200));
         }
         setSuggestions([]);
         return;
       }
 
+      setSearchError(null);
       const data: AutocompleteResponse = await response.json();
 
       // Convert API response to GooglePlacesResult format
@@ -250,8 +257,12 @@ export function useAddressSearch() {
   return {
     suggestions,
     isLoading,
+    searchError,
     searchAddresses: debouncedSearch,
-    clearSuggestions: () => setSuggestions([]),
+    clearSuggestions: () => {
+      setSuggestions([]);
+      setSearchError(null);
+    },
     getPlaceDetails,
   };
 }

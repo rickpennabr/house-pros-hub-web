@@ -16,7 +16,8 @@ import {
   HelpCircle,
   Users,
   LayoutDashboard,
-  MessageCircle
+  MessageCircle,
+  Briefcase
 } from 'lucide-react';
 
 interface ProfileIconProps {
@@ -40,6 +41,8 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
     url: pictureUrl,
     hasError: false,
   }));
+  const [logoButtonError, setLogoButtonError] = useState(false);
+  const [logoDropdownError, setLogoDropdownError] = useState(false);
   const imageError = imageErrorState.url === pictureUrl ? imageErrorState.hasError : false;
   const dropdownImageError =
     dropdownImageErrorState.url === pictureUrl ? dropdownImageErrorState.hasError : false;
@@ -50,7 +53,16 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
   const userInitials = user 
     ? (user.firstName.charAt(0) + user.lastName.charAt(0)).toUpperCase()
     : '';
-  
+  const isContractor = !!user?.businessId;
+  const showLogoInButton = isContractor && !!user?.businessLogo && !logoButtonError;
+  const showLogoInDropdown = isContractor && !!user?.businessLogo && !logoDropdownError;
+
+  // Reset logo error state when business logo URL changes
+  useEffect(() => {
+    setLogoButtonError(false);
+    setLogoDropdownError(false);
+  }, [user?.businessLogo]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -101,7 +113,30 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
         className={`w-10 h-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden relative text-black ${className}`}
         aria-label={t('account')}
       >
-        {isAuthenticated && user?.userPicture && !imageError ? (
+        {isAuthenticated && showLogoInButton && user?.businessLogo ? (
+          user.businessLogo.startsWith('data:') ? (
+            <Image
+              src={user.businessLogo}
+              alt={user.companyName || 'Business'}
+              fill
+              className="object-cover"
+              sizes="40px"
+              unoptimized
+              onError={() => setLogoButtonError(true)}
+            />
+          ) : (
+            <Image
+              src={user.businessLogo}
+              alt={user.companyName || 'Business'}
+              fill
+              className="object-cover"
+              sizes="40px"
+              quality={90}
+              priority={false}
+              onError={() => setLogoButtonError(true)}
+            />
+          )
+        ) : isAuthenticated && user?.userPicture && !imageError ? (
           user.userPicture.startsWith('data:') ? (
             <Image
               src={user.userPicture}
@@ -137,7 +172,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
             viewBox="0 0 24 24"
             strokeWidth={2}
             stroke="currentColor"
-            className="w-5 h-5 text-black shrink-0"
+            className="w-5 h-5 shrink-0 !text-black"
             aria-hidden
           >
             <path
@@ -159,7 +194,30 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
             <>
               <div className="px-4 py-3 flex items-center gap-3 border-b-2 border-black bg-gray-50 h-[60px]">
                 <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
-                  {user?.userPicture && !dropdownImageError ? (
+                  {showLogoInDropdown && user?.businessLogo ? (
+                    user.businessLogo.startsWith('data:') ? (
+                      <Image
+                        src={user.businessLogo}
+                        alt={user.companyName || 'Business'}
+                        fill
+                        className="object-cover"
+                        sizes="40px"
+                        unoptimized
+                        onError={() => setLogoDropdownError(true)}
+                      />
+                    ) : (
+                      <Image
+                        src={user.businessLogo}
+                        alt={user.companyName || 'Business'}
+                        fill
+                        className="object-cover"
+                        sizes="40px"
+                        quality={90}
+                        priority={false}
+                        onError={() => setLogoDropdownError(true)}
+                      />
+                    )
+                  ) : user?.userPicture && !dropdownImageError ? (
                     user.userPicture.startsWith('data:') ? (
                       <Image
                         src={user.userPicture}
@@ -217,6 +275,15 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   <Users className="w-4 h-4" />
                   <span>{t('accountManagement')}</span>
                 </button>
+                {isContractor && (
+                  <button
+                    onClick={() => handleMenuItemClick('/crm')}
+                    className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                  >
+                    <Briefcase className="w-4 h-4" />
+                    <span>{t('proscrm')}</span>
+                  </button>
+                )}
                 <button
                   onClick={() => handleMenuItemClick('/probot')}
                   className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"

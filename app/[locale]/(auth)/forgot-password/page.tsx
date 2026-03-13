@@ -99,7 +99,7 @@ function ForgotPasswordForm() {
           <div className="flex flex-col py-3 md:pt-6 md:pb-0 md:mb-2">
             <section className="flex items-center justify-center md:pt-0 pb-3 md:pb-2 w-full max-h-20 md:max-h-24 animate-slide-down">
               <Link href={`/${locale}/businesslist`} className="cursor-pointer flex-shrink-0 w-full flex items-center justify-center">
-                <Logo width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
+                <Logo src="/hph-logo-with-pro-bot-mobile.png" width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
               </Link>
             </section>
             <section className="animate-slide-in-right">

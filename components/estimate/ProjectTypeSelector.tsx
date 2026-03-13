@@ -84,7 +84,7 @@ export default function ProjectTypeSelector({
               disabled={isSubmitting}
               className="w-4 h-4 border-2 border-black rounded focus:ring-0 focus:ring-offset-0 checked:bg-black checked:border-black cursor-pointer accent-black"
             />
-            <span className="text-sm font-medium text-black">{tFields('requiresHoaApprovalLabel')}</span>
+            <span className="probot-night-text text-sm font-medium text-black">{tFields('requiresHoaApprovalLabel')}</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -93,7 +93,7 @@ export default function ProjectTypeSelector({
               disabled={isSubmitting}
               className="w-4 h-4 border-2 border-black rounded focus:ring-0 focus:ring-offset-0 checked:bg-black checked:border-black cursor-pointer accent-black"
             />
-            <span className="text-sm font-medium text-black">{tFields('wants3DLabel')}</span>
+            <span className="probot-night-text text-sm font-medium text-black">{tFields('wants3DLabel')}</span>
           </label>
         </div>
       </FormField>

@@ -45,19 +45,7 @@ export async function GET(
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      id: row.id,
-      firstName: row.first_name,
-      lastName: row.last_name,
-      email: row.email ?? '',
-      phone: row.phone ?? '',
-      streetAddress: row.street_address ?? '',
-      apartment: row.apartment ?? '',
-      city: row.city ?? '',
-      state: row.state ?? '',
-      zipCode: row.zip_code ?? '',
-      note: row.note ?? '',
-    });
+    return NextResponse.json(row);
   } catch (err) {
     console.error('GET /api/crm/customers/[id]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -80,23 +68,34 @@ export async function PUT(
     if (!id) return NextResponse.json({ error: 'Customer ID required' }, { status: 400 });
 
     const body = await request.json();
-    const trim = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+    const trim = (v: unknown) => (typeof v === 'string' ? v.trim() : v);
+    const num = (v: unknown) => (typeof v === 'number' ? v : null);
+
+    const updatePayload: Record<string, unknown> = {};
+    const stringFields = [
+      'first_name', 'last_name', 'email', 'phone', 'street_address', 'apartment', 'city', 'state', 'zip_code',
+      'company_name', 'display_name', 'cc', 'bcc', 'mobile_number', 'fax', 'other',
+      'website', 'billing_address_street_1', 'billing_address_street_2', 'billing_address_city',
+      'billing_address_state', 'billing_address_zip_code', 'billing_address_country', 'shipping_address_street_1',
+      'shipping_address_street_2', 'shipping_address_city', 'shipping_address_state', 'shipping_address_zip_code',
+      'shipping_address_country', 'notes', 'primary_payment_method', 'payment_terms',
+      'invoice_language',
+    ] as const;
+    for (const key of stringFields) {
+      const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+      const raw = body[key] ?? body[camel];
+      if (raw !== undefined) {
+        const val = trim(raw);
+        updatePayload[key] = typeof val === 'string' ? (val || null) : null;
+      }
+    }
+    if (body.shipping_same_as_billing !== undefined) updatePayload.shipping_same_as_billing = !!body.shipping_same_as_billing;
+    if (body.opening_balance !== undefined) updatePayload.opening_balance = num(body.opening_balance) ?? body.opening_balance;
 
     const supabase = await createClient();
     const { error: updateError } = await supabase
       .from('pro_crm_customers')
-      .update({
-        first_name: trim(body.firstName) ?? undefined,
-        last_name: trim(body.lastName) ?? undefined,
-        email: trim(body.email) || null,
-        phone: trim(body.phone) || null,
-        street_address: trim(body.streetAddress) || null,
-        apartment: trim(body.apartment) || null,
-        city: trim(body.city) || null,
-        state: trim(body.state) || null,
-        zip_code: trim(body.zipCode) || null,
-        note: trim(body.note) || null,
-      })
+      .update(updatePayload)
       .eq('id', id)
       .eq('owner_id', user.id);
 

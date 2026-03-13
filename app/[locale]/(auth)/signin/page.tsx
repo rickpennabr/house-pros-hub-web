@@ -178,7 +178,7 @@ function SignInForm() {
             {/* Logo Section */}
             <section className="flex items-center justify-center md:pt-0 pb-4 md:pb-2 w-full animate-slide-down">
               <Link href={`/${locale}/businesslist`} className="cursor-pointer flex-shrink-0 w-full">
-                <Logo width={400} height={100} className="h-full w-full max-w-full object-contain" />
+                <Logo src="/hph-logo-with-pro-bot-mobile.png" width={400} height={100} className="h-full w-full max-w-full object-contain" />
               </Link>
             </section>
             

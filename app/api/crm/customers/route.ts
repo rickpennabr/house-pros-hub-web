@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import type { Database } from '@/lib/types/supabase';
 import { hasRole } from '@/lib/utils/roles';
 
 async function requireContractor() {
@@ -18,7 +19,7 @@ async function requireContractor() {
   return { error: null, user };
 }
 
-const VALID_SORT = ['created_at', 'updated_at', 'last_name', 'first_name', 'city', 'state', 'phone', 'email'] as const;
+const VALID_SORT = ['created_at', 'updated_at', 'last_name', 'first_name', 'company_name', 'display_name', 'city', 'state', 'phone', 'email'] as const;
 
 /**
  * GET /api/crm/customers
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
       if (safe) {
         const term = `%${safe}%`;
         query = query.or(
-          `first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term},city.ilike.${term},state.ilike.${term},phone.ilike.${term}`
+          `first_name.ilike.${term},last_name.ilike.${term},company_name.ilike.${term},display_name.ilike.${term},email.ilike.${term},city.ilike.${term},state.ilike.${term},phone.ilike.${term},mobile_number.ilike.${term}`
         );
       }
     }
@@ -86,28 +87,57 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const trim = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
-    const firstName = trim(body.firstName);
-    const lastName = trim(body.lastName);
+    const str = (key: string) => trim(body[key]) || null;
+    const firstName = trim(body.first_name ?? body.firstName);
+    const lastName = trim(body.last_name ?? body.lastName);
     if (!firstName || !lastName) {
       return NextResponse.json({ error: 'First name and last name are required' }, { status: 400 });
     }
 
     const supabase = await createClient();
+    type CustomerInsert = Database['public']['Tables']['pro_crm_customers']['Insert'];
+    const insertPayload: CustomerInsert = {
+      owner_id: user.id,
+      first_name: firstName,
+      last_name: lastName,
+      company_name: str('company_name'),
+      display_name: str('display_name'),
+      email: str('email'),
+      phone: str('phone'),
+      cc: str('cc'),
+      bcc: str('bcc'),
+      mobile_number: str('mobile_number'),
+      fax: str('fax'),
+      other: str('other'),
+      website: str('website'),
+      street_address: str('street_address'),
+      apartment: str('apartment'),
+      city: str('city'),
+      state: str('state'),
+      zip_code: str('zip_code'),
+      billing_address_street_1: str('billing_address_street_1'),
+      billing_address_street_2: str('billing_address_street_2'),
+      billing_address_city: str('billing_address_city'),
+      billing_address_state: str('billing_address_state'),
+      billing_address_zip_code: str('billing_address_zip_code'),
+      billing_address_country: str('billing_address_country'),
+      shipping_same_as_billing: body.shipping_same_as_billing !== false,
+      shipping_address_street_1: str('shipping_address_street_1'),
+      shipping_address_street_2: str('shipping_address_street_2'),
+      shipping_address_city: str('shipping_address_city'),
+      shipping_address_state: str('shipping_address_state'),
+      shipping_address_zip_code: str('shipping_address_zip_code'),
+      shipping_address_country: str('shipping_address_country'),
+      note: str('note'),
+      notes: str('notes'),
+      primary_payment_method: str('primary_payment_method'),
+      payment_terms: str('payment_terms'),
+      invoice_language: body.invoice_language === 'es' ? 'es' : 'en',
+      opening_balance: typeof body.opening_balance === 'number' ? body.opening_balance : 0,
+    };
     const { data: row, error } = await supabase
       .from('pro_crm_customers')
-      .insert({
-        owner_id: user.id,
-        first_name: firstName,
-        last_name: lastName,
-        email: trim(body.email) || null,
-        phone: trim(body.phone) || null,
-        street_address: trim(body.streetAddress) || null,
-        apartment: trim(body.apartment) || null,
-        city: trim(body.city) || null,
-        state: trim(body.state) || null,
-        zip_code: trim(body.zipCode) || null,
-        note: trim(body.note) || null,
-      })
+      .insert(insertPayload)
       .select('id, created_at')
       .single();
 

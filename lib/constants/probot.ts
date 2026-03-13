@@ -4,8 +4,8 @@
  * for avatars so they fit header/sidebar circles.
  */
 export const PROBOT_ASSETS = {
-  /** Header only: first in sequence (plays once, then switches to avatarHeaderSecond) */
-  avatarHeader: '/hph-pro-bot-waiving.gif',
+  /** Header only: first in sequence (plays once, then switches to avatarHeaderSecond). Use hph-pro-bot-waiving.gif when available. */
+  avatarHeader: '/pro-bot-solo.gif',
   /** Header only: second in sequence (shown after avatarHeader duration) */
   avatarHeaderSecond: '/pro-bot-typing-creating-account.gif',
   /** Welcome section only: large image on top of "Hi there" (plays first) */

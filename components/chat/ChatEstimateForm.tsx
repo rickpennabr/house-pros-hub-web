@@ -50,11 +50,25 @@ const CONTACT_VALUES: EstimateSchemaType['preferredContactMethod'][] = [
   'either',
 ];
 
+export interface GuestContactForEstimate {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  streetAddress: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  apartment?: string;
+}
+
 export interface ChatEstimateFormProps {
   onSuccess: () => void;
   onBack?: () => void;
   onStepIndexChange?: (index: number) => void;
   onBotTypingChange?: (typing: boolean) => void;
+  /** When provided (guest estimate flow), use this for customer fields instead of auth user */
+  guestContact?: GuestContactForEstimate;
 }
 
 /** Form state includes useSameAddress for the bot's "use profile address?" step (not sent to API). */
@@ -127,6 +141,7 @@ export default function ChatEstimateForm({
   onBack,
   onStepIndexChange,
   onBotTypingChange,
+  guestContact,
 }: ChatEstimateFormProps) {
   const locale = useLocale();
   const tFields = useTranslations('estimate.fields');
@@ -210,6 +225,19 @@ export default function ChatEstimateForm({
     return () => clearTimeout(id);
   }, [currentMessage, typingStarted, typedLength]);
 
+  // Pre-fill address from guest contact (free estimate flow)
+  useEffect(() => {
+    if (!guestContact) return;
+    setValues((prev) => ({
+      ...prev,
+      streetAddress: guestContact.streetAddress || prev.streetAddress,
+      city: guestContact.city || prev.city,
+      state: guestContact.state || prev.state || 'NV',
+      zipCode: guestContact.zipCode || prev.zipCode,
+      apartment: guestContact.apartment ?? prev.apartment ?? '',
+    }));
+  }, [guestContact]);
+
   // Fetch address from API when user is authenticated (same as estimate page)
   useEffect(() => {
     if (!isAuthenticated || !user?.id || addressLoaded) return;
@@ -292,20 +320,21 @@ export default function ChatEstimateForm({
   }, [stepIndex, visibleSteps.length, scrollToBottom]);
 
   const validateAndSubmit = useCallback(async () => {
-    if (!user) {
+    if (!user && !guestContact) {
       setError('Please sign in to submit an estimate.');
       return;
     }
+    const contact = guestContact ?? user;
     const payload: EstimateSchemaType = {
-      firstName: user.firstName || '',
-      lastName: user.lastName || '',
-      email: user.email || '',
-      phone: user.phone || '',
-      streetAddress: (values.streetAddress ?? user.streetAddress) || '',
-      city: (values.city ?? user.city) || '',
-      state: (values.state ?? user.state) || 'NV',
-      zipCode: (values.zipCode ?? user.zipCode) || '',
-      apartment: values.apartment ?? user.apartment ?? '',
+      firstName: (contact?.firstName ?? '') || '',
+      lastName: (contact?.lastName ?? '') || '',
+      email: (contact?.email ?? '') || '',
+      phone: (contact?.phone ?? '') || '',
+      streetAddress: (values.streetAddress ?? contact?.streetAddress) || '',
+      city: (values.city ?? contact?.city) || '',
+      state: (values.state ?? contact?.state) || 'NV',
+      zipCode: (values.zipCode ?? contact?.zipCode) || '',
+      apartment: values.apartment ?? contact?.apartment ?? '',
       projectType: values.projectType!,
       projectTypeOther: values.projectTypeOther ?? undefined,
       requiresHoaApproval: values.requiresHoaApproval ?? false,
@@ -350,7 +379,7 @@ export default function ChatEstimateForm({
     } finally {
       setIsSubmitting(false);
     }
-  }, [user, values, locale, onSuccess]);
+  }, [user, guestContact, values, locale, onSuccess]);
 
   const handleStepSubmit = useCallback(
     (e?: React.FormEvent) => {
@@ -590,7 +619,7 @@ export default function ChatEstimateForm({
                       onChange={(e) => setValue('requiresHoaApproval', e.target.checked)}
                       className="w-4 h-4 border-2 border-black rounded focus:ring-0 focus:ring-offset-0 checked:bg-black checked:border-black cursor-pointer accent-black"
                     />
-                    <span className="text-sm font-medium text-black">{tFields('requiresHoaApprovalLabel')}</span>
+                    <span className="probot-night-text text-sm font-medium text-black">{tFields('requiresHoaApprovalLabel')}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -599,7 +628,7 @@ export default function ChatEstimateForm({
                       onChange={(e) => setValue('wants3D', e.target.checked)}
                       className="w-4 h-4 border-2 border-black rounded focus:ring-0 focus:ring-offset-0 checked:bg-black checked:border-black cursor-pointer accent-black"
                     />
-                    <span className="text-sm font-medium text-black">{tFields('wants3DLabel')}</span>
+                    <span className="probot-night-text text-sm font-medium text-black">{tFields('wants3DLabel')}</span>
                   </label>
                 </div>
               )}
@@ -637,7 +666,7 @@ export default function ChatEstimateForm({
                   />
                   {/* Optional project images (same as regular estimate form) */}
                   <div className="space-y-2">
-                    <span className="block text-xs font-medium text-gray-700">
+                    <span className="probot-night-text block text-xs font-medium text-gray-700">
                       {tFields('projectImagesLabel')} ({projectImages.length}/5)
                     </span>
                     {projectImages.length > 0 && (
@@ -669,7 +698,7 @@ export default function ChatEstimateForm({
                       <>
                         <label
                           htmlFor="chat-estimate-image-input"
-                          className={`w-full py-2 px-3 border-2 border-dashed border-black rounded-xl flex items-center justify-center gap-2 text-sm font-medium text-gray-700 cursor-pointer ${
+                          className={`probot-night-text w-full py-2 px-3 border-2 border-dashed border-black rounded-xl flex items-center justify-center gap-2 text-sm font-medium text-gray-700 cursor-pointer ${
                             imageUploading ? 'opacity-50 pointer-events-none' : 'hover:bg-gray-50'
                           }`}
                         >
@@ -690,7 +719,7 @@ export default function ChatEstimateForm({
                       </>
                     )}
                     {imageUploadError && <p className="text-xs text-red-600">{imageUploadError}</p>}
-                    <p className="text-xs text-gray-500">{tFields('projectImagesHelp')}</p>
+                    <p className="probot-night-text text-xs text-gray-500">{tFields('projectImagesHelp')}</p>
                   </div>
                 </div>
               )}

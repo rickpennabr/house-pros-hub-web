@@ -7,7 +7,7 @@ import { ADMIN_EMAIL } from '@/lib/constants/admin';
  * GET /api/chat/contacts
  * Returns ProBot contacts for the current user by role:
  * - Admin: ProBot + all businesses (contractors) + one contact per signed-up customer (deduped by user_id)
- * - Contractor (user has businessId): ProBot + one contact per signed-up customer who contacted them (deduped by user_id)
+ * - Contractor (user has businessId): ProBot + customers/visitors who chatted with them, then all hub contractors (other businesses), in that order
  * - Customer / visitor: ProBot + all businesses
  */
 export async function GET(request: NextRequest) {
@@ -62,7 +62,12 @@ export async function GET(request: NextRequest) {
     ];
 
     if (isAdmin) {
-      // Admin: all businesses + all unique customers from conversations
+      // Ensure current admin is in admin_users so they're excluded from contacts (only ProBot represents admins)
+      await supabase.from('admin_users').upsert({ user_id: user.id }, { onConflict: 'user_id' });
+      // Admin: all businesses + all unique customers from conversations (exclude all admins so they show only as ProBot in History)
+      const { data: adminUsers } = await supabase.from('admin_users').select('user_id');
+      const adminUserIdsSet = new Set<string>(((adminUsers ?? []) as { user_id: string }[]).map((r) => r.user_id));
+
       const [businessesRes, convRes] = await Promise.all([
         supabase
           .from('businesses')
@@ -119,7 +124,8 @@ export async function GET(request: NextRequest) {
       const seenUserIds = new Set<string>();
       for (const c of convList) {
         if (!c.user_id) continue; // Only signed-up customers (have an account), not anonymous visitors
-        if (c.user_id === user.id) continue; // Don't show admin as a separate "customer" contact
+        if (c.user_id === user.id) continue; // Don't show current admin as a separate contact
+        if (adminUserIdsSet.has(c.user_id)) continue; // Don't show other admins as contacts; they appear as ProBot in History only
         const profile = profileByUserId[c.user_id];
         if (profile?.business_id) continue; // Contractor: already represented by their business in the list; never show personal
         if (seenUserIds.has(c.user_id)) continue;
@@ -142,7 +148,11 @@ export async function GET(request: NextRequest) {
         });
       }
     } else if (userBusinessId) {
-      // Contractor: only customers who have messaged this business (conversations with messages where business_id = userBusinessId)
+      // Contractor: only customers who have messaged this business (conversations with messages where business_id = userBusinessId).
+      // Exclude admin users so they do not appear as separate contacts—only ProBot represents them.
+      const { data: adminUsers } = await supabase.from('admin_users').select('user_id');
+      const adminUserIdsSet = new Set<string>(((adminUsers ?? []) as { user_id: string }[]).map((r) => r.user_id));
+
       const { data: msgRows } = await supabase
         .from('probot_messages')
         .select('conversation_id')
@@ -172,10 +182,11 @@ export async function GET(request: NextRequest) {
             profileByUserId[row.id] = row;
           }
         }
-        // One contact per user (dedupe by user_id) for signed-up customers; exclude contractors (show only customers; contractor = business only).
+        // One contact per user (dedupe by user_id) for signed-up customers; exclude contractors and admins (only ProBot represents admins).
         const seenUserIds = new Set<string>();
         for (const c of list) {
           if (c.user_id) {
+            if (adminUserIdsSet.has(c.user_id)) continue; // Admin/hub agent: show only as ProBot, not as separate contact
             const profile = profileByUserId[c.user_id];
             if (profile?.business_id) continue; // Contractor: do not show as personal contact
             if (seenUserIds.has(c.user_id)) continue;
@@ -209,7 +220,26 @@ export async function GET(request: NextRequest) {
           }
         }
       }
-      // Contractor: ProBot + all customers/visitors who contacted them (signed-in and anonymous)
+      // Contractor: append all hub contractors (other businesses) after customers/visitors
+      const { data: hubBusinesses } = await supabase
+        .from('businesses')
+        .select('id, business_name, slug, business_logo')
+        .eq('is_active', true)
+        .neq('id', userBusinessId)
+        .order('business_name')
+        .limit(500);
+      for (const b of hubBusinesses ?? []) {
+        const row = b as { id: string; business_name: string | null; slug: string | null; business_logo: string | null };
+        contacts.push({
+          id: row.id,
+          name: row.business_name ?? row.id,
+          isProBot: false,
+          businessId: row.id,
+          slug: row.slug ?? undefined,
+          logo: row.business_logo ?? undefined,
+          online: false,
+        });
+      }
     } else {
       // Customer / visitor: ProBot + all businesses (current behavior)
       const { data: businesses } = await supabase

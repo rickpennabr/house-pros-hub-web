@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { useWelcome } from '@/contexts/WelcomeContext';
 import { useProBotTransition } from '@/contexts/ProBotTransitionContext';
@@ -25,6 +25,7 @@ const BLACKOUT_MS = 500;
 export default function BotFloatingButton() {
   const t = useTranslations('bot');
   const router = useRouter();
+  const pathname = usePathname();
   const locale = useLocale();
   const { setTransitioningToProbot } = useProBotTransition();
   const { chatUnreadCount } = useChat();
@@ -32,6 +33,8 @@ export default function BotFloatingButton() {
   const { isWelcomeOverlayVisible } = useWelcome();
   const [src, setSrc] = useState<string>('/pro-bot-solo.gif');
   const [typedLength, setTypedLength] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (typedLength >= tooltipText.length) {
@@ -41,6 +44,12 @@ export default function BotFloatingButton() {
     const id = setTimeout(() => setTypedLength((n) => n + 1), TYPEWRITER_MS);
     return () => clearTimeout(id);
   }, [typedLength, tooltipText.length]);
+
+  // Don't render until mounted so we can read pathname (avoids showing floating bot on business list on reload).
+  if (!mounted) return null;
+
+  // On business list (HousePros) we show ProBot in the view toggle / bottom bar instead; never show the floating bot there.
+  const isBusinessList = Boolean(pathname?.includes('/businesslist'));
 
   const handleClick = () => {
     setTransitioningToProbot(true);
@@ -56,7 +65,7 @@ export default function BotFloatingButton() {
   const displayText = tooltipText.slice(0, typedLength);
   const isTyping = typedLength < tooltipText.length;
 
-  if (isWelcomeOverlayVisible) return null;
+  if (isWelcomeOverlayVisible || isBusinessList) return null;
 
   const probotHref = `/${locale}/probot`;
 
@@ -68,6 +77,7 @@ export default function BotFloatingButton() {
         prefetch
         className="sr-only"
         aria-hidden
+        tabIndex={-1}
       >
         ProBot
       </Link>

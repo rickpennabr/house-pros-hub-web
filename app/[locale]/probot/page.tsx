@@ -6,6 +6,8 @@ import ProBotSidebar, { type ProBotContact, type ProBotRecentConversation } from
 import ProBotChatArea from '@/components/probot/ProBotChatArea';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProBotHeader } from '@/contexts/ProBotHeaderContext';
+import LoadingFallback from '@/components/ui/LoadingFallback';
 import { useProBotContacts } from '@/app/[locale]/probot/hooks/useProBotContacts';
 import { useProBotPresence } from '@/app/[locale]/probot/hooks/useProBotPresence';
 import { useProBotRealtime } from '@/app/[locale]/probot/hooks/useProBotRealtime';
@@ -64,9 +66,16 @@ function ProBotPageContent() {
   const [historyChatLoading, setHistoryChatLoading] = useState(false);
   const [contractorUnreadCount, setContractorUnreadCount] = useState(0);
   const [contractorConversations, setContractorConversations] = useState<ProBotRecentConversation[] | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  /** When true, ChatArea shows the welcome (role selection) view; set when user taps "back to welcome" on mobile. */
+  const [forceWelcomeView, setForceWelcomeView] = useState(false);
+  /** True when user is in a chat (header visible); used for mobile back chevron and hiding sidebar expand tab. */
+  const [inChatView, setInChatView] = useState(false);
   const hasSetInitialAdminSelectionRef = useRef(false);
   /** True once we know user role (guest = customer; authenticated = after is-admin check). Prevents welcome flash for admins/contractors. */
-  const [roleKnown, setRoleKnown] = useState(false);
+  const [roleKnown, setRoleKnown] = useState(() => !isAuthenticated);
+
+  const { setProBotHeader } = useProBotHeader();
 
   const isContractor = Boolean(user?.businessId);
   const visitorChatUnreadCount = !isAdmin && !isContractor ? chatUnreadCount : 0;
@@ -102,8 +111,10 @@ function ProBotPageContent() {
 
   const handleSelectContact = useCallback(
     (contact: ProBotContact) => {
+      setForceWelcomeView(false);
       const contactParamValue = contact.slug ?? contact.id;
       setSelectedContact(contact);
+      setSidebarOpen(false);
       // Mark that user chose this contact so the URL-sync effect doesn't revert to the previous ?contact= (e.g. History Chat's contact) when contacts/contactById update.
       pendingUserContactParamRef.current = contactParamValue;
       router.replace(`${pathname}?contact=${encodeURIComponent(contactParamValue)}`, { scroll: false });
@@ -129,6 +140,7 @@ function ProBotPageContent() {
   );
 
   // Sync URL ?contact= to selectedContact. When user clicks a contact we update state + URL; do not override with the old URL until the URL has updated (pendingUserContactParamRef).
+  // Use stub contact when ?contact= is set but contacts not yet loaded so we don't flash ProBot then switch to business.
   useEffect(() => {
     if (pendingUserContactParamRef.current !== null) {
       if (contactParam !== pendingUserContactParamRef.current) return; // URL not updated yet; don't override user's selection
@@ -145,7 +157,19 @@ function ProBotPageContent() {
         !c.isProBot &&
         (c.slug === contactParam || c.id === contactParam || c.businessId === contactParam)
     );
-    if (bySlug) setSelectedContact(bySlug);
+    if (bySlug) {
+      setSelectedContact(bySlug);
+      return;
+    }
+    if (contactParam !== 'probot') {
+      setSelectedContact({
+        id: contactParam,
+        slug: contactParam,
+        name: contactParam,
+        isProBot: false,
+        businessId: contactParam,
+      });
+    }
   }, [contactParam, contacts, contactById]);
 
   // When ProBot is selected, poll hub presence (for ProBot online indicator)
@@ -189,6 +213,7 @@ function ProBotPageContent() {
       setRoleKnown(true);
       return;
     }
+    setRoleKnown(false);
     let cancelled = false;
     setHistoryChatLoading(true);
     const conversationsPromise = fetch('/api/chat/admin/conversations').then((res) => (res.ok ? res.json() : null));
@@ -280,6 +305,18 @@ function ProBotPageContent() {
     if (isContractor) setContractorUnreadCount(chatUnreadCount);
   }, [isContractor, chatUnreadCount]);
 
+  // Wire layout header: on mobile when in chat show back chevron that goes to ProBot welcome page.
+  const onBackToWelcome = useCallback(() => {
+    setSelectedContact(PROBOT_CONTACT);
+    router.replace(pathname, { scroll: false });
+    setSidebarOpen(false);
+    setForceWelcomeView(true);
+  }, [router, pathname]);
+
+  useEffect(() => {
+    setProBotHeader({ inChat: inChatView, onBackToWelcome });
+  }, [inChatView, onBackToWelcome, setProBotHeader]);
+
   // When contractor opens a conversation, refetch unread count and History Chat list after messages load (and get marked read)
   useEffect(() => {
     if (!isContractor || !adminViewingConversation?.id) return;
@@ -307,6 +344,7 @@ function ProBotPageContent() {
         contacts={contacts}
         selectedContactId={selectedContact.id}
         onSelectContact={handleSelectContact}
+        inChatView={inChatView}
         hubOnline={selectedContact?.id === 'probot' ? hubOnline : undefined}
         recentConversations={isAdmin ? recentConversations : contractorConversations ?? null}
         selectedConversationIdForAdmin={adminViewingConversation?.id ?? null}
@@ -345,6 +383,8 @@ function ProBotPageContent() {
         visitorUnreadCount={!isAdmin ? visitorChatUnreadCount : 0}
         onSelectVisitorProBot={!isAdmin ? () => setSelectedContact(PROBOT_CONTACT) : undefined}
         historyChatLoading={historyChatLoading}
+        sidebarOpen={sidebarOpen}
+        onSidebarOpenChange={setSidebarOpen}
       />
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         <ProBotChatArea
@@ -369,6 +409,10 @@ function ProBotPageContent() {
               .catch(() => {});
           } : undefined}
           focusInputTrigger={contactParam ?? undefined}
+          onOpenSidebar={!isAdmin ? () => setSidebarOpen(true) : undefined}
+          forceWelcomeView={forceWelcomeView}
+          onChatViewChange={setInChatView}
+          onWelcomeChoiceMade={() => setForceWelcomeView(false)}
         />
       </div>
     </div>
@@ -378,7 +422,7 @@ function ProBotPageContent() {
 export default function ProBotPage() {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <Suspense fallback={<div className="flex items-center justify-center p-8">Loading...</div>}>
+      <Suspense fallback={<LoadingFallback />}>
         <ProBotPageContent />
       </Suspense>
     </div>

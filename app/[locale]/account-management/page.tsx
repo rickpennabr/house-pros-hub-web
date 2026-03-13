@@ -7,6 +7,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { businessStorage } from '@/lib/storage/businessStorage';
 import { ProCardData } from '@/components/proscard/ProCard';
+import LoadingFallback from '@/components/ui/LoadingFallback';
 import { 
   Building2, 
   Plus, 
@@ -552,7 +553,7 @@ function AccountManagementContent() {
 
 export default function AccountManagementPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center p-8">Loading...</div>}>
+    <Suspense fallback={<LoadingFallback />}>
       <AccountManagementContent />
     </Suspense>
   );

@@ -121,16 +121,20 @@ export function getExtensionFromMimeType(mimeType: string): string {
 
 /**
  * Validates chat attachment (images + PDF) using magic bytes.
+ * PDF: magic is %PDF; allow one optional leading whitespace byte (some generators add it).
  */
 export async function validateChatAttachmentMagicBytes(
   buffer: Buffer | ArrayBuffer | Uint8Array
 ): Promise<{ isValid: boolean; mimeType: string | null }> {
   try {
-    const fileType = await fileTypeFromBuffer(buffer);
+    const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer);
+    const fileType = await fileTypeFromBuffer(buf);
     if (!fileType) {
-      // PDF magic is %PDF - file-type may detect it
-      const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer);
-      if (buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
+      const pdfMagic = [0x25, 0x50, 0x44, 0x46]; // %PDF
+      const at = buf[0] === 0x20 || buf[0] === 0x0a || buf[0] === 0x0d || buf[0] === 0x09 ? 1 : 0;
+      const hasPdfMagic =
+        buf.length >= at + 4 && pdfMagic.every((byte, i) => buf[at + i] === byte);
+      if (hasPdfMagic) {
         return { isValid: true, mimeType: 'application/pdf' };
       }
       return { isValid: false, mimeType: null };

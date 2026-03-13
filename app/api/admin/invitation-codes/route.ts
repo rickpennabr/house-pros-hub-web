@@ -17,8 +17,8 @@ async function requireAdmin() {
 
 /**
  * GET /api/admin/invitation-codes
- * List recent contractor invitation codes. Admin only.
- * Query: limit (default 50)
+ * List recent contractor or realtor invitation codes. Admin only.
+ * Query: limit (default 50), role (default contractor; use 'realtor' for realtor codes)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -27,10 +27,12 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
+    const role = searchParams.get('role') === 'realtor' ? 'realtor' : 'contractor';
+    const table = role === 'realtor' ? 'realtor_invitation_codes' : 'contractor_invitation_codes';
 
     const service = createServiceRoleClient();
     const { data: codes, error } = await service
-      .from('contractor_invitation_codes')
+      .from(table)
       .select('id, code, created_at, expires_at, used_at, used_by')
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -43,7 +45,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ codes: codes ?? [] });
+    return NextResponse.json({ codes: codes ?? [], role });
   } catch (e) {
     console.error('[invitation-codes GET] error:', e);
     return NextResponse.json(

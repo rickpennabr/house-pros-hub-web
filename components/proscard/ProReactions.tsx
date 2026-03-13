@@ -203,8 +203,8 @@ export default function ProReactions({
   const justifyClass = layout === 'around' ? 'justify-around' : 'justify-between';
   
   return (
-    <div className="h-[70px] px-1 py-2 flex items-center justify-center overflow-hidden">
-      <div className={`w-full flex items-center ${justifyClass}`}>
+    <div className="procard-reactions h-[70px] px-1 py-2 flex items-center justify-center overflow-hidden">
+      <div className={`w-full flex items-center gap-1 ${justifyClass}`}>
         {reactionConfig.map(({ type, icon: Icon, label, count }) => {
           const isActive = activeReactions.has(type);
           // Special styling for active states
@@ -245,31 +245,19 @@ export default function ProReactions({
             return 'text-black';
           };
           
-          // Reaction label backgrounds: 90px on mobile, original widths on desktop
-          const getButtonWidth = () => {
-            if (type === 'love') return 'w-[90px] md:w-[70px]';
-            if (type === 'feedback') return 'w-[100px] md:w-[75px]';
-            if (type === 'link') return 'w-[80px] md:w-[60px]';
-            if (type === 'save') return 'w-[80px] md:w-[60px]';
-            return 'w-[90px] md:w-[60px]';
-          };
-          
-          // Get padding for reaction label container
-          const getLabelPadding = () => 'px-2';
-          
           return (
             <button
               key={type}
               onClick={(e) => handleReaction(e, type)}
-              className={`group flex flex-col items-center justify-center gap-2 px-0.5 rounded-lg transition-all font-medium cursor-pointer shrink-0 ${getButtonStyles()}`}
-              aria-label={label}
+              className={`group flex flex-1 min-w-0 flex-col items-center justify-center gap-2 px-0.5 rounded-lg transition-all font-medium cursor-pointer ${getButtonStyles()}`}
+              aria-label={`${label}, ${count}`}
             >
               <div className="flex items-center justify-center gap-1">
-                <Icon className={`w-4 h-4 transition-transform md:group-hover:scale-110 ${getIconStyles()}`} />
-                <span className={`text-sm md:text-[10px] font-semibold leading-tight ${getTextColor()}`}>{count}</span>
+                <Icon className={`w-4 h-4 md:w-3 md:h-3 transition-transform md:group-hover:scale-110 ${getIconStyles()}`} />
+                <span className={`text-[10px] font-semibold leading-tight ${getTextColor()}`}>{count}</span>
               </div>
-              <div className={`${getButtonWidth()} ${getLabelPadding()} py-1.5 rounded border-2 ${getBorderStyles()} bg-white flex items-center justify-center`}>
-                <span className={`text-sm md:text-[10px] font-semibold leading-tight whitespace-nowrap ${getTextColor()}`}>{label}</span>
+              <div className={`w-full min-w-0 px-1 py-1.5 rounded border-2 ${getBorderStyles()} bg-white flex items-center justify-center`}>
+                <span className={`text-[10px] font-semibold leading-tight whitespace-nowrap truncate ${getTextColor()}`}>{label}</span>
               </div>
             </button>
           );

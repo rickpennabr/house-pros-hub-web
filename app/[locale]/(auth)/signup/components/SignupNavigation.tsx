@@ -26,7 +26,7 @@ export function SignupNavigation({
   onAddBusiness,
 }: SignupNavigationProps) {
   const t = useTranslations('auth.signup.navigation');
-  const isContractor = userType === USER_TYPES.CONTRACTOR;
+  const isProSignup = userType === USER_TYPES.CONTRACTOR || userType === USER_TYPES.REALTOR;
 
   return (
     <div className="flex gap-4 pt-4 mt-auto">
@@ -53,8 +53,8 @@ export function SignupNavigation({
         </Button>
       ) : (
         <>
-          {isContractor ? (
-            // For contractors, show "Add a Business" button
+          {isProSignup ? (
+            // For contractors/realtors, show "Add a Business" button
             // But first submit the form to sign up, then business form will show automatically
             <Button
               type="submit"

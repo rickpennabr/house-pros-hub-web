@@ -14,8 +14,8 @@ export default function PhoneButton() {
         relative h-10 px-2 
         bg-white text-black 
         rounded-lg border-2 border-black 
-        font-bold text-[11px] md:text-[13px]
-        flex items-center justify-center
+        font-bold text-[11px] md:text-[13px] leading-none
+        flex items-center justify-center shrink-0
         cursor-pointer overflow-hidden
         transition-all duration-300
         hover:bg-gray-50 

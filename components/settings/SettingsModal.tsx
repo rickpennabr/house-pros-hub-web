@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, User, Shield, Globe } from 'lucide-react';
+import { Settings as SettingsIcon, User, Shield, Globe, ChevronDown } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import Modal from '@/components/ui/Modal';
-import type { Locale } from '@/i18n';
+import { UsFlagIcon, SpainFlagIcon, BrazilFlagIcon } from '@/components/pageslayout/LocaleFlagIcons';
+import { locales, type Locale } from '@/i18n';
+
+type AccordionSection = 'account' | 'language' | 'privacy';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -18,17 +21,20 @@ export default function SettingsModal({
   isOpen,
   onClose,
 }: SettingsModalProps) {
+  const t = useTranslations('common');
   const { user, updateUser } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const currentLocale = useLocale() as Locale;
   const [selectedLocale, setSelectedLocale] = useState<Locale>(currentLocale);
   const [isUpdatingLocale, setIsUpdatingLocale] = useState(false);
+  const [openSection, setOpenSection] = useState<AccordionSection>('account');
 
-  // Reset selected locale when modal opens or current locale changes
+  // Reset selected locale and accordion when modal opens or current locale changes
   useEffect(() => {
     if (isOpen) {
       setSelectedLocale(currentLocale);
+      setOpenSection('account');
     }
   }, [isOpen, currentLocale]);
 
@@ -48,11 +54,11 @@ export default function SettingsModal({
       // Wait a brief moment to ensure the update is processed
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Navigate to the new locale using full page reload to maintain session
+      // Navigate to the new locale using full page reload to maintain session (support en, es, pt)
       let pathWithoutLocale = pathname;
       if (pathname.startsWith(`/${currentLocale}`)) {
         pathWithoutLocale = pathname.replace(`/${currentLocale}`, '') || '/';
-      } else if (pathname.startsWith('/en/') || pathname.startsWith('/es/')) {
+      } else if ((locales as readonly string[]).some((l) => pathname.startsWith(`/${l}/`) || pathname === `/${l}`)) {
         pathWithoutLocale = '/' + pathname.split('/').slice(2).join('/') || '/';
       }
       const newPath = `/${selectedLocale}${pathWithoutLocale}`;
@@ -119,17 +125,27 @@ export default function SettingsModal({
           </div>
         )}
 
-        {/* Settings Sections */}
+        {/* Settings Sections (accordion: only one open, default Account) */}
         <div className="flex-1 p-4 space-y-4 overflow-y-auto">
           {/* Account Settings */}
           <div className="border-2 border-black rounded-lg bg-white">
-            <div className="p-4 border-b-2 border-black">
+            <button
+              type="button"
+              onClick={() => setOpenSection('account')}
+              className="w-full p-4 flex items-center justify-between gap-2 hover:bg-gray-50/50 transition-colors text-left rounded-t-lg"
+              aria-expanded={openSection === 'account'}
+            >
               <div className="flex items-center gap-2">
-                <User className="w-5 h-5 text-black" />
+                <User className="w-5 h-5 text-black shrink-0" />
                 <h3 className="text-base font-bold text-black">Account</h3>
               </div>
-            </div>
-            <div className="p-2">
+              <ChevronDown
+                className={`w-5 h-5 text-black shrink-0 transition-transform ${openSection === 'account' ? 'rotate-180' : ''}`}
+                aria-hidden
+              />
+            </button>
+            {openSection === 'account' && (
+            <div className="p-2 border-t-2 border-black">
               <button
                 onClick={() => {
                   onClose();
@@ -149,16 +165,31 @@ export default function SettingsModal({
                 Account Management
               </button>
             </div>
+            )}
           </div>
 
           {/* Language Preference */}
           <div className="border-2 border-black rounded-lg bg-white">
-            <div className="p-4 border-b-2 border-black">
+            <button
+              type="button"
+              onClick={() => setOpenSection('language')}
+              className="w-full p-4 flex items-center justify-between gap-2 hover:bg-gray-50/50 transition-colors text-left rounded-t-lg"
+              aria-expanded={openSection === 'language'}
+            >
               <div className="flex items-center gap-2">
-                <Globe className="w-5 h-5 text-black" />
+                <Globe className="w-5 h-5 text-black shrink-0" />
                 <h3 className="text-base font-bold text-black">Language</h3>
               </div>
-            </div>
+              <ChevronDown
+                className={`w-5 h-5 text-black shrink-0 transition-transform ${openSection === 'language' ? 'rotate-180' : ''}`}
+                aria-hidden
+              />
+            </button>
+            {openSection === 'language' && (
+            <>
+              <p className="px-4 pt-1 text-xs text-gray-600 border-t-2 border-black">
+                {t('settings.languagePreferenceSaved')}
+              </p>
             <div className="p-2 space-y-1">
               <button
                 onClick={() => setSelectedLocale('en')}
@@ -171,18 +202,7 @@ export default function SettingsModal({
               >
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0 w-6 h-4 rounded-sm overflow-hidden border border-black/20 shadow-sm">
-                    <svg viewBox="0 0 27 18" className="w-full h-full">
-                      {/* US flag */}
-                      <rect y="0" width="27" height="18" fill="#FFFFFF" />
-                      <rect x="0" y="0" width="11" height="8" fill="#002868" />
-                      <rect y="0" width="27" height="1.4" fill="#BF0A30" />
-                      <rect y="2.8" width="27" height="1.4" fill="#BF0A30" />
-                      <rect y="5.6" width="27" height="1.4" fill="#BF0A30" />
-                      <rect y="8.4" width="27" height="1.4" fill="#BF0A30" />
-                      <rect y="11.2" width="27" height="1.4" fill="#BF0A30" />
-                      <rect y="14" width="27" height="1.4" fill="#BF0A30" />
-                      <rect y="16.8" width="27" height="1.2" fill="#BF0A30" />
-                    </svg>
+                    <UsFlagIcon />
                   </div>
                   <span>English</span>
                   {selectedLocale === 'en' && (
@@ -201,12 +221,7 @@ export default function SettingsModal({
               >
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0 w-6 h-4 rounded-sm overflow-hidden border border-black/20 shadow-sm">
-                    <svg viewBox="0 0 27 18" className="w-full h-full">
-                      {/* Spain flag */}
-                      <rect y="0" width="27" height="6" fill="#AA151B" />
-                      <rect y="6" width="27" height="6" fill="#F1BF00" />
-                      <rect y="12" width="27" height="6" fill="#AA151B" />
-                    </svg>
+                    <SpainFlagIcon />
                   </div>
                   <span>Español</span>
                   {selectedLocale === 'es' && (
@@ -214,18 +229,49 @@ export default function SettingsModal({
                   )}
                 </div>
               </button>
+              <button
+                onClick={() => setSelectedLocale('pt')}
+                disabled={isUpdatingLocale}
+                className={`w-full text-left px-4 py-2.5 rounded-lg transition-colors font-medium cursor-pointer ${
+                  selectedLocale === 'pt'
+                    ? 'bg-gray-100 border-2 border-black'
+                    : 'hover:bg-gray-50 border-2 border-transparent'
+                } ${isUpdatingLocale ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 w-6 h-4 rounded-sm overflow-hidden border border-black/20 shadow-sm">
+                    <BrazilFlagIcon />
+                  </div>
+                  <span>Português</span>
+                  {selectedLocale === 'pt' && (
+                    <span className="ml-auto text-xs text-gray-600">Selecionado</span>
+                  )}
+                </div>
+              </button>
             </div>
+            </>
+            )}
           </div>
 
           {/* Privacy & Security */}
           <div className="border-2 border-black rounded-lg bg-white">
-            <div className="p-4 border-b-2 border-black">
+            <button
+              type="button"
+              onClick={() => setOpenSection('privacy')}
+              className="w-full p-4 flex items-center justify-between gap-2 hover:bg-gray-50/50 transition-colors text-left rounded-t-lg"
+              aria-expanded={openSection === 'privacy'}
+            >
               <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-black" />
+                <Shield className="w-5 h-5 text-black shrink-0" />
                 <h3 className="text-base font-bold text-black">Privacy & Security</h3>
               </div>
-            </div>
-            <div className="p-2">
+              <ChevronDown
+                className={`w-5 h-5 text-black shrink-0 transition-transform ${openSection === 'privacy' ? 'rotate-180' : ''}`}
+                aria-hidden
+              />
+            </button>
+            {openSection === 'privacy' && (
+            <div className="p-2 border-t-2 border-black">
               <button
                 onClick={() => {
                   onClose();
@@ -236,6 +282,7 @@ export default function SettingsModal({
                 Help & Support
               </button>
             </div>
+            )}
           </div>
         </div>
 

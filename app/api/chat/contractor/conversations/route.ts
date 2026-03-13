@@ -126,6 +126,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const { data: adminUsers } = await supabase.from('admin_users').select('user_id');
+    const adminUserIdsSet = new Set<string>(((adminUsers ?? []) as { user_id: string }[]).map((r) => r.user_id));
+
     type ConversationItem = {
       id: string;
       visitor_id: string;
@@ -140,6 +143,7 @@ export async function GET(request: NextRequest) {
       profile_first_name?: string;
       profile_last_name?: string;
       profile_user_picture?: string | null;
+      display_as_probot?: boolean;
       _lastActivityAt?: string;
     };
 
@@ -153,6 +157,7 @@ export async function GET(request: NextRequest) {
       const profile_user_picture = profile?.user_picture?.trim() || undefined;
       const visitor_display_name = row.visitor_display_name?.trim() || undefined;
       const lastActivityAt = last?.created_at ?? row.updated_at;
+      const display_as_probot = row.user_id ? adminUserIdsSet.has(row.user_id) : false;
       return {
         id: row.id,
         visitor_id: row.visitor_id,
@@ -167,6 +172,7 @@ export async function GET(request: NextRequest) {
         profile_first_name,
         profile_last_name,
         profile_user_picture,
+        display_as_probot,
         _lastActivityAt: lastActivityAt,
       };
     });

@@ -8,11 +8,12 @@ import { Button } from '@/components/ui/Button';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 
 interface InvitationCodeScreenProps {
+  role?: 'contractor' | 'realtor';
   onValidCode: (code: string) => void;
   onBack: () => void;
 }
 
-export function InvitationCodeScreen({ onValidCode, onBack }: InvitationCodeScreenProps) {
+export function InvitationCodeScreen({ role = 'contractor', onValidCode, onBack }: InvitationCodeScreenProps) {
   const t = useTranslations('auth.signup.fields');
   const tNav = useTranslations('auth.signup.navigation');
   const [code, setCode] = useState('');
@@ -31,7 +32,7 @@ export function InvitationCodeScreen({ onValidCode, onBack }: InvitationCodeScre
       const res = await fetch('/api/auth/validate-invitation-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: trimmed }),
+        body: JSON.stringify({ code: trimmed, role }),
       });
       const data = await res.json().catch(() => ({}));
       if (data.valid) {

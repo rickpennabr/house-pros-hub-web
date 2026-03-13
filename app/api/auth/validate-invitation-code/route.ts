@@ -4,8 +4,9 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
 
 /**
  * POST /api/auth/validate-invitation-code
- * Validates a contractor invitation code (exists, not used, not expired).
- * Returns { valid: boolean, error?: string } for use in signup flows (e.g. ProBot).
+ * Validates a contractor or realtor invitation code (exists, not used, not expired).
+ * Body: { code: string, role?: 'contractor' | 'realtor' }. Default role is contractor.
+ * Returns { valid: boolean, error?: string } for use in signup flows.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -16,17 +17,19 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const rawCode = typeof body.code === 'string' ? body.code.trim().toUpperCase() : '';
+    const role = body.role === 'realtor' ? 'realtor' : 'contractor';
 
     if (!rawCode) {
       return NextResponse.json(
-        { valid: false, error: 'Invitation code is required for contractor signup.' },
+        { valid: false, error: 'Invitation code is required.' },
         { status: 200 }
       );
     }
 
     const serviceRoleClient = createServiceRoleClient();
+    const table = role === 'realtor' ? 'realtor_invitation_codes' : 'contractor_invitation_codes';
     const { data: codeRow, error: codeError } = await serviceRoleClient
-      .from('contractor_invitation_codes')
+      .from(table)
       .select('id, expires_at, used_at')
       .eq('code', rawCode)
       .maybeSingle();

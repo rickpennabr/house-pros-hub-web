@@ -99,7 +99,7 @@ export interface WelcomeEmailData {
   firstName: string;
   lastName: string;
   email: string;
-  userType: 'customer' | 'contractor' | 'both';
+  userType: 'customer' | 'contractor' | 'realtor' | 'both';
 }
 
 export interface SetPasswordEmailTranslations {
@@ -115,11 +115,11 @@ export interface SetPasswordEmailTranslations {
 }
 
 export interface NewSignupAdminNotificationData {
-  type: 'customer' | 'contractor' | 'business';
-  /** For customer/contractor: full name. For business: business name. */
+  type: 'customer' | 'contractor' | 'realtor' | 'business';
+  /** For customer/contractor/realtor: full name. For business: business name. */
   name: string;
   email: string;
-  /** Optional: phone (customer/contractor). */
+  /** Optional: phone (customer/contractor/realtor). */
   phone?: string | null;
 }
 
@@ -132,13 +132,17 @@ export function generateNewSignupAdminNotification(data: NewSignupAdminNotificat
       ? 'New customer signed up'
       : data.type === 'contractor'
         ? 'New contractor signed up'
-        : 'New business added';
+        : data.type === 'realtor'
+          ? 'New realtor signed up'
+          : 'New business added';
   const typeLabel =
     data.type === 'customer'
       ? 'Customer'
       : data.type === 'contractor'
         ? 'Contractor'
-        : 'Business';
+        : data.type === 'realtor'
+          ? 'Realtor'
+          : 'Business';
 
   return `
 <!DOCTYPE html>
@@ -462,6 +466,10 @@ export function generateWelcomeEmail(
       welcomeMessage = translations.contractorWelcomeMessage;
       nextStepsContent = translations.contractorNextSteps;
       break;
+    case 'realtor':
+      welcomeMessage = translations.contractorWelcomeMessage;
+      nextStepsContent = translations.contractorNextSteps;
+      break;
     case 'both':
       welcomeMessage = translations.bothWelcomeMessage;
       nextStepsContent = translations.bothNextSteps;
@@ -603,7 +611,7 @@ export function generateSetPasswordEmail(
 export interface PasswordResetEmailData {
   resetLink: string;
   userName?: string;
-  language: 'en' | 'es';
+  language: 'en' | 'es' | 'pt';
 }
 
 const passwordResetTranslations = {
@@ -632,6 +640,19 @@ const passwordResetTranslations = {
     expiryNote: 'Este enlace caducará en 1 hora.',
     thankYou: '¡Gracias por usar House Pros Hub!',
     questions: '¿Preguntas? Contáctanos en',
+  },
+  pt: {
+    title: 'Redefinir sua senha',
+    subtitle: 'Recebemos uma solicitação para redefinir a senha da sua conta House Pros Hub.',
+    greeting: (name?: string) => (name ? `Olá ${name},` : 'Olá,'),
+    instruction: 'Clique no botão abaixo para redefinir sua senha. Este link expira em 1 hora.',
+    securityNote: 'Nota de segurança:',
+    securityText: 'Se você não solicitou a redefinição de senha, ignore este e-mail. Sua senha permanecerá inalterada.',
+    buttonText: 'Redefinir senha',
+    alternativeText: 'Se o botão não funcionar, copie e cole este link no seu navegador:',
+    expiryNote: 'Este link expira em 1 hora.',
+    thankYou: 'Obrigado por usar o House Pros Hub!',
+    questions: 'Dúvidas? Entre em contato em',
   },
 } as const;
 
@@ -685,6 +706,91 @@ export function generatePasswordResetEmail(data: PasswordResetEmailData): string
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">House Pros Hub</p>
               <p style="margin: 0 0 10px 0; font-size: 12px; color: #666;">${t.questions} <a href="mailto:${COMPANY_INFO.email.contact}" style="color: #000000;">${COMPANY_INFO.email.contact}</a></p>
               ${getFooterContactCta()}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+export interface PasswordChangedEmailData {
+  userName?: string;
+  language: 'en' | 'es' | 'pt';
+  /** Support phone for "if you didn't change it" (e.g. (702) 232-0411). */
+  supportPhoneDisplay: string;
+}
+
+const passwordChangedTranslations = {
+  en: {
+    subject: 'Your password was changed',
+    greeting: (name?: string) => (name ? `Hi ${name},` : 'Hi,'),
+    message: 'Your House Pros Hub account password was recently changed.',
+    ifNotYou: 'If you did not change it, please contact us at',
+    forAssistance: 'for assistance.',
+    automatedDisclaimer: 'This email is sent from an automated system; please do not reply.',
+    copyright: 'House Pros Hub. All rights reserved.',
+  },
+  es: {
+    subject: 'Tu contraseña fue cambiada',
+    greeting: (name?: string) => (name ? `Hola ${name},` : 'Hola,'),
+    message: 'La contraseña de tu cuenta de House Pros Hub fue cambiada recientemente.',
+    ifNotYou: 'Si no fuiste tú quien la cambió, contáctanos al',
+    forAssistance: 'para recibir asistencia.',
+    automatedDisclaimer: 'Este correo es enviado por un sistema automático; por favor no respondas.',
+    copyright: 'House Pros Hub. Todos los derechos reservados.',
+  },
+  pt: {
+    subject: 'Sua senha foi alterada',
+    greeting: (name?: string) => (name ? `Olá ${name},` : 'Olá,'),
+    message: 'A senha da sua conta House Pros Hub foi alterada recentemente.',
+    ifNotYou: 'Se não foi você quem alterou, entre em contato conosco no',
+    forAssistance: 'para assistência.',
+    automatedDisclaimer: 'Este e-mail é enviado por um sistema automático; por favor não responda.',
+    copyright: 'House Pros Hub. Todos os direitos reservados.',
+  },
+} as const;
+
+/**
+ * Generate HTML email template for password change confirmation (ADP-style).
+ * Sent after user successfully changes password so they know the change occurred.
+ */
+export function generatePasswordChangedEmail(data: PasswordChangedEmailData): string {
+  const t = passwordChangedTranslations[data.language];
+  const greeting = t.greeting(data.userName);
+  const supportPhone = data.supportPhoneDisplay;
+  return `
+<!DOCTYPE html>
+<html lang="${data.language}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${t.subject} - House Pros Hub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px;">
+              <p style="margin: 0 0 16px 0; font-size: 16px; color: #333;">${greeting}</p>
+              <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${t.message}</p>
+              <p style="margin: 0 0 24px 0; font-size: 16px; color: #333;">${t.ifNotYou} <a href="tel:+1${supportPhone.replace(/\D/g, '')}" style="color: #000000; font-weight: bold;">${supportPhone}</a> ${t.forAssistance}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 24px; background-color: #f9fafb; border-top: 2px solid #e5e7eb; text-align: center;">
+              <p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">${t.automatedDisclaimer}</p>
+              <p style="margin: 0; font-size: 12px; color: #999;">© ${new Date().getFullYear()} ${t.copyright}</p>
             </td>
           </tr>
         </table>

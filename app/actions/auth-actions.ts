@@ -2,7 +2,7 @@
 
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { passwordSchema } from '@/lib/schemas/auth';
-import { sendPasswordResetEmail } from '@/lib/services/emailService';
+import { sendPasswordResetEmail, sendPasswordChangedEmail } from '@/lib/services/emailService';
 import { logger } from '@/lib/utils/logger';
 
 const MAX_RESET_ATTEMPTS = 3;
@@ -96,7 +96,7 @@ export async function resetPassword(email: string): Promise<{ success?: boolean;
     await recordResetAttempt(normalizedEmail);
 
     const siteUrl = getSiteUrl();
-    const locale = profile?.preferred_locale === 'es' ? 'es' : 'en';
+    const locale = profile?.preferred_locale === 'es' ? 'es' : profile?.preferred_locale === 'pt' ? 'pt' : 'en';
     const redirectTo = `${siteUrl}/${locale}/reset-password`;
     logger.info('[ForgotPassword] redirectTo', { redirectTo, locale, siteUrl });
 
@@ -115,7 +115,7 @@ export async function resetPassword(email: string): Promise<{ success?: boolean;
     const userName = profile?.first_name
       ? `${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`.trim()
       : undefined;
-    const language = locale === 'es' ? 'es' : 'en';
+    const language: 'en' | 'es' | 'pt' = locale === 'es' ? 'es' : locale === 'pt' ? 'pt' : 'en';
 
     logger.info('[ForgotPassword] sending email', { email: normalizedEmail });
     const emailResult = await sendPasswordResetEmail({
@@ -173,6 +173,29 @@ export async function updatePassword(newPassword: string): Promise<{ success?: b
       return { error: msg };
     }
     logger.info('[ResetPassword] password updated', { userId: user?.id });
+
+    // Send "your password was changed" confirmation email (ADP-style). Do not block success on email failure.
+    const email = user?.email?.toLowerCase();
+    if (email) {
+      let userName: string | undefined;
+      let language: 'en' | 'es' | 'pt' = 'en';
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, preferred_locale')
+        .eq('id', user.id)
+        .single();
+      if (profileData?.first_name) {
+        userName = `${profileData.first_name}${profileData.last_name ? ' ' + profileData.last_name : ''}`.trim();
+      }
+      if (profileData?.preferred_locale === 'es') language = 'es';
+      else if (profileData?.preferred_locale === 'pt') language = 'pt';
+      sendPasswordChangedEmail({ email, userName, language }).then((result) => {
+        if (!result.success) {
+          logger.error('[ResetPassword] password-changed email failed', { email, error: result.error });
+        }
+      });
+    }
+
     return { success: true };
   } catch (error) {
     logger.error('Error in updatePassword', { endpoint: 'updatePassword' }, error as Error);

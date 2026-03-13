@@ -81,28 +81,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const fetchUnread = async () => {
       try {
-        if (isAdmin) {
-          const res = await fetch('/api/chat/admin/unread-count', { cache: 'no-store', credentials: 'include' });
-          if (res.ok) {
-            const data = await res.json();
-            if (typeof data.count === 'number') setChatUnreadCount(data.count);
-          }
-          return;
-        }
-        if (isContractor) {
-          const res = await fetch('/api/chat/contractor/unread-count', { cache: 'no-store', credentials: 'include' });
-          if (res.ok) {
-            const data = await res.json();
-            if (typeof data.count === 'number') setChatUnreadCount(data.count);
-          }
-          return;
-        }
-        if (visitorId) {
-          const res = await fetch(`/api/chat/unread-count?visitorId=${encodeURIComponent(visitorId)}`, { cache: 'no-store' });
-          if (res.ok) {
-            const data = await res.json();
-            if (typeof data.count === 'number') setChatUnreadCount(data.count);
-          }
+        const url =
+          isAdmin || isContractor
+            ? '/api/notifications/unread-count'
+            : visitorId
+              ? `/api/notifications/unread-count?visitorId=${encodeURIComponent(visitorId)}`
+              : null;
+        if (!url) return;
+        const res = await fetch(url, { cache: 'no-store', credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.count === 'number') setChatUnreadCount(data.count);
         }
       } catch {
         // ignore

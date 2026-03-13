@@ -7,6 +7,7 @@ import { normalizeLinks } from '@/lib/utils/normalizeLinks';
 import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
+import { requireRole } from '@/lib/middleware/requireRole';
 import { hasRole } from '@/lib/utils/roles';
 import { sendNewSignupAdminNotification } from '@/lib/services/emailService';
 
@@ -270,10 +271,11 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
     const supabase = await createClient();
     const serviceRoleClient = createServiceRoleClient();
 
-    // Automatically grant contractor role if user doesn't have it
-    // Creating a business implies the user is a contractor
+    // Automatically grant contractor role if user doesn't have it (e.g. legacy flow)
+    // Realtors keep their role; only grant contractor when user has neither
     const userHasContractorRole = await hasRole(userId, 'contractor');
-    if (!userHasContractorRole) {
+    const userHasRealtorRole = await hasRole(userId, 'realtor');
+    if (!userHasContractorRole && !userHasRealtorRole) {
       logger.info('Auto-granting contractor role to user creating business', { userId });
       // Use service role client to bypass RLS restrictions
       try {
@@ -618,4 +620,4 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
 }
 
 // Export with authentication (role is auto-granted inside handler)
-export const POST = requireAuth(handleCreateBusiness);
+export const POST = requireRole(['contractor', 'realtor'], handleCreateBusiness);

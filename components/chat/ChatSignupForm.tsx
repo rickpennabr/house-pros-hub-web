@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, User, X, Pencil, Check } from 'lucide-react';
 import { GrUserWorker } from 'react-icons/gr';
+import { FaPersonShelter } from 'react-icons/fa6';
 import { useLocale } from 'next-intl';
 import AddressAutocomplete, { AddressData } from '@/components/AddressAutocomplete';
 import { Input } from '@/components/ui/Input';
@@ -17,7 +18,7 @@ import { signupSchema, signupSchemaBase, type SignupSchema } from '@/lib/schemas
 import { USER_TYPES } from '@/lib/constants/auth';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { resizeImageSquare, validateFileSize } from '@/lib/utils/image';
-import { CHAT_SIGNUP_STEPS, getVisibleSteps, type ChatSignupStep } from './chatSignupSteps';
+import { CHAT_SIGNUP_STEPS, getVisibleSteps, getGuestEstimateSteps, type ChatSignupStep } from './chatSignupSteps';
 import { useAuth } from '@/contexts/AuthContext';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 
@@ -49,7 +50,7 @@ const defaultValues: Record<string, string | boolean> = {
 
 function formatDisplayValue(step: ChatSignupStep, value: unknown): string {
   if (value === undefined || value === null) return '';
-  if (step.id === 'role') return value === USER_TYPES.CONTRACTOR ? 'Contractor' : 'Customer';
+  if (step.id === 'role') return value === USER_TYPES.CONTRACTOR ? 'Contractor' : value === USER_TYPES.REALTOR ? 'Realtor' : 'Customer';
   if (step.id === 'userPicture') return value ? 'Photo added' : '';
   if (step.id === 'agreeToTerms') return value ? 'I agree' : '';
   if (step.id === 'invitationCode') return value ? 'Entered' : '';
@@ -61,8 +62,27 @@ function formatDisplayValue(step: ChatSignupStep, value: unknown): string {
   return String(value);
 }
 
+/** Contact info collected in guest estimate flow (no account). */
+export interface GuestContactData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  streetAddress: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  apartment?: string;
+}
+
 export interface ChatSignupFormProps {
+  /** 'signup' = full account + role; 'guest_estimate' = contact info only for estimate */
+  mode?: 'signup' | 'guest_estimate';
   onSuccess?: () => void;
+  /** Called after successful signup with the selected role (customer/contractor/realtor) */
+  onSuccessWithRole?: (role: 'customer' | 'contractor' | 'realtor') => void;
+  /** Called when guest estimate flow completes (contact info only); use for estimate form. */
+  onGuestSubmit?: (data: GuestContactData) => void;
   onCancel?: () => void;
   /** When true, show back button that calls onCancel (e.g. return to choice screen) */
   showBackToChoice?: boolean;
@@ -73,7 +93,10 @@ export interface ChatSignupFormProps {
 }
 
 export default function ChatSignupForm({
+  mode = 'signup',
   onSuccess,
+  onSuccessWithRole,
+  onGuestSubmit,
   onCancel,
   showBackToChoice = true,
   onStepIndexChange,
@@ -108,7 +131,13 @@ export default function ChatSignupForm({
   const referralButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const referralContainerRef = useRef<HTMLDivElement>(null);
 
-  const visibleSteps = useMemo(() => getVisibleSteps(values as Record<string, unknown>), [values]);
+  const visibleSteps = useMemo(
+    () =>
+      mode === 'guest_estimate'
+        ? getGuestEstimateSteps(values as Record<string, unknown>)
+        : getVisibleSteps(values as Record<string, unknown>),
+    [values, mode]
+  );
   const currentStep = visibleSteps[stepIndex];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === visibleSteps.length - 1;
@@ -187,15 +216,24 @@ export default function ChatSignupForm({
   const stepHasFocusableInput = currentStep && ['text', 'email', 'tel', 'password', 'address', 'textarea'].includes(currentStep.type);
   useEffect(() => {
     if (!isTypingComplete || !stepHasFocusableInput) return;
+    let focusT: ReturnType<typeof setTimeout> | null = null;
     const t = setTimeout(() => {
       const form = document.getElementById('chat-signup-form');
       if (!form) return;
       const focusable = form.querySelector<HTMLInputElement | HTMLTextAreaElement>(
         'input:not([type="hidden"]):not([type="checkbox"]):not([type="file"]), textarea'
       );
-      focusable?.focus();
-    }, 200);
-    return () => clearTimeout(t);
+      if (focusable) {
+        focusable.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        focusT = setTimeout(() => {
+          focusable.focus({ preventScroll: false });
+        }, 300);
+      }
+    }, 350);
+    return () => {
+      clearTimeout(t);
+      if (focusT != null) clearTimeout(focusT);
+    };
   }, [isTypingComplete, stepHasFocusableInput, currentStep?.id]);
 
   const handleBack = useCallback(() => {
@@ -251,12 +289,66 @@ export default function ChatSignupForm({
     (e?: React.FormEvent) => {
       e?.preventDefault();
       if (!currentStep) return;
+      // Guest estimate flow: on last step submit contact info
+      if (mode === 'guest_estimate' && isLastStep) {
+        const firstName = String(values.firstName ?? '').trim();
+        const lastName = String(values.lastName ?? '').trim();
+        const email = String(values.email ?? '').trim().toLowerCase();
+        const phone = String(values.phone ?? '').trim();
+        const streetAddress = String(values.streetAddress ?? '').trim();
+        const city = String(values.city ?? '').trim();
+        const state = String(values.state ?? 'NV').trim();
+        const zipCode = String(values.zipCode ?? '').trim();
+        const apartment = String(values.apartment ?? '').trim();
+        if (!firstName) {
+          setError(tFields('firstNameRequired') ?? 'First name is required.');
+          return;
+        }
+        if (!lastName) {
+          setError(tFields('lastNameRequired') ?? 'Last name is required.');
+          return;
+        }
+        if (!email) {
+          setError(tFields('emailRequired') ?? 'Email is required.');
+          return;
+        }
+        const emailParsed = signupSchemaBase.shape.email.safeParse(email);
+        if (!emailParsed.success) {
+          setError(emailParsed.error.issues[0]?.message ?? 'Invalid email.');
+          return;
+        }
+        if (!phone) {
+          setError(tFields('phoneRequired') ?? 'Phone is required.');
+          return;
+        }
+        const phoneParsed = signupSchemaBase.shape.phone.safeParse(phone);
+        if (!phoneParsed.success) {
+          setError(phoneParsed.error.issues[0]?.message ?? 'Invalid phone.');
+          return;
+        }
+        if (!streetAddress || !city || !zipCode) {
+          setError(tFields('addressRequired') ?? 'Address is required.');
+          return;
+        }
+        onGuestSubmit?.({
+          firstName,
+          lastName,
+          email,
+          phone,
+          streetAddress,
+          city,
+          state: state || 'NV',
+          zipCode,
+          apartment: apartment || undefined,
+        });
+        return;
+      }
       // Role step is handled only by button clicks; ignore form submit (e.g. Enter key)
       if (currentStep.id === 'role') return;
       if (currentStep.id === 'agreeToTerms') {
         const raw: SignupSchema = {
           ...values,
-          userType: values.userType as 'customer' | 'contractor',
+          userType: values.userType as 'customer' | 'contractor' | 'realtor',
           agreeToTerms: Boolean(values.agreeToTerms),
         } as SignupSchema;
         const parsed = signupSchema.safeParse(raw);
@@ -311,7 +403,7 @@ export default function ChatSignupForm({
                 addressNote: data.addressNote,
                 userPicture: data.userPicture,
                 userType: data.userType,
-                ...(data.userType === 'contractor' && data.invitationCode ? { invitationCode: String(data.invitationCode).trim() } : {}),
+                ...((data.userType === 'contractor' || data.userType === 'realtor') && data.invitationCode ? { invitationCode: String(data.invitationCode).trim() } : {}),
               }),
             });
             if (!res.ok) {
@@ -334,6 +426,7 @@ export default function ChatSignupForm({
               }
             }
             setIsSubmitting(false);
+            onSuccessWithRole?.(data.userType as 'customer' | 'contractor' | 'realtor');
             onSuccess?.();
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Sign up failed');
@@ -393,11 +486,12 @@ export default function ChatSignupForm({
           .finally(() => setIsCheckingStep(false));
         return;
       }
-      // Invitation code step (contractors): validate code before advancing
+      // Invitation code step (contractors/realtors): validate code before advancing
       if (currentStep.id === 'invitationCode') {
         const code = String(values.invitationCode ?? '').trim();
+        const role = values.userType === USER_TYPES.REALTOR ? 'realtor' : 'contractor';
         if (!code) {
-          setError('Invitation code is required for contractor signup.');
+          setError(role === 'realtor' ? 'Invitation code is required for realtor signup.' : 'Invitation code is required for contractor signup.');
           return;
         }
         setIsCheckingStep(true);
@@ -405,7 +499,7 @@ export default function ChatSignupForm({
         fetch('/api/auth/validate-invitation-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
+          body: JSON.stringify({ code, role }),
         })
           .then((res) => res.json().catch(() => ({})))
           .then((data: { valid?: boolean; error?: string }) => {
@@ -421,7 +515,7 @@ export default function ChatSignupForm({
       }
       goNext();
     },
-    [currentStep, values, validateCurrentStep, goNext, login, checkAuth, onSuccess, tChat, tFields]
+    [currentStep, values, mode, isLastStep, validateCurrentStep, goNext, login, checkAuth, onSuccess, onSuccessWithRole, onGuestSubmit, tChat, tFields]
   );
 
   const applyPictureZoom = useCallback(
@@ -586,7 +680,7 @@ export default function ChatSignupForm({
                   </p>
                 )}
                 {currentStep.type === 'choice' && currentStep.id === 'role' && (
-                  <div className="flex flex-col md:flex-row gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -597,7 +691,7 @@ export default function ChatSignupForm({
                         setError(null);
                         setTimeout(scrollToBottom, 100);
                       }}
-                      className="w-full md:flex-1 md:min-w-0 p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
+                      className="w-full min-w-0 p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0 w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
@@ -623,7 +717,7 @@ export default function ChatSignupForm({
                         setError(null);
                         setTimeout(scrollToBottom, 100);
                       }}
-                      className="w-full md:flex-1 md:min-w-0 p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
+                      className="w-full min-w-0 p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0 w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
@@ -635,6 +729,35 @@ export default function ChatSignupForm({
                           </h3>
                           <p className="text-xs text-gray-600">
                             {tRole('contractor.description')}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setValues((prev) => ({ ...prev, userType: USER_TYPES.REALTOR }));
+                        setStepIndex((i) => i + 1);
+                        setError(null);
+                        setTimeout(scrollToBottom, 100);
+                      }}
+                      className="w-full min-w-0 p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+                          <FaPersonShelter className="w-5 h-5 text-red-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-black mb-0.5">
+                            {tRole('realtor.title')}
+                          </h3>
+                          <p className="text-xs text-gray-600 mb-0.5">
+                            {tRole('realtor.invitationCodeRequired')}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {tRole('realtor.description')}
                           </p>
                         </div>
                       </div>
@@ -908,13 +1031,13 @@ export default function ChatSignupForm({
                       onChange={(e) => setValue('agreeToTerms', e.target.checked)}
                       className="mt-1 rounded border-2 border-black"
                     />
-                    <span className="text-sm text-gray-700">
+                    <span className="text-sm text-white">
                       {tTerms('prefix')}{' '}
-                      <Link href={`/${locale}/terms`} className="underline cursor-pointer" target="_blank" rel="noopener noreferrer">
+                      <Link href={`/${locale}/terms`} className="text-white underline cursor-pointer" target="_blank" rel="noopener noreferrer">
                         {tTerms('termsOfService')}
                       </Link>{' '}
                       {tTerms('and')}{' '}
-                      <Link href={`/${locale}/privacy`} className="underline cursor-pointer" target="_blank" rel="noopener noreferrer">
+                      <Link href={`/${locale}/privacy`} className="text-white underline cursor-pointer" target="_blank" rel="noopener noreferrer">
                         {tTerms('privacyPolicy')}
                       </Link>{' '}
                       {tTerms('suffix')}

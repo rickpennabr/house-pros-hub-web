@@ -4,9 +4,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
-import { Send, MessageCircle, Volume2, VolumeX, Bell, BellOff, Trash2, Plus, Paperclip, ImageIcon, Cloud, User } from 'lucide-react';
+import { Send, MessageCircle, Volume2, VolumeX, Bell, BellOff, Trash2, Plus, Paperclip, ImageIcon, Cloud, User, AlertTriangle } from 'lucide-react';
 import { playNotificationSound } from '@/lib/utils/notificationSound';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
+import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 
 interface Conversation {
   id: string;
@@ -68,10 +70,14 @@ export default function AdminChatPage() {
   const [pushRegistering, setPushRegistering] = useState(false);
   const [selectedVisitorOnline, setSelectedVisitorOnline] = useState<boolean | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
   const vapidPublicKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY : null;
+  const hasAutoRegisteredPush = useRef(false);
 
   const registerPush = useCallback(async () => {
     if (!vapidPublicKey || pushRegistering || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
@@ -105,7 +111,17 @@ export default function AdminChatPage() {
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     setPushEnabled(Notification.permission === 'granted');
-  }, []);
+    if (
+      Notification.permission === 'granted' &&
+      vapidPublicKey &&
+      !hasAutoRegisteredPush.current &&
+      'serviceWorker' in navigator &&
+      'PushManager' in window
+    ) {
+      hasAutoRegisteredPush.current = true;
+      registerPush();
+    }
+  }, [vapidPublicKey, registerPush]);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -237,6 +253,26 @@ export default function AdminChatPage() {
     }
   }, [selectedId, clearing, fetchConversations]);
 
+  const handleResetAllChat = useCallback(async () => {
+    setResetError(null);
+    setResetting(true);
+    try {
+      const res = await fetch('/api/chat/admin/reset', { method: 'POST', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResetError(data?.error ?? 'Reset failed');
+        return;
+      }
+      setShowResetConfirmModal(false);
+      setConversations([]);
+      setSelectedId(null);
+      setMessages([]);
+      await fetchConversations();
+    } finally {
+      setResetting(false);
+    }
+  }, [fetchConversations]);
+
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
     const hasContent = reply.trim() || pendingAttachments.length > 0;
@@ -304,6 +340,16 @@ export default function AdminChatPage() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
+                onClick={() => setShowResetConfirmModal(true)}
+                disabled={resetting}
+                className="p-2 rounded hover:bg-red-50 text-red-600 hover:text-red-700 disabled:opacity-60 cursor-pointer"
+                title={resetting ? 'Resetting...' : 'Reset all chat (delete every message and conversation)'}
+                aria-label={resetting ? 'Resetting' : 'Reset all chat'}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
                 onClick={() => setSoundEnabled((s) => !s)}
                 className="p-2 rounded hover:bg-gray-100"
                 title={soundEnabled ? 'Mute new message sound' : 'Unmute'}
@@ -325,10 +371,18 @@ export default function AdminChatPage() {
               )}
             </div>
           </div>
-          {vapidPublicKey && pushEnabled !== true && (
-            <p className="px-2 pb-2 text-xs text-gray-500 border-b border-gray-100">
-              Tap the bell above to get notifications on this device when visitors send messages.
+          {resetError && (
+            <p className="px-2 py-1 text-xs text-red-600" role="alert">
+              {resetError}
             </p>
+          )}
+          {vapidPublicKey && pushEnabled !== true && (
+            <div className="px-3 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
+              <Bell className="w-4 h-4 text-amber-600 shrink-0" />
+              <p className="text-xs text-amber-800 flex-1">
+                Tap the bell above to get notifications at the top of your phone when visitors send messages.
+              </p>
+            </div>
           )}
           <div className="flex-1 overflow-y-auto">
             {loading ? (
@@ -469,7 +523,7 @@ export default function AdminChatPage() {
                   </div>
                 )}
                 <p className="text-xs text-gray-500">Replying as ProBot</p>
-                <div className="flex gap-2 items-end">
+                <div className="flex gap-0 items-end">
                   <input ref={fileInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={handleAdminFileSelect} />
                   <div className="relative">
                     <button
@@ -521,6 +575,40 @@ export default function AdminChatPage() {
           )}
         </section>
       </div>
+
+      <Modal
+        isOpen={showResetConfirmModal}
+        onClose={() => !resetting && setShowResetConfirmModal(false)}
+        title="Reset all chat"
+      >
+        <div className="flex flex-col gap-5 p-6">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-yellow-500 shrink-0 mt-0.5" aria-hidden />
+            <p className="text-black">
+              This will delete ALL chat messages and conversations for every user. Continue?
+            </p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowResetConfirmModal(false)}
+              disabled={resetting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleResetAllChat}
+              disabled={resetting}
+              className="bg-red-600 border-red-600 hover:bg-red-700 hover:border-red-700"
+            >
+              {resetting ? 'Resetting...' : 'Continue'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

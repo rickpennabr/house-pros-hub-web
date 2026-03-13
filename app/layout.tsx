@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Suspense } from "react";
+import LoadingOverlay from "@/components/ui/LoadingOverlay";
 import type { Viewport } from "next";
 import { validateEnvVarsOrThrow } from "@/lib/utils/envValidation";
 
@@ -39,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="preload" href="/pro-bot-solo.gif" as="image" />
+        <meta name="google" content="notranslate" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
@@ -48,7 +49,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        <Suspense fallback={null}>{children}</Suspense>
+        <Suspense fallback={<LoadingOverlay />}>{children}</Suspense>
       </body>
     </html>
   );

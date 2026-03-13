@@ -9,6 +9,18 @@ const supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : null;
 
 const nextConfig: NextConfig = {
   /* config options here */
+  experimental: {
+    optimizePackageImports: [
+      'react-icons/gi',
+      'react-icons/si',
+      'react-icons/md',
+      'react-icons/hi',
+      'react-icons/gr',
+      'react-icons/lu',
+      'react-icons/bs',
+      'react-icons/tb',
+    ],
+  },
   // Allow cross-origin requests from local network during development (hostname and full origin)
   allowedDevOrigins: [
     '192.168.0.26',

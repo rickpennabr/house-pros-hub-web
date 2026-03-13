@@ -21,6 +21,8 @@ export interface BackgroundImageEditProps {
   disabled?: boolean;
   className?: string;
   inline?: boolean;
+  /** When not inline: position of the edit button on the hero image. Default top-right for view page. */
+  anchor?: 'top-left' | 'top-right';
   modalTitle?: string;
   adjustImageLabel?: string;
   uploadNewLabel?: string;
@@ -36,6 +38,7 @@ export function BackgroundImageEdit({
   disabled = false,
   className = '',
   inline = false,
+  anchor = 'top-right',
   adjustImageLabel = 'Adjust image',
   uploadNewLabel = 'Upload new',
 }: BackgroundImageEditProps) {
@@ -72,10 +75,13 @@ export function BackgroundImageEdit({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
+  const anchorClass = inline ? '' : anchor === 'top-right' ? 'absolute top-2 right-2' : 'absolute top-2 left-2';
+  const dropdownAlignClass = anchor === 'top-right' ? 'right-0' : 'left-0';
+
   return (
     <div
       ref={wrapperRef}
-      className={`relative z-30 ${inline ? '' : 'absolute top-2 left-2'}`}
+      className={`relative z-30 ${anchorClass}`}
     >
       {hasUnsavedPosition ? (
         <button
@@ -101,7 +107,7 @@ export function BackgroundImageEdit({
       )}
 
       {menuOpen && (
-        <div className="absolute right-0 top-full mt-1 min-w-[160px] rounded-lg border-2 border-black bg-white py-1 shadow-lg">
+        <div className={`absolute ${dropdownAlignClass} top-full mt-1 min-w-[160px] rounded-lg border-2 border-black bg-white py-1 shadow-lg`}>
           <div className="py-0.5">
             <button
               type="button"

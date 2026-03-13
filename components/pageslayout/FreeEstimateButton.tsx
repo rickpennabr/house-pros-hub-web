@@ -13,24 +13,25 @@ export default function FreeEstimateButton() {
 
   const href = !isLoading && isAuthenticated
     ? `/${locale}/estimate`
-    : createSignUpUrl(locale as 'en' | 'es', 'estimate');
+    : `${createSignUpUrl(locale as 'en' | 'es', 'estimate')}&role=customer`;
 
   return (
     <Link
       href={href}
       className="
-        relative h-10 px-2 
+        relative h-10 px-1 md:px-2 
         bg-black text-white 
         rounded-lg border-2 border-black 
-        font-bold text-[11px] md:text-[13px]
-        flex items-center justify-center
+        font-bold text-[11px] md:text-[13px] leading-none
+        flex items-center justify-center shrink-0
         cursor-pointer overflow-hidden
         transition-all duration-300
         hover:bg-gray-900 
         active:scale-95
       "
     >
-      <span className="whitespace-nowrap tracking-wider">{t('button.freeEstimate')}</span>
+      <span className="whitespace-nowrap tracking-wider md:hidden">{t('button.estimate')}</span>
+      <span className="whitespace-nowrap tracking-wider hidden md:inline">{t('button.freeEstimate')}</span>
     </Link>
   );
 }

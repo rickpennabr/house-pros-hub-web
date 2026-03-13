@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-
-const LOCALES = ['en', 'es'] as const;
+import { locales } from '@/i18n';
 
 function getLocaleFromPathname(pathname: string): string {
   const segment = pathname.split('/')[1];
-  return segment && LOCALES.includes(segment as (typeof LOCALES)[number]) ? segment : 'en';
+  return segment && (locales as readonly string[]).includes(segment) ? segment : 'en';
 }
 
 /**

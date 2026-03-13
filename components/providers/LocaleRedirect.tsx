@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Locale } from '@/i18n';
+import { locales, type Locale } from '@/i18n';
 
 /**
  * Component that redirects authenticated users to their preferred locale
@@ -36,11 +36,11 @@ export default function LocaleRedirect() {
     ) {
       hasRedirected.current = true;
 
-      // Remove current locale from pathname
+      // Remove current locale from pathname (support en, es, pt)
       let pathWithoutLocale = pathname;
       if (pathname.startsWith(`/${currentLocale}`)) {
         pathWithoutLocale = pathname.replace(`/${currentLocale}`, '') || '/';
-      } else if (pathname.startsWith('/en/') || pathname.startsWith('/es/')) {
+      } else if ((locales as readonly string[]).some((l) => pathname.startsWith(`/${l}/`) || pathname === `/${l}`)) {
         pathWithoutLocale = '/' + pathname.split('/').slice(2).join('/') || '/';
       }
 

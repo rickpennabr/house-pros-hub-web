@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, MessageCircle, Users, Building2, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageCircle, Users, Building2, User, Search, X } from 'lucide-react';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 
 export interface ProBotContact {
@@ -94,6 +94,12 @@ interface ProBotSidebarProps {
   onSelectVisitorProBot?: () => void;
   /** When true, show skeleton loaders in History Chat (admin list loading) */
   historyChatLoading?: boolean;
+  /** When provided, sidebar open state is controlled by parent (e.g. so ChatArea can open sidebar) */
+  sidebarOpen?: boolean;
+  /** Called when sidebar open state should change (use with sidebarOpen for controlled mode) */
+  onSidebarOpenChange?: (open: boolean) => void;
+  /** When true and mobile, hide the expand-sidebar tab (layout shows back chevron to welcome instead) */
+  inChatView?: boolean;
 }
 
 export default function ProBotSidebar({
@@ -110,19 +116,70 @@ export default function ProBotSidebar({
   visitorUnreadCount = 0,
   onSelectVisitorProBot,
   historyChatLoading = false,
+  sidebarOpen: controlledSidebarOpen,
+  onSidebarOpenChange,
+  inChatView = false,
 }: ProBotSidebarProps) {
   const t = useTranslations('probot');
   // Start collapsed so mobile loads with sidebar closed; desktop expands after mount (see effect).
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [internalSidebarOpen, setInternalSidebarOpen] = useState(false);
+  const isControlled = controlledSidebarOpen !== undefined && onSidebarOpenChange !== undefined;
+  const sidebarOpen = isControlled ? controlledSidebarOpen : internalSidebarOpen;
+  const setSidebarOpen = isControlled ? onSidebarOpenChange! : setInternalSidebarOpen;
   const [historyOpen, setHistoryOpen] = useState(true);
   const [contactsOpen, setContactsOpen] = useState(true);
+  // Single search bar at top (mobile and desktop); filters both history and contacts.
+  const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
+  const sidebarSearchInputRef = useRef<HTMLInputElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // On desktop (md and up), expand sidebar after mount. Mobile stays collapsed.
+  // Detect mobile (sidebar hidden by default; show tab to open). Desktop: sidebar visible.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsMobile(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+
+  // On desktop (md and up), expand sidebar after mount. Mobile stays collapsed (tab to open).
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const isDesktop = window.matchMedia('(min-width: 768px)').matches;
     if (isDesktop) setSidebarOpen(true);
   }, []);
+
+  const qHistory = sidebarSearchQuery.trim().toLowerCase();
+  const filteredRecentConversations = useMemo(() => {
+    if (!recentConversations || !qHistory) return recentConversations ?? [];
+    return recentConversations.filter((c) => {
+      const isContractor = c.participant_type === 'contractor' && c.business_name;
+      const profileName = (c.profile_first_name || c.profile_last_name)
+        ? [c.profile_first_name, c.profile_last_name].filter(Boolean).join(' ').trim()
+        : undefined;
+      const displayName = c.display_as_probot
+        ? 'ProBot'
+        : isContractor
+          ? c.business_name
+          : (profileName || c.visitor_display_name?.trim() || t('customer'));
+      const preview = c.lastMessage?.body ?? c.firstVisitorMessage?.body ?? undefined;
+      return (displayName ?? '').toLowerCase().includes(qHistory) || (preview && preview.toLowerCase().includes(qHistory));
+    });
+  }, [recentConversations, qHistory, t]);
+
+  const showVisitorProBotInHistory = useMemo(() => {
+    if (!visitorProBotConversation) return false;
+    if (!qHistory) return true;
+    const preview = visitorProBotConversation.preview ?? '';
+    return 'probot'.includes(qHistory) || (preview && preview.toLowerCase().includes(qHistory));
+  }, [visitorProBotConversation, qHistory]);
+
+  const qContacts = qHistory;
+  const filteredContacts = useMemo(() => {
+    if (!qContacts) return contacts;
+    return contacts.filter((c) => c.name.toLowerCase().includes(qContacts));
+  }, [contacts, qContacts]);
 
   // Only expand on hover on desktop (md+). On mobile, no hover—expand only via chevron tap.
   const handlePointerEnter = (e: React.PointerEvent) => {
@@ -142,39 +199,73 @@ export default function ProBotSidebar({
           : 0;
 
   return (
-    <div
-      className={`flex flex-col border-r border-gray-200 bg-white shrink-0 transition-[width] duration-200 ease-out ${sidebarOpen ? 'overflow-hidden' : 'overflow-visible'}`}
-      style={{ width: sidebarOpen ? EXPANDED_WIDTH : COLLAPSED_WIDTH }}
-      onPointerEnter={handlePointerEnter}
-    >
-      {/* Collapsed: show narrow rail with expand arrow + message + contacts icons; expanded: full header - same height as ProBot chat area header */}
-      <div className="flex items-center border-b border-gray-200 px-4 py-2 shrink-0 bg-white">
-        {sidebarOpen ? (
-          <>
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(false)}
-              className="p-2 rounded-lg md:hover:bg-gray-100 transition-colors cursor-pointer"
-              aria-label={t('collapseSidebar')}
-            >
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <span className="text-sm font-medium text-gray-600 flex-1 truncate px-1">
-              {t('sidebar')}
-            </span>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="w-full flex flex-col items-center gap-1 py-2 rounded-lg md:hover:bg-gray-100 transition-colors cursor-pointer touch-manipulation"
-            aria-label={t('expandSidebar')}
-          >
-            <ChevronRight className="w-5 h-5 text-gray-500 shrink-0" aria-hidden />
-          </button>
-        )}
-      </div>
+    <>
+      {/* Mobile: small tab on left edge to open sidebar; hide when in chat (layout shows back chevron to welcome instead) */}
+      {isMobile && !sidebarOpen && !inChatView && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="fixed left-0 top-[60px] z-40 w-7 h-[60px] rounded-r-md bg-white border-2 border-black border-l-0 flex items-center justify-center text-black shadow-md touch-manipulation"
+          aria-label={t('expandSidebar')}
+          title={t('expandSidebar')}
+        >
+          <ChevronRight className="w-4 h-4 text-black" aria-hidden />
+        </button>
+      )}
+      {/* Mobile: backdrop when sidebar is open; tap to close (starts below header so header stays visible) */}
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed left-0 right-0 top-[60px] bottom-0 z-40 md:hidden bg-black/40"
+          onClick={() => setSidebarOpen(false)}
+          onKeyDown={(e) => e.key === 'Escape' && setSidebarOpen(false)}
+          aria-hidden
+        />
+      )}
+      {/* Mobile: collapse tab only when viewing ProBot (hide when user is chatting with a pro) */}
+      {isMobile && sidebarOpen && selectedContactId === 'probot' && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed left-[256px] top-[60px] z-[60] w-7 h-[60px] min-h-[60px] rounded-r-md bg-white border-2 border-black border-l-0 flex items-center justify-center text-black shadow-md touch-manipulation md:hidden"
+          aria-label={t('collapseSidebar')}
+          title={t('collapseSidebar')}
+        >
+          <ChevronLeft className="w-4 h-4 text-black" aria-hidden />
+        </button>
+      )}
+      <div
+        className={`flex flex-col border-r bg-white shrink-0 transition-[width] duration-200 ease-out relative ${
+          isMobile && sidebarOpen ? 'border-black' : 'border-gray-200'
+        } ${sidebarOpen ? 'overflow-hidden' : 'overflow-visible'} ${
+          isMobile && !sidebarOpen ? 'w-0 min-w-0 overflow-hidden' : ''
+        } ${
+          isMobile && sidebarOpen ? 'fixed left-0 top-[60px] bottom-0 z-50 w-[256px] shadow-xl border-r-2 border-t-2 border-b-2' : ''
+        }`}
+        style={
+          !isMobile
+            ? { width: sidebarOpen ? EXPANDED_WIDTH : COLLAPSED_WIDTH }
+            : isMobile && sidebarOpen
+              ? undefined
+              : { width: 0 }
+        }
+        onPointerEnter={handlePointerEnter}
+      >
+      {/* PC: collapse-only tab on right edge when sidebar is expanded (expand stays as-is via collapsed icons + hover) */}
+      {!isMobile && sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className="absolute right-0 top-1/2 z-10 -translate-y-1/2 translate-x-full w-7 h-14 flex items-center justify-center rounded-r-md bg-white border-2 border-black border-l-0 text-black shadow-md hover:bg-gray-50 transition-colors cursor-pointer"
+          aria-label={t('collapseSidebar')}
+          title={t('collapseSidebar')}
+        >
+          <ChevronLeft className="w-4 h-4 text-black" aria-hidden />
+        </button>
+      )}
 
+      {/* When mobile and sidebar closed, render nothing (tab only). Otherwise show content (no "Chat" header; search bar first when open). */}
+      {(!isMobile || sidebarOpen) && (
+      <>
       {!sidebarOpen && (
         <div className="flex flex-col items-center py-3 gap-4 flex-1 min-h-0 overflow-visible">
           <button
@@ -208,29 +299,37 @@ export default function ProBotSidebar({
 
       {sidebarOpen && (
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          {/* History Chat section */}
+          {/* Search bar at top - mobile only; desktop sidebar goes straight to History + Contacts */}
+          {isMobile && (
+            <div className="shrink-0 h-[60px] min-h-[60px] w-full pl-2 pr-0 flex items-center justify-center border-b-2 border-black bg-white">
+              <div className="relative w-full min-w-0 flex items-center">
+                <input
+                  ref={sidebarSearchInputRef}
+                  type="text"
+                  value={sidebarSearchQuery}
+                  onChange={(e) => setSidebarSearchQuery(e.target.value)}
+                  placeholder={t('searchContacts')}
+                  className="w-full h-10 min-w-0 pl-9 pr-8 border-2 border-black rounded-lg bg-white text-gray-900 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+                  aria-label={t('searchContacts')}
+                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                {sidebarSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSidebarSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1"
+                    aria-label={t('closeSearch')}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {/* History Chat list - desktop only; no header row */}
+          {!isMobile && (
+          <>
           <div className="border-b border-gray-200 relative">
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(!historyOpen)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-left md:hover:bg-gray-50 transition-colors cursor-pointer"
-            >
-              <MessageCircle className="w-4 h-4 text-gray-600 shrink-0" />
-              <span className="text-sm font-medium text-gray-800 flex-1">{t('historyChat')}</span>
-              {collapsedMessageBadgeCount > 0 && (
-                <span
-                  className="absolute top-2 right-10 min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center rounded-full bg-red-500 text-white text-xs font-medium"
-                  aria-label={collapsedMessageBadgeCount === 1 ? '1 unread message' : `${collapsedMessageBadgeCount} unread messages`}
-                >
-                  {collapsedMessageBadgeCount > 99 ? '99+' : collapsedMessageBadgeCount}
-                </span>
-              )}
-              {historyOpen ? (
-                <ChevronUp className="w-4 h-4 text-gray-500 shrink-0" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-gray-500 shrink-0" />
-              )}
-            </button>
             {historyOpen && (
               <div className="py-1 px-1 max-h-48 overflow-y-auto">
                 {historyChatLoading ? (
@@ -246,8 +345,11 @@ export default function ProBotSidebar({
                     ))}
                   </ul>
                 ) : recentConversations && recentConversations.length > 0 ? (
+                  filteredRecentConversations.length === 0 ? (
+                    <p className="text-xs text-gray-500 py-2">{t('noRecentChats')}</p>
+                  ) : (
                   <ul className="space-y-1">
-                    {recentConversations.map((c) => {
+                    {filteredRecentConversations.map((c) => {
                       const isSelected = selectedConversationIdForAdmin === c.id;
                       const hasUnread = unreadConversationIds?.has(c.id);
                       /** WhatsApp-style: show number of unread (from API or 1 if we only know "has unread") */
@@ -267,8 +369,9 @@ export default function ProBotSidebar({
                       // WhatsApp-style: show last message in thread and when it arrived
                       const previewText = c.lastMessage?.body ?? c.firstVisitorMessage?.body ?? undefined;
                       const lastMessageTime = c.lastMessage?.created_at ?? c.updated_at;
-                      const customerPicture = (isContractor ? null : c.profile_user_picture) || null;
+                      const customerPicture = c.display_as_probot ? null : (isContractor ? null : c.profile_user_picture) || null;
                       const hasContractorLogo = isContractor && c.business_logo;
+                      const showProBotAvatar = c.display_as_probot;
                       return (
                         <li key={c.id}>
                           <button
@@ -282,7 +385,15 @@ export default function ProBotSidebar({
                             title={previewText ?? displayName}
                           >
                             <div className="relative w-8 h-8 rounded-lg border-2 border-black shrink-0 overflow-hidden bg-gray-200 flex items-center justify-center">
-                              {hasContractorLogo ? (
+                              {showProBotAvatar ? (
+                                <Image
+                                  src={PROBOT_ASSETS.avatar}
+                                  alt=""
+                                  width={32}
+                                  height={32}
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : hasContractorLogo ? (
                                 <img
                                   src={c.business_logo!}
                                   alt=""
@@ -329,7 +440,8 @@ export default function ProBotSidebar({
                       );
                     })}
                   </ul>
-                ) : visitorProBotConversation ? (
+                  )
+                ) : visitorProBotConversation && showVisitorProBotInHistory ? (
                   (() => {
                     const vUnread = visitorProBotConversation.unreadCount ?? (visitorProBotConversation.unread ? 1 : 0);
                     const vBadge = vUnread > 0 ? Math.min(vUnread, 99) : 0;
@@ -385,25 +497,14 @@ export default function ProBotSidebar({
               </div>
             )}
           </div>
+          </>
+          )}
 
-          {/* Contacts section */}
+          {/* Contacts list - no header row; search bar at top filters both history and contacts */}
           <div className="flex flex-col flex-1 min-h-0 flex overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setContactsOpen(!contactsOpen)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-left md:hover:bg-gray-50 transition-colors cursor-pointer shrink-0"
-            >
-              <Users className="w-4 h-4 text-gray-600 shrink-0" />
-              <span className="text-sm font-medium text-gray-800 flex-1">{t('contacts')}</span>
-              {contactsOpen ? (
-                <ChevronUp className="w-4 h-4 text-gray-500" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-gray-500" />
-              )}
-            </button>
-            {contactsOpen && (
+            {(contactsOpen || isMobile) && (
               <div className="flex-1 overflow-y-auto py-1 px-1">
-                {contacts.map((contact) => {
+                {filteredContacts.map((contact) => {
                   const isSelected = selectedContactId === contact.id;
                   // Business contacts: logo only (never pro personal photo). Customer contacts: profile picture or logo.
                   const logoSrc = contact.isProBot ? PROBOT_ASSETS.avatar : (contact.businessId ? contact.logo : (contact.logo ?? contact.profile_user_picture ?? undefined));
@@ -473,6 +574,9 @@ export default function ProBotSidebar({
           </div>
         </div>
       )}
+      </>
+      )}
     </div>
+    </>
   );
 }

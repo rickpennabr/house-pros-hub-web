@@ -1,12 +1,46 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Building2, Paperclip, User, Check, CheckCheck } from 'lucide-react';
+import { Building2, Paperclip, User, Check, CheckCheck, ImageIcon } from 'lucide-react';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import type { ChatMessage } from '@/lib/types/chat';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
+
+/** Renders image with WhatsApp-style thumbnail; shows placeholder if load fails. */
+function ChatImageWithFallback({
+  url,
+  name,
+  isVisitor,
+}: {
+  url: string;
+  name: string;
+  isVisitor: boolean;
+}) {
+  const [error, setError] = useState(false);
+  if (error) {
+    return (
+      <div
+        className={`flex items-center gap-2 py-3 px-4 rounded-lg max-w-[280px] ${
+          isVisitor ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'
+        }`}
+      >
+        <ImageIcon className="w-5 h-5 shrink-0" />
+        <span className="text-sm truncate">{name || 'Photo'}</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt={name || 'Image'}
+      className="w-full h-auto max-h-[320px] object-cover block"
+      onError={() => setError(true)}
+    />
+  );
+}
 
 interface ProBotMessageBubbleProps {
   msg: ChatMessage;
@@ -32,14 +66,8 @@ export default function ProBotMessageBubble({
     ) : (
       <User className="w-4 h-4 text-gray-300" aria-hidden />
     )
-  ) : msg.admin_sent_as === 'hub_agent' ? (
-    msg.admin_avatar_url ? (
-      <img src={msg.admin_avatar_url} alt="" width={32} height={32} className="w-full h-full object-cover" />
-    ) : (
-      <User className="w-4 h-4 text-gray-500" aria-hidden />
-    )
-  ) : msg.admin_sent_as === 'probot' ? (
-    <Image src={PROBOT_ASSETS.avatar} alt="" width={32} height={32} className="w-full h-full object-contain" />
+  ) : (msg.admin_avatar_url ? (
+    <img src={msg.admin_avatar_url} alt="" width={32} height={32} className="w-full h-full object-cover" />
   ) : msg.admin_sent_as === 'business' || msg.business_id ? (
     selectedContact?.logo ? (
       <img src={selectedContact.logo} alt="" width={32} height={32} className="w-full h-full object-cover" />
@@ -48,7 +76,7 @@ export default function ProBotMessageBubble({
     )
   ) : (
     <Image src={PROBOT_ASSETS.avatar} alt="" width={32} height={32} className="w-full h-full object-contain" />
-  );
+  ));
 
   return (
     <div className={`flex ${isVisitor ? 'justify-end' : 'justify-start'}`}>
@@ -63,11 +91,7 @@ export default function ProBotMessageBubble({
         <div className="min-w-0 flex-1">
           {msg.sender === 'admin' && (
             <p className="text-xs font-medium text-gray-500 mb-1">
-              {msg.admin_sent_as === 'hub_agent'
-                ? (msg.admin_display_name ?? 'Hub Agent')
-                : msg.admin_sent_as === 'probot' || !msg.admin_sent_as
-                  ? 'ProBot'
-                  : (msg.business_name ?? selectedContact?.name ?? 'Business')}
+              {msg.admin_sent_as === 'business' ? (msg.business_name ?? selectedContact?.name ?? 'Business') : 'ProBot'}
             </p>
           )}
           {msg.body.trim() && <p className="whitespace-pre-wrap break-words">{msg.body}</p>}
@@ -80,9 +104,10 @@ export default function ProBotMessageBubble({
                     href={att.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block rounded-lg overflow-hidden max-w-[240px] border border-gray-200"
+                    className="block rounded-xl overflow-hidden max-w-[280px] border border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 cursor-pointer hover:opacity-95 transition-opacity"
+                    title={t('openImage')}
                   >
-                    <img src={att.url} alt={att.name} className="w-full h-auto object-cover" />
+                    <ChatImageWithFallback url={att.url} name={att.name} isVisitor={isVisitor} />
                   </a>
                 ) : (
                   <a
@@ -97,6 +122,12 @@ export default function ProBotMessageBubble({
                   </a>
                 )
               )}
+            </div>
+          ) : null}
+          {isVisitor && !msg.body.trim() && !msg.attachments?.length ? (
+            <div className={`flex items-center gap-2 py-2 ${isVisitor ? 'text-gray-400' : 'text-gray-500'}`}>
+              <ImageIcon className="w-5 h-5 shrink-0 opacity-70" />
+              <span className="text-sm italic">{t('photoPlaceholder')}</span>
             </div>
           ) : null}
           {(isAdminView && msg.sender === 'admin') || (!isAdminView && msg.sender === 'visitor') ? (

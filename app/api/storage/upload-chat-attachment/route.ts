@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       }
       const { data: conv } = await supabase
         .from('probot_conversations')
-        .select('id')
+        .select('id, visitor_id')
         .eq('id', convId.data)
         .single();
       if (!conv) {
@@ -95,7 +95,13 @@ export async function POST(request: NextRequest) {
           .eq('business_id', businessId)
           .limit(1)
           .maybeSingle();
-        if (!msgRow) {
+        const convVisitorId = (conv as { visitor_id?: string }).visitor_id;
+        const hasMessage = !!msgRow;
+        const isOwnThread =
+          convVisitorId &&
+          rawVisitorId &&
+          convVisitorId.trim() === rawVisitorId.trim();
+        if (!hasMessage && !isOwnThread) {
           return NextResponse.json({ error: 'Conversation not found or access denied' }, { status: 404 });
         }
         prefix = `${convId.data}/contractor-${user.id}`;
@@ -115,8 +121,13 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(arrayBuffer);
       const validation = await validateChatAttachmentMagicBytes(buffer);
       if (!validation.isValid || !validation.mimeType) {
+        const allowed = 'JPEG, PNG, WebP, PDF';
+        const hint =
+          file.name.toLowerCase().endsWith('.pdf')
+            ? ' PDFs must be under 10MB and start with %PDF.'
+            : '';
         return NextResponse.json(
-          { error: `Invalid file type for "${file.name}". Allowed: JPEG, PNG, WebP, PDF.` },
+          { error: `Invalid file type for "${file.name}". Allowed: ${allowed}.${hint}` },
           { status: 400 }
         );
       }

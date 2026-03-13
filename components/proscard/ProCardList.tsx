@@ -10,7 +10,7 @@ interface ProCardListProps {
 
 export default function ProCardList({ cards, onShare, onReaction }: ProCardListProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4 w-full">
+    <div className="grid grid-cols-1 min-[500px]:grid-cols-2 min-[968px]:grid-cols-3 gap-2 w-full">
       {cards.map((card) => (
         <ProCard
           key={card.id}

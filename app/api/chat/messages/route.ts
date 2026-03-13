@@ -137,11 +137,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const pushTitle = businessId ? 'New message to a Pro' : 'New ProBot message';
-    const pushBody = messageBody.slice(0, 80) + (messageBody.length > 80 ? '…' : '');
-    await sendAdminPushNotification(pushTitle, pushBody, '/admin/chat');
+    const pushTitle = businessId ? 'New message to a Pro' : 'New message from visitor';
+    const pushBody =
+      (messageBody ?? '').trim().length > 0
+        ? (messageBody ?? '').slice(0, 80) + ((messageBody ?? '').length > 80 ? '…' : '')
+        : 'Sent a photo';
+    // Badge = total unread visitor messages so app icon shows e.g. "1" on phone
+    const { count: adminUnreadCount } = await supabase
+      .from('probot_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('sender', 'visitor')
+      .is('read_at', null);
+    const badgeCount = typeof adminUnreadCount === 'number' && adminUnreadCount >= 0 ? Math.min(99, adminUnreadCount) : 1;
+    await sendAdminPushNotification(pushTitle, pushBody, '/admin/chat', badgeCount);
     if (businessId) {
-      await sendBusinessPushNotification(businessId, pushTitle, pushBody, '/probot');
+      await sendBusinessPushNotification(businessId, pushTitle, pushBody, '/probot', badgeCount);
     }
 
     const msg = message as unknown as { id: string; conversation_id: string; sender: string; body: string; created_at: string; attachments?: unknown };
@@ -170,7 +180,7 @@ export async function POST(request: NextRequest) {
  * Returns messages for the conversation. Visitor must pass visitorId and own the conversation.
  */
 export async function GET(request: NextRequest) {
-  const rateLimitRes = await checkRateLimit(request, 'chat');
+  const rateLimitRes = await checkRateLimit(request, 'chatRead');
   if (rateLimitRes) return rateLimitRes;
 
   try {
@@ -365,7 +375,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const adminUserIds = [...new Set(rows.filter((m) => m.sender === 'admin' && m.admin_sent_as === 'hub_agent' && m.admin_user_id).map((m) => m.admin_user_id!))];
+    const adminUserIds = [...new Set(rows.filter((m) => m.sender === 'admin' && m.admin_user_id).map((m) => m.admin_user_id!))];
     type ProfileRow = { id: string; first_name: string | null; last_name: string | null; user_picture: string | null };
     let adminProfiles: Record<string, { admin_avatar_url: string | null; admin_display_name: string | null }> = {};
     if (adminUserIds.length > 0) {
@@ -403,7 +413,22 @@ export async function GET(request: NextRequest) {
         admin_display_name: adminProfile?.admin_display_name ?? undefined,
       };
     });
-    return NextResponse.json({ messages }, { status: 200 });
+
+    // For visitor: include hub agent (most recent admin who sent as hub_agent) for header display
+    let hubAgent: { displayName: string; avatarUrl: string | null } | undefined;
+    if (isVisitorContext && adminUserIds.length > 0) {
+      const adminMessagesWithUser = rows
+        .filter((m) => m.sender === 'admin' && m.admin_user_id)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const lastAdminMsg = adminMessagesWithUser[0];
+      const uid = lastAdminMsg?.admin_user_id;
+      if (uid && adminProfiles[uid]) {
+        const name = adminProfiles[uid].admin_display_name?.trim();
+        if (name) hubAgent = { displayName: name, avatarUrl: adminProfiles[uid].admin_avatar_url };
+      }
+    }
+
+    return NextResponse.json({ messages, hubAgent }, { status: 200 });
   } catch (e) {
     console.error('ProBot messages GET error:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

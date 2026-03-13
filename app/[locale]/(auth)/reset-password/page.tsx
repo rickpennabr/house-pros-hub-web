@@ -234,7 +234,7 @@ function ResetPasswordContent() {
                   href={`/${locale}/businesslist`}
                   className="cursor-pointer flex-shrink-0 w-full flex items-center justify-center"
                 >
-                  <Logo width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
+                  <Logo src="/hph-logo-with-pro-bot-mobile.png" width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
                 </Link>
               </section>
             </div>
@@ -278,7 +278,7 @@ function ResetPasswordContent() {
                   href={`/${locale}/businesslist`}
                   className="cursor-pointer flex-shrink-0 w-full flex items-center justify-center"
                 >
-                  <Logo width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
+                  <Logo src="/hph-logo-with-pro-bot-mobile.png" width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
                 </Link>
               </section>
             </div>
@@ -322,7 +322,7 @@ function ResetPasswordContent() {
                 href={`/${locale}/businesslist`}
                 className="cursor-pointer flex-shrink-0 w-full flex items-center justify-center"
               >
-                <Logo width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
+                <Logo src="/hph-logo-with-pro-bot-mobile.png" width={280} height={70} className="h-auto w-full max-w-full max-h-20 md:max-h-24 object-contain" />
               </Link>
             </section>
           </div>

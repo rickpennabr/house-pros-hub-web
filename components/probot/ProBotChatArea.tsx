@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import Image from 'next/image';
-import { Send, Building2, Trash2, ArrowLeft, Plus, Paperclip, ImageIcon, Cloud } from 'lucide-react';
+import { Building2, Trash2, ArrowLeft, Plus, Paperclip, ImageIcon, Cloud, User } from 'lucide-react';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import ChatSignupForm from '@/components/chat/ChatSignupForm';
 import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
+import ChatInputBar from '@/components/chat/ChatInputBar';
+import AddCustomerForm from '@/components/chat/AddCustomerForm';
 import { PROBOT_ASSETS, PROBOT_CHAT_BG } from '@/lib/constants/probot';
 import ProBotMessageList from './ProBotMessageList';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
@@ -25,7 +27,7 @@ import {
 
 export type { ChatMessage, ChatAttachment };
 
-type UserChoice = null | 'account_estimate';
+type UserChoice = null | 'create_account' | 'free_estimate' | 'add_customer';
 
 interface ProBotChatAreaProps {
   selectedContact: ProBotContact | null;
@@ -48,11 +50,41 @@ interface ProBotChatAreaProps {
   onAdminReplySent?: () => void;
   /** When set (e.g. contact slug from URL), focus the message input once the chat view is ready */
   focusInputTrigger?: string | null;
+  /** When provided (e.g. for guests), call to open the contacts sidebar from the welcome CTA */
+  onOpenSidebar?: () => void;
+  /** When true, force the welcome (role selection) view to show (e.g. after "back to welcome" on mobile) */
+  forceWelcomeView?: boolean;
+  /** Called when the user is in chat view (header visible) vs welcome view, so layout can show back chevron on mobile */
+  onChatViewChange?: (inChat: boolean) => void;
+  /** Called when user makes a choice on the welcome screen (e.g. Create account, Get estimate) so parent can clear forceWelcomeView */
+  onWelcomeChoiceMade?: () => void;
 }
 
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 2_000;
 const TYPING_MS = 60;
 const WHERE_START_TYPING_MS = 45;
+
+/** Persisted so welcome (hi, how do you want to start) shows only once per device. Bump version to re-show. */
+const PROBOT_WELCOME_SEEN_KEY = 'probot_has_seen_welcome';
+const PROBOT_WELCOME_SEEN_VERSION = '1';
+
+function markProBotWelcomeSeen(): void {
+  try {
+    if (typeof window !== 'undefined') window.localStorage.setItem(PROBOT_WELCOME_SEEN_KEY, PROBOT_WELCOME_SEEN_VERSION);
+  } catch {
+    // ignore
+  }
+}
+
+/** Dedupe by id so React keys are unique (e.g. merged conversations or refetch races). */
+function dedupeMessagesById(messages: ChatMessage[]): ChatMessage[] {
+  const seen = new Set<string>();
+  return messages.filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+}
 
 export default function ProBotChatArea({
   selectedContact,
@@ -67,6 +99,10 @@ export default function ProBotChatArea({
   onVisitorProBotLastMessage,
   onAdminReplySent,
   focusInputTrigger,
+  onOpenSidebar,
+  forceWelcomeView = false,
+  onChatViewChange,
+  onWelcomeChoiceMade,
 }: ProBotChatAreaProps) {
   const t = useTranslations('probot');
   const tBot = useTranslations('bot');
@@ -76,6 +112,7 @@ export default function ProBotChatArea({
   const { user, isAuthenticated } = useAuth();
   const { visitorId, conversationId, setConversationId } = useChat();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [hubAgent, setHubAgent] = useState<{ displayName: string; avatarUrl: string | null } | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
@@ -89,35 +126,62 @@ export default function ProBotChatArea({
   const [whereStartTypedLength, setWhereStartTypedLength] = useState(0);
   const [messagesLoadedOnce, setMessagesLoadedOnce] = useState(false);
   const [hasChosenThisVisit, setHasChosenThisVisit] = useState(false);
+  const [hasSeenWelcomePersisted] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.localStorage.getItem(PROBOT_WELCOME_SEEN_KEY) === PROBOT_WELCOME_SEEN_VERSION;
+    } catch {
+      return false;
+    }
+  });
   const [userChoice, setUserChoice] = useState<UserChoice>(null);
   const [estimateSubmitted, setEstimateSubmitted] = useState(false);
   const [showProjectInfoForm, setShowProjectInfoForm] = useState(false);
   const [projectEstimateSubmitted, setProjectEstimateSubmitted] = useState(false);
   const [estimateFormKey, setEstimateFormKey] = useState(0);
   const [signupStepIndex, setSignupStepIndex] = useState(0);
+  const [addCustomerSubmitted, setAddCustomerSubmitted] = useState(false);
+  /** Guest contact info for free_estimate flow (no account); then show estimate form */
+  const [guestContact, setGuestContact] = useState<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    streetAddress: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    apartment?: string;
+  } | null>(null);
   const [clearingMessages, setClearingMessages] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   /** 0–3: segment of welcome animation (0,2 = first GIF; 1,3 = second GIF). After 2 cycles show static. */
   const [welcomeGifStep, setWelcomeGifStep] = useState(0);
   const [welcomeShowStaticImage, setWelcomeShowStaticImage] = useState(false);
-  /** Admin only: which identity to reply as (ProBot, Hub Agent, or Business when conversation is with a contractor). */
-  const [replyAs, setReplyAs] = useState<'probot' | 'hub_agent' | 'business'>('probot');
-
-  useEffect(() => {
-    if (adminViewingConversation?.id) setReplyAs('probot');
-  }, [adminViewingConversation?.id]);
 
   /** Duration each welcome GIF shows before switching. Animation runs 2 full cycles then shows static image. */
   const WELCOME_GIF_0_MS = 5000;
   const WELCOME_GIF_1_MS = 5000;
 
-  const showEstimateForm = userChoice === 'account_estimate' && !estimateSubmitted && !showProjectInfoForm;
-  const showEstimateSuccess = userChoice === 'account_estimate' && estimateSubmitted && !showProjectInfoForm && !projectEstimateSubmitted;
-  const showProjectInfoFormView = userChoice === 'account_estimate' && showProjectInfoForm && !projectEstimateSubmitted;
-  const showProjectEstimateSuccess = userChoice === 'account_estimate' && showProjectInfoForm && projectEstimateSubmitted;
+  const showSignupForm = userChoice === 'create_account' && !estimateSubmitted && !showProjectInfoForm;
+  const showEstimateSuccess = userChoice === 'create_account' && estimateSubmitted && !showProjectInfoForm && !projectEstimateSubmitted;
+  const showProjectInfoFormView =
+    (userChoice === 'create_account' && showProjectInfoForm && !projectEstimateSubmitted) ||
+    (userChoice === 'free_estimate' && (guestContact !== null || isAuthenticated) && !projectEstimateSubmitted);
+  const showProjectEstimateSuccess =
+    (userChoice === 'create_account' && showProjectInfoForm && projectEstimateSubmitted) ||
+    (userChoice === 'free_estimate' && projectEstimateSubmitted);
+  const showGuestContactForm = userChoice === 'free_estimate' && guestContact === null && !isAuthenticated;
   const showAccountEstimateFlow =
     selectedContact?.isProBot &&
-    (showEstimateForm || showProjectInfoFormView || showEstimateSuccess || showProjectEstimateSuccess);
+    (showSignupForm ||
+      showGuestContactForm ||
+      showEstimateSuccess ||
+      showProjectInfoFormView ||
+      showProjectEstimateSuccess);
+  const showAddCustomerFlow = selectedContact?.isProBot && userChoice === 'add_customer' && !addCustomerSubmitted;
+  const showAddCustomerSuccess = selectedContact?.isProBot && userChoice === 'add_customer' && addCustomerSubmitted;
+  const showProBotWizardFlow = showAccountEstimateFlow || showAddCustomerFlow || showAddCustomerSuccess;
 
   const displayName = user?.firstName ?? t('guestName');
   const hiText = t('hiUser', { name: displayName });
@@ -153,11 +217,14 @@ export default function ProBotChatArea({
   const loadMessages = useCallback(async () => {
     if (!conversationId || !visitorId) return;
     try {
-      const { messages: msgs } = await getMessages(conversationId, { visitorId });
-      setMessages((msgs ?? []) as ChatMessage[]);
+      const data = await getMessages(conversationId, { visitorId });
+      const msgs = (data.messages ?? []) as ChatMessage[];
+      setMessages(dedupeMessagesById(msgs));
+      setHubAgent(data.hubAgent ?? null);
       setMessagesLoadedOnce(true);
     } catch {
       setMessages([]);
+      setHubAgent(null);
       setMessagesLoadedOnce(true);
     }
   }, [conversationId, visitorId]);
@@ -165,11 +232,14 @@ export default function ProBotChatArea({
   const loadAdminViewMessages = useCallback(async () => {
     if (!adminViewingConversation?.id) return;
     try {
-      const { messages: msgs } = await getMessages(adminViewingConversation.id, { credentials: 'include' });
-      setMessages((msgs ?? []) as ChatMessage[]);
+      const data = await getMessages(adminViewingConversation.id, { credentials: 'include' });
+      const msgs = (data.messages ?? []) as ChatMessage[];
+      setMessages(dedupeMessagesById(msgs));
+      setHubAgent(null);
       setMessagesLoadedOnce(true);
     } catch {
       setMessages([]);
+      setHubAgent(null);
       setMessagesLoadedOnce(true);
     }
   }, [adminViewingConversation?.id]);
@@ -212,15 +282,22 @@ export default function ProBotChatArea({
       if (document.visibilityState === 'visible') startPolling();
       else stopPolling();
     };
+    const onWindowFocus = () => {
+      if (document.visibilityState === 'visible' && !adminViewingConversation?.id && conversationId && visitorId) {
+        loadMessages();
+      }
+    };
 
     startPolling();
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', onVisibilityChange);
+      window.addEventListener('focus', onWindowFocus);
     }
     return () => {
       stopPolling();
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', onVisibilityChange);
+        window.removeEventListener('focus', onWindowFocus);
       }
     };
   }, [adminViewingConversation?.id, conversationId, visitorId, loadMessages, loadAdminViewMessages]);
@@ -251,6 +328,11 @@ export default function ProBotChatArea({
     onVisitorProBotHasMessages(filteredMessages.length > 0);
   }, [onVisitorProBotHasMessages, isAdminView, selectedContact?.isProBot, messagesLoadedOnce, filteredMessages.length]);
 
+  // Persist "welcome seen" when user already has messages (returning user) so welcome doesn't show again
+  useEffect(() => {
+    if (selectedContact?.isProBot && messagesLoadedOnce && filteredMessages.length > 0) markProBotWelcomeSeen();
+  }, [selectedContact?.isProBot, messagesLoadedOnce, filteredMessages.length]);
+
   // Notify parent of last message (preview + time) for visitor's History Chat sidebar under "ProBot"
   useEffect(() => {
     if (!onVisitorProBotLastMessage || isAdminView || !selectedContact?.isProBot) return;
@@ -261,16 +343,27 @@ export default function ProBotChatArea({
   }, [onVisitorProBotLastMessage, isAdminView, selectedContact?.isProBot, filteredMessages]);
 
   // When ProBot is selected, show conversation if we have messages; otherwise show welcome steps.
-  // Show welcome only for customers (not admin/contractor), when role is known (avoids flash for admins before is-admin check), and when there are no messages.
+  // Show welcome for visitors, customers, and contractors when role is known (not admin view), and when there are no messages.
+  // For guests: always show welcome when they open ProBot (so they see it again after visiting other pages). For signed-in users: once per device (localStorage).
   const isCustomer = !isAdmin && !isContractor;
   const showWelcome =
-    roleKnown &&
-    isCustomer &&
-    !isAdminView &&
+    (roleKnown &&
+      !isAdminView &&
+      selectedContact?.isProBot &&
+      !error &&
+      !hasChosenThisVisit &&
+      (!hasSeenWelcomePersisted || !isAuthenticated) &&
+      filteredMessages.length === 0 &&
+      userChoice !== 'add_customer') ||
+    forceWelcomeView;
+
+  // Admin initial screen: ProBot selected, no conversation open, no messages yet. Show simplified welcome (no "How do you want to start?", no CTA buttons, different tagline/placeholder).
+  const showAdminInitialWelcome =
+    isAdmin &&
     selectedContact?.isProBot &&
-    !error &&
-    !hasChosenThisVisit &&
-    filteredMessages.length === 0;
+    !adminViewingConversation &&
+    filteredMessages.length === 0 &&
+    messagesLoadedOnce;
 
   // When a business contact is selected with no messages yet (e.g. from card Message button), show centered chat like ProBot welcome.
   const showBusinessEmptyChat =
@@ -282,6 +375,12 @@ export default function ProBotChatArea({
     filteredMessages.length === 0 &&
     messagesLoadedOnce;
 
+  // Notify parent when user is in chat view (chat header visible) vs welcome, for mobile header back chevron.
+  const inChatView = ((!showWelcome && !showAdminInitialWelcome) || isAdminView) && !!selectedContact;
+  useEffect(() => {
+    onChatViewChange?.(inChatView);
+  }, [inChatView, onChatViewChange]);
+
   useEffect(() => {
     setHiTypedLength(0);
     setWhereStartTypedLength(0);
@@ -290,12 +389,12 @@ export default function ProBotChatArea({
   // When opened with ?contact= (e.g. from business card Message), focus the message input once the chat view is ready.
   // Focus in welcome (ProBot), business empty (centered), or normal messages view so user can type immediately.
   useEffect(() => {
-    if (!focusInputTrigger || showEstimateForm || showProjectInfoFormView) return;
+    if (!focusInputTrigger || showSignupForm || showGuestContactForm || showProjectInfoFormView) return;
     const t = setTimeout(() => {
       messageInputRef.current?.focus();
     }, 200);
     return () => clearTimeout(t);
-  }, [focusInputTrigger, showEstimateForm, showProjectInfoFormView, showWelcome, showBusinessEmptyChat]);
+  }, [focusInputTrigger, showSignupForm, showGuestContactForm, showProjectInfoFormView, showWelcome, showBusinessEmptyChat]);
 
   useEffect(() => {
     if (!showWelcome) {
@@ -363,8 +462,15 @@ export default function ProBotChatArea({
           setMessages((prev) => {
             const next: ChatMessage[] = [...prev, newMsg];
             if (selectedContact?.isProBot && !businessId) {
+              const createAccountLabel = tBot('createAccount');
+              const getFreeEstimateLabel = tBot('getFreeEstimate');
               const createAccountEstimateLabel = tBot('createAccountAndFreeEstimate');
-              if (body === choiceAccountEstimate || body === createAccountEstimateLabel) {
+              if (
+                body === choiceAccountEstimate ||
+                body === createAccountEstimateLabel ||
+                body === createAccountLabel ||
+                body === getFreeEstimateLabel
+              ) {
                 next.push({
                   id: `bot-reply-${Date.now()}`,
                   sender: 'admin',
@@ -381,8 +487,13 @@ export default function ProBotChatArea({
             setConversationId((data as { conversationId?: string }).conversationId ?? null);
           }
           if (pendingAttachments.length > 0) setPendingAttachments([]);
-          // Dismiss welcome so the sent message shows in the chat area
-          if (selectedContact?.isProBot && !businessId) setHasChosenThisVisit(true);
+          // Refetch so read receipts (blue ticks) update if admin read while visitor was typing
+          loadMessages();
+          // Dismiss welcome so the sent message shows in the chat area; persist so welcome shows only once
+          if (selectedContact?.isProBot && !businessId) {
+            setHasChosenThisVisit(true);
+            markProBotWelcomeSeen();
+          }
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to send');
@@ -390,7 +501,7 @@ export default function ProBotChatArea({
         setSending(false);
       }
     },
-    [visitorId, conversationId, businessId, setConversationId, sending, selectedContact?.isProBot, t, tBot, locale, isAuthenticated, user, pendingAttachments]
+    [visitorId, conversationId, businessId, setConversationId, sending, selectedContact?.isProBot, t, tBot, locale, isAuthenticated, user, pendingAttachments, loadMessages]
   );
 
   const sendAdminReply = useCallback(
@@ -400,11 +511,7 @@ export default function ProBotChatArea({
         isContractor && contractorBusinessId
           ? { businessId: contractorBusinessId }
           : isAdminView
-            ? replyAs === 'business' && adminViewingConversation?.business_id
-              ? { businessId: adminViewingConversation.business_id }
-              : replyAs === 'hub_agent'
-                ? 'hub_agent'
-                : 'probot'
+            ? 'probot'
             : selectedContact?.isProBot
               ? 'probot'
               : selectedContact?.businessId
@@ -454,7 +561,7 @@ export default function ProBotChatArea({
         setSending(false);
       }
     },
-    [adminViewingConversation, isContractor, contractorBusinessId, selectedContact, replyAs, sending, onAdminReplySent]
+    [adminViewingConversation, isContractor, contractorBusinessId, selectedContact, sending, onAdminReplySent]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -479,6 +586,11 @@ export default function ProBotChatArea({
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files?.length) return;
+      if (!visitorId) {
+        setError(t('sendUnavailable'));
+        e.target.value = '';
+        return;
+      }
       const total = pendingAttachments.length + files.length;
       if (total > 10) {
         setError(t('attachMax10'));
@@ -488,26 +600,33 @@ export default function ProBotChatArea({
       setUploadingAttach(true);
       setError(null);
       try {
+        let cid = conversationId;
+        if (!cid) {
+          const { conversationId: newCid } = await createConversation(visitorId);
+          setConversationId(newCid);
+          cid = newCid;
+        }
         const formData = new FormData();
-        formData.set('conversationId', conversationId ?? 'temp');
-        formData.set('visitorId', visitorId ?? 'anon');
+        formData.set('conversationId', cid);
+        formData.set('visitorId', visitorId);
         for (let i = 0; i < files.length; i++) formData.append('file', files[i]);
         const res = await fetch('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setError(data.error ?? 'Upload failed');
+          const errMsg = typeof data.error === 'string' ? data.error : 'Upload failed';
+          setError(errMsg);
           return;
         }
         const list = (data.attachments ?? []) as ChatAttachment[];
         setPendingAttachments((prev) => [...prev, ...list].slice(0, 10));
-      } catch {
-        setError('Upload failed');
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Upload failed');
       } finally {
         setUploadingAttach(false);
         e.target.value = '';
       }
     },
-    [conversationId, visitorId, pendingAttachments.length, t]
+    [conversationId, visitorId, pendingAttachments.length, t, setConversationId]
   );
 
   const removePendingAttachment = useCallback((index: number) => {
@@ -540,19 +659,19 @@ export default function ProBotChatArea({
 
   if (!selectedContact) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 p-4">
+      <div className="probot-chat-empty flex-1 flex items-center justify-center bg-gray-50 md:bg-transparent p-4">
         <p className="text-sm text-gray-500">{t('selectContact')}</p>
       </div>
     );
   }
 
   return (
-    <div className={`flex flex-col flex-1 min-h-0 overflow-hidden ${PROBOT_CHAT_BG}`}>
-      {(!showWelcome || isAdminView) && (
-        <div className="sticky top-0 z-10 border-b border-gray-200 px-4 py-2 shrink-0 bg-white flex items-center justify-between gap-2">
+    <div className={`flex flex-col min-h-0 overflow-hidden h-full ${PROBOT_CHAT_BG} probot-chat-area-pc-transparent`}>
+      {((!showWelcome && !showAdminInitialWelcome) || isAdminView) && (
+        <div className="probot-chat-header sticky top-0 z-10 border-b border-gray-200 px-4 py-2 shrink-0 bg-white md:bg-transparent flex items-center justify-between gap-2">
           {isAdminView && adminViewingConversation && onExitAdminConversation ? (
             <>
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <button
                   type="button"
                   onClick={onExitAdminConversation}
@@ -562,25 +681,48 @@ export default function ProBotChatArea({
                 >
                   <ArrowLeft className="w-5 h-5 text-gray-600" />
                 </button>
-                <p className="text-sm font-medium text-gray-800 truncate">
-                  {adminViewingConversation.display_as_probot
-                    ? t('conversationWithName', { name: 'ProBot' })
-                    : adminViewingConversation.participant_type === 'contractor' && adminViewingConversation.business_name
-                      ? t('conversationWithContractor', { name: adminViewingConversation.business_name })
-                      : (() => {
-                          const profileName =
-                            (adminViewingConversation.profile_first_name || adminViewingConversation.profile_last_name)
-                              ? [adminViewingConversation.profile_first_name, adminViewingConversation.profile_last_name].filter(Boolean).join(' ').trim()
-                              : undefined;
-                          const name = profileName || adminViewingConversation.visitor_display_name?.trim();
-                          return name ? t('conversationWithName', { name }) : t('conversationWithCustomer');
-                        })()}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {adminViewingConversation.display_as_probot
+                      ? t('conversationWithName', { name: 'ProBot' })
+                      : adminViewingConversation.participant_type === 'contractor' && adminViewingConversation.business_name
+                        ? t('conversationWithContractor', { name: adminViewingConversation.business_name })
+                        : (() => {
+                            const profileName =
+                              (adminViewingConversation.profile_first_name || adminViewingConversation.profile_last_name)
+                                ? [adminViewingConversation.profile_first_name, adminViewingConversation.profile_last_name].filter(Boolean).join(' ').trim()
+                                : undefined;
+                            const name = profileName || adminViewingConversation.visitor_display_name?.trim();
+                            return name ? t('conversationWithName', { name }) : t('conversationWithCustomer');
+                          })()}
+                  </p>
+                  {adminViewingConversation.display_as_probot && user && (
+                    <p className="text-xs text-gray-500 truncate flex items-center gap-1.5 mt-0.5">
+                      {user.userPicture ? (
+                        <img src={user.userPicture} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
+                      ) : null}
+                      <span>
+                        {[user.firstName, user.lastName].filter(Boolean).join(' ').trim() || t('customer')} · {t('replyAsHubAgent')}
+                      </span>
+                    </p>
+                  )}
+                </div>
               </div>
             </>
           ) : (
           <>
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1 min-w-0">
+            {!selectedContact?.isProBot && onOpenSidebar && (
+              <button
+                type="button"
+                onClick={onOpenSidebar}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors shrink-0 cursor-pointer -ml-1"
+                aria-label={t('backToContacts')}
+                title={t('backToContacts')}
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-700" />
+              </button>
+            )}
             {(() => {
               const logoSrc = selectedContact?.isProBot
                 ? PROBOT_ASSETS.avatar
@@ -611,9 +753,31 @@ export default function ProBotChatArea({
                 </div>
               );
             })()}
-            <h2 className="text-base font-semibold text-gray-800 truncate min-w-0">
-              {selectedContact?.isProBot ? selectedContact.name : selectedContact?.name ?? ''}
-            </h2>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-semibold text-gray-800 truncate">
+                {selectedContact?.isProBot ? selectedContact.name : selectedContact?.name ?? ''}
+              </h2>
+              {isAdmin && selectedContact?.isProBot && user && (
+                <p className="text-xs text-gray-500 truncate flex items-center gap-1.5 mt-0.5">
+                  {user.userPicture ? (
+                    <img src={user.userPicture} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
+                  ) : null}
+                  <span>
+                    {[user.firstName, user.lastName].filter(Boolean).join(' ').trim() || t('customer')} · {t('replyAsHubAgent')}
+                  </span>
+                </p>
+              )}
+              {!isAdminView && selectedContact?.isProBot && hubAgent && (
+                <p className="text-xs text-gray-500 truncate flex items-center gap-1.5 mt-0.5">
+                  {hubAgent.avatarUrl ? (
+                    <img src={hubAgent.avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <User className="w-4 h-4 shrink-0 text-gray-400" aria-hidden />
+                  )}
+                  <span>{hubAgent.displayName}</span>
+                </p>
+              )}
+            </div>
             {selectedContact?.isProBot && (
               <>
                 <span
@@ -654,22 +818,22 @@ export default function ProBotChatArea({
         </div>
       )}
 
-      {loading && !showWelcome && !showAccountEstimateFlow ? (
-        <div className="flex-1 flex items-center justify-center p-4 min-h-0">
+      {loading && !showWelcome && !showAdminInitialWelcome && !showProBotWizardFlow ? (
+        <div className="probot-chat-loading flex-1 flex items-center justify-center p-4 min-h-0 bg-transparent">
           <p className="text-sm text-gray-500">{t('loading')}</p>
         </div>
       ) : (
         <>
-          {/* Scrollable messages area: flex-1 min-h-0 so it gets a bounded height and scrolls on mobile. */}
+          {/* Scrollable messages area: flex-1 min-h-0 so it gets a bounded height and scrolls on mobile. Transparent on PC so mountains show through. */}
           <div
-            className={`flex-1 min-h-0 flex flex-col ${!showAccountEstimateFlow ? 'overflow-y-auto overflow-x-hidden overscroll-contain' : 'overflow-hidden'}`}
+            className={`h-full min-h-0 flex flex-col md:bg-transparent ${!showProBotWizardFlow ? 'overflow-y-auto overflow-x-hidden overscroll-contain' : 'overflow-hidden'}`}
             style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 } as React.CSSProperties}
           >
-            {showWelcome ? (
+            {(showWelcome || showAdminInitialWelcome) ? (
               <div className="probot-welcome flex-1 flex flex-col items-center px-2 pt-6 pb-4 min-h-0 md:px-4">
                 <div className="flex flex-col items-center text-center w-full md:w-[75%]">
                   <div className="flex items-center justify-center w-24 h-24 rounded-lg bg-white shadow-sm overflow-hidden shrink-0 mb-4">
-                    {welcomeShowStaticImage ? (
+                    {welcomeShowStaticImage || showAdminInitialWelcome ? (
                       <img
                         src="/pro-bot-solo.png"
                         alt="ProBot"
@@ -688,13 +852,21 @@ export default function ProBotChatArea({
                     )}
                   </div>
                   <p className="text-lg text-gray-800 font-medium min-h-[1.75rem]">
-                    {hiText.slice(0, hiTypedLength)}
-                    {hiTypedLength < hiText.length && (
+                    {showAdminInitialWelcome ? hiText : hiText.slice(0, hiTypedLength)}
+                    {!showAdminInitialWelcome && hiTypedLength < hiText.length && (
                       <span className="animate-pulse">|</span>
                     )}
                   </p>
                   <p className="text-[1.95rem] md:text-[2.7rem] text-gray-700 mt-1 whitespace-nowrap">{t('welcomeToMyPage')}</p>
-                  <p className="text-[1.95rem] md:text-[2.7rem] font-medium text-gray-800 mt-0.5">{t('letsGetItDone')}</p>
+                  {showAdminInitialWelcome ? (
+                    <>
+                      <p className="text-[1.95rem] md:text-[2.7rem] font-medium text-gray-800 mt-0.5">{t('letsConnect')}</p>
+                      <p className="text-[1.95rem] md:text-[2.7rem] font-medium text-gray-800 mt-0.5">{t('customerWithPros')}</p>
+                    </>
+                  ) : (
+                    <p className="text-[1.95rem] md:text-[2.7rem] font-medium text-gray-800 mt-0.5">{t('letsGetItDone')}</p>
+                  )}
+                  {!showAdminInitialWelcome && (
                   <div className="flex justify-center w-full mt-4 mb-4 min-h-[1.5em]">
                     <div className="flex items-center justify-center gap-2">
                       <div className="shrink-0 w-12 h-12 rounded-lg bg-white shadow-sm flex items-center justify-center overflow-hidden" aria-hidden>
@@ -714,21 +886,80 @@ export default function ProBotChatArea({
                       </p>
                     </div>
                   </div>
+                  )}
+                  {!showAdminInitialWelcome && (
                   <div className="flex flex-wrap justify-center gap-2 mb-4">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHasChosenThisVisit(true);
-                        setUserChoice('account_estimate');
-                        if (isAuthenticated) setShowProjectInfoForm(true);
-                      }}
-                      className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
-                    >
-                      {isAuthenticated ? tBot('choiceRequestEstimate') : tBot('createAccountAndFreeEstimate')}
-                    </button>
+                    {isContractor ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHasChosenThisVisit(true);
+                          markProBotWelcomeSeen();
+                          setUserChoice('add_customer');
+                          onWelcomeChoiceMade?.();
+                        }}
+                        className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                      >
+                        {tBot('addCustomer')}
+                      </button>
+                    ) : isAuthenticated ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHasChosenThisVisit(true);
+                          markProBotWelcomeSeen();
+                          setUserChoice('free_estimate');
+                          onWelcomeChoiceMade?.();
+                        }}
+                        className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                      >
+                        {tBot('getFreeEstimate')}
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHasChosenThisVisit(true);
+                            markProBotWelcomeSeen();
+                            setUserChoice('create_account');
+                            onWelcomeChoiceMade?.();
+                          }}
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        >
+                          {tBot('createAccount')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHasChosenThisVisit(true);
+                            markProBotWelcomeSeen();
+                            setUserChoice('free_estimate');
+                            onWelcomeChoiceMade?.();
+                          }}
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        >
+                          {tBot('getFreeEstimate')}
+                        </button>
+                        {onOpenSidebar && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              markProBotWelcomeSeen();
+                              onOpenSidebar();
+                              onWelcomeChoiceMade?.();
+                            }}
+                            className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-black hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            {tBot('chatWithAPro')}
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
-                  {!showAccountEstimateFlow && (
-                    <div className="w-full max-w-[95%]">
+                  )}
+                  {!showProBotWizardFlow && !showAdminInitialWelcome && (
+                    <div className="w-full">
                       {pendingAttachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-2">
                           {pendingAttachments.map((att, i) => (
@@ -758,112 +989,126 @@ export default function ProBotChatArea({
                         onSubmit={handleSubmit}
                         className="w-full rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5"
                       >
-                        <div className="flex items-center gap-2 w-full">
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*,application/pdf"
-                            multiple
-                            className="hidden"
-                            onChange={handleFileSelect}
-                          />
-                          <div className="relative shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setAttachMenuOpen((o) => !o)}
-                              disabled={uploadingAttach || pendingAttachments.length >= 10}
-                              className="p-2.5 rounded-full text-black hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer hover:animate-pulse"
-                              aria-label={t('attachFiles')}
-                              aria-expanded={attachMenuOpen}
-                            >
-                              <Plus className="w-5 h-5" />
-                            </button>
-                            {attachMenuOpen && (
-                              <>
-                                <div
-                                  className="fixed inset-0 z-10"
-                                  aria-hidden
-                                  onClick={() => setAttachMenuOpen(false)}
-                                />
-                                <div className="absolute bottom-full left-0 mb-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg z-20">
-                                  <button
-                                    type="button"
-                                    onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                                  >
-                                    <Paperclip className="w-4 h-4" />
-                                    {t('uploadFiles')}
-                                  </button>
-                                  <a
-                                    href="https://drive.google.com"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() => setAttachMenuOpen(false)}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                                  >
-                                    <Cloud className="w-4 h-4" />
-                                    {t('addFromGoogleDrive')}
-                                  </a>
-                                  <button
-                                    type="button"
-                                    onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                                  >
-                                    <ImageIcon className="w-4 h-4" />
-                                    {t('photos')}
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                          <input
-                            ref={messageInputRef}
-                            type="text"
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            placeholder={isAdminView ? t('replyToCustomer') : t('messagePlaceholder')}
-                            className="flex-1 min-w-0 py-3 text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-gray-500"
-                            disabled={sending}
-                            maxLength={2000}
-                          />
-                          <button
-                            type="submit"
-                            disabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
-                            className={`send-button-plane p-2.5 rounded-lg bg-black text-white flex items-center justify-center shrink-0 cursor-pointer hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors overflow-visible ${(inputValue.trim() || pendingAttachments.length > 0) ? 'has-text' : ''}`}
-                            aria-label={t('send')}
-                          >
-                            <span className="send-plane-icon inline-block text-white">
-                              <Send className="w-5 h-5" stroke="currentColor" />
-                            </span>
-                          </button>
-                        </div>
+                        <ChatInputBar
+                          wrapperClassName="flex items-center gap-0 w-full"
+                          value={inputValue}
+                          onChange={(e) => setInputValue(e.target.value)}
+                          placeholder={isAdminView ? t('replyToCustomer') : t('messagePlaceholder')}
+                          disabled={sending}
+                          maxLength={2000}
+                          inputRef={messageInputRef}
+                          fileInputRef={fileInputRef}
+                          onFileSelect={handleFileSelect}
+                          attachMenuOpen={attachMenuOpen}
+                          setAttachMenuOpen={setAttachMenuOpen}
+                          attachDisabled={uploadingAttach || pendingAttachments.length >= 10}
+                          sendDisabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
+                          hasText={!!(inputValue.trim() || pendingAttachments.length > 0)}
+                          labels={{
+                            attachFiles: t('attachFiles'),
+                            uploadFiles: t('uploadFiles'),
+                            addFromGoogleDrive: t('addFromGoogleDrive'),
+                            photos: t('photos'),
+                            send: t('send'),
+                          }}
+                        />
                       </form>
                     </div>
                   )}
                 </div>
               </div>
-            ) : showEstimateForm ? (
+            ) : showSignupForm ? (
               <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
                 <ChatSignupForm
+                  mode="signup"
                   showBackToChoice
                   onCancel={() => {
                     setUserChoice(null);
                     setHasChosenThisVisit(false);
                   }}
                   onSuccess={() => setEstimateSubmitted(true)}
+                  onSuccessWithRole={(role) => {
+                    if (role === 'customer') {
+                      setShowProjectInfoForm(true);
+                    }
+                  }}
                   onStepIndexChange={setSignupStepIndex}
                 />
               </div>
-            ) : showProjectInfoFormView ? (
+            ) : showGuestContactForm ? (
               <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
+                <ChatSignupForm
+                  mode="guest_estimate"
+                  showBackToChoice
+                  onCancel={() => {
+                    setUserChoice(null);
+                    setHasChosenThisVisit(false);
+                  }}
+                  onGuestSubmit={(data) => setGuestContact(data)}
+                  onStepIndexChange={setSignupStepIndex}
+                />
+              </div>
+            ) : showAddCustomerFlow ? (
+              <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
+                <AddCustomerForm
+                  showBackToChoice
+                  onCancel={() => setUserChoice(null)}
+                  onSuccess={() => setAddCustomerSubmitted(true)}
+                />
+              </div>
+            ) : showAddCustomerSuccess ? (
+              <div className="space-y-6 flex-1 flex flex-col min-h-0 py-4 px-2">
+                <div className="flex flex-col justify-start pt-8">
+                  <div className="bg-white border-2 border-black rounded-lg p-6 flex flex-col justify-center text-center mx-4">
+                    <svg
+                      className="w-16 h-16 mx-auto text-green-600 mb-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <h2 className="text-2xl font-semibold mb-4 text-black">
+                      {tBot('addCustomerSuccess')}
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserChoice(null);
+                        setAddCustomerSubmitted(false);
+                      }}
+                      className="mt-4 px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
+                    >
+                      {tBot('continueToChat')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : showProjectInfoFormView ? (
+              <div className="probot-estimate-flow flex flex-col min-h-0 flex-1 overflow-hidden">
                 <ChatEstimateForm
                   key={estimateFormKey}
+                  guestContact={guestContact ?? undefined}
                   onSuccess={() => setProjectEstimateSubmitted(true)}
                   onBack={() => {
-                    setShowProjectInfoForm(false);
-                    if (isAuthenticated) {
-                      setUserChoice(null);
-                      setHasChosenThisVisit(false);
+                    if (userChoice === 'free_estimate') {
+                      if (guestContact) setGuestContact(null);
+                      else {
+                        setUserChoice(null);
+                        setHasChosenThisVisit(false);
+                      }
+                    } else {
+                      setShowProjectInfoForm(false);
+                      if (isAuthenticated) {
+                        setUserChoice(null);
+                        setHasChosenThisVisit(false);
+                      }
                     }
                   }}
                 />
@@ -958,7 +1203,7 @@ export default function ProBotChatArea({
                 </div>
               </div>
             ) : showBusinessEmptyChat ? (
-              <div className="flex-1 flex flex-col items-center justify-center px-2 pt-6 pb-4 min-h-0 w-full">
+              <div className="probot-chat-business-empty flex-1 flex flex-col items-center justify-center px-2 pt-6 pb-4 min-h-0 w-full">
                 <div className="flex flex-col items-center text-center w-full max-w-md">
                   <div className="flex justify-center w-20 h-20 rounded-xl bg-white border-2 border-black shadow-sm overflow-hidden shrink-0 mb-4">
                     {selectedContact?.logo ? (
@@ -974,7 +1219,7 @@ export default function ProBotChatArea({
                   </p>
                   <form
                     onSubmit={handleSubmit}
-                    className="w-full max-w-[95%] rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5"
+                    className="w-full rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5"
                   >
                     {pendingAttachments.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-2">
@@ -1001,85 +1246,29 @@ export default function ProBotChatArea({
                         ))}
                       </div>
                     )}
-                    <div className="flex items-center gap-2 w-full">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,application/pdf"
-                        multiple
-                        className="hidden"
-                        onChange={handleFileSelect}
-                      />
-                      <div className="relative shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setAttachMenuOpen((o) => !o)}
-                          disabled={uploadingAttach || pendingAttachments.length >= 10}
-                          className="p-2.5 rounded-full text-black hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer hover:animate-pulse"
-                          aria-label={t('attachFiles')}
-                          aria-expanded={attachMenuOpen}
-                        >
-                          <Plus className="w-5 h-5" />
-                        </button>
-                        {attachMenuOpen && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-10"
-                              aria-hidden
-                              onClick={() => setAttachMenuOpen(false)}
-                            />
-                            <div className="absolute bottom-full left-0 mb-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg z-20">
-                              <button
-                                type="button"
-                                onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                              >
-                                <Paperclip className="w-4 h-4" />
-                                {t('uploadFiles')}
-                              </button>
-                              <a
-                                href="https://drive.google.com"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={() => setAttachMenuOpen(false)}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                              >
-                                <Cloud className="w-4 h-4" />
-                                {t('addFromGoogleDrive')}
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                              >
-                                <ImageIcon className="w-4 h-4" />
-                                {t('photos')}
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      <input
-                        ref={messageInputRef}
-                        type="text"
+                    <ChatInputBar
+                        wrapperClassName="flex items-center gap-0 w-full"
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder={t('messagePlaceholder')}
-                        className="flex-1 min-w-0 py-3 text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-gray-500"
                         disabled={sending}
                         maxLength={2000}
+                        inputRef={messageInputRef}
+                        fileInputRef={fileInputRef}
+                        onFileSelect={handleFileSelect}
+                        attachMenuOpen={attachMenuOpen}
+                        setAttachMenuOpen={setAttachMenuOpen}
+                        attachDisabled={uploadingAttach || pendingAttachments.length >= 10}
+                        sendDisabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
+                        hasText={!!(inputValue.trim() || pendingAttachments.length > 0)}
+                        labels={{
+                          attachFiles: t('attachFiles'),
+                          uploadFiles: t('uploadFiles'),
+                          addFromGoogleDrive: t('addFromGoogleDrive'),
+                          photos: t('photos'),
+                          send: t('send'),
+                        }}
                       />
-                      <button
-                        type="submit"
-                        disabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
-                        className="send-button-plane p-2.5 rounded-lg bg-black text-white flex items-center justify-center shrink-0 cursor-pointer hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors overflow-visible"
-                        aria-label={t('send')}
-                      >
-                        <span className="send-plane-icon inline-block text-white">
-                          <Send className="w-5 h-5" stroke="currentColor" />
-                        </span>
-                      </button>
-                    </div>
                   </form>
                 </div>
               </div>
@@ -1098,14 +1287,16 @@ export default function ProBotChatArea({
                       ? adminViewingConversation.participant_type === 'contractor' && adminViewingConversation.business_logo
                         ? adminViewingConversation.business_logo
                         : adminViewingConversation.profile_user_picture ?? null
-                      : user?.userPicture ?? null
+                      : isContractor && user?.businessLogo
+                        ? user.businessLogo
+                        : user?.userPicture ?? null
                   }
                 />
               </>
             )}
           </div>
 
-          {!showAccountEstimateFlow && !showWelcome && !showBusinessEmptyChat && (
+          {!showProBotWizardFlow && !showWelcome && !showAdminInitialWelcome && !showBusinessEmptyChat && (
             <>
               {error && (
                 <div className="shrink-0 px-4 py-2 bg-red-50 border-t border-red-200 flex items-center justify-between gap-2">
@@ -1122,38 +1313,8 @@ export default function ProBotChatArea({
               )}
               <form
                 onSubmit={handleSubmit}
-                className="shrink-0 w-full px-4 py-3 pl-[max(1rem,calc(52px+0.5rem))] md:pl-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 bg-white border-t border-gray-200/90 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]"
+                className="probot-chat-footer shrink-0 w-full px-2 md:px-4 py-3 pb-[10px] md:pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 bg-white md:bg-transparent border-t border-gray-200/90 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] md:shadow-none"
               >
-              {isAdminView && adminViewingConversation && (
-                <div className="max-w-5xl mx-auto flex items-center gap-2 mb-2">
-                  <span className="text-xs font-medium text-gray-500 shrink-0">{t('replyAs')}</span>
-                  <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
-                    <button
-                      type="button"
-                      onClick={() => setReplyAs('probot')}
-                      className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${replyAs === 'probot' ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-                    >
-                      {t('replyAsProBot')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReplyAs('hub_agent')}
-                      className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer border-l border-gray-200 ${replyAs === 'hub_agent' ? 'bg-gray-900 text-white border-l-gray-600' : 'text-gray-700 hover:bg-gray-100'}`}
-                    >
-                      {t('replyAsHubAgent')}
-                    </button>
-                    {adminViewingConversation.participant_type === 'contractor' && adminViewingConversation.business_id && (
-                      <button
-                        type="button"
-                        onClick={() => setReplyAs('business')}
-                        className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer border-l border-gray-200 ${replyAs === 'business' ? 'bg-gray-900 text-white border-l-gray-600' : 'text-gray-700 hover:bg-gray-100'}`}
-                      >
-                        {t('replyAsBusiness')}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
               {pendingAttachments.length > 0 && (
                 <div className="max-w-3xl mx-auto flex flex-wrap gap-2 mb-2">
                   {pendingAttachments.map((att, i) => (
@@ -1179,84 +1340,30 @@ export default function ProBotChatArea({
                   ))}
                 </div>
               )}
-              <div className="max-w-5xl mx-auto flex items-center gap-2 w-full rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 focus-within:ring-offset-0 transition-all py-1.5 pl-1.5 pr-1.5">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,application/pdf"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-                <div className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setAttachMenuOpen((o) => !o)}
-                    disabled={uploadingAttach || pendingAttachments.length >= 10}
-                    className="p-2.5 rounded-full text-black hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer hover:animate-pulse"
-                    aria-label={t('attachFiles')}
-                    aria-expanded={attachMenuOpen}
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                  {attachMenuOpen && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        aria-hidden
-                        onClick={() => setAttachMenuOpen(false)}
-                      />
-                      <div className="absolute bottom-full left-0 mb-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg z-20">
-                        <button
-                          type="button"
-                          onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                        >
-                          <Paperclip className="w-4 h-4" />
-                          {t('uploadFiles')}
-                        </button>
-                        <a
-                          href="https://drive.google.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => setAttachMenuOpen(false)}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                        >
-                          <Cloud className="w-4 h-4" />
-                          {t('addFromGoogleDrive')}
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                        >
-                          <ImageIcon className="w-4 h-4" />
-                          {t('photos')}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-                <input
-                  ref={messageInputRef}
-                  type="text"
+              <div className="w-full flex items-center gap-0 rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 focus-within:ring-offset-0 transition-all py-1.5 pl-1.5 pr-1.5">
+                <ChatInputBar
+                  wrapperClassName="flex items-center gap-0 w-full"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder={isAdminView ? t('replyToCustomer') : t('messagePlaceholder')}
-                  className="flex-1 min-w-0 py-3 text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-gray-500"
                   disabled={sending}
                   maxLength={2000}
+                  inputRef={messageInputRef}
+                  fileInputRef={fileInputRef}
+                  onFileSelect={handleFileSelect}
+                  attachMenuOpen={attachMenuOpen}
+                  setAttachMenuOpen={setAttachMenuOpen}
+                  attachDisabled={uploadingAttach || pendingAttachments.length >= 10}
+                  sendDisabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
+                  hasText={!!(inputValue.trim() || pendingAttachments.length > 0)}
+                  labels={{
+                    attachFiles: t('attachFiles'),
+                    uploadFiles: t('uploadFiles'),
+                    addFromGoogleDrive: t('addFromGoogleDrive'),
+                    photos: t('photos'),
+                    send: t('send'),
+                  }}
                 />
-                <button
-                  type="submit"
-                  disabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
-                  className={`send-button-plane p-2.5 rounded-lg bg-black text-white flex items-center justify-center shrink-0 cursor-pointer hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors overflow-visible ${(inputValue.trim() || pendingAttachments.length > 0) ? 'has-text' : ''}`}
-                  aria-label={t('send')}
-                >
-                  <span className="send-plane-icon inline-block text-white">
-                    <Send className="w-5 h-5" stroke="currentColor" />
-                  </span>
-                </button>
               </div>
             </form>
             </>

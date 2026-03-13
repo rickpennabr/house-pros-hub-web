@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+type InvitationRole = 'contractor' | 'realtor';
+
 interface InvitationCodeRow {
   id: string;
   code: string;
@@ -22,17 +24,18 @@ function formatDate(iso: string) {
 }
 
 export default function InvitationCodesPage() {
+  const [role, setRole] = useState<InvitationRole>('contractor');
   const [codes, setCodes] = useState<InvitationCodeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [newCode, setNewCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [newCode, setNewCode] = useState<{ code: string; expiresAt: string; role: InvitationRole } | null>(null);
 
   const fetchCodes = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/admin/invitation-codes?limit=50');
+      const res = await fetch(`/api/admin/invitation-codes?limit=50&role=${role}`);
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error ?? 'Failed to load codes');
@@ -44,7 +47,7 @@ export default function InvitationCodesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     fetchCodes();
@@ -55,10 +58,14 @@ export default function InvitationCodesPage() {
     setError(null);
     setNewCode(null);
     try {
-      const res = await fetch('/api/admin/invitation-codes/generate', { method: 'POST' });
+      const res = await fetch('/api/admin/invitation-codes/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? 'Failed to generate code');
-      setNewCode({ code: data.code, expiresAt: data.expiresAt });
+      setNewCode({ code: data.code, expiresAt: data.expiresAt, role: data.role ?? role });
       await fetchCodes();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate code');
@@ -79,14 +86,40 @@ export default function InvitationCodesPage() {
     }
   };
 
+  const roleLabel = role === 'realtor' ? 'Realtor' : 'Contractor';
+
   return (
     <div className="w-full">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-black mb-2">Invitation codes</h1>
-          <p className="text-gray-600">
-            Generate one-time codes for contractor signup. Each code expires in 30 days.
+          <p className="text-gray-600 mb-3">
+            Generate one-time codes for contractor or realtor signup. Each code expires in 30 days.
           </p>
+          <div className="flex gap-2 border-b border-gray-200">
+            <button
+              type="button"
+              onClick={() => setRole('contractor')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                role === 'contractor'
+                  ? 'border-black text-black'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Contractor
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole('realtor')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                role === 'realtor'
+                  ? 'border-black text-black'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Realtor
+            </button>
+          </div>
         </div>
         <button
           type="button"
@@ -94,7 +127,7 @@ export default function InvitationCodesPage() {
           disabled={generating}
           className="px-4 py-2 rounded-lg border-2 border-black bg-black text-white font-medium hover:bg-gray-800 disabled:opacity-60 cursor-pointer shrink-0"
         >
-          {generating ? 'Generating…' : 'Generate code'}
+          {generating ? 'Generating…' : `Generate ${roleLabel} code`}
         </button>
       </div>
 
@@ -104,9 +137,11 @@ export default function InvitationCodesPage() {
         </p>
       )}
 
-      {newCode && (
+      {newCode && newCode.role === role && (
         <div className="mb-6 p-4 border-2 border-black rounded-lg bg-gray-50 flex flex-col gap-2">
-          <p className="font-medium text-black">New code created — give this to the contractor:</p>
+          <p className="font-medium text-black">
+            New {newCode.role === 'realtor' ? 'realtor' : 'contractor'} code created — give this to the {newCode.role === 'realtor' ? 'realtor' : 'contractor'}:
+          </p>
           <div className="flex items-center gap-2 flex-wrap">
             <code className="px-3 py-2 bg-white border border-gray-300 rounded font-mono text-lg">
               {newCode.code}
@@ -131,7 +166,7 @@ export default function InvitationCodesPage() {
         {loading ? (
           <p className="p-6 text-gray-500">Loading…</p>
         ) : codes.length === 0 ? (
-          <p className="p-6 text-gray-500">No invitation codes yet. Generate one above.</p>
+          <p className="p-6 text-gray-500">No {role} invitation codes yet. Generate one above.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left">

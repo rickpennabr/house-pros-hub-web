@@ -4,8 +4,10 @@ import { ReactNode, useState, useEffect, useCallback } from 'react';
 import { AdminSearchProvider } from './AdminSearchContext';
 import { AdminHeader } from './AdminHeader';
 import { AdminSidebar } from './AdminSidebar';
+import { InAppChatNotificationBanner } from './InAppChatNotificationBanner';
 
 const NEW_SIGNUPS_POLL_MS = 60 * 1000;
+const BADGE_POLL_MS = 15_000;
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -36,10 +38,41 @@ export function AdminLayout({ children, userEmail, onSearchChange }: AdminLayout
     return () => clearInterval(interval);
   }, [fetchNewSignupsCount]);
 
+  // Sync app icon badge (e.g. iPhone PWA) with aggregated unread count. Admin routes have no ChatProvider.
+  useEffect(() => {
+    const fetchBadge = async () => {
+      try {
+        const res = await fetch('/api/notifications/unread-count', {
+          cache: 'no-store',
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) return;
+        const nav = navigator as Navigator & {
+          setAppBadge?: (count: number) => Promise<void>;
+          clearAppBadge?: () => Promise<void>;
+        };
+        const count = typeof data.count === 'number' ? data.count : 0;
+        if (count > 0) {
+          nav.setAppBadge?.(Math.min(count, 99));
+        } else {
+          nav.clearAppBadge?.();
+        }
+      } catch {
+        // ignore
+      }
+    };
+    fetchBadge();
+    const interval = setInterval(fetchBadge, BADGE_POLL_MS);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <AdminSearchProvider onSearchChange={onSearchChange}>
       {/* Mobile: whole page scrolls (overflow-y-auto). Desktop: only main scrolls (overflow-hidden). */}
       <div className="w-full min-h-screen flex flex-col bg-white overflow-y-auto md:overflow-hidden md:h-screen">
+        <InAppChatNotificationBanner />
         <AdminHeader
           userEmail={userEmail}
           notificationCount={notificationCount}

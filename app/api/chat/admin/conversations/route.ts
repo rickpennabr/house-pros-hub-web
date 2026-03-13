@@ -34,6 +34,11 @@ export async function GET(request: NextRequest) {
       { onConflict: 'user_id' }
     );
 
+    // All admin user ids: conversations where the "visitor" is any admin show as ProBot (one bot) in History
+    type AdminUserRow = { user_id: string };
+    const { data: adminUsers } = await supabase.from('admin_users').select('user_id');
+    const adminUserIdsSet = new Set<string>(((adminUsers ?? []) as AdminUserRow[]).map((r) => r.user_id));
+
     let convList: ConvRow[] = [];
     type ConvRow = { id: string; visitor_id: string; created_at: string; updated_at: string; visitor_display_name?: string | null; user_id?: string | null };
     const convRes = await supabase
@@ -207,8 +212,8 @@ export async function GET(request: NextRequest) {
         const profile_first_name = profile?.first_name?.trim() || undefined;
         const profile_last_name = profile?.last_name?.trim() || undefined;
         const profile_user_picture = profile?.user_picture?.trim() || undefined;
-        // When the "visitor" in this conversation is the current admin, show as ProBot only (never personal name)
-        const display_as_probot = row.user_id === user.id;
+        // When the "visitor" in this conversation is any admin, show as ProBot only (one bot in History, never personal name/photo)
+        const display_as_probot = row.user_id != null && adminUserIdsSet.has(row.user_id);
         const lastActivityAt = last?.created_at ?? row.updated_at;
         return {
           ...row,

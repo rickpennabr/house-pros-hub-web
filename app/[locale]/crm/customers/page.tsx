@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Search, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { ChevronDown, Search, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, User, MapPin, FileText, CreditCard } from 'lucide-react';
 import Pagination from '@/components/ui/Pagination';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
@@ -11,6 +12,7 @@ import Accordion from '@/components/ui/Accordion';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import Modal from '@/components/ui/Modal';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
+import { validateCustomerEmail, validateCustomerPhone } from '@/lib/schemas/crm';
 import type { Database } from '@/lib/types/supabase';
 
 type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'];
@@ -21,6 +23,8 @@ const SORT_OPTIONS = [
   { value: 'updated_at', label: 'Updated' },
   { value: 'last_name', label: 'Last name' },
   { value: 'first_name', label: 'First name' },
+  { value: 'company_name', label: 'Company' },
+  { value: 'display_name', label: 'Display name' },
   { value: 'city', label: 'City' },
   { value: 'state', label: 'State' },
   { value: 'phone', label: 'Phone' },
@@ -28,9 +32,56 @@ const SORT_OPTIONS = [
 ] as const;
 type SortKey = (typeof SORT_OPTIONS)[number]['value'];
 
+/** All pro_crm_customers columns for table display (order matches schema). */
+const CUSTOMER_TABLE_COLUMNS: { key: keyof CRMCustomerRow; label: string; sortKey?: SortKey }[] = [
+  { key: 'first_name', label: 'First name', sortKey: 'first_name' },
+  { key: 'last_name', label: 'Last name', sortKey: 'last_name' },
+  { key: 'company_name', label: 'Company', sortKey: 'company_name' },
+  { key: 'display_name', label: 'Display name', sortKey: 'display_name' },
+  { key: 'email', label: 'Email', sortKey: 'email' },
+  { key: 'phone', label: 'Phone', sortKey: 'phone' },
+  { key: 'mobile_number', label: 'Mobile' },
+  { key: 'website', label: 'Website' },
+  { key: 'street_address', label: 'Street' },
+  { key: 'apartment', label: 'Apt/Unit' },
+  { key: 'city', label: 'City', sortKey: 'city' },
+  { key: 'state', label: 'State', sortKey: 'state' },
+  { key: 'zip_code', label: 'ZIP' },
+  { key: 'billing_address_street_1', label: 'Bill street 1' },
+  { key: 'billing_address_street_2', label: 'Bill street 2' },
+  { key: 'billing_address_city', label: 'Bill city' },
+  { key: 'billing_address_state', label: 'Bill state' },
+  { key: 'billing_address_zip_code', label: 'Bill ZIP' },
+  { key: 'billing_address_country', label: 'Bill country' },
+  { key: 'shipping_same_as_billing', label: 'Ship same as bill' },
+  { key: 'shipping_address_street_1', label: 'Ship street 1' },
+  { key: 'shipping_address_street_2', label: 'Ship street 2' },
+  { key: 'shipping_address_city', label: 'Ship city' },
+  { key: 'shipping_address_state', label: 'Ship state' },
+  { key: 'shipping_address_zip_code', label: 'Ship ZIP' },
+  { key: 'shipping_address_country', label: 'Ship country' },
+  { key: 'notes', label: 'Notes' },
+  { key: 'primary_payment_method', label: 'Payment method' },
+  { key: 'payment_terms', label: 'Payment terms' },
+  { key: 'invoice_language', label: 'Invoice lang' },
+  { key: 'opening_balance', label: 'Opening balance' },
+  { key: 'created_at', label: 'Joined', sortKey: 'created_at' },
+  { key: 'updated_at', label: 'Updated', sortKey: 'updated_at' },
+];
+
 function formatDate(iso: string | null) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatCellValue(row: CRMCustomerRow, key: keyof CRMCustomerRow): string {
+  const v = row[key];
+  if (v == null) return '—';
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'object') return JSON.stringify(v).slice(0, 50) + (JSON.stringify(v).length > 50 ? '…' : '');
+  const s = String(v).trim();
+  return s || '—';
 }
 
 function SortHeader({
@@ -92,32 +143,74 @@ function SortHeader({
 export type CRMCustomerFormData = {
   firstName: string;
   lastName: string;
+  companyName: string;
+  displayName: string;
   email: string;
   phone: string;
-  note: string;
+  mobileNumber: string;
+  website: string;
   addressSearch: string;
   streetAddress: string;
   apartment: string;
   city: string;
   state: string;
   zipCode: string;
+  billingStreet1: string;
+  billingStreet2: string;
+  billingCity: string;
+  billingState: string;
+  billingZipCode: string;
+  billingCountry: string;
+  shippingSameAsBilling: boolean;
+  shippingStreet1: string;
+  shippingStreet2: string;
+  shippingCity: string;
+  shippingState: string;
+  shippingZipCode: string;
+  shippingCountry: string;
+  notes: string;
+  primaryPaymentMethod: string;
+  paymentTerms: string;
+  invoiceLanguage: 'en' | 'es';
+  openingBalance: string;
 };
 
 const emptyForm: CRMCustomerFormData = {
   firstName: '',
   lastName: '',
+  companyName: '',
+  displayName: '',
   email: '',
   phone: '',
-  note: '',
+  mobileNumber: '',
+  website: '',
   addressSearch: '',
   streetAddress: '',
   apartment: '',
   city: '',
   state: '',
   zipCode: '',
+  billingStreet1: '',
+  billingStreet2: '',
+  billingCity: '',
+  billingState: '',
+  billingZipCode: '',
+  billingCountry: '',
+  shippingSameAsBilling: true,
+  shippingStreet1: '',
+  shippingStreet2: '',
+  shippingCity: '',
+  shippingState: '',
+  shippingZipCode: '',
+  shippingCountry: '',
+  notes: '',
+  primaryPaymentMethod: '',
+  paymentTerms: '',
+  invoiceLanguage: 'en',
+  openingBalance: '',
 };
 
-type AccordionKey = 'contact' | 'address';
+type AccordionKey = 'nameAndContact' | 'addresses' | 'notesAndAttachments' | 'payments';
 
 function CustomerForm({
   mode,
@@ -133,9 +226,22 @@ function CustomerForm({
   const [form, setForm] = useState<CRMCustomerFormData>({ ...emptyForm, ...initial });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [accordionOpen, setAccordionOpen] = useState<Record<AccordionKey, boolean>>({ contact: true, address: false });
+  const [accordionOpen, setAccordionOpen] = useState<Record<AccordionKey, boolean>>({
+    nameAndContact: true,
+    addresses: true,
+    notesAndAttachments: false,
+    payments: false,
+  });
+  const firstInputRef = useRef<HTMLInputElement>(null);
+  const tValidation = useTranslations('validation');
 
-  const update = (key: keyof CRMCustomerFormData, value: string) => {
+  useEffect(() => {
+    if (mode === 'add') {
+      firstInputRef.current?.focus();
+    }
+  }, [mode]);
+
+  const update = (key: keyof CRMCustomerFormData, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setError(null);
   };
@@ -145,36 +251,94 @@ function CustomerForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setError(null);
+    const trim = (s: string) => s.trim();
+    const emailErr = validateCustomerEmail(trim(form.email));
+    if (emailErr) {
+      setError(tValidation(emailErr) as string);
+      return;
+    }
+    const phoneErr = validateCustomerPhone(trim(form.phone), false);
+    if (phoneErr) {
+      setError(tValidation(phoneErr) as string);
+      return;
+    }
+    const mobileErr = validateCustomerPhone(trim(form.mobileNumber), false);
+    if (mobileErr) {
+      setError(tValidation(mobileErr) as string);
+      return;
+    }
+    setSaving(true);
     try {
       const id = (initial as { id?: string }).id;
       const url = id ? `/api/crm/customers/${id}` : '/api/crm/customers';
       const method = id ? 'PUT' : 'POST';
-      const body = id
+      const body: Record<string, unknown> = id
         ? {
-            firstName: form.firstName.trim(),
-            lastName: form.lastName.trim(),
-            email: form.email.trim() || null,
-            phone: form.phone.trim() || null,
-            note: form.note.trim() || null,
-            streetAddress: form.streetAddress.trim() || null,
-            apartment: form.apartment.trim() || null,
-            city: form.city.trim() || null,
-            state: form.state.trim() || null,
-            zipCode: form.zipCode.trim() || null,
+            first_name: trim(form.firstName) || null,
+            last_name: trim(form.lastName) || null,
+            company_name: trim(form.companyName) || null,
+            display_name: trim(form.displayName) || null,
+            email: trim(form.email) || null,
+            phone: trim(form.phone) || null,
+            mobile_number: trim(form.mobileNumber) || null,
+            website: trim(form.website) || null,
+            street_address: trim(form.streetAddress) || null,
+            apartment: trim(form.apartment) || null,
+            city: trim(form.city) || null,
+            state: trim(form.state) || null,
+            zip_code: trim(form.zipCode) || null,
+            billing_address_street_1: trim(form.billingStreet1) || null,
+            billing_address_street_2: trim(form.billingStreet2) || null,
+            billing_address_city: trim(form.billingCity) || null,
+            billing_address_state: trim(form.billingState) || null,
+            billing_address_zip_code: trim(form.billingZipCode) || null,
+            billing_address_country: trim(form.billingCountry) || null,
+            shipping_same_as_billing: form.shippingSameAsBilling,
+            shipping_address_street_1: trim(form.shippingStreet1) || null,
+            shipping_address_street_2: trim(form.shippingStreet2) || null,
+            shipping_address_city: trim(form.shippingCity) || null,
+            shipping_address_state: trim(form.shippingState) || null,
+            shipping_address_zip_code: trim(form.shippingZipCode) || null,
+            shipping_address_country: trim(form.shippingCountry) || null,
+            notes: trim(form.notes) || null,
+            primary_payment_method: trim(form.primaryPaymentMethod) || null,
+            payment_terms: trim(form.paymentTerms) || null,
+            invoice_language: form.invoiceLanguage,
+            opening_balance: form.openingBalance === '' ? null : parseFloat(form.openingBalance) || 0,
           }
         : {
-            firstName: form.firstName.trim(),
-            lastName: form.lastName.trim(),
-            email: form.email.trim() || null,
-            phone: form.phone.trim() || null,
-            note: form.note.trim() || null,
-            streetAddress: form.streetAddress.trim() || null,
-            apartment: form.apartment.trim() || null,
-            city: form.city.trim() || null,
-            state: form.state.trim() || null,
-            zipCode: form.zipCode.trim() || null,
+            first_name: trim(form.firstName),
+            last_name: trim(form.lastName),
+            company_name: trim(form.companyName) || null,
+            display_name: trim(form.displayName) || null,
+            email: trim(form.email) || null,
+            phone: trim(form.phone) || null,
+            mobile_number: trim(form.mobileNumber) || null,
+            website: trim(form.website) || null,
+            street_address: trim(form.streetAddress) || null,
+            apartment: trim(form.apartment) || null,
+            city: trim(form.city) || null,
+            state: trim(form.state) || null,
+            zip_code: trim(form.zipCode) || null,
+            billing_address_street_1: trim(form.billingStreet1) || null,
+            billing_address_street_2: trim(form.billingStreet2) || null,
+            billing_address_city: trim(form.billingCity) || null,
+            billing_address_state: trim(form.billingState) || null,
+            billing_address_zip_code: trim(form.billingZipCode) || null,
+            billing_address_country: trim(form.billingCountry) || null,
+            shipping_same_as_billing: form.shippingSameAsBilling,
+            shipping_address_street_1: trim(form.shippingStreet1) || null,
+            shipping_address_street_2: trim(form.shippingStreet2) || null,
+            shipping_address_city: trim(form.shippingCity) || null,
+            shipping_address_state: trim(form.shippingState) || null,
+            shipping_address_zip_code: trim(form.shippingZipCode) || null,
+            shipping_address_country: trim(form.shippingCountry) || null,
+            notes: trim(form.notes) || null,
+            primary_payment_method: trim(form.primaryPaymentMethod) || null,
+            payment_terms: trim(form.paymentTerms) || null,
+            invoice_language: form.invoiceLanguage,
+            opening_balance: form.openingBalance === '' ? null : parseFloat(form.openingBalance) || 0,
           };
       const res = await fetch(url, {
         method,
@@ -193,71 +357,224 @@ function CustomerForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="md:p-6 space-y-4 max-w-xl md:mx-auto">
+    <form onSubmit={handleSubmit} className="md:p-6 space-y-4 max-w-4xl md:mx-auto">
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>
       )}
-      <Accordion title="Contact" isOpen={accordionOpen.contact} onToggle={() => toggleAccordion('contact')} required>
-        <div className="space-y-4">
+
+      <Accordion
+        title="Name and contact"
+        isOpen={accordionOpen.nameAndContact}
+        onToggle={() => toggleAccordion('nameAndContact')}
+        required
+        icon={<User className="w-5 h-5" />}
+      >
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {/* Row 1: First name, Last name, Company name */}
           <FormField label="First name" required>
-            <Input value={form.firstName} onChange={(e) => update('firstName', e.target.value)} placeholder="First name" required />
+            <Input ref={firstInputRef} value={form.firstName} onChange={(e) => update('firstName', e.target.value)} placeholder="First name" required />
           </FormField>
           <FormField label="Last name" required>
             <Input value={form.lastName} onChange={(e) => update('lastName', e.target.value)} placeholder="Last name" required />
           </FormField>
+          <FormField label="Company name" className="sm:col-span-2 md:col-span-1">
+            <Input value={form.companyName} onChange={(e) => update('companyName', e.target.value)} placeholder="Company name" />
+          </FormField>
+          {/* Row 2: Customer display name, Phone, Mobile number */}
+          <FormField label="Customer display name" className="sm:col-span-2 md:col-span-1">
+            <Input value={form.displayName} onChange={(e) => update('displayName', e.target.value)} placeholder="Name shown on forms" />
+          </FormField>
+          <FormField label="Phone">
+            <Input type="tel" value={form.phone} onChange={(e) => update('phone', formatPhoneNumber(e.target.value))} placeholder="(702) 555-0123" />
+          </FormField>
+          <FormField label="Mobile number">
+            <Input type="tel" value={form.mobileNumber} onChange={(e) => update('mobileNumber', formatPhoneNumber(e.target.value))} placeholder="Mobile" />
+          </FormField>
+          {/* Row 3: Email, Website */}
           <FormField label="Email">
             <Input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="email@example.com" />
           </FormField>
-          <FormField label="Phone">
-            <Input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => update('phone', formatPhoneNumber(e.target.value))}
-              placeholder="(702) 555-0123"
-            />
-          </FormField>
-          <FormField label="Note">
-            <Input value={form.note} onChange={(e) => update('note', e.target.value)} placeholder="Optional note" />
+          <FormField label="Website">
+            <Input type="url" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://..." />
           </FormField>
         </div>
       </Accordion>
-      <Accordion title="Address" isOpen={accordionOpen.address} onToggle={() => toggleAccordion('address')}>
-        <div className="space-y-4">
-          <FormField label="Search address">
-            <AddressAutocomplete
-              value={form.addressSearch}
-              onChange={(v) => update('addressSearch', v)}
-              onAddressSelect={(addr: AddressData) => {
-                setForm((prev) => ({
-                  ...prev,
-                  addressSearch: addr.streetAddress || addr.fullAddress || '',
-                  streetAddress: addr.streetAddress || prev.streetAddress,
-                  apartment: addr.apartment ?? prev.apartment,
-                  city: addr.city || prev.city,
-                  state: addr.state || prev.state,
-                  zipCode: addr.zipCode || prev.zipCode,
-                }));
-                setError(null);
-              }}
-              placeholder="Enter address"
-            />
-          </FormField>
-          <FormField label="Apartment / Unit">
-            <Input value={form.apartment} onChange={(e) => update('apartment', e.target.value)} placeholder="Apt, suite, etc." />
-          </FormField>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="City">
-              <Input value={form.city} onChange={(e) => update('city', e.target.value)} placeholder="City" />
+
+      <Accordion
+        title="Addresses"
+        isOpen={accordionOpen.addresses}
+        onToggle={() => toggleAccordion('addresses')}
+        icon={<MapPin className="w-5 h-5" />}
+      >
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Billing address</h3>
+            <FormField
+              label="Search address"
+              tip="Search to autofill street, city, state, and ZIP. You can also type an address and use “Use this address” if it’s not in the list."
+              className="mb-4"
+            >
+              <AddressAutocomplete
+                id="billing-address-search"
+                value={form.addressSearch}
+                onChange={(v) => update('addressSearch', v)}
+                onAddressSelect={(addr: AddressData) => {
+                  setForm((prev) => ({
+                    ...prev,
+                    addressSearch: addr.streetAddress || addr.fullAddress || '',
+                    streetAddress: addr.streetAddress,
+                    apartment: addr.apartment ?? prev.apartment,
+                    city: addr.city,
+                    state: addr.state,
+                    zipCode: addr.zipCode,
+                    billingStreet1: addr.streetAddress,
+                    billingStreet2: addr.apartment ?? prev.billingStreet2,
+                    billingCity: addr.city,
+                    billingState: addr.state,
+                    billingZipCode: addr.zipCode,
+                    billingCountry: prev.billingCountry || 'United States',
+                  }));
+                  setError(null);
+                }}
+                placeholder="Enter your Nevada address"
+              />
             </FormField>
-            <FormField label="State">
-              <Input value={form.state} onChange={(e) => update('state', e.target.value)} placeholder="e.g. NV" maxLength={2} />
-            </FormField>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              <FormField label="Street address 1" className="col-span-2 md:col-span-1">
+                <Input value={form.billingStreet1} onChange={(e) => update('billingStreet1', e.target.value)} placeholder="Street address 1" />
+              </FormField>
+              <FormField label="Street address 2" className="col-span-2 md:col-span-1">
+                <Input value={form.billingStreet2} onChange={(e) => update('billingStreet2', e.target.value)} placeholder="Street address 2" />
+              </FormField>
+              <FormField label="City">
+                <Input value={form.billingCity} onChange={(e) => update('billingCity', e.target.value)} placeholder="City" />
+              </FormField>
+              <FormField label="State">
+                <Input value={form.billingState} onChange={(e) => update('billingState', e.target.value)} placeholder="State" />
+              </FormField>
+              <FormField label="ZIP code">
+                <Input value={form.billingZipCode} onChange={(e) => update('billingZipCode', e.target.value)} placeholder="ZIP" />
+              </FormField>
+              <FormField label="Country">
+                <Input value={form.billingCountry} onChange={(e) => update('billingCountry', e.target.value)} placeholder="Country" />
+              </FormField>
+            </div>
           </div>
-          <FormField label="ZIP code">
-            <Input value={form.zipCode} onChange={(e) => update('zipCode', e.target.value)} placeholder="ZIP" />
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Shipping address</h3>
+            <div className="flex items-center gap-2 mb-4">
+              <input
+                type="checkbox"
+                id="shippingSameAsBilling"
+                checked={form.shippingSameAsBilling}
+                onChange={(e) => update('shippingSameAsBilling', e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="shippingSameAsBilling" className="text-sm font-medium text-gray-700 cursor-pointer">Same as billing address</label>
+            </div>
+            {!form.shippingSameAsBilling && (
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <FormField label="Street address 1" className="col-span-2 md:col-span-1">
+                  <Input value={form.shippingStreet1} onChange={(e) => update('shippingStreet1', e.target.value)} placeholder="Street address 1" />
+                </FormField>
+                <FormField label="Street address 2" className="col-span-2 md:col-span-1">
+                  <Input value={form.shippingStreet2} onChange={(e) => update('shippingStreet2', e.target.value)} placeholder="Street address 2" />
+                </FormField>
+                <FormField label="City">
+                  <Input value={form.shippingCity} onChange={(e) => update('shippingCity', e.target.value)} placeholder="City" />
+                </FormField>
+                <FormField label="State">
+                  <Input value={form.shippingState} onChange={(e) => update('shippingState', e.target.value)} placeholder="State" />
+                </FormField>
+                <FormField label="ZIP code">
+                  <Input value={form.shippingZipCode} onChange={(e) => update('shippingZipCode', e.target.value)} placeholder="ZIP" />
+                </FormField>
+                <FormField label="Country">
+                  <Input value={form.shippingCountry} onChange={(e) => update('shippingCountry', e.target.value)} placeholder="Country" />
+                </FormField>
+              </div>
+            )}
+          </div>
+        </div>
+      </Accordion>
+
+      <Accordion
+        title="Notes and attachments"
+        isOpen={accordionOpen.notesAndAttachments}
+        onToggle={() => toggleAccordion('notesAndAttachments')}
+        icon={<FileText className="w-5 h-5" />}
+      >
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <FormField label="Notes" className="sm:col-span-2 md:col-span-3">
+            <textarea
+              value={form.notes}
+              onChange={(e) => update('notes', e.target.value)}
+              placeholder="Additional notes"
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent resize-y"
+            />
+          </FormField>
+          <FormField label="Attachments" className="sm:col-span-2 md:col-span-3">
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <button type="button" className="text-blue-600 hover:text-blue-800 font-medium text-sm cursor-pointer">
+                Add attachment
+              </button>
+              <p className="text-gray-500 text-xs mt-1">Max file size: 20 MB</p>
+            </div>
           </FormField>
         </div>
       </Accordion>
+
+      <Accordion
+        title="Payments"
+        isOpen={accordionOpen.payments}
+        onToggle={() => toggleAccordion('payments')}
+        icon={<CreditCard className="w-5 h-5" />}
+      >
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <FormField label="Primary payment method">
+            <select
+              value={form.primaryPaymentMethod}
+              onChange={(e) => update('primaryPaymentMethod', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-black focus:outline-none focus:ring-2 focus:ring-black"
+            >
+              <option value="">Select a primary payment method</option>
+              <option value="cash">Cash</option>
+              <option value="check">Check</option>
+              <option value="credit_card">Credit Card</option>
+              <option value="ach">ACH</option>
+              <option value="other">Other</option>
+            </select>
+          </FormField>
+          <FormField label="Terms">
+            <select
+              value={form.paymentTerms}
+              onChange={(e) => update('paymentTerms', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-black focus:outline-none focus:ring-2 focus:ring-black"
+            >
+              <option value="">Select terms</option>
+              <option value="Due on receipt">Due on receipt</option>
+              <option value="Net 15">Net 15</option>
+              <option value="Net 30">Net 30</option>
+              <option value="Net 60">Net 60</option>
+            </select>
+          </FormField>
+          <FormField label="Language to use when you send invoices">
+            <select
+              value={form.invoiceLanguage}
+              onChange={(e) => update('invoiceLanguage', e.target.value as 'en' | 'es')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-black focus:outline-none focus:ring-2 focus:ring-black"
+            >
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+            </select>
+          </FormField>
+          <FormField label="Opening balance">
+            <Input type="number" step="0.01" value={form.openingBalance} onChange={(e) => update('openingBalance', e.target.value)} placeholder="0.00" />
+          </FormField>
+        </div>
+      </Accordion>
+
       <div className="flex gap-2 pt-2">
         <Button type="button" variant="secondary" size="sm" onClick={onCancel} disabled={saving}>
           Cancel
@@ -346,19 +663,42 @@ export default function CRMCustomersPage() {
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
+        const empty = (v: unknown) => (v == null || String(v).trim() === '' ? '' : String(v).trim());
+        const num = (v: unknown) => (typeof v === 'number' ? String(v) : '');
         setEditingInitial({
           id: editingId,
-          firstName: data.firstName ?? '',
-          lastName: data.lastName ?? '',
-          email: data.email ?? '',
-          phone: data.phone ?? '',
-          note: data.note ?? '',
-          addressSearch: data.streetAddress ?? '',
-          streetAddress: data.streetAddress ?? '',
-          apartment: data.apartment ?? '',
-          city: data.city ?? '',
-          state: data.state ?? '',
-          zipCode: data.zipCode ?? '',
+          firstName: empty(data.first_name),
+          lastName: empty(data.last_name),
+          companyName: empty(data.company_name),
+          displayName: empty(data.display_name),
+          email: empty(data.email),
+          phone: empty(data.phone),
+          mobileNumber: empty(data.mobile_number),
+          website: empty(data.website),
+          addressSearch: empty(data.billing_address_street_1) || empty(data.street_address),
+          streetAddress: empty(data.street_address),
+          apartment: empty(data.apartment),
+          city: empty(data.city),
+          state: empty(data.state),
+          zipCode: empty(data.zip_code),
+          billingStreet1: empty(data.billing_address_street_1),
+          billingStreet2: empty(data.billing_address_street_2),
+          billingCity: empty(data.billing_address_city),
+          billingState: empty(data.billing_address_state),
+          billingZipCode: empty(data.billing_address_zip_code),
+          billingCountry: empty(data.billing_address_country),
+          shippingSameAsBilling: data.shipping_same_as_billing !== false,
+          shippingStreet1: empty(data.shipping_address_street_1),
+          shippingStreet2: empty(data.shipping_address_street_2),
+          shippingCity: empty(data.shipping_address_city),
+          shippingState: empty(data.shipping_address_state),
+          shippingZipCode: empty(data.shipping_address_zip_code),
+          shippingCountry: empty(data.shipping_address_country),
+          notes: empty(data.notes),
+          primaryPaymentMethod: empty(data.primary_payment_method),
+          paymentTerms: empty(data.payment_terms),
+          invoiceLanguage: data.invoice_language === 'es' ? 'es' : 'en',
+          openingBalance: num(data.opening_balance),
         });
       })
       .catch(() => { if (!cancelled) setEditingInitial({ ...emptyForm, id: editingId }); });
@@ -410,17 +750,11 @@ export default function CRMCustomersPage() {
               Add Customer
             </Button>
           </div>
-          <div className="md:hidden mt-2 flex justify-end">
-            <Button variant="primary" size="sm" className="flex md:hidden items-center gap-2" onClick={() => setViewMode('add')}>
-              <Plus className="w-4 h-4" />
-              Add Customer
-            </Button>
-          </div>
         </>
       )}
 
       {(viewMode === 'add' || viewMode === 'edit') && (
-        <div className="w-full md:max-w-2xl md:mx-auto">
+        <div className="w-full md:max-w-4xl md:mx-auto">
           <div className="py-2 md:py-0 md:mb-6 flex items-center justify-between gap-4">
             <button
               type="button"
@@ -492,33 +826,27 @@ export default function CRMCustomersPage() {
                     <span className="text-sm text-gray-500">Updating…</span>
                   </div>
                 )}
-                <table className="w-full border-collapse" style={{ tableLayout: 'fixed', minWidth: 500 }}>
+                <table className="w-full border-collapse whitespace-nowrap" style={{ minWidth: 'max-content' }}>
                   <thead>
                     <tr className="border-b-2 border-black bg-black text-white">
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Name" sortKey="last_name" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                      </th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Email" sortKey="email" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                      </th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Phone" sortKey="phone" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                      </th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Location" sortKey="city" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                      </th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Joined" sortKey="created_at" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                      </th>
-                      <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white w-[72px]">
-                        <span className="font-semibold text-white whitespace-nowrap">Actions</span>
+                      {CUSTOMER_TABLE_COLUMNS.map(({ key, label, sortKey }) => (
+                        <th key={key} className="px-3 py-1.5 text-left border-r border-white/30 min-w-[100px]">
+                          {sortKey && SORT_OPTIONS.some((o) => o.value === sortKey) ? (
+                            <SortHeader label={label} sortKey={sortKey} currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                          ) : (
+                            <span className="font-semibold text-white">{label}</span>
+                          )}
+                        </th>
+                      ))}
+                      <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white w-[72px] min-w-[72px]">
+                        <span className="font-semibold text-white">Actions</span>
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {customers.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500 text-sm">
+                        <td colSpan={CUSTOMER_TABLE_COLUMNS.length + 1} className="px-4 py-12 text-center text-gray-500 text-sm">
                           No customers found.
                         </td>
                       </tr>
@@ -538,25 +866,11 @@ export default function CRMCustomersPage() {
                           }}
                           className="group border-b border-gray-100 hover:bg-gray-50/80 transition-colors cursor-pointer"
                         >
-                          <td className="px-4 py-1.5 max-w-0 overflow-hidden">
-                            <span className="font-medium text-gray-900 truncate block">
-                              {row.first_name || ''} {row.last_name || ''}
-                            </span>
-                          </td>
-                          <td className="px-4 py-1.5 text-sm text-gray-600 max-w-0 overflow-hidden">
-                            <span className="truncate block">{row.email || '—'}</span>
-                          </td>
-                          <td className="px-4 py-1.5 text-sm text-gray-600 max-w-0 overflow-hidden">
-                            <span className="truncate block">{row.phone || '—'}</span>
-                          </td>
-                          <td className="px-4 py-1.5 text-sm text-gray-600 max-w-0 overflow-hidden">
-                            <span className="truncate block">
-                              {[row.city, row.state].filter(Boolean).length ? [row.city, row.state].filter(Boolean).join(', ') : '—'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-1.5 text-sm text-gray-500 max-w-0 overflow-hidden">
-                            <span className="truncate block">{formatDate(row.created_at)}</span>
-                          </td>
+                          {CUSTOMER_TABLE_COLUMNS.map(({ key }) => (
+                            <td key={key} className="px-3 py-1.5 text-sm text-gray-700 max-w-[200px] overflow-hidden truncate" title={formatCellValue(row, key)}>
+                              {key === 'created_at' || key === 'updated_at' ? formatDate(row[key] as string | null) : formatCellValue(row, key)}
+                            </td>
+                          ))}
                           <td
                             className="sticky right-0 z-10 py-1.5 text-center bg-white group-hover:bg-gray-50/80 border-l-2 border-gray-100"
                             onClick={(e) => e.stopPropagation()}
@@ -693,6 +1007,18 @@ export default function CRMCustomersPage() {
           </div>,
           document.body
         )}
+
+      {/* Mobile-only: fixed FAB to add customer (same style as nine-dot menu button) */}
+      {viewMode === 'table' && (
+        <button
+          type="button"
+          onClick={() => setViewMode('add')}
+          className="md:hidden fixed bottom-6 right-4 z-50 h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all shadow-lg"
+          aria-label="Add customer"
+        >
+          <Plus className="w-5 h-5 text-white" />
+        </button>
+      )}
     </div>
   );
 }

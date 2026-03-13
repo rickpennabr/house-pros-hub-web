@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 /**
  * User role types
  */
-export type UserRole = 'customer' | 'contractor';
+export type UserRole = 'customer' | 'contractor' | 'realtor';
 
 /**
  * Get all active roles for a user
@@ -99,12 +99,12 @@ export async function hasAnyRole(userId: string, roles: UserRole[]): Promise<boo
 }
 
 /**
- * Check if user can create a business (has contractor role)
+ * Check if user can create a business (has contractor or realtor role)
  * @param userId - The user ID
- * @returns True if user has contractor role, false otherwise
+ * @returns True if user has contractor or realtor role, false otherwise
  */
 export async function canCreateBusiness(userId: string): Promise<boolean> {
-  return hasRole(userId, 'contractor');
+  return hasAnyRole(userId, ['contractor', 'realtor']);
 }
 
 /**

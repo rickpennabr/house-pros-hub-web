@@ -180,11 +180,10 @@ export default function ProCardHeader({
   // Don't show category if we have licenses array - licenses should be the source of truth
   const showCategory = false;
 
-  // Calculate right padding for right-side buttons: message (left of share) + share + phone
-  // Match visual space to left of logo (p-2 = 8px): share at right-2, message just left of it
+  // Right-side actions: grouped at right-2. Use same padding as card mode so content alignment matches.
   const rightPadding = isListMode
-    ? (onMessage && phone ? 'pr-24' : onMessage ? 'pr-20' : phone ? 'pr-16' : 'pr-10')
-    : onMessage ? 'pr-20' : 'pr-10';
+    ? 'pr-19 md:pr-17'
+    : onMessage ? 'pr-19 md:pr-17' : 'pr-14';
 
   return (
     <div className={`relative ${showCategory ? 'min-h-[60px]' : 'h-[60px]'} flex items-center p-2 ${isListMode ? '' : 'border-b border-black'}`}>
@@ -208,7 +207,7 @@ export default function ProCardHeader({
                 }}
               />
             ) : (
-              <span className="text-lg font-bold text-white">{initials}</span>
+              <span className="text-sm md:text-base font-bold text-white">{initials}</span>
             )}
           </div>
           {/* Status indicator on top layer so it always appears above the logo */}
@@ -223,11 +222,11 @@ export default function ProCardHeader({
 
         {/* Text Content */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-base md:text-sm font-bold text-black truncate leading-tight">{businessName}</h3>
+          <h3 className="text-[11.5px] lg:text-[12.65px] font-bold text-black truncate leading-tight">{businessName}</h3>
           <div className="flex flex-col gap-0.5 min-w-0 mt-0.5">
             {/* Licenses - Show all with icons, pipe-separated, with ellipsis on overflow */}
             <div className="min-w-0 overflow-hidden">
-              <p className="text-sm md:text-xs font-medium text-gray-600 truncate">
+              <p className="text-[10px] font-medium text-gray-600 truncate">
                 {displayLicenses.map((license, index) => {
                   const IconComponent = license.tradeIcon && license.tradeIcon in LucideIcons
                     ? (LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }>>)[license.tradeIcon]
@@ -266,58 +265,46 @@ export default function ProCardHeader({
           </div>
         </div>
       </div>
-      {/* Message button (left of share) - list mode */}
-      {isListMode && onMessage && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onMessage();
-          }}
-          className={`absolute ${phone ? 'right-20' : 'right-10'} w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0`}
-          aria-label="Message"
-        >
-          <MessageCircle className="w-5 h-5 text-black" />
-        </button>
-      )}
-      {/* Share button - always show in list mode; right-2 when no phone to match left logo padding (p-2) */}
+      {/* Right-side actions: one group at right-2 so share's right edge matches left logo padding (p-2). Icons closer with gap-1. */}
       {isListMode && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onShare?.();
-          }}
-          className={`absolute ${phone ? 'right-10' : 'right-2'} w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0`}
-          aria-label="Share"
-        >
-          <Share2 className="w-5 h-5 text-black" />
-        </button>
+        <div className="absolute right-2 flex items-center gap-2">
+          {phone && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPhoneClick?.(e);
+                if (!e.defaultPrevented && phone) {
+                  window.location.href = `tel:${phone}`;
+                }
+              }}
+              className="w-[25px] h-[35px] rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+              aria-label="Phone"
+            >
+              <Phone className="h-10 w-5 text-black" />
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onShare?.();
+            }}
+            className="w-[25px] h-[35px] rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+            aria-label="Share"
+          >
+            <Share2 className="w-5 h-5 text-black" />
+          </button>
+        </div>
       )}
-      {/* Phone button on right (farthest right); right-2 matches left logo padding (p-2) */}
-      {isListMode && phone && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPhoneClick?.(e);
-            if (!e.defaultPrevented && phone) {
-              window.location.href = `tel:${phone}`;
-            }
-          }}
-          className="absolute right-2 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
-          aria-label="Phone"
-        >
-          <Phone className="h-10 w-5 text-black" />
-        </button>
-      )}
-      {/* Message + Share buttons for non-list mode; share at right-2 to match left logo padding (p-2) */}
+      {/* Card mode: message + share in one group at right-2, share's right edge matches left logo padding */}
       {!isListMode && (
-        <>
+        <div className="absolute right-2 flex items-center gap-2">
           {onMessage && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onMessage();
               }}
-              className="absolute right-10 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+              className="w-[25px] h-[35px] rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
               aria-label="Message"
             >
               <MessageCircle className="w-5 h-5 text-black" />
@@ -328,12 +315,12 @@ export default function ProCardHeader({
               e.stopPropagation();
               onShare?.();
             }}
-            className="absolute right-2 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+            className="w-[25px] h-[35px] rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
             aria-label="Share"
           >
             <Share2 className="w-5 h-5 text-black" />
           </button>
-        </>
+        </div>
       )}
     </div>
   );

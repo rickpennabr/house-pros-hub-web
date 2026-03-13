@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -101,14 +102,14 @@ export default function Modal({
     }
   };
 
-  return (
-    <div 
+  const modalContent = (
+    <div
       className="fixed inset-0 z-[110] flex items-center justify-center md:p-4 bg-black/50"
       onClick={handleOverlayClick}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div 
-        ref={modalRef} 
+      <div
+        ref={modalRef}
         className={`bg-white md:rounded-lg border-2 border-black w-full h-full md:w-full md:h-auto ${maxWidthClasses[maxWidth]} md:max-h-[90vh] overflow-y-auto flex flex-col ${className}`}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
@@ -134,11 +135,16 @@ export default function Modal({
             )}
           </div>
         )}
-        
+
         {/* Content */}
         {children}
       </div>
     </div>
   );
-}
 
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
+}

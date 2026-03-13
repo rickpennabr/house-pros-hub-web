@@ -1,0 +1,1530 @@
+{
+  "common": {
+    "button": {
+      "submit": "Enviar",
+      "cancel": "Cancelar",
+      "save": "Salvar",
+      "delete": "Excluir",
+      "edit": "Editar",
+      "back": "Voltar",
+      "next": "Próximo",
+      "previous": "Anterior",
+      "close": "Fechar",
+      "confirm": "Confirmar",
+      "continue": "Continuar",
+      "skip": "Pular",
+      "freeEstimate": "Orçamento Grátis",
+      "estimate": "Orçamento"
+    },
+    "label": {
+      "firstName": "Nome",
+      "lastName": "Sobrenome",
+      "email": "E-mail",
+      "phone": "Telefone",
+      "mobilePhone": "Celular",
+      "password": "Senha",
+      "confirmPassword": "Confirmar Senha"
+    },
+    "message": {
+      "loading": "Carregando...",
+      "error": "Ocorreu um erro",
+      "success": "Sucesso",
+      "required": "Campo obrigatório"
+    },
+    "view": {
+      "card": "Cartão",
+      "list": "Lista",
+      "map": "Mapa",
+      "bgToggle": "BG",
+      "bgToggleRegular": "Fundo: regular",
+      "bgToggleDynamic": "Fundo: dinâmico"
+    },
+    "search": {
+      "categories": "Buscar categorias...",
+      "businesses": "Encontre seu Profissional...",
+      "suppliers": "Buscar fornecedores por nome, materiais ou ofícios...",
+      "address": "Buscar endereço",
+      "help": "Encontre ajuda aqui..."
+    },
+    "account": {
+      "myBusiness": "Meu Negócio",
+      "accountManagement": "Gerenciar Conta",
+      "proscrm": "ProsCRM",
+      "probot": "ProBot",
+      "settings": "Configurações",
+      "helpSupport": "Ajuda e Suporte",
+      "signIn": "Entrar",
+      "signOut": "Sair",
+      "account": "Conta"
+    },
+    "settings": {
+      "languagePreferenceSaved": "Sua escolha é salva na sua conta e usada sempre que você entrar."
+    }
+  },
+  "probot": {
+    "sidebar": "Chat",
+    "historyChat": "Histórico de chat",
+    "contacts": "Contatos",
+    "online": "Online",
+    "offline": "Offline",
+    "noRecentChats": "Nenhum chat recente",
+    "unread": "Não lido",
+    "read": "Lido",
+    "sent": "Enviado",
+    "collapseSidebar": "Recolher barra lateral",
+    "expandSidebar": "Expandir barra lateral",
+    "backToContacts": "Voltar aos contatos",
+    "backToWelcome": "Voltar à página de boas-vindas do ProBot",
+    "searchHistory": "Buscar no histórico…",
+    "searchContacts": "Buscar contatos…",
+    "closeSearch": "Fechar busca",
+    "selectContact": "Selecione um contato para começar a conversar",
+    "loading": "Carregando...",
+    "noMessages": "Ainda não há mensagens. Diga olá!",
+    "chatWithBusiness": "Conversar com {name}",
+    "messagePlaceholder": "Converse com um HubAgent agora....",
+    "messagePlaceholderAdmin": "Digite uma mensagem...",
+    "send": "Enviar mensagem",
+    "hiUser": "Olá {name},",
+    "welcomeToMyPage": "Bem-vindo à minha página",
+    "letsGetItDone": "Vamos fazer acontecer!",
+    "letsConnectCustomerWithPros": "Vamos conectar o cliente com os PROS!",
+    "letsConnect": "Vamos conectar",
+    "customerWithPros": "o cliente com os PROS!",
+    "whereShouldWeStart": "Por onde começamos?",
+    "howDoYouWantToStart": "Como quer começar?",
+    "guestName": "aí",
+    "replyAccountEstimate": "Entendido! Você pode solicitar seu orçamento gratuito no nosso formulário. Nossos profissionais entrarão em contato.",
+    "replyAccountEstimateLink": "Ir ao formulário de orçamento",
+    "replyTalkToPro": "Posso conectá-lo com um profissional. Escolha um contato da lista à esquerda para enviar mensagem, ou me diga o que precisa abaixo.",
+    "clearMessages": "Limpar mensagens",
+    "clearMessagesConfirm": "Limpar todas as mensagens deste chat? Esta ação não pode ser desfeita.",
+    "conversationWithVisitor": "Conversa com visitante {id}",
+    "conversationWithCustomer": "Conversa com Cliente",
+    "conversationWithContractor": "Conversa com prestador · {name}",
+    "conversationWithName": "Conversa com {name}",
+    "customer": "Cliente",
+    "contractor": "Prestador",
+    "backToMyChat": "Voltar ao meu chat",
+    "replyToCustomer": "Responder ao cliente...",
+    "replyAs": "Responder como",
+    "replyAsProBot": "ProBot",
+    "replyAsHubAgent": "Agente do Hub",
+    "replyAsBusiness": "Negócio",
+    "seenAt": "Visto às {time}",
+    "seenByProBotAt": "Visto pelo ProBot às {time}",
+    "attachFiles": "Anexar arquivos",
+    "uploadFiles": "Enviar arquivos",
+    "addFromGoogleDrive": "Adicionar do Google Drive",
+    "photos": "Fotos",
+    "attachMax10": "Máximo 10 imagens ou PDFs por mensagem",
+    "sendUnavailable": "Não foi possível enviar. Atualize a página e tente novamente.",
+    "photoPlaceholder": "Foto",
+    "openImage": "Abrir imagem"
+  },
+  "navigation": {
+    "prosBlog": "ProsBlog",
+    "housePros": "HousePros",
+    "proSuppliers": "ProSuppliers"
+  },
+  "bot": {
+    "greeting": "Olá!",
+    "tooltip": "Sou o ProBot, clique em mim para iniciar uma conversa...",
+    "welcomeMessage": "Olá! Sou o ProBot. BEM-VINDO ao HouseProsHub.com",
+    "welcomeLine1": "Olá, sou o ProBot",
+    "welcomeLine2": "BEM-VINDO",
+    "welcomeLine3": "Ao",
+    "welcomeLine4": "HouseProsHub.com",
+    "choiceRequestEstimate": "Solicitar orçamento gratuito",
+    "getFreeEstimate": "Obter orçamento gratuito",
+    "addCustomer": "Adicionar um cliente",
+    "addCustomerSuccess": "Cliente adicionado ao seu CRM.",
+    "addCustomerSubmit": "Adicionar cliente",
+    "addCustomerNext": "Seguinte",
+    "addCustomerAdding": "A adicionar...",
+    "addCustomerSteps": {
+      "firstName": "Qual é o nome do cliente?",
+      "lastName": "Qual é o apelido do cliente?",
+      "companyName": "Nome da empresa? (opcional)",
+      "displayName": "Nome para formulários? (opcional)",
+      "email": "Qual é o email do cliente? (opcional)",
+      "phone": "Qual é o telefone do cliente?",
+      "mobileNumber": "Celular do cliente? (opcional)",
+      "website": "Site do cliente? (opcional)",
+      "streetAddress": "Endereço do cliente? (opcional)",
+      "apartment": "Apto, suite, unidade? (opcional)",
+      "city": "Cidade do cliente? (opcional)",
+      "state": "Estado do cliente? (opcional)",
+      "zipCode": "CEP do cliente? (opcional)",
+      "notes": "Alguma nota? (opcional)"
+    },
+    "addCustomerPlaceholders": {
+      "firstName": "Digite o nome do cliente",
+      "lastName": "Digite o sobrenome do cliente",
+      "companyName": "Digite o nome da empresa",
+      "displayName": "Digite o nome para formulários",
+      "email": "Digite o e-mail do cliente",
+      "phone": "Digite o telefone do cliente",
+      "mobileNumber": "Digite o celular",
+      "website": "Digite o site",
+      "streetAddress": "Digite o endereço",
+      "apartment": "Digite apto, suite, unidade",
+      "city": "Digite a cidade",
+      "state": "Digite o estado",
+      "zipCode": "Digite o CEP",
+      "notes": "Digite as notas"
+    },
+    "continueToChat": "Converse com um HubAgent agora",
+    "choiceTalkToPro": "Falar com um profissional agora",
+    "choiceChatWithProBot": "Conversar com ProBot",
+    "choiceAccountEstimate": "Conta e orçamento",
+    "createAccountAndFreeEstimate": "Criar conta e obter um orçamento GRATUITO",
+    "createAccount": "Criar uma conta",
+    "chatWithAPro": "Conversar com um profissional",
+    "choiceCallHub": "Ligar ao Hub",
+    "choiceChatWithHub": "Conversar com o Hub",
+    "choiceMessageAPro": "Mensagem a um profissional",
+    "estimateSuccessMessage": "Obrigado por se registrar no House Pros Hub! Agora você pode contatar seu profissional ou solicitar seu orçamento gratuito.",
+    "estimateSuccessMessageLine1": "Obrigado por se registrar no House Pros Hub!",
+    "estimateSuccessMessageLine2": "Agora você pode contatar seu profissional ou solicitar seu orçamento gratuito.",
+    "estimateSubmittedMessage": "Seu pedido de orçamento foi enviado. Nossos profissionais entrarão em contato em breve.",
+    "goToHomePage": "Ir à página inicial",
+    "getAnEstimate": "Obter um orçamento",
+    "modal": {
+      "title": "ProBot",
+      "message": "O chat com o ProBot estará disponível em breve. Estamos criando um assistente útil para responder perguntas sobre o House Pros Hub e conectá-lo aos profissionais certos.",
+      "close": "Fechar"
+    },
+    "callHubModalTitle": "Ligar ao House Pros Hub?",
+    "callHubModalMessage": "Ligar para {number}?",
+    "callHubModalCancel": "Cancelar",
+    "callHubModalCall": "Ligar",
+    "prosListHeading": "Aqui estão nossos profissionais. Você pode ligar, visitar o perfil ou enviar mensagem.",
+    "messagePro": "Mensagem",
+    "viewProfile": "Ver perfil",
+    "messagingPro": "A enviar mensagem a {name}"
+  },
+  "validation": {
+    "firstName": {
+      "required": "First name is required"
+    },
+    "lastName": {
+      "required": "Last name is required"
+    },
+    "email": {
+      "required": "Email is required",
+      "invalid": "Invalid email format"
+    },
+    "phone": {
+      "required": "Phone number is required",
+      "invalid": "Invalid phone format (e.g. 702-555-0123)"
+    },
+    "password": {
+      "required": "Password is required",
+      "min": "Password must be at least 6 characters"
+    },
+    "confirmPassword": {
+      "required": "Please confirm your password",
+      "mismatch": "Passwords don't match"
+    }
+  },
+  "auth": {
+    "signInRequiredModal": {
+      "title": "Entrada necessária",
+      "message": "Para usar as funções do ProCard você precisa estar conectado. Aqui estão suas opções:",
+      "goSignIn": "Ir para Entrar",
+      "signUpNow": "Cadastrar agora",
+      "phone": "Telefone",
+      "callTheHub": "Ligar ao Hub",
+      "whatsapp": "WhatsApp",
+      "chatWithProBot": "Conversar com ProBot",
+      "orContactHub": "Ou para qualquer outra ajuda contate o Hub"
+    },
+    "tagline": "Entre ou cadastre-se para encontrar seu profissional.",
+    "tabs": {
+      "signin": "Entrar",
+      "signup": "Cadastrar"
+    },
+    "signin": {
+      "title": "Bem-vindo de volta",
+      "subtitle": "Entre na sua conta",
+      "emailLabel": "E-mail",
+      "emailPlaceholder": "Digite seu e-mail",
+      "passwordLabel": "Senha",
+      "passwordPlaceholder": "Digite sua senha",
+      "forgotPassword": "Esqueceu a senha?",
+      "submit": "Entrar",
+      "submitting": "Entrando...",
+      "validation": {
+        "emailRequired": "E-mail é obrigatório",
+        "emailInvalid": "Digite um e-mail válido",
+        "passwordRequired": "Senha é obrigatória"
+      },
+      "errors": {
+        "generic": "Falha ao entrar. Tente novamente."
+      }
+    },
+    "forgotPassword": {
+      "title": "Esqueceu a senha",
+      "subtitle": "Digite seu e-mail e enviaremos um link para redefinir sua senha",
+      "emailLabel": "E-mail",
+      "emailPlaceholder": "Digite seu e-mail",
+      "submit": "Enviar link de redefinição",
+      "submitting": "Enviando...",
+      "backToSignIn": "Voltar para Entrar",
+      "notAvailable": {
+        "title": "Redefinição de senha não disponível",
+        "message": "Entre em contato com o suporte."
+      },
+      "success": {
+        "message": "Link de redefinição enviado!",
+        "checkEmail": "Verifique seu e-mail para as instruções de redefinição de senha.",
+        "sameBrowserHint": "Abra o link no mesmo navegador em que você solicitou (o link pode não funcionar em outro navegador ou dispositivo)."
+      },
+      "validation": {
+        "emailRequired": "E-mail é obrigatório",
+        "emailInvalid": "Digite um e-mail válido"
+      },
+      "errors": {
+        "generic": "Falha ao enviar o link. Tente novamente."
+      }
+    },
+    "resetPassword": {
+      "title": "Redefinir senha",
+      "subtitle": "Digite sua nova senha abaixo",
+      "passwordLabel": "Nova senha",
+      "passwordPlaceholder": "Digite sua nova senha",
+      "confirmPasswordLabel": "Confirmar senha",
+      "confirmPasswordPlaceholder": "Confirme sua nova senha",
+      "submit": "Redefinir senha",
+      "submitting": "Redefinindo...",
+      "validatingToken": "Validando token de redefinição...",
+      "backToSignIn": "Voltar para Entrar",
+      "notAvailable": {
+        "title": "Redefinição de senha não disponível",
+        "message": "Entre em contato com o suporte."
+      },
+      "validation": {
+        "passwordRequired": "Senha é obrigatória",
+        "passwordInvalid": "A senha deve ter pelo menos 8 caracteres e conter maiúsculas, minúsculas e número",
+        "confirmPasswordRequired": "Confirme sua senha",
+        "passwordsDoNotMatch": "As senhas não coincidem"
+      },
+      "errors": {
+        "generic": "Falha ao redefinir a senha. Tente novamente.",
+        "invalidToken": "Token inválido ou expirado. Solicite uma nova redefinição de senha.",
+        "samePassword": "A nova senha não pode ser igual à atual. Escolha outra senha.",
+        "timeout": "A validação está demorando mais que o normal. Atualize a página e tente novamente."
+      },
+      "requestNewLink": "Solicitar novo link de redefinição",
+      "invalidTokenHint": "Os links expiram em 1 hora. Solicite um novo abaixo.",
+      "success": {
+        "title": "Senha atualizada",
+        "message": "Sua senha foi redefinida com sucesso. Agora você pode entrar com sua nova senha.",
+        "redirecting": "Redirecionando para Entrar..."
+      }
+    },
+    "signup": {
+      "roleSelection": {
+        "title": "Como você quer usar o Hub?",
+        "subtitle": "Escolha a opção que melhor descreve você",
+        "customer": {
+          "title": "Sou Cliente",
+          "description": "Preciso de serviços para minha casa"
+        },
+        "contractor": {
+          "title": "Sou Contratado",
+          "titleWithCode": "Sou Contratado (código de convite obrigatório)",
+          "invitationCodeRequired": "(código de convite obrigatório)",
+          "description": "Presto serviços a clientes"
+        },
+        "realtor": {
+          "title": "Sou Corretor",
+          "titleWithCode": "Sou Corretor (código de convite obrigatório)",
+          "invitationCodeRequired": "(código de convite obrigatório)",
+          "description": "Ajudo clientes a comprar e vender imóveis"
+        },
+        "both": {
+          "title": "Sou os dois",
+          "description": "Preciso de serviços e também presto serviços"
+        },
+        "alreadyHaveAccount": "Já tem uma conta?",
+        "signInLink": "Entrar"
+      },
+      "chat": {
+        "role": "Como você quer usar o Hub?",
+        "userPicture": "Adicione uma foto de perfil (opcional). Ajuda os profissionais a reconhecê-lo!",
+        "firstName": "Qual é o seu nome?",
+        "lastName": "E o seu sobrenome?",
+        "referral": "Como você nos encontrou?",
+        "referralOther": "Conte como nos encontrou.",
+        "address": "Qual é o seu endereço? (somente Nevada)",
+        "apartment": "Apartamento, suite ou unidade? (opcional)",
+        "gateCode": "Código do portão? (opcional)",
+        "addressNote": "Alguma observação de endereço para os profissionais? (opcional)",
+        "phone": "Qual o melhor telefone para contato?",
+        "email": "Qual é o seu e-mail?",
+        "password": "Escolha uma senha (mínimo 8 caracteres, com maiúscula, minúscula e número).",
+        "confirmPassword": "Confirme sua senha.",
+        "agreeToTerms": "Ao se cadastrar você concorda com nossos Termos de Serviço e Política de Privacidade. Pronto para criar sua conta?",
+        "invitationCode": "Digite seu código de convite.",
+        "closeWarningTitle": "Sair do cadastro?",
+        "passwordsDoNotMatch": "As senhas não coincidem",
+        "emailAlreadyExists": "Este e-mail já está cadastrado. Entre ou use outro e-mail.",
+        "accountCreatedSignIn": "Conta criada. Entre com seu e-mail e senha.",
+        "closeWarningMessage": "Seu progresso será perdido. Para criar uma conta você precisará começar do início. Fechar mesmo assim?",
+        "closeWarningCancel": "Cancelar",
+        "closeWarningConfirm": "OK"
+      },
+      "navigation": {
+        "previous": "Voltar",
+        "next": "Próximo",
+        "submit": "Cadastrar",
+        "submitting": "Criando conta...",
+        "holdOn": "Aguarde...",
+        "almostDone": "Quase lá criando sua conta GRÁTIS...",
+        "addBusiness": "Adicionar negócio",
+        "estimatePreparingJustASecond": "Só um momento...",
+        "estimatePreparingMessage": "Preparando a página de orçamento para você."
+      },
+      "errors": {
+        "googleSignInFailed": "Falha ao entrar com Google"
+      },
+      "fields": {
+        "imageTypeError": "Selecione um arquivo de imagem",
+        "imageSizeError": "A imagem deve ter menos de 5MB",
+        "uploadPicture": "Enviar sua foto",
+        "removeProfilePicture": "Remover foto de perfil",
+        "referralLabel": "Como você nos encontrou?",
+        "referralSelectPlaceholder": "Selecione uma opção",
+        "referralOtherLabel": "Por favor especifique",
+        "referralOtherPlaceholder": "Como você nos encontrou?",
+        "referralOtherOption": "Outro",
+        "invitationCodeLabel": "Código de convite",
+        "invitationCodePlaceholder": "Digite o código que recebeu",
+        "invitationCodeDescription": "Digite o código recebido do House Pros Hub para se cadastrar como contratado.",
+        "firstNameLabel": "Nome",
+        "firstNamePlaceholder": "Nome",
+        "lastNameLabel": "Sobrenome",
+        "lastNamePlaceholder": "Sobrenome",
+        "searchAddressLabel": "Buscar endereço (somente Nevada)",
+        "searchAddressHelp": "Busque seu endereço ou preencha os campos abaixo manualmente",
+        "searchAddressPlaceholder": "Busque seu endereço em Nevada",
+        "apartmentLabel": "Apartamento, Suite, Unidade (Opcional)",
+        "apartmentPlaceholder": "Apto, Suite, Unidade, etc.",
+        "cityLabel": "Cidade",
+        "cityPlaceholder": "Cidade",
+        "stateLabel": "Estado",
+        "statePlaceholder": "Estado",
+        "zipLabel": "CEP",
+        "zipPlaceholder": "CEP",
+        "gateCodeLabel": "Código do portão",
+        "gateCodePlaceholder": "Código do portão",
+        "addressNoteLabel": "Observação de endereço",
+        "addressNotePlaceholder": "Observações ou instruções adicionais",
+        "phoneLabel": "Telefone",
+        "phonePlaceholder": "Digite seu telefone",
+        "phoneRequired": "Telefone é obrigatório.",
+        "emailLabel": "E-mail",
+        "emailPlaceholder": "Digite seu e-mail",
+        "passwordLabel": "Senha",
+        "passwordPlaceholder": "Digite sua senha",
+        "repeatPasswordLabel": "Repetir senha",
+        "repeatPasswordPlaceholder": "Repita a senha",
+        "confirmPasswordLabel": "Confirmar senha",
+        "confirmPasswordPlaceholder": "Confirme a senha",
+        "companyNameLabel": "Nome da empresa",
+        "companyNamePlaceholder": "Nome da empresa",
+        "companyRoleLabel": "Cargo na empresa",
+        "companyRolePlaceholder": "Seu cargo na empresa",
+        "companyRoleOtherLabel": "Especificar cargo",
+        "companyRoleOtherPlaceholder": "Digite seu cargo",
+        "contractorLicensesLabel": "Licenças de contratado",
+        "contractorLicensesHelp": "Selecione todas as licenças que possui",
+        "addLicenseButton": "+ Adicionar licença",
+        "licenseClassificationLabel": "Classificação da licença",
+        "licenseClassificationPlaceholder": "Selecione uma classificação",
+        "licenseNumberLabel": "Número da licença",
+        "licenseNumberPlaceholder": "Digite o número da licença",
+        "remove": "Remover",
+        "removeLicenseAria": "Remover licença {index}",
+        "locationPhoneLabel": "Telefone fixo",
+        "locationPhonePlaceholder": "Telefone fixo",
+        "mobilePhoneLabel": "Celular",
+        "mobilePhonePlaceholder": "Número do celular"
+      },
+      "stepLabels": {
+        "customerPersonal": "Informações pessoais",
+        "customerAddress": "Endereço",
+        "customerCredentials": "Credenciais",
+        "contractorPersonal": "Informações pessoais",
+        "contractorLicense": "Licença de contratado",
+        "contractorContact": "Contato",
+        "contractorTerms": "Termos e condições"
+      },
+      "terms": {
+        "prefix": "Ao clicar em Cadastrar você concorda com os",
+        "termsOfService": "Termos de Serviço",
+        "and": "e",
+        "privacyPolicy": "Política de Privacidade",
+        "suffix": "para criar uma conta pessoal.",
+        "suffixContractor": "para criar uma conta de contratado."
+      }
+    },
+    "welcomeEmail": {
+      "subject": "Welcome to House Pros Hub!",
+      "greeting": "Hello",
+      "customerWelcomeMessage": "Thank you for joining House Pros Hub! We're excited to have you as part of our community. We're here to help you find trusted contractors and service providers for all your home improvement needs.",
+      "contractorWelcomeMessage": "Thank you for joining House Pros Hub! We're excited to have you as part of our community. We're here to help you connect with customers and grow your business.",
+      "bothWelcomeMessage": "Thank you for joining House Pros Hub! We're excited to have you as part of our community. Whether you're looking for home improvement services or providing them, we're here to help connect you with the right people.",
+      "nextSteps": "Next Steps",
+      "customerNextSteps": "<p style=\"margin: 0 0 15px 0;\">As a customer, you can now:</p><ul style=\"margin: 0; padding-left: 20px; color: #333;\"><li style=\"margin-bottom: 10px;\">Browse our directory of trusted contractors and service providers</li><li style=\"margin-bottom: 10px;\">Request free estimates for your home improvement projects</li><li style=\"margin-bottom: 10px;\">Save your favorite businesses for easy access later</li><li style=\"margin-bottom: 10px;\">Connect directly with professionals in your area</li></ul><p style=\"margin: 15px 0 0 0;\">Get started by exploring our categories or requesting a free estimate today!</p>",
+      "contractorNextSteps": "<p style=\"margin: 0 0 15px 0;\">As a contractor, you can now:</p><ul style=\"margin: 0; padding-left: 20px; color: #333;\"><li style=\"margin-bottom: 10px;\">Create and manage your business profile</li><li style=\"margin-bottom: 10px;\">Connect with potential customers in your area</li><li style=\"margin-bottom: 10px;\">Showcase your services and expertise</li><li style=\"margin-bottom: 10px;\">Build your reputation through customer interactions</li></ul><p style=\"margin: 15px 0 0 0;\">Complete your business profile to start connecting with customers!</p>",
+      "bothNextSteps": "<p style=\"margin: 0 0 15px 0;\">As both a customer and contractor, you have access to:</p><ul style=\"margin: 0; padding-left: 20px; color: #333;\"><li style=\"margin-bottom: 10px;\">Browse and connect with other professionals</li><li style=\"margin-bottom: 10px;\">Request estimates for your projects</li><li style=\"margin-bottom: 10px;\">Create and manage your business profile</li><li style=\"margin-bottom: 10px;\">Save favorite businesses and suppliers</li></ul><p style=\"margin: 15px 0 0 0;\">Complete your business profile and start exploring our platform!</p>",
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "If you have any questions, please contact us.",
+        "unsubscribe": "You are receiving this email because you created an account with House Pros Hub."
+      }
+    },
+    "setPasswordEmail": {
+      "subject": "Set your password – House Pros Hub",
+      "greeting": "Hello",
+      "body": "Your House Pros Hub account has been created. Click the button below to set your password and sign in.",
+      "cta": "Set your password",
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "If you have any questions, please contact us.",
+        "unsubscribe": "You are receiving this email because an account was created for you on House Pros Hub."
+      }
+    },
+    "passwordResetEmail": {
+      "subject": "Reset your password – House Pros Hub",
+      "greeting": "Hello",
+      "body": "We received a request to reset your password for your House Pros Hub account. Click the button below to reset your password. This link will expire in 1 hour.",
+      "cta": "Reset Password",
+      "securityNote": "Security note:",
+      "securityText": "If you did not request a password reset, please ignore this email. Your password will remain unchanged.",
+      "expiryNote": "This link will expire in 1 hour.",
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "If you have any questions, please contact us.",
+        "unsubscribe": "You are receiving this email because a password reset was requested for your House Pros Hub account."
+      }
+    }
+  },
+  "businessForm": {
+    "navigation": {
+      "previous": "Voltar",
+      "next": "Próximo",
+      "finish": "Concluir negócio",
+      "finishing": "Criando negócio..."
+    },
+    "stepLabels": {
+      "businessInformation": "Informações do negócio",
+      "brand": "Marca",
+      "licenses": "Licenças",
+      "services": "Serviços",
+      "images": "Imagens",
+      "address": "Endereço",
+      "contact": "Contato",
+      "links": "Links"
+    },
+    "brand": {
+      "sectionTitle": "Marca do negócio (Logo e fundo)",
+      "clickUploadBackground": "Clique para enviar o fundo",
+      "adjustPosition": "Ajustar posição",
+      "adjustImage": "Ajustar imagem",
+      "adjustImageHint": "Arraste a imagem para posicionar",
+      "uploadNew": "Enviar nova",
+      "uploadLogo": "Enviar logo",
+      "removeLogoTitle": "Remover logo",
+      "removeBackgroundTitle": "Remover fundo",
+      "imageTypeError": "Selecione um arquivo de imagem",
+      "imageSizeError": "A imagem deve ter menos de 5MB",
+      "businessNameLabel": "Nome do negócio",
+      "businessNamePlaceholder": "Digite o nome do negócio",
+      "userNameLabel": "Nome de usuário",
+      "userNamePlaceholder": "seu-nome",
+      "userNameTaken": "Este nome de usuário já está em uso",
+      "userNameAvailable": "Este nome de usuário está disponível!",
+      "userNameMinHelp": "Mínimo 3 caracteres, apenas minúsculas e hífens",
+      "descriptionLabel": "Descrição do negócio",
+      "descriptionPlaceholder": "Conte sobre seu negócio..."
+    },
+    "address": {
+      "businessAddressLabel": "Endereço do negócio",
+      "sameAsPersonal": "Igual ao pessoal",
+      "addressPlaceholder": "Busque seu endereço em Nevada",
+      "apartmentLabel": "Apartamento, Suite, Unidade (Opcional)",
+      "apartmentPlaceholder": "Apto, Suite, Unidade, etc.",
+      "cityLabel": "Cidade",
+      "cityPlaceholder": "Cidade",
+      "stateLabel": "Estado",
+      "statePlaceholder": "Estado",
+      "zipLabel": "CEP",
+      "zipPlaceholder": "CEP"
+    },
+    "contact": {
+      "businessEmailLabel": "E-mail do negócio",
+      "businessEmailPlaceholder": "Digite o e-mail do negócio",
+      "landPhoneLabel": "Telefone fixo",
+      "landPhonePlaceholder": "Digite o telefone fixo",
+      "mobilePhoneLabel": "Celular",
+      "mobilePhonePlaceholder": "Digite o celular",
+      "sameAsPersonal": "Igual ao pessoal"
+    },
+    "licenses": {
+      "sectionTitle": "Contractor Licenses",
+      "contractorLicensesLabel": "Contractor License(s)",
+      "contractorLicensesHelp": "Select all licenses you hold",
+      "addLicenseButton": "+ Add License",
+      "licenseClassificationLabel": "License Classification",
+      "licenseClassificationTip": "Use the classification related to your contractors license",
+      "licenseClassificationPlaceholder": "Select a license classification",
+      "handymanOption": "HANDYMAN - Handyman (no contractor license required)",
+      "licenseNumberLabel": "Contractor License Number",
+      "licenseNumberTip": "Licenses are checked in the contractors board website",
+      "licenseNumberLabelHandyman": "Nevada Business License",
+      "licenseNumberPlaceholderHandyman": "Enter your Nevada Business License number",
+      "licenseNumberTipHandyman": "Handyman requires at least a Nevada Business License.",
+      "licenseNumberInvalidNevada": "Nevada Business License must be 11 digits (spaces or dashes are ignored).",
+      "licenseNumberPlaceholder": "Enter your license number",
+      "duplicateLicenseError": "This license classification has already been added",
+      "duplicateLicenseNumberError": "This license number has already been entered",
+      "remove": "Remove",
+      "removeLicenseAria": "Remove license {index}",
+      "position": "Position",
+      "license": "License",
+      "noLicenses": "No licenses added yet.",
+      "instructionsTitle": "License Ordering Instructions",
+      "instructionsLine1": "You can reorder licenses by dragging them using the grip icon",
+      "instructionsLine2": "The order determines how licenses appear on your business card",
+      "instructionsLine3": "Each license classification and number must be unique"
+    },
+    "services": {
+      "sectionTitle": "Services You Provide",
+      "servicesHelp": "Add the main services you provide.",
+      "addServiceButton": "+ Add Service",
+      "serviceNameLabel": "Service Name",
+      "serviceNamePlaceholder": "e.g. Plumbing, Repairs, Remodeling",
+      "noServices": "No services added yet.",
+      "removeServiceAria": "Remove service {index}",
+      "position": "Position",
+      "service": "Service",
+      "instructionsTitle": "Services Instructions",
+      "instructionsLine1": "Add the services you offer so customers can find you when they search.",
+      "instructionsLine2": "You can reorder services by dragging them using the grip icon."
+    },
+    "images": {
+      "sectionTitle": "Gallery Images",
+      "imagesHelp": "Add up to {max} photos. They will appear in the Images tab on your business page.",
+      "addImageButton": "+ Add Image",
+      "noImages": "No images added yet. Click \"Add Image\" to upload photos.",
+      "removeImageAria": "Remove image {index}",
+      "instructionsTitle": "Gallery Instructions",
+      "instructionsLine1": "Add photos of your work or business (e.g. projects, team, office).",
+      "instructionsLine2": "These will appear in the Images tab on your business details page."
+    },
+    "links": {
+      "sectionTitle": "Business Links",
+      "instructionsTitle": "Link Ordering Instructions",
+      "visibilityTitle": "Link Visibility:",
+      "instructionsLine1": "Add and drag links to position them in the card",
+      "instructionsLine2": "The first 7 links will be visible on your business card",
+      "instructionsLine3": "Additional links will only be shown on your business detail page",
+      "visibilityLine1": "Add and drag links to position them in the card",
+      "visibilityLine2": "The first {count} links will be visible on your business card",
+      "visibilityLine3": "Additional links will only be shown on your business detail page",
+      "position": "Position",
+      "links": "Links",
+      "noLinks": "No links added yet.",
+      "addLinkLabel": "Select links for your Business Card",
+      "maxReached": "(Max 15 reached)",
+      "maxLinksReached": "Maximum links reached",
+      "choosePlatform": "Choose platform...",
+      "platforms": {
+        "phone": {
+          "label": "Phone",
+          "placeholder": "Phone number"
+        },
+        "location": {
+          "label": "Business Address",
+          "placeholder": "Business address"
+        },
+        "website": {
+          "label": "Website",
+          "placeholder": "Website URL"
+        },
+        "instagram": {
+          "label": "Instagram",
+          "placeholder": "Enter User Name"
+        },
+        "facebook": {
+          "label": "Facebook",
+          "placeholder": "Enter User Name"
+        },
+        "whatsapp": {
+          "label": "WhatsApp",
+          "placeholder": "WhatsApp number"
+        },
+        "yelp": {
+          "label": "Yelp",
+          "placeholder": "Enter User Name"
+        },
+        "nextdoor": {
+          "label": "Nextdoor",
+          "placeholder": "Enter User Name"
+        },
+        "angi": {
+          "label": "Angi",
+          "placeholder": "Enter User Name"
+        },
+        "youtube": {
+          "label": "YouTube",
+          "placeholder": "Enter User Name"
+        },
+        "tiktok": {
+          "label": "TikTok",
+          "placeholder": "Enter User Name"
+        },
+        "linkedin": {
+          "label": "LinkedIn",
+          "placeholder": "Enter User Name"
+        },
+        "telegram": {
+          "label": "Telegram",
+          "placeholder": "Enter User Name"
+        },
+        "email": {
+          "label": "Email",
+          "placeholder": "Email address"
+        },
+        "calendar": {
+          "label": "Schedule/Calendar",
+          "placeholder": "Calendar URL"
+        }
+      }
+    }
+  },
+  "estimate": {
+    "page": {
+      "title": "Orçamento gratuito",
+      "subtitle": "Conte sobre seu projeto e vamos conectá-lo com profissionais.",
+      "intro": "Preencha o formulário abaixo e nossa rede de contratados entrará em contato para um orçamento gratuito."
+    },
+    "help": {
+      "requiredFieldsHint": "(Fields in red are required)",
+      "tradesRequiredHint": "Pick at least one to continue."
+    },
+    "accordion": {
+      "customerInfo": "Customer Information",
+      "projectAddress": "Project Address",
+      "confirmAddressFromProfile": "We've pre-filled your project address from your profile. Confirm or update it below.",
+      "projectInfo": "Project Information",
+      "projectType": "Project Type",
+      "trades": "Select Trades/Services Needed*",
+      "tradesMultiHint": "(you can select more than one)",
+      "description": "Project Description & Images",
+      "budgetTimeline": "Budget Range & Timeline",
+      "preferredContact": "Preferred Contact Method",
+      "additionalNotes": "Additional Notes",
+      "selectedPrefix": "Selected:",
+      "missingRequiredInfo": "Missing Required Information"
+    },
+    "tips": {
+      "customerInfo": "Please provide your contact information so contractors can reach out to you.",
+      "projectType": "Select the type of project you're planning. This helps us match you with the right contractors.",
+      "trades": "Select all the trades or services you need for your project. You can select multiple options.",
+      "description": "Describe your project in detail. Include any specific requirements, materials, or preferences.",
+      "budgetTimeline": "Provide your budget range and timeline to help contractors understand your project scope.",
+      "preferredContact": "Choose how you'd like contractors to contact you.",
+      "additionalNotes": "Add any additional information that might be helpful for contractors."
+    },
+    "sections": {
+      "customer": "Your Information",
+      "address": "Project Location",
+      "project": "Project Details"
+    },
+    "fields": {
+      "firstNameLabel": "First Name",
+      "firstNamePlaceholder": "First name",
+      "lastNameLabel": "Last Name",
+      "lastNamePlaceholder": "Last name",
+      "emailLabel": "Email",
+      "emailPlaceholder": "Enter your email",
+      "phoneLabel": "Phone",
+      "phonePlaceholder": "702-555-0123",
+      "streetAddressLabel": "Street Address",
+      "streetAddressPlaceholder": "Enter your Nevada address",
+      "apartmentLabel": "Apartment, Suite, Unit (Optional)",
+      "apartmentPlaceholder": "Apt, Suite, Unit, etc.",
+      "cityLabel": "City",
+      "cityPlaceholder": "City",
+      "stateLabel": "State",
+      "statePlaceholder": "NV",
+      "zipCodeLabel": "ZIP Code",
+      "zipCodePlaceholder": "ZIP Code",
+      "projectTypeLabel": "What option best describes your project?",
+      "projectTypePlaceholder": "Select a project type",
+      "projectTypeOtherLabel": "Please specify your project type",
+      "projectTypeOtherPlaceholder": "Enter project type...",
+      "requiresHoaApprovalLabel": "My project required HOA approval",
+      "wants3DLabel": "I would love to have a 3D design for my project",
+      "hoaAnd3DLabel": "Any of these apply to your project?",
+      "tradesLabel": "Select Trades/Services Needed* (you can select more than one)",
+      "projectDescriptionLabel": "Project Description",
+      "projectDescriptionPlaceholder": "Describe what you need...",
+      "projectImagesLabel": "Project Images (Optional)",
+      "projectImagesHelp": "Upload up to 5 images to help contractors understand your project better. Accepted formats: JPEG, PNG, WebP. Max size: 5MB per image.",
+      "uploadImages": "Upload Images",
+      "uploading": "Uploading...",
+      "removeImage": "Remove image",
+      "maxImagesError": "You can only upload up to 5 images.",
+      "imageTypeError": "Invalid file type. Only JPEG, PNG, and WebP images are allowed.",
+      "imageSizeError": "File size must be less than 5MB.",
+      "uploadError": "Failed to upload image. Please try again.",
+      "budgetRangeLabel": "Budget Range",
+      "budgetRangePlaceholder": "Select a budget range",
+      "timelineLabel": "Timeline",
+      "timelinePlaceholder": "Select a timeline",
+      "preferredContactMethodLabel": "Preferred Contact Method",
+      "preferredContactMethodPlaceholder": "Select a contact method",
+      "useSameAddressForEstimateLabel": "Do you want to use the same personal address for the estimate address?",
+      "yes": "Yes",
+      "no": "No",
+      "additionalNotesLabel": "Additional Notes (Optional)",
+      "additionalNotesPlaceholder": "Anything else we should know?"
+    },
+    "options": {
+      "noneSelected": "None selected",
+      "projectType": {
+        "new_construction": "New Construction",
+        "renovation": "Renovation",
+        "repair": "Repair",
+        "remodel": "Remodel",
+        "other": "Other"
+      },
+      "budgetRange": {
+        "under_5k": "Under $5k",
+        "5k_10k": "$5k - $10k",
+        "10k_25k": "$10k - $25k",
+        "25k_50k": "$25k - $50k",
+        "50k_100k": "$50k - $100k",
+        "over_100k": "Over $100k",
+        "not_sure": "Not sure"
+      },
+      "timeline": {
+        "asap": "ASAP",
+        "within_month": "Within a month",
+        "1_3_months": "1-3 months",
+        "3_6_months": "3-6 months",
+        "6_plus_months": "6+ months",
+        "flexible": "Flexible"
+      },
+      "preferredContactMethod": {
+        "phone": "Phone",
+        "email": "Email",
+        "text": "Text",
+        "either": "Either"
+      },
+      "trades": {
+        "general": "General Contractor",
+        "general contractor": "General Contractor",
+        "handyman": "Handyman",
+        "landscape": "Landscape",
+        "pavers": "Pavers",
+        "concrete": "Concrete",
+        "tile": "Tile",
+        "roofing": "Roofing",
+        "siding": "Siding",
+        "gutters": "Gutters",
+        "garage doors": "Garage Doors",
+        "plumbing": "Plumbing",
+        "electrical": "Electrical",
+        "smart home": "Smart Home",
+        "hvac": "HVAC",
+        "painting": "Painting",
+        "flooring": "Flooring",
+        "windows": "Windows",
+        "doors": "Doors",
+        "fencing": "Fencing",
+        "ornamental iron": "Ornamental Iron",
+        "decking": "Decking",
+        "masonry": "Masonry",
+        "finishingFloors": "Finishing Floors",
+        "glassAndGlazing": "Glass and Glazing",
+        "residentialAndSmallCommercial": "Residential and Small Commercial",
+        "carpentry": "Carpentry",
+        "carpentryMaintenanceAndMinorRepairs": "Carpentry, Maintenance and Minor Repairs",
+        "tiling": "Tiling",
+        "residentialRemodeling": "Residential Remodeling",
+        "paintingAndDecorating": "Painting and Decorating",
+        "plumbingAndHeatingContracting": "Plumbing and Heating Contracting",
+        "electricalContracting": "Electrical Contracting",
+        "concreteContracting": "Concrete Contracting",
+        "glassAndGlazingContracting": "Glass and Glazing Contracting",
+        "landscapeContracting": "Landscape Contracting",
+        "roofingAndSiding": "Roofing and Siding",
+        "lathingAndPlastering": "Lathing and Plastering",
+        "installingTerrazzoAndMarble": "Installing Terrazzo and Marble",
+        "refrigerationAndAirConditioning": "Refrigeration and Air-Conditioning",
+        "fencingAndEquippingPlaygrounds": "Fencing and Equipping Playgrounds",
+        "excavatingAndGrading": "Excavating and Grading",
+        "commercialAndResidentialPools": "Commercial and Residential Pools",
+        "foundation": "Foundation",
+        "pools & spas": "Pools & Spas",
+        "solar": "Solar",
+        "fire protection": "Fire Protection",
+        "individualSewerage": "Individual Sewerage",
+        "waterTreatment": "Water Treatment",
+        "solarContracting": "Solar Contracting",
+        "heaters": "Heaters",
+        "fireProtection": "Fire Protection"
+      }
+    },
+    "buttons": {
+      "submit": "Request Estimate",
+      "submitting": "Submitting...",
+      "reset": "Submit another request"
+    },
+    "success": {
+      "title": "Thanks for your estimate request!",
+      "body": "Our network of trusted contractors will reach out to provide you with a free estimate.",
+      "goToHome": "Go to Home",
+      "requestNewEstimate": "Request New Estimate"
+    },
+    "email": {
+      "subject": "Your Estimate Request - House Pros Hub",
+      "subjectAdmin": "New Estimate Request Received",
+      "greeting": "Hello",
+      "thankYou": "Thank you for your estimate request!",
+      "thankYouAdmin": "A new estimate request has been submitted.",
+      "proWillContact": "A pro will contact you soon.",
+      "copyBelow": "A copy of your estimate details is below:",
+      "sections": {
+        "customerInfo": "Customer Information",
+        "projectAddress": "Project Address",
+        "projectDetails": "Project Details",
+        "projectType": "Project Type",
+        "trades": "Trades/Services Needed",
+        "description": "Project Description",
+        "images": "Project Images",
+        "budget": "Budget Range",
+        "timeline": "Timeline",
+        "contactPreference": "Preferred Contact Method",
+        "additionalNotes": "Additional Notes",
+        "hoaApproval": "Requires HOA Approval",
+        "wants3D": "Wants 3D Design"
+      },
+      "footer": {
+        "companyName": "House Pros Hub",
+        "contactInfo": "If you have any questions, please contact us.",
+        "unsubscribe": "You are receiving this email because you submitted an estimate request."
+      },
+      "admin": {
+        "estimateId": "Estimate ID",
+        "submittedAt": "Submitted At",
+        "userId": "User ID",
+        "anonymous": "Anonymous Submission"
+      },
+      "yes": "Yes",
+      "no": "No",
+      "noneSelected": "None selected",
+      "noImagesProvided": "No images provided"
+    },
+    "validation": {
+      "firstNameRequired": "First name is required",
+      "lastNameRequired": "Last name is required",
+      "emailInvalid": "Please enter a valid email address",
+      "phoneInvalid": "Invalid phone format (e.g. 702-555-0123)",
+      "streetAddressRequired": "Street address is required",
+      "cityRequired": "City is required",
+      "stateLength": "Use 2-letter state code",
+      "zipInvalid": "Invalid ZIP code",
+      "projectTypeRequired": "Please select a project type",
+      "projectTypeOtherRequired": "Please specify your project type",
+      "tradesMin": "Please select at least one trade/service",
+      "projectDescriptionMin": "Please provide a description (at least 10 characters)",
+      "projectImagesMax": "You can only upload up to 5 images",
+      "budgetRangeRequired": "Please select a budget range",
+      "timelineRequired": "Please select a timeline",
+      "preferredContactRequired": "Please select a preferred contact method",
+      "genericError": "Failed to submit your request. Please try again."
+    }
+  },
+  "reactions": {
+    "love": "Amei",
+    "feedback": "Comentar",
+    "link": "Conectar",
+    "save": "salvar"
+  },
+  "categories": {
+    "all": "All",
+    "general": "General Contractor",
+    "general contractor": "General Contractor",
+    "handyman": "Handyman",
+    "landscape": "Landscape",
+    "pavers": "Pavers",
+    "concrete": "Concrete",
+    "tile": "Tile",
+    "masonry": "Masonry",
+    "roofing": "Roofing",
+    "siding": "Siding",
+    "gutters": "Gutters",
+    "garage doors": "Garage Doors",
+    "plumbing": "Plumbing",
+    "electrical": "Electrical",
+    "smart home": "Smart Home",
+    "hvac": "HVAC",
+    "painting": "Painting",
+    "flooring": "Flooring",
+    "carpet": "Carpet",
+    "glass": "Glass",
+    "windows": "Windows",
+    "doors": "Doors",
+    "windows & doors": "Windows & Doors",
+    "patio cover": "Patio Cover",
+    "custom outdoor living": "Custom Outdoor Living",
+    "fencing": "Fencing",
+    "ornamental iron": "Ornamental Iron",
+    "decking": "Decking",
+    "carpentry": "Carpentry",
+    "pools & spas": "Pools & Spas",
+    "solar": "Solar",
+    "fire protection": "Fire Protection"
+  },
+  "businessList": {
+    "noBusinessesYet": "No businesses yet. Sign up and add your first business!",
+    "noBusinessesFoundMatching": "No businesses found matching \"{query}\"",
+    "noBusinessesInCategory": "No businesses found in this category"
+  },
+  "footer": {
+    "termsOfService": "Termos de Serviço",
+    "privacyPolicy": "Política de Privacidade",
+    "cookiePolicy": "Política de Cookies",
+    "copyright": "Todos os direitos reservados."
+  },
+  "accountManagement": {
+    "title": "Gerenciar conta",
+    "selectAccount": "Selecionar conta",
+    "personalAccountFallback": "Pessoal",
+    "businessAccountFallback": "Negócio",
+    "quickActions": "Quick Actions",
+    "access": "Access",
+    "actions": {
+      "personal": {
+        "editProfile": {
+          "title": "Edit Profile",
+          "description": "Update Profile"
+        },
+        "savedBusiness": {
+          "title": "Saved Business",
+          "description": "View Saved"
+        },
+        "addBusiness": {
+          "title": "Add Business",
+          "description": "New Business"
+        },
+        "proscrm": {
+          "title": "ProsCRM",
+          "description": "Customers, estimates, projects & calendar"
+        }
+      },
+      "business": {
+        "editBusiness": {
+          "title": "Edit Business",
+          "description": "Update Business"
+        },
+        "addBusiness": {
+          "title": "Add Business",
+          "description": "New Business"
+        },
+        "managePartners": {
+          "title": "Manage Partners",
+          "description": "Manage Partnerships"
+        }
+      }
+    }
+  },
+  "profileEdit": {
+    "title": "Editar perfil",
+    "loading": "Carregando...",
+    "personalInformation": "Informações pessoais",
+    "addressInformation": "Endereço",
+    "uploadProfilePicture": "Enviar foto de perfil",
+    "removeProfilePicture": "Remover foto de perfil",
+    "howDidYouHear": "Como você nos encontrou?",
+    "selectOption": "Selecione uma opção",
+    "pleaseSpecify": "Por favor especifique",
+    "cancel": "Cancelar",
+    "saveChanges": "Salvar alterações",
+    "saving": "Salvando...",
+    "goToManageAccount": "Ir para Gerenciar conta",
+    "profileUpdated": "Perfil atualizado com sucesso!",
+    "fields": {
+      "firstName": "Nome",
+      "lastName": "Sobrenome",
+      "phone": "Telefone",
+      "email": "E-mail *",
+      "companyName": "Nome da empresa",
+      "companyNamePlaceholder": "Nome da empresa",
+      "companyRoleLabel": "Cargo na empresa",
+      "companyRoleOtherLabel": "Especificar cargo",
+      "companyRoleOtherPlaceholder": "Digite seu cargo",
+      "streetAddress": "Endereço",
+      "apartment": "Apartamento, Suite, Unidade",
+      "city": "Cidade",
+      "state": "Estado",
+      "zipCode": "CEP",
+      "gateCode": "Código do portão",
+      "addressNote": "Observação de endereço"
+    },
+    "placeholders": {
+      "phone": "Digite seu telefone",
+      "referralOther": "Como você nos encontrou?",
+      "streetAddress": "Endereço",
+      "apartment": "Apto, Suite, Unidade, etc.",
+      "city": "Cidade",
+      "state": "Estado",
+      "zipCode": "CEP",
+      "gateCode": "Código do portão",
+      "addressNote": "Observações ou instruções adicionais"
+    },
+    "errors": {
+      "imageFile": "Selecione um arquivo de imagem",
+      "imageSizeError": "A imagem deve ter menos de 5MB",
+      "mustBeLoggedIn": "Você precisa estar conectado para enviar imagens",
+      "firstNameRequired": "Nome é obrigatório",
+      "lastNameRequired": "Sobrenome é obrigatório",
+      "emailInvalid": "Formato de e-mail inválido",
+      "submitFailed": "Falha ao atualizar o perfil"
+    }
+  },
+  "savedBusinesses": {
+    "title": "Negócios salvos",
+    "pageTitle": "Seus negócios salvos",
+    "businessesSaved": "{count} {count, plural, =1 {negócio} other {negócios}} salvos",
+    "noSavedBusinesses": "Nenhum negócio salvo ainda.",
+    "browseBusinesses": "Ver negócios",
+    "removeConfirm": "Tem certeza que deseja remover este negócio da sua lista?",
+    "removeFromSaved": "Remover dos salvos"
+  },
+  "breadcrumb": {
+    "home": "Início"
+  },
+  "legal": {
+    "terms": {
+      "title": "Terms of Service | House Pros Hub",
+      "description": "Terms of Service for House Pros Hub marketplace platform",
+      "sections": {
+        "agreementToTerms": {
+          "title": "1. Agreement to Terms",
+          "content": "By accessing or using House Pros Hub (\"Platform\", \"we\", \"us\", or \"our\"), you agree to be bound by these Terms of Service (\"Terms\"). If you do not agree to these Terms, you may not access or use the Platform."
+        },
+        "platformDescription": {
+          "title": "2. Platform Description",
+          "content": "House Pros Hub is a marketplace platform that connects customers seeking home improvement and repair services with independent contractors and service providers. We provide a platform for users to discover, connect, and communicate with service providers. We do not provide the services ourselves, nor are we a party to any agreements between customers and contractors."
+        },
+        "userAccounts": {
+          "title": "3. User Accounts",
+          "accountRegistration": {
+            "title": "3.1 Account Registration",
+            "content": "To use certain features of the Platform, you must register for an account. You agree to provide accurate, current, and complete information during registration and to update such information to keep it accurate, current, and complete."
+          },
+          "accountSecurity": {
+            "title": "3.2 Account Security",
+            "content": "You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You agree to notify us immediately of any unauthorized use of your account."
+          },
+          "accountEligibility": {
+            "title": "3.3 Account Eligibility",
+            "content": "You must be at least 18 years old to create an account. By creating an account, you represent and warrant that you are at least 18 years old and have the legal capacity to enter into these Terms."
+          }
+        },
+        "userResponsibilities": {
+          "title": "4. User Responsibilities",
+          "prohibitedActivities": {
+            "title": "4.1 Prohibited Activities",
+            "content": "You agree not to:",
+            "items": [
+              "Use the Platform for any illegal purpose or in violation of any laws",
+              "Post false, misleading, or fraudulent information",
+              "Impersonate any person or entity",
+              "Harass, abuse, or harm other users",
+              "Interfere with or disrupt the Platform or servers",
+              "Attempt to gain unauthorized access to any portion of the Platform",
+              "Use automated systems to access the Platform without permission",
+              "Collect or harvest information about other users without their consent"
+            ]
+          }
+        },
+        "contractorResponsibilities": {
+          "title": "5. Contractor Responsibilities",
+          "content": "If you are a contractor or service provider using the Platform, you agree to:",
+          "items": [
+            "Maintain all required licenses, permits, and insurance as required by law",
+            "Provide accurate information about your business, services, and qualifications",
+            "Comply with all applicable local, state, and federal laws and regulations",
+            "Perform services in a professional and workmanlike manner",
+            "Honor all commitments made to customers",
+            "Maintain appropriate insurance coverage for your business operations",
+            "Handle all tax obligations related to your business independently"
+          ],
+          "independentContractor": "Independent Contractor Status: You acknowledge that you are an independent contractor and not an employee, agent, or partner of House Pros Hub. You are solely responsible for your own taxes, insurance, and compliance with all applicable laws."
+        },
+        "customerResponsibilities": {
+          "title": "6. Customer Responsibilities",
+          "content": "If you are a customer using the Platform, you agree to:",
+          "items": [
+            "Conduct your own due diligence when selecting a contractor",
+            "Verify contractor licenses, insurance, and qualifications independently",
+            "Enter into direct agreements with contractors for services",
+            "Make payments directly to contractors according to your agreement",
+            "Communicate clearly about project requirements and expectations",
+            "Treat contractors with respect and professionalism"
+          ]
+        },
+        "payments": {
+          "title": "7. Payments",
+          "content": "House Pros Hub does not process payments between customers and contractors. All payments are made directly between customers and contractors. We are not responsible for any payment disputes, refunds, or financial transactions between users. You are solely responsible for all payment arrangements and agreements with other users."
+        },
+        "platformLiability": {
+          "title": "8. Platform Liability Limitations",
+          "noWarranty": {
+            "title": "8.1 No Warranty",
+            "content": "THE PLATFORM IS PROVIDED \"AS IS\" AND \"AS AVAILABLE\" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT."
+          },
+          "noResponsibility": {
+            "title": "8.2 No Responsibility for Services",
+            "content": "We are not responsible for the quality, safety, legality, or any other aspect of services provided by contractors. We do not endorse, guarantee, or warrant any contractor or their services. You use the Platform and engage with contractors at your own risk."
+          },
+          "notAParty": {
+            "title": "8.3 Not a Party to Agreements",
+            "content": "We are not a party to any agreements or transactions between customers and contractors. Any disputes between users must be resolved directly between the parties involved."
+          },
+          "userGeneratedContent": {
+            "title": "8.4 User-Generated Content",
+            "content": "We are not responsible for user-generated content posted on the Platform. Under Section 230 of the Communications Decency Act, we are not liable for content posted by users."
+          }
+        },
+        "limitationOfLiability": {
+          "title": "9. Limitation of Liability",
+          "content": "TO THE MAXIMUM EXTENT PERMITTED BY LAW, HOUSE PROS HUB SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUES, WHETHER INCURRED DIRECTLY OR INDIRECTLY, OR ANY LOSS OF DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES RESULTING FROM YOUR USE OF THE PLATFORM."
+        },
+        "indemnification": {
+          "title": "10. Indemnification",
+          "content": "You agree to indemnify, defend, and hold harmless House Pros Hub, its affiliates, officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including attorneys' fees) arising out of or relating to your use of the Platform, your violation of these Terms, or your violation of any rights of another party."
+        },
+        "intellectualProperty": {
+          "title": "11. Intellectual Property",
+          "platformContent": {
+            "title": "11.1 Platform Content",
+            "content": "All content on the Platform, including text, graphics, logos, and software, is the property of House Pros Hub or its licensors and is protected by copyright, trademark, and other intellectual property laws."
+          },
+          "userContent": {
+            "title": "11.2 User Content",
+            "content": "You retain ownership of any content you post on the Platform. By posting content, you grant us a non-exclusive, worldwide, royalty-free license to use, reproduce, modify, and display such content on the Platform."
+          }
+        },
+        "disputeResolution": {
+          "title": "12. Dispute Resolution",
+          "platformDisputes": {
+            "title": "12.1 Platform Disputes",
+            "content": "If you have a dispute with another user, you should attempt to resolve it directly with that user. We may, but are not obligated to, facilitate communication between users."
+          },
+          "disputesWithHub": {
+            "title": "12.2 Disputes with House Pros Hub",
+            "content": "Any disputes arising out of or relating to these Terms or the Platform shall be resolved through binding arbitration in accordance with the rules of the American Arbitration Association, except where prohibited by law. You waive any right to a jury trial and agree to resolve disputes on an individual basis."
+          }
+        },
+        "termination": {
+          "title": "13. Termination",
+          "content": "We reserve the right to suspend or terminate your account and access to the Platform at any time, with or without cause or notice, for any reason, including if you violate these Terms. You may terminate your account at any time by contacting us."
+        },
+        "modifications": {
+          "title": "14. Modifications to Terms",
+          "content": "We reserve the right to modify these Terms at any time. We will notify users of material changes by posting the updated Terms on the Platform and updating the \"Last Updated\" date. Your continued use of the Platform after such modifications constitutes your acceptance of the updated Terms."
+        },
+        "governingLaw": {
+          "title": "15. Governing Law",
+          "content": "These Terms shall be governed by and construed in accordance with the laws of the state in which House Pros Hub operates, without regard to its conflict of law provisions."
+        },
+        "contact": {
+          "title": "16. Contact Information",
+          "content": "If you have any questions about these Terms, please contact us at:",
+          "email": "Email:",
+          "address": "Address:",
+          "addressValue": "[Your Business Address]"
+        },
+        "severability": {
+          "title": "17. Severability",
+          "content": "If any provision of these Terms is found to be unenforceable or invalid, that provision shall be limited or eliminated to the minimum extent necessary, and the remaining provisions shall remain in full force and effect."
+        },
+        "entireAgreement": {
+          "title": "18. Entire Agreement",
+          "content": "These Terms constitute the entire agreement between you and House Pros Hub regarding the use of the Platform and supersede all prior agreements and understandings."
+        }
+      }
+    },
+    "privacy": {
+      "title": "Privacy Policy | House Pros Hub",
+      "description": "Privacy Policy for House Pros Hub marketplace platform",
+      "sections": {
+        "introduction": {
+          "title": "1. Introduction",
+          "content1": "House Pros Hub (\"we\", \"us\", or \"our\") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our marketplace platform that connects customers with contractors and service providers.",
+          "content2": "By using our Platform, you agree to the collection and use of information in accordance with this Privacy Policy."
+        },
+        "informationWeCollect": {
+          "title": "2. Information We Collect",
+          "youProvide": {
+            "title": "2.1 Information You Provide",
+            "content": "We collect information that you provide directly to us, including:",
+            "items": [
+              "Account Information: Name, email address, phone number, password",
+              "Profile Information: Business name, contractor type, business description, licenses, certifications",
+              "Location Information: Street address, city, state, zip code, apartment number, gate codes, address notes",
+              "Contact Information: Phone numbers (mobile, location, business), email addresses, website URLs, social media links",
+              "Communication: Messages, reviews, feedback, and other content you post on the Platform",
+              "Payment Information: While we do not process payments, we may collect billing information if you use certain features"
+            ]
+          },
+          "automaticallyCollected": {
+            "title": "2.2 Automatically Collected Information",
+            "content": "When you use our Platform, we automatically collect certain information, including:",
+            "items": [
+              "Device Information: IP address, browser type, operating system, device identifiers",
+              "Usage Information: Pages visited, time spent on pages, links clicked, search queries",
+              "Location Data: General location information based on IP address or device settings",
+              "Cookies and Tracking Technologies: See our Cookie Policy for more information"
+            ]
+          },
+          "thirdParties": {
+            "title": "2.3 Information from Third Parties",
+            "content": "We may receive information about you from third parties, such as social media platforms if you choose to connect your account, or from service providers that help us verify information."
+          }
+        },
+        "howWeUse": {
+          "title": "3. How We Use Your Information",
+          "content": "We use the information we collect to:",
+          "items": [
+            "Create and manage your account",
+            "Match customers with contractors based on location, services, and preferences",
+            "Display your business profile to potential customers (for contractors)",
+            "Facilitate communication between users",
+            "Send you service-related communications, updates, and notifications",
+            "Improve and optimize the Platform",
+            "Analyze usage patterns and trends",
+            "Detect, prevent, and address fraud, security issues, and abuse",
+            "Comply with legal obligations",
+            "Respond to your inquiries and provide customer support",
+            "Send you marketing communications (with your consent, where required)"
+          ]
+        },
+        "howWeShare": {
+          "title": "4. How We Share Your Information",
+          "withUsers": {
+            "title": "4.1 With Other Users",
+            "content": "We share certain information to facilitate connections:",
+            "forContractors": "For Contractors: Your business profile, including business name, contractor type, description, location, contact information, and links are visible to customers",
+            "forCustomers": "For Customers: Your contact information may be shared with contractors you contact or engage with"
+          },
+          "withServiceProviders": {
+            "title": "4.2 With Service Providers",
+            "content": "We may share your information with third-party service providers who perform services on our behalf, such as hosting, analytics, customer support, email delivery, and payment processing."
+          },
+          "forLegalReasons": {
+            "title": "4.3 For Legal Reasons",
+            "content": "We may disclose your information if required by law or in response to valid legal requests, such as:",
+            "items": [
+              "Compliance with court orders, subpoenas, or other legal processes",
+              "Protection of our rights, property, or safety",
+              "Protection of the rights, property, or safety of our users or others",
+              "Enforcement of our Terms of Service"
+            ]
+          },
+          "businessTransfers": {
+            "title": "4.4 Business Transfers",
+            "content": "If we are involved in a merger, acquisition, or sale of assets, your information may be transferred as part of that transaction."
+          },
+          "withConsent": {
+            "title": "4.5 With Your Consent",
+            "content": "We may share your information with third parties when you have given us your explicit consent to do so."
+          }
+        },
+        "dataSecurity": {
+          "title": "5. Data Security",
+          "content": "We implement appropriate technical and organizational security measures to protect your information against unauthorized access, alteration, disclosure, or destruction. These measures include:",
+          "items": [
+            "Encryption of data in transit and at rest",
+            "Secure authentication and access controls",
+            "Regular security assessments and updates",
+            "Limited access to personal information on a need-to-know basis"
+          ],
+          "note": "However, no method of transmission over the Internet or electronic storage is 100% secure. While we strive to protect your information, we cannot guarantee absolute security."
+        },
+        "yourRights": {
+          "title": "6. Your Rights and Choices",
+          "access": {
+            "title": "6.1 Access and Correction",
+            "content": "You can access and update your account information at any time by logging into your account settings."
+          },
+          "deletion": {
+            "title": "6.2 Deletion",
+            "content": "You can request deletion of your account and personal information by contacting us. We will delete your information subject to our legal obligations to retain certain data."
+          },
+          "optOut": {
+            "title": "6.3 Opt-Out of Marketing",
+            "content": "You can opt-out of receiving marketing communications from us by following the unsubscribe instructions in our emails or by contacting us directly."
+          },
+          "cookies": {
+            "title": "6.4 Cookies",
+            "content": "You can control cookies through your browser settings. See our Cookie Policy for more information."
+          },
+          "doNotTrack": {
+            "title": "6.5 Do Not Track",
+            "content": "Our Platform does not currently respond to \"Do Not Track\" signals from browsers. We may update this policy if a standard is established."
+          }
+        },
+        "cookies": {
+          "title": "7. Cookies and Tracking Technologies",
+          "content": "We use cookies and similar tracking technologies to collect and store information about your use of the Platform. Cookies are small data files stored on your device. We use cookies for:",
+          "items": [
+            "Authentication and session management",
+            "Remembering your preferences",
+            "Analyzing usage patterns",
+            "Improving the Platform"
+          ],
+          "cookiePolicyLink": "For more detailed information about our use of cookies, please see our Cookie Policy."
+        },
+        "childrenPrivacy": {
+          "title": "8. Children's Privacy",
+          "content": "Our Platform is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13. If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately."
+        },
+        "dataRetention": {
+          "title": "9. Data Retention",
+          "content": "We retain your personal information for as long as necessary to provide our services, comply with legal obligations, resolve disputes, and enforce our agreements. When you delete your account, we will delete or anonymize your personal information, except where we are required to retain it for legal purposes."
+        },
+        "internationalUsers": {
+          "title": "10. International Users",
+          "content": "Our Platform is operated in the United States. If you are accessing the Platform from outside the United States, please be aware that your information may be transferred to, stored, and processed in the United States. By using the Platform, you consent to the transfer of your information to the United States."
+        },
+        "californiaRights": {
+          "title": "11. California Privacy Rights",
+          "content": "If you are a California resident, you have certain rights under the California Consumer Privacy Act (CCPA), including:",
+          "items": [
+            "The right to know what personal information we collect, use, and disclose",
+            "The right to delete your personal information",
+            "The right to opt-out of the sale of personal information (we do not sell personal information)",
+            "The right to non-discrimination for exercising your privacy rights"
+          ],
+          "contactNote": "To exercise these rights, please contact us using the information provided in the Contact section."
+        },
+        "changes": {
+          "title": "12. Changes to This Privacy Policy",
+          "content": "We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the updated Privacy Policy on the Platform and updating the \"Last Updated\" date. Your continued use of the Platform after such changes constitutes your acceptance of the updated Privacy Policy."
+        },
+        "contact": {
+          "title": "13. Contact Us",
+          "content": "If you have any questions, concerns, or requests regarding this Privacy Policy or our privacy practices, please contact us at:",
+          "email": "Email:",
+          "address": "Address:",
+          "addressValue": "[Your Business Address]"
+        }
+      }
+    },
+    "cookies": {
+      "title": "Cookie Policy | House Pros Hub",
+      "description": "Cookie Policy for House Pros Hub marketplace platform",
+      "sections": {
+        "whatAreCookies": {
+          "title": "1. What Are Cookies?",
+          "content": "Cookies are small text files that are placed on your device when you visit a website. They are widely used to make websites work more efficiently and to provide information to website owners."
+        },
+        "howWeUse": {
+          "title": "2. How We Use Cookies",
+          "content": "We use cookies and similar tracking technologies for the following purposes:",
+          "essential": {
+            "title": "2.1 Essential Cookies",
+            "content": "These cookies are necessary for the Platform to function properly. They enable core functionality such as security, network management, and accessibility. You cannot opt-out of these cookies.",
+            "items": [
+              "Authentication: To keep you logged in and maintain your session",
+              "Security: To protect against fraud and unauthorized access",
+              "Preferences: To remember your settings and preferences"
+            ]
+          },
+          "analytics": {
+            "title": "2.2 Analytics Cookies",
+            "content": "These cookies help us understand how visitors interact with the Platform by collecting and reporting information anonymously. This helps us improve the Platform's functionality and user experience.",
+            "items": [
+              "Page views and navigation patterns",
+              "Time spent on pages",
+              "Error messages and performance issues"
+            ]
+          },
+          "functionality": {
+            "title": "2.3 Functionality Cookies",
+            "content": "These cookies allow the Platform to remember choices you make and provide enhanced, personalized features.",
+            "items": [
+              "Language preferences",
+              "Theme settings",
+              "Location preferences"
+            ]
+          }
+        },
+        "types": {
+          "title": "3. Types of Cookies We Use",
+          "session": {
+            "title": "3.1 Session Cookies",
+            "content": "These cookies are temporary and are deleted when you close your browser. They are used to maintain your session while you navigate the Platform."
+          },
+          "persistent": {
+            "title": "3.2 Persistent Cookies",
+            "content": "These cookies remain on your device for a set period or until you delete them. They are used to remember your preferences and improve your experience on future visits."
+          },
+          "thirdParty": {
+            "title": "3.3 Third-Party Cookies",
+            "content": "We may use third-party services that set cookies on your device. These cookies are subject to the privacy policies of the third-party providers. We use third-party cookies for:",
+            "items": [
+              "Analytics and performance monitoring",
+              "Security and fraud prevention",
+              "Content delivery networks"
+            ]
+          }
+        },
+        "managing": {
+          "title": "4. Managing Cookies",
+          "content": "You have the right to accept or reject cookies. Most web browsers automatically accept cookies, but you can modify your browser settings to decline cookies if you prefer.",
+          "browserSettings": {
+            "title": "4.1 Browser Settings",
+            "content": "You can control cookies through your browser settings. Here are links to instructions for popular browsers:"
+          },
+          "impact": {
+            "title": "4.2 Impact of Disabling Cookies",
+            "content": "Please note that disabling cookies may affect the functionality of the Platform. Some features may not work properly if cookies are disabled."
+          }
+        },
+        "otherTracking": {
+          "title": "5. Other Tracking Technologies",
+          "content": "In addition to cookies, we may use other tracking technologies such as:",
+          "items": [
+            "Web Beacons: Small graphic images used to track user engagement",
+            "Local Storage: Data stored locally in your browser",
+            "Session Storage: Temporary data stored for the duration of your session"
+          ]
+        },
+        "updates": {
+          "title": "6. Updates to This Cookie Policy",
+          "content": "We may update this Cookie Policy from time to time to reflect changes in our practices or for other operational, legal, or regulatory reasons. We will notify you of any material changes by posting the updated Cookie Policy on the Platform and updating the \"Last Updated\" date."
+        },
+        "contact": {
+          "title": "7. Contact Us",
+          "content": "If you have any questions about our use of cookies, please contact us at:",
+          "email": "Email:",
+          "address": "Address:",
+          "addressValue": "[Your Business Address]"
+        }
+      }
+    }
+  }
+}

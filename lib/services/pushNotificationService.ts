@@ -4,10 +4,37 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY;
 
+let vapidInitialized = false;
+
+function ensureVapid(): boolean {
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return false;
+  if (vapidInitialized) return true;
+  try {
+    webpush.setVapidDetails('mailto:admin@houseproshub.com', VAPID_PUBLIC, VAPID_PRIVATE);
+    vapidInitialized = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface PushSubscriptionRow {
   endpoint: string;
   p256dh: string;
   auth: string;
+}
+
+export interface PushPayload {
+  title: string;
+  body: string;
+  url: string;
+  badge?: number;
+}
+
+function buildPayload(title: string, body: string, url: string, badge?: number): string {
+  const payload: PushPayload = { title, body, url };
+  if (typeof badge === 'number' && badge >= 0) payload.badge = Math.min(99, badge);
+  return JSON.stringify(payload);
 }
 
 /**
@@ -17,19 +44,10 @@ export interface PushSubscriptionRow {
 export async function sendAdminPushNotification(
   title: string,
   body: string,
-  url: string = '/admin/chat'
+  url: string = '/admin/chat',
+  badge?: number
 ): Promise<void> {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return;
-
-  try {
-    webpush.setVapidDetails(
-      'mailto:admin@houseproshub.com',
-      VAPID_PUBLIC,
-      VAPID_PRIVATE
-    );
-  } catch {
-    return;
-  }
+  if (!ensureVapid()) return;
 
   const supabase = createServiceRoleClient();
   const { data: subs, error } = await supabase
@@ -38,7 +56,7 @@ export async function sendAdminPushNotification(
 
   if (error || !subs?.length) return;
 
-  const payload = JSON.stringify({ title, body, url });
+  const payload = buildPayload(title, body, url, badge);
 
   await Promise.allSettled(
     subs.map((sub) =>
@@ -63,19 +81,10 @@ export async function sendBusinessPushNotification(
   businessId: string,
   title: string,
   body: string,
-  url: string = '/probot'
+  url: string = '/probot',
+  badge?: number
 ): Promise<void> {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return;
-
-  try {
-    webpush.setVapidDetails(
-      'mailto:admin@houseproshub.com',
-      VAPID_PUBLIC,
-      VAPID_PRIVATE
-    );
-  } catch {
-    return;
-  }
+  if (!ensureVapid()) return;
 
   const supabase = createServiceRoleClient();
   const { data: business, error: bizError } = await supabase
@@ -93,7 +102,7 @@ export async function sendBusinessPushNotification(
 
   if (error || !subs?.length) return;
 
-  const payload = JSON.stringify({ title, body, url });
+  const payload = buildPayload(title, body, url, badge);
 
   await Promise.allSettled(
     subs.map((sub) =>
@@ -117,19 +126,10 @@ export async function sendVisitorPushNotification(
   conversationId: string,
   title: string,
   body: string,
-  url: string = '/'
+  url: string = '/',
+  badge?: number
 ): Promise<void> {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return;
-
-  try {
-    webpush.setVapidDetails(
-      'mailto:admin@houseproshub.com',
-      VAPID_PUBLIC,
-      VAPID_PRIVATE
-    );
-  } catch {
-    return;
-  }
+  if (!ensureVapid()) return;
 
   const supabase = createServiceRoleClient();
   const { data: subs, error } = await supabase
@@ -139,7 +139,7 @@ export async function sendVisitorPushNotification(
 
   if (error || !subs?.length) return;
 
-  const payload = JSON.stringify({ title, body, url });
+  const payload = buildPayload(title, body, url, badge);
 
   await Promise.allSettled(
     subs.map((sub) =>

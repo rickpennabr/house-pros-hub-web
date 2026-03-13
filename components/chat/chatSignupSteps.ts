@@ -35,7 +35,7 @@ export interface ChatSignupStep {
 
 export const CHAT_SIGNUP_STEPS: ChatSignupStep[] = [
   { id: 'role', messageKey: 'role', type: 'choice', field: 'userType' },
-  { id: 'invitationCode', messageKey: 'invitationCode', type: 'text', field: 'invitationCode', skipWhen: (v) => v.userType !== 'contractor' },
+  { id: 'invitationCode', messageKey: 'invitationCode', type: 'text', field: 'invitationCode', skipWhen: (v) => v.userType !== 'contractor' && v.userType !== 'realtor' },
   { id: 'userPicture', messageKey: 'userPicture', type: 'upload', field: 'userPicture' },
   { id: 'firstName', messageKey: 'firstName', type: 'text', field: 'firstName' },
   { id: 'lastName', messageKey: 'lastName', type: 'text', field: 'lastName' },
@@ -54,4 +54,20 @@ export const CHAT_SIGNUP_STEPS: ChatSignupStep[] = [
 
 export function getVisibleSteps(values: Record<string, unknown>): ChatSignupStep[] {
   return CHAT_SIGNUP_STEPS.filter((step) => !step.skipWhen?.(values));
+}
+
+/** Step ids for guest estimate flow (contact info only, no account). */
+export const GUEST_ESTIMATE_STEP_IDS: ChatSignupStepId[] = [
+  'firstName',
+  'lastName',
+  'phone',
+  'email',
+  'address',
+  'apartment',
+];
+
+export function getGuestEstimateSteps(values: Record<string, unknown>): ChatSignupStep[] {
+  return CHAT_SIGNUP_STEPS.filter(
+    (step) => GUEST_ESTIMATE_STEP_IDS.includes(step.id) && !step.skipWhen?.(values)
+  );
 }

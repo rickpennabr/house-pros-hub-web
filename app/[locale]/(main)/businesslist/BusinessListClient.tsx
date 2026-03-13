@@ -1,10 +1,13 @@
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
-import { useTranslations } from 'next-intl';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import ProCardGrid from '@/components/proscard/ProCardGrid';
 import ViewToggle, { ViewType } from '@/components/pageslayout/ViewToggle';
+import BusinessListMobileBottomBar from '@/components/pageslayout/BusinessListMobileBottomBar';
 import { useCategory } from '@/contexts/CategoryContext';
+import { useProBotTransition } from '@/contexts/ProBotTransitionContext';
 import { filterBusinesses } from '@/lib/utils/businessSearch';
 import Pagination from '@/components/ui/Pagination';
 import { useBusinesses } from '@/hooks/useBusinesses';
@@ -12,6 +15,8 @@ import { useScrollPosition } from '@/hooks/useScrollPosition';
 import { useWindowDimensions } from '@/hooks/useWindowDimensions';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { ProCardData } from '@/components/proscard/ProCard';
+
+const PROBOT_BLACKOUT_MS = 500;
 
 const PRESENCE_POLL_MS = 45_000;
 
@@ -21,6 +26,9 @@ interface BusinessListClientProps {
 
 export default function BusinessListClient({ initialBusinesses }: BusinessListClientProps) {
   const t = useTranslations('businessList');
+  const router = useRouter();
+  const locale = useLocale();
+  const { setTransitioningToProbot } = useProBotTransition();
   const { activeCategory, searchQuery } = useCategory();
   const { businesses, isLoading } = useBusinesses(initialBusinesses);
   const [onlineByBusiness, setOnlineByBusiness] = useState<Record<string, boolean>>({});
@@ -39,6 +47,15 @@ export default function BusinessListClient({ initialBusinesses }: BusinessListCl
   const { isMobile } = useWindowDimensions();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  // Use isMobile only after mount to avoid hydration mismatch (server has no window, client may be mobile).
+  const isMobileSafe = mounted && isMobile;
+
+  const handleProBotClick = useCallback(() => {
+    setTransitioningToProbot(true);
+    setTimeout(() => {
+      router.push(`/${locale}/probot`);
+    }, PROBOT_BLACKOUT_MS);
+  }, [locale, router, setTransitioningToProbot]);
 
   // Poll presence so business cards show green online indicator when the pro is on the platform
   useEffect(() => {
@@ -117,7 +134,7 @@ export default function BusinessListClient({ initialBusinesses }: BusinessListCl
 
   return (
     <>
-      <div className={`w-full min-h-full flex flex-col ${mounted && isAtBottom && !isMobile && !isLoading && filteredCards.length > 0 ? 'pb-[140px]' : ''}`}>
+      <div className={`w-full min-h-full flex flex-col ${mounted && isAtBottom && !isMobileSafe && !isLoading && filteredCards.length > 0 ? 'pb-[140px]' : ''} ${isMobileSafe && !isLoading && filteredCards.length > 0 ? 'pb-[72px]' : ''}`}>
         {isLoading ? (
           <div className="w-full flex-1 flex items-center justify-center py-12" />
         ) : filteredCards.length === 0 ? (
@@ -136,7 +153,7 @@ export default function BusinessListClient({ initialBusinesses }: BusinessListCl
             {!isLoading && filteredCards.length > 0 && shouldShowPagination && (
               <div
                 className={`w-full flex justify-center mt-6 ${
-                  mounted && isAtBottom && !isMobile
+                  mounted && isAtBottom && !isMobileSafe
                     ? 'fixed left-1/2 -translate-x-1/2 bottom-[70px] z-30'
                     : 'mb-[60px]'
                 }`}
@@ -153,8 +170,16 @@ export default function BusinessListClient({ initialBusinesses }: BusinessListCl
           </>
         )}
       </div>
-      {!isLoading && filteredCards.length > 0 && (
-        <ViewToggle currentView={view} onViewChange={setView} />
+      {!isLoading && filteredCards.length > 0 && isMobileSafe && (
+        <BusinessListMobileBottomBar currentView={view} onViewChange={setView} />
+      )}
+      {!isLoading && filteredCards.length > 0 && !isMobileSafe && (
+        <ViewToggle
+          currentView={view}
+          onViewChange={setView}
+          showProBotHead
+          onProBotClick={handleProBotClick}
+        />
       )}
     </>
   );

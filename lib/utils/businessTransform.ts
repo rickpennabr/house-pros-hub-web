@@ -38,6 +38,8 @@ const licenseToCategoryMap: Record<string, string> = {
   'A-10': 'Pools & Spas',
   'GENERAL': 'General Contractor',
   [HANDYMAN_LICENSE_CODE]: 'Handyman',
+  'HANDYMAN INTERIOR': 'Handyman Interior',
+  'HANDYMAN_EXTERIOR': 'Handyman Exterior',
 };
 
 /**
@@ -71,6 +73,8 @@ const licenseToIconMap: Record<string, string> = {
   'A-10': 'Waves',
   'GENERAL': 'Home',
   [HANDYMAN_LICENSE_CODE]: 'Hammer',
+  'HANDYMAN INTERIOR': 'Hammer',
+  'HANDYMAN_EXTERIOR': 'Hammer',
 };
 
 /**

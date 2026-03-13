@@ -138,8 +138,9 @@ export async function POST(request: NextRequest) {
 
     const serviceRoleClient = createServiceRoleClient();
 
-    // Contractor signup requires a valid invitation code
+    // Contractor or realtor signup requires a valid invitation code
     let invitationCodeId: string | null = null;
+    let invitationCodeTable: 'contractor_invitation_codes' | 'realtor_invitation_codes' | null = null;
     if (userType === 'contractor') {
       const rawCode = invitationCode != null ? String(invitationCode).trim().toUpperCase() : '';
       if (!rawCode) {
@@ -174,6 +175,43 @@ export async function POST(request: NextRequest) {
         );
       }
       invitationCodeId = codeRow.id;
+      invitationCodeTable = 'contractor_invitation_codes';
+    }
+    if (userType === 'realtor') {
+      const rawCode = invitationCode != null ? String(invitationCode).trim().toUpperCase() : '';
+      if (!rawCode) {
+        return NextResponse.json(
+          { error: 'Invitation code is required for realtor signup.' },
+          { status: 400 }
+        );
+      }
+      const { data: codeRow, error: codeError } = await serviceRoleClient
+        .from('realtor_invitation_codes')
+        .select('id, expires_at, used_at')
+        .eq('code', rawCode)
+        .maybeSingle();
+
+      if (codeError || !codeRow) {
+        return NextResponse.json(
+          { error: 'Invalid or expired invitation code.' },
+          { status: 400 }
+        );
+      }
+      if (codeRow.used_at) {
+        return NextResponse.json(
+          { error: 'This invitation code has already been used.' },
+          { status: 400 }
+        );
+      }
+      const expiresAt = new Date(codeRow.expires_at);
+      if (expiresAt <= new Date()) {
+        return NextResponse.json(
+          { error: 'Invalid or expired invitation code.' },
+          { status: 400 }
+        );
+      }
+      invitationCodeId = codeRow.id;
+      invitationCodeTable = 'realtor_invitation_codes';
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -331,23 +369,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Assign role(s) if provided and valid
-    const validUserTypes = ['customer', 'contractor', 'both'] as const;
+    const validUserTypes = ['customer', 'contractor', 'realtor', 'both'] as const;
     if (userType && validUserTypes.includes(userType as typeof validUserTypes[number])) {
-      const roles: ('customer' | 'contractor')[] = userType === 'both' 
-        ? ['customer', 'contractor'] 
-        : [userType as 'customer' | 'contractor'];
-      
+      const roles: ('customer' | 'contractor' | 'realtor')[] =
+        userType === 'both'
+          ? ['customer', 'contractor']
+          : userType === 'realtor'
+            ? ['realtor']
+            : [userType as 'customer' | 'contractor'];
+
       for (const role of roles) {
         // Check if role already exists
-        // Use maybeSingle() instead of single() to handle case where role doesn't exist yet
         const { data: existingRole, error: roleCheckError } = await serviceRoleClient
           .from('user_roles')
           .select('id')
           .eq('user_id', authData.user.id)
-          .eq('role', role as 'customer' | 'contractor')
+          .eq('role', role)
           .maybeSingle();
 
-        // Ignore errors when checking - if role doesn't exist, we'll create it
         if (roleCheckError && roleCheckError.code !== 'PGRST116') {
           console.warn(`Error checking for existing ${role} role:`, roleCheckError);
         }
@@ -357,7 +396,7 @@ export async function POST(request: NextRequest) {
             .from('user_roles')
             .insert({
               user_id: authData.user.id,
-              role: role as 'customer' | 'contractor',
+              role,
               is_active: true,
               activated_at: new Date().toISOString(),
             });
@@ -370,16 +409,15 @@ export async function POST(request: NextRequest) {
               details: roleError.details,
               hint: roleError.hint,
             });
-            // Don't fail - role can be assigned later
           }
         }
       }
     }
 
-    // Mark invitation code as used for contractor signup
-    if (invitationCodeId) {
+    // Mark invitation code as used (contractor or realtor)
+    if (invitationCodeId && invitationCodeTable) {
       await serviceRoleClient
-        .from('contractor_invitation_codes')
+        .from(invitationCodeTable)
         .update({
           used_at: new Date().toISOString(),
           used_by: authData.user.id,
@@ -446,7 +484,7 @@ export async function POST(request: NextRequest) {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: normalizedEmail,
-        userType: (userType || 'customer') as 'customer' | 'contractor' | 'both',
+        userType: (userType || 'customer') as 'customer' | 'contractor' | 'realtor' | 'both',
       };
 
       // Send welcome email (errors are logged but don't fail signup)
@@ -468,9 +506,10 @@ export async function POST(request: NextRequest) {
       }, emailError as Error);
     }
 
-    // Notify admin of new customer or new contractor signup (non-blocking)
+    // Notify admin of new customer, contractor, or realtor signup (non-blocking)
     try {
-      const signupType = userType === 'contractor' ? 'contractor' : 'customer';
+      const signupType =
+        userType === 'contractor' ? 'contractor' : userType === 'realtor' ? 'realtor' : 'customer';
       const name = `${firstName.trim()} ${lastName.trim()}`.trim() || normalizedEmail;
       const adminNotifyResult = await sendNewSignupAdminNotification({
         type: signupType,

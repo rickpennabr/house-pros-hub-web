@@ -305,7 +305,7 @@ export default function BusinessDetailsPage() {
         contractorType={business.contractorType}
       />
       
-      <div ref={heroContainerRef} className="relative">
+      <div ref={heroContainerRef} className="relative overflow-hidden shrink-0">
         <BusinessHeroImage 
           imageUrl={business.businessBackground} 
           businessName={business.businessName}

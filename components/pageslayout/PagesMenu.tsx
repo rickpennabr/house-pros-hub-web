@@ -4,8 +4,7 @@ import { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { BookOpen, Package } from 'lucide-react';
-import { MdGroups2 } from 'react-icons/md';
+import { BookOpen, Package, Users } from 'lucide-react';
 
 interface PagesMenuProps {
   children?: ReactNode;
@@ -19,7 +18,7 @@ type MenuItem = {
 
 const menuItems: MenuItem[] = [
   { labelKey: 'prosBlog', path: '/blog', icon: BookOpen },
-  { labelKey: 'housePros', path: '/businesslist', icon: MdGroups2 },
+  { labelKey: 'housePros', path: '/businesslist', icon: Users },
   { labelKey: 'proSuppliers', path: '/prosuppliers', icon: Package },
 ];
 
@@ -44,10 +43,10 @@ export default function PagesMenu({ children }: PagesMenuProps) {
   };
 
   return (
-    <div className="w-full h-[60px] border-b-2 border-black p-2 md:px-2 md:py-4 flex items-center gap-2 md:gap-4">
+    <div className="w-full h-[60px] border-b-2 border-black p-1 md:px-2 md:py-4 flex items-center gap-2 md:gap-4">
       {menuItems.map((item) => {
         const Icon = item.icon;
-        const isHousePros = item.icon === MdGroups2;
+        const isHousePros = item.labelKey === 'housePros';
         const iconSizeClass = isHousePros 
           ? 'w-6 h-6 md:w-[1.8rem] md:h-[1.8rem] lg:w-[2.1rem] lg:h-[2.1rem]'
           : 'w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7';

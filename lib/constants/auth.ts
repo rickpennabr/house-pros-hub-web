@@ -5,6 +5,7 @@
 export const USER_TYPES = {
   CUSTOMER: 'customer',
   CONTRACTOR: 'contractor',
+  REALTOR: 'realtor',
 } as const;
 
 export type UserType = typeof USER_TYPES[keyof typeof USER_TYPES];

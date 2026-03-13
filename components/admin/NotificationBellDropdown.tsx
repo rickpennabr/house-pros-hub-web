@@ -90,12 +90,12 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
   }, [notificationOpen, isChat]);
 
   return (
-    <div className="relative z-[100] -ml-0.5">
+    <div className="relative z-[100] flex items-center shrink-0">
       <button
         ref={bellButtonRef}
         type="button"
         onClick={() => setNotificationOpen((o) => !o)}
-        className="relative w-10 h-10 rounded-lg bg-white flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors bell-shake-on-hover"
+        className="relative w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors bell-shake-on-hover"
         aria-label="Notifications"
         aria-expanded={notificationOpen}
       >
@@ -110,7 +110,7 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
       {notificationOpen && (
         <div
           ref={notificationRef}
-          className="absolute right-0 mt-2 w-72 bg-white rounded-lg border-2 border-black shadow-lg z-[100] overflow-hidden"
+          className="absolute right-0 top-full mt-2 w-72 bg-white rounded-lg border-2 border-black shadow-lg z-[100] overflow-hidden"
         >
           {isChat ? (
             <>

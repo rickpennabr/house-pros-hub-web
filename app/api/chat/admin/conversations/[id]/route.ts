@@ -55,6 +55,9 @@ export async function GET(
     }
 
     const supabase = createServiceRoleClient();
+    const { data: adminUsers } = await supabase.from('admin_users').select('user_id');
+    const adminUserIdsSet = new Set<string>(((adminUsers ?? []) as { user_id: string }[]).map((r) => r.user_id));
+
     const { data: conv, error: convError } = await supabase
       .from('probot_conversations')
       .select('id, visitor_id, created_at, updated_at, visitor_display_name, user_id')
@@ -172,8 +175,8 @@ export async function GET(
     const business_logo = bid ? (businessLogos[bid] ?? undefined) : undefined;
     const business_id = bid ?? undefined;
     const profile = row.user_id ? profileByUserId[row.user_id] : undefined;
-    // When the "visitor" is the current admin, show as ProBot only (never personal name)
-    const display_as_probot = row.user_id === user.id;
+    // When the "visitor" is any admin, show as ProBot only (one bot in History/header, never personal name/photo)
+    const display_as_probot = row.user_id != null && adminUserIdsSet.has(row.user_id);
     const conversation = {
       ...row,
       lastMessage: last ? { body: last.body ?? '', created_at: last.created_at, sender: last.sender } : null,

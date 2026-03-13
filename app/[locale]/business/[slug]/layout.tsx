@@ -3,7 +3,6 @@
 import { ReactNode, Suspense } from 'react';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { WelcomeProvider } from '@/contexts/WelcomeContext';
-import BotFloatingButton from '@/components/pageslayout/BotFloatingButton';
 import BotChatDrawer from '@/components/chat/BotChatDrawer';
 
 export default function BusinessDetailsLayout({
@@ -19,7 +18,6 @@ export default function BusinessDetailsLayout({
             {children}
           </div>
         </div>
-        <BotFloatingButton />
         <Suspense fallback={null}>
           <BotChatDrawer />
         </Suspense>

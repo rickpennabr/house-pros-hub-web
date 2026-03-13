@@ -34,18 +34,18 @@ function SignUpForm() {
   const { user, checkAuth } = useAuth();
   
   // Get role from URL if coming from Free Estimate button
-  const urlRole = searchParams.get('role') as 'customer' | 'contractor' | null;
+  const urlRole = searchParams.get('role') as 'customer' | 'contractor' | 'realtor' | null;
   const skipRoleSelection = searchParams.get('skipRoleSelection') === 'true';
   
   // If skipRoleSelection is true, go directly to form step (skip role selection). Otherwise,
-  // show role selection unless role is in URL. For contractor from URL, show invitation-code first.
+  // show role selection unless role is in URL. For contractor or realtor from URL, show invitation-code first.
   const [currentStep, setCurrentStep] = useState<SignupStep>(() => {
     if (skipRoleSelection) return 'form';
-    if (urlRole === 'contractor') return 'invitation-code';
+    if (urlRole === 'contractor' || urlRole === 'realtor') return 'invitation-code';
     if (urlRole === 'customer') return 'form';
     return 'role-selection';
   });
-  const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | null>(
+  const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | 'realtor' | null>(
     skipRoleSelection ? 'customer' : urlRole
   );
   const [isAuthLoading, setIsAuthLoading] = useState(false);
@@ -71,7 +71,13 @@ function SignUpForm() {
 
   // Set user type when role is selected (for form display)
   if (selectedRole && formState.userType !== selectedRole) {
-    setUserType(selectedRole === 'customer' ? USER_TYPES.CUSTOMER : USER_TYPES.CONTRACTOR);
+    setUserType(
+      selectedRole === 'customer'
+        ? USER_TYPES.CUSTOMER
+        : selectedRole === 'realtor'
+          ? USER_TYPES.REALTOR
+          : USER_TYPES.CONTRACTOR
+    );
   }
 
   // Show warning when user tries to leave on steps 2, 3, or 4
@@ -85,9 +91,9 @@ function SignUpForm() {
     await handleNext();
   };
 
-  const handleRoleSelect = (role: 'customer' | 'contractor') => {
+  const handleRoleSelect = (role: 'customer' | 'contractor' | 'realtor') => {
     setSelectedRole(role);
-    setCurrentStep(role === 'contractor' ? 'invitation-code' : 'form');
+    setCurrentStep(role === 'customer' ? 'form' : 'invitation-code');
     setIsAuthLoading(false);
   };
 
@@ -102,7 +108,7 @@ function SignUpForm() {
   };
 
   const handleStepPrevious = () => {
-    if (formState.currentStep === 1 && selectedRole === 'contractor') {
+    if (formState.currentStep === 1 && (selectedRole === 'contractor' || selectedRole === 'realtor')) {
       setCurrentStep('invitation-code');
       return;
     }
@@ -237,11 +243,12 @@ function SignUpForm() {
           />
         )}
 
-        {/* Contractor: Invitation code before personal info */}
-        {currentStep === 'invitation-code' && selectedRole === 'contractor' && (
+        {/* Contractor or Realtor: Invitation code before personal info */}
+        {currentStep === 'invitation-code' && (selectedRole === 'contractor' || selectedRole === 'realtor') && (
           <>
             <SignupHeader isLoading={false} />
             <InvitationCodeScreen
+              role={selectedRole}
               onValidCode={handleInvitationCodeValid}
               onBack={handleInvitationCodeBack}
             />

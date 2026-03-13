@@ -10,8 +10,8 @@ interface WelcomeContextType {
 
 const WelcomeContext = createContext<WelcomeContextType | undefined>(undefined);
 
-/** Default true so the floating button is hidden on first paint until we know overlay won't show. */
-export function WelcomeProvider({ children, initialVisible = true }: { children: ReactNode; initialVisible?: boolean }) {
+/** Default false: no welcome overlay on initial load; floating button shows immediately. */
+export function WelcomeProvider({ children, initialVisible = false }: { children: ReactNode; initialVisible?: boolean }) {
   const [isWelcomeOverlayVisible, setWelcomeOverlayVisible] = useState(initialVisible);
   const setVisible = useCallback((visible: boolean) => setWelcomeOverlayVisible(visible), []);
   return (

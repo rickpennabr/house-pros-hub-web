@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
@@ -31,14 +31,24 @@ function generateCode(): string {
 
 /**
  * POST /api/admin/invitation-codes/generate
- * Generate a new one-time contractor invitation code. Admin only.
- * Returns { code, expiresAt }.
+ * Generate a new one-time contractor or realtor invitation code. Admin only.
+ * Body: { role?: 'contractor' | 'realtor' } (default contractor)
+ * Returns { code, expiresAt, role }.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const { error: authError } = await requireAdmin();
     if (authError) return authError;
 
+    let role: 'contractor' | 'realtor' = 'contractor';
+    try {
+      const body = await request.json().catch(() => ({}));
+      if (body.role === 'realtor') role = 'realtor';
+    } catch {
+      // no body or invalid JSON, use default
+    }
+
+    const table = role === 'realtor' ? 'realtor_invitation_codes' : 'contractor_invitation_codes';
     const service = createServiceRoleClient();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + EXPIRY_DAYS * 24 * 60 * 60 * 1000);
@@ -49,7 +59,7 @@ export async function POST() {
 
     while (attempts < maxAttempts) {
       const { data, error } = await service
-        .from('contractor_invitation_codes')
+        .from(table)
         .insert({
           code,
           expires_at: expiresAt.toISOString(),
@@ -61,6 +71,7 @@ export async function POST() {
         return NextResponse.json({
           code: data.code,
           expiresAt: data.expires_at,
+          role,
         });
       }
 

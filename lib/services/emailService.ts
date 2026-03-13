@@ -1,7 +1,8 @@
 import { getResendClient, getResendFromEmail } from '@/lib/utils/resend';
-import { generateEstimateConfirmationEmail, type EmailTranslations, type EstimateEmailData, generateWelcomeEmail, type WelcomeEmailTranslations, type WelcomeEmailData, generateSetPasswordEmail, type SetPasswordEmailTranslations, generatePasswordResetEmail, type PasswordResetEmailData, generateIncomingEmailNotification, type IncomingEmailNotificationData, generateNewSignupAdminNotification, type NewSignupAdminNotificationData } from '@/lib/utils/emailTemplates';
+import { generateEstimateConfirmationEmail, type EmailTranslations, type EstimateEmailData, generateWelcomeEmail, type WelcomeEmailTranslations, type WelcomeEmailData, generateSetPasswordEmail, type SetPasswordEmailTranslations, generatePasswordResetEmail, type PasswordResetEmailData, generatePasswordChangedEmail, generateIncomingEmailNotification, type IncomingEmailNotificationData, generateNewSignupAdminNotification, type NewSignupAdminNotificationData } from '@/lib/utils/emailTemplates';
 import { logger } from '@/lib/utils/logger';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { COMPANY_INFO } from '@/lib/constants/company';
 import type { ParsedEmail } from '@/lib/utils/emailParser';
 
 /**
@@ -200,7 +201,9 @@ export async function sendNewSignupAdminNotification(
         ? 'New customer signed up – House Pros Hub'
         : data.type === 'contractor'
           ? 'New contractor signed up – House Pros Hub'
-          : 'New business added – House Pros Hub';
+          : data.type === 'realtor'
+            ? 'New realtor signed up – House Pros Hub'
+            : 'New business added – House Pros Hub';
     const html = generateNewSignupAdminNotification(data);
 
     const { data: resData, error } = await resend.emails.send({
@@ -291,7 +294,7 @@ export async function sendPasswordResetEmail(data: {
   email: string;
   resetLink: string;
   userName?: string;
-  language: 'en' | 'es';
+  language: 'en' | 'es' | 'pt';
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const resend = getResendClient();
@@ -299,7 +302,9 @@ export async function sendPasswordResetEmail(data: {
     const subject =
       data.language === 'es'
         ? 'Restablece tu contraseña - House Pros Hub'
-        : 'Reset Your Password - House Pros Hub';
+        : data.language === 'pt'
+          ? 'Redefina sua senha - House Pros Hub'
+          : 'Reset Your Password - House Pros Hub';
     const html = generatePasswordResetEmail({
       resetLink: data.resetLink,
       userName: data.userName,
@@ -327,6 +332,66 @@ export async function sendPasswordResetEmail(data: {
     return { success: true };
   } catch (error) {
     logger.error('Error sending password reset email', {
+      endpoint: 'email-service',
+      toEmail: data.email,
+    }, error as Error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+/** Format support phone for display (e.g. 702-232-0411 → (702) 232-0411). */
+function formatSupportPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return raw;
+}
+
+/**
+ * Send "your password was changed" confirmation email (ADP-style).
+ * Call after user successfully updates password so they're notified of the change.
+ */
+export async function sendPasswordChangedEmail(data: {
+  email: string;
+  userName?: string;
+  language: 'en' | 'es' | 'pt';
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const resend = getResendClient();
+    const fromEmail = getResendFromEmail();
+    const subject =
+      data.language === 'es'
+        ? 'Tu contraseña fue cambiada'
+        : data.language === 'pt'
+          ? 'Sua senha foi alterada'
+          : 'Your password was changed';
+    const supportPhoneDisplay = formatSupportPhone(COMPANY_INFO.supportPhone ?? '702-232-0411');
+    const html = generatePasswordChangedEmail({
+      userName: data.userName,
+      language: data.language,
+      supportPhoneDisplay,
+    });
+    const { data: emailResult, error } = await resend.emails.send({
+      from: fromEmail,
+      to: data.email,
+      subject,
+      html,
+    });
+    if (error) {
+      logger.error('Failed to send password changed email', {
+        endpoint: 'email-service',
+        toEmail: data.email,
+        error: error.message,
+      }, error as Error);
+      return { success: false, error: error.message };
+    }
+    logger.info('Password changed email sent successfully', {
+      endpoint: 'email-service',
+      toEmail: data.email,
+      emailId: emailResult?.id,
+    });
+    return { success: true };
+  } catch (error) {
+    logger.error('Error sending password changed email', {
       endpoint: 'email-service',
       toEmail: data.email,
     }, error as Error);

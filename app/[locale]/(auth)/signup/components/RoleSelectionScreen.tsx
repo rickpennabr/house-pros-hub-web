@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { User } from 'lucide-react';
 import { GrUserWorker } from 'react-icons/gr';
+import { FaPersonShelter } from 'react-icons/fa6';
 import Logo from '@/components/Logo';
 
 interface RoleSelectionScreenProps {
-  onRoleSelect: (role: 'customer' | 'contractor') => void;
+  onRoleSelect: (role: 'customer' | 'contractor' | 'realtor') => void;
   isLoading?: boolean;
 }
 
@@ -22,7 +23,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
       {/* Logo (with Pro Bot) */}
       <div className="flex items-center justify-center h-[40px] md:h-[95px] mt-8 md:mt-0 mb-6 md:mb-0 pb-4 md:pb-2 md:w-full animate-fade-in">
         <Link href={`/${locale}/businesslist`} className="cursor-pointer flex-shrink-0 w-full md:w-full">
-          <Logo width={400} height={100} className="h-full w-full md:w-full max-w-full object-contain" />
+          <Logo src="/hph-logo-with-pro-bot-mobile.png" width={400} height={100} className="h-full w-full md:w-full max-w-full object-contain" />
         </Link>
       </div>
       
@@ -33,7 +34,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
         </h2>
       </div>
 
-      {/* Role Selection Cards */}
+      {/* Role Selection Cards: Customer first, then Contractor, then Realtor */}
       <div className="space-y-4">
         {/* Customer Option */}
         <button
@@ -57,7 +58,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
           </div>
         </button>
 
-        {/* Contractor Option */}
+        {/* Contractor Option (invitation code required) */}
         <button
           type="button"
           onClick={() => onRoleSelect('contractor')}
@@ -69,11 +70,39 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
               <GrUserWorker className="w-6 h-6 text-red-500" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-black mb-1">
-                {t('contractor.titleWithCode')}
+              <h3 className="text-lg font-semibold text-black mb-0.5">
+                {t('contractor.title')}
               </h3>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 mb-1">
                 {t('contractor.description')}
+              </p>
+              <p className="text-sm text-gray-600">
+                {t('contractor.invitationCodeRequired')}
+              </p>
+            </div>
+          </div>
+        </button>
+
+        {/* Realtor Option (invitation code required) */}
+        <button
+          type="button"
+          onClick={() => onRoleSelect('realtor')}
+          disabled={isLoading}
+          className="w-full p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+              <FaPersonShelter className="w-6 h-6 text-red-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-black mb-0.5">
+                {t('realtor.title')}
+              </h3>
+              <p className="text-sm text-gray-600 mb-1">
+                {t('realtor.description')}
+              </p>
+              <p className="text-sm text-gray-600">
+                {t('realtor.invitationCodeRequired')}
               </p>
             </div>
           </div>

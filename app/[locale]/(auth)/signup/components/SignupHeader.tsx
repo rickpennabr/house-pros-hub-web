@@ -17,7 +17,7 @@ export function SignupHeader({ isLoading }: SignupHeaderProps) {
         {/* Logo Section */}
         <section className="flex items-center justify-center pt-1 md:pt-0 pb-4 md:pb-0 md:w-full animate-slide-down w-full">
           <Link href={`/${locale}/businesslist`} className="cursor-pointer flex-shrink-0 w-full md:w-full">
-            <Logo width={400} height={100} className="w-full md:w-full max-w-full object-contain h-auto md:pb-0" />
+            <Logo src="/hph-logo-with-pro-bot-mobile.png" width={400} height={100} className="w-full md:w-full max-w-full object-contain h-auto md:pb-0" />
           </Link>
         </section>
 

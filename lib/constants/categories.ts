@@ -27,7 +27,6 @@ import {
   Wrench
 } from 'lucide-react';
 import { ComponentType } from 'react';
-import { GiGate } from 'react-icons/gi';
 
 export interface CategoryItem {
   label: string;
@@ -61,7 +60,7 @@ export const SERVICE_CATEGORIES: CategoryItem[] = [
   { label: 'Patio Cover', icon: Umbrella, color: 'text-orange-500' },
   { label: 'Custom Outdoor Living', icon: Sparkles, color: 'text-pink-500' },
   { label: 'Fencing', icon: Fence, color: 'text-gray-600' },
-  { label: 'Ornamental Iron', icon: GiGate as ComponentType<{ className?: string }>, color: 'text-slate-800' },
+  { label: 'Ornamental Iron', icon: Fence, color: 'text-slate-800' },
   { label: 'Decking', icon: Layout, color: 'text-orange-700' },
   { label: 'Carpentry', icon: Hammer, color: 'text-brown-700' },
   { label: 'Pools & Spas', icon: Waves, color: 'text-cyan-600' },
@@ -72,3 +71,15 @@ export const SERVICE_CATEGORIES: CategoryItem[] = [
 export const ALL_CATEGORY: CategoryItem = { label: 'All', icon: Grid, color: 'text-black' };
 
 export const CATEGORIES_WITH_ALL = [ALL_CATEGORY, ...SERVICE_CATEGORIES];
+
+const DEFAULT_CATEGORY_ITEM: CategoryItem = { label: '', icon: Wrench, color: 'text-gray-600' };
+
+/**
+ * Return CategoryItem for a label; use SERVICE_CATEGORIES when there's an exact match,
+ * otherwise return a default (e.g. for "Handyman Interior", "Handyman Exterior").
+ */
+export function getCategoryItemForLabel(label: string): CategoryItem {
+  if (!label) return DEFAULT_CATEGORY_ITEM;
+  const found = SERVICE_CATEGORIES.find((c) => c.label === label);
+  return found ? found : { ...DEFAULT_CATEGORY_ITEM, label };
+}

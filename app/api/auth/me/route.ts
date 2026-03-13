@@ -85,15 +85,17 @@ export async function GET() {
       console.error('Error fetching profile:', profileError);
     }
 
-    // Fetch business name if business_id exists
+    // Fetch business name and logo if business_id exists
     let companyName: string | null = null;
+    let businessLogo: string | null = null;
     if (profile?.business_id) {
       const { data: business } = await supabase
         .from('businesses')
-        .select('business_name')
+        .select('business_name, business_logo')
         .eq('id', profile.business_id)
         .single();
       companyName = business?.business_name || null;
+      businessLogo = business?.business_logo ?? null;
     }
 
     // Return user data
@@ -113,6 +115,7 @@ export async function GET() {
       gateCode: profile?.gate_code || user.user_metadata?.gateCode || null,
       addressNote: profile?.address_note || user.user_metadata?.addressNote || null,
       businessId: profile?.business_id || user.user_metadata?.businessId || null,
+      businessLogo: businessLogo ?? user.user_metadata?.businessLogo ?? null,
       companyName: companyName || user.user_metadata?.companyName || null,
       companyRole: profile?.company_role || user.user_metadata?.companyRole || null,
       companyRoleOther: profile?.company_role_other || user.user_metadata?.companyRoleOther || null,

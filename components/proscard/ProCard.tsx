@@ -113,7 +113,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
 
     return (
       <div 
-        className="border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
+        className="procard border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
         onClick={handleCardClick}
       >
         <ProCardHeader
@@ -151,7 +151,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
 
   return (
     <div 
-      className="border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
+      className="procard border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
       onClick={handleCardClick}
     >
       <ProCardHeader

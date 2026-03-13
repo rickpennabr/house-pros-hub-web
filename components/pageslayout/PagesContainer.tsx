@@ -1,15 +1,18 @@
 'use client';
 
 import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { sendAnalyticsIngest } from '@/lib/utils/analyticsIngest';
 
 const EMERGING_FROM_PROBOT_KEY = 'emergingFromProbot';
 const EMERGE_DURATION_MS = 500;
 
 interface PageContainerProps {
   children: ReactNode;
+  /** When true, card background is transparent so sky animation shows through (test / chatbot-style). */
+  transparentBg?: boolean;
 }
 
-export default function PageContainer({ children }: PageContainerProps) {
+export default function PageContainer({ children, transparentBg = false }: PageContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [emerging, setEmerging] = useState(false);
   const [emerged, setEmerged] = useState(false);
@@ -40,29 +43,14 @@ export default function PageContainer({ children }: PageContainerProps) {
         isMobile: window.innerWidth < 768,
       };
       
-      // Silently fail if analytics endpoint is not available
-      // Use AbortController with timeout to fail fast and suppress console errors
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 100); // 100ms timeout
-      
-      fetch('http://127.0.0.1:7243/ingest/461d373c-ca6e-41da-982f-915e017b1f50', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          location: 'PagesContainer.tsx:20',
-          message: 'Container dimensions and overflow',
-          data: logData,
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'run1',
-          hypothesisId: 'A',
-        }),
-        signal: controller.signal,
-      }).catch(() => {
-        // Silently handle errors - this is debug-only code
-        // Network errors are expected when analytics service is not running
-      }).finally(() => {
-        clearTimeout(timeoutId);
+      sendAnalyticsIngest({
+        location: 'PagesContainer.tsx:20',
+        message: 'Container dimensions and overflow',
+        data: logData,
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'A',
       });
     };
     
@@ -97,10 +85,11 @@ export default function PageContainer({ children }: PageContainerProps) {
   return (
     <div
       ref={containerRef}
-      className={`w-full max-w-[960px] mx-auto bg-white flex flex-col min-h-0
-      border-2 border-black h-[calc(100vh-1rem)] overflow-y-auto overflow-x-hidden
-      md:my-2 md:rounded-lg md:h-[calc(100vh-1rem)]
-      transition-transform duration-[500ms] ease-out origin-center ${scaleClass}`}>
+      className={`w-full max-w-[960px] mx-auto flex flex-col min-h-0
+      border-2 rounded-lg h-[calc(100vh-1rem)] overflow-y-auto overflow-x-hidden
+      md:my-2 md:h-[calc(100vh-1rem)]
+      transition-transform duration-[500ms] ease-out origin-center ${scaleClass}
+      ${transparentBg ? 'main-layout-card-transparent' : 'bg-white border-black'}`}>
       {children}
     </div>
   );

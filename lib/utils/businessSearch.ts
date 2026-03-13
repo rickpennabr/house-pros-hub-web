@@ -31,28 +31,45 @@ const licenseToCategoryMap: Record<string, string> = {
   'A-7': 'General Contractor',
   'A-10': 'Pools & Spas',
   'GENERAL': 'General Contractor',
+  'HANDYMAN': 'Handyman',
+  'HANDYMAN INTERIOR': 'Handyman Interior',
+  'HANDYMAN_EXTERIOR': 'Handyman Exterior',
 };
 
 /**
- * Get all categories from a business's licenses
+ * Get all categories from a business's licenses and display fields.
+ * Includes both license-derived categories and the actual display names (contractorType, tradeName)
+ * so the filter bar shows real business list categories (e.g. "Handyman Interior") not only "General Contractor".
  */
 export function getBusinessCategories(business: ProCardData): string[] {
   const categories = new Set<string>();
-  
-  // Add the primary category if it exists
+
+  // Prefer display names that appear on the card
+  if (business.contractorType?.trim()) {
+    categories.add(business.contractorType.trim());
+  }
+  if (business.licenses?.length) {
+    business.licenses.forEach((license) => {
+      const name = license.tradeName?.trim();
+      if (name) categories.add(name);
+    });
+  }
+
+  // Add the primary category if it exists (license-derived)
   if (business.category) {
     categories.add(business.category);
   }
-  
-  // Extract categories from all licenses
+
+  // Extract categories from all license codes (for filtering by standard categories)
   if (business.licenses && business.licenses.length > 0) {
-    business.licenses.forEach(license => {
-      const licenseCode = license.license || 'GENERAL';
-      const category = licenseToCategoryMap[licenseCode] || 'General Contractor';
+    business.licenses.forEach((license) => {
+      const raw = license.license || 'GENERAL';
+      const licenseCode = typeof raw === 'string' ? raw.toUpperCase().replace(/\s+/g, ' ').trim() : raw;
+      const category = licenseToCategoryMap[licenseCode] ?? licenseToCategoryMap[raw] ?? 'General Contractor';
       categories.add(category);
     });
   }
-  
+
   return Array.from(categories);
 }
 
