@@ -52,12 +52,15 @@ async function handleGetBusiness(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+  const businessId = id;
+  console.log('[GET /api/businesses/[id]] request', { businessId });
+
   try {
     // Use service role so public profile fetches match the business list (same DB access).
     // Avoids production 404s when anon/RLS differs from list (which uses service role).
     const supabase = createServiceRoleClient();
-    const { id } = await params;
-    const businessId = id;
+    console.log('[GET /api/businesses/[id]] service role client created');
 
     // Check if businessId is a UUID (36 chars with dashes) or a slug
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(businessId);
@@ -89,6 +92,12 @@ async function handleGetBusiness(
       : baseQuery.eq('slug', businessId).eq('is_active', true).single();
 
     const { data: business, error } = await query;
+    console.log('[GET /api/businesses/[id]] query result', {
+      businessId,
+      hasData: !!business,
+      error: error?.message,
+      errorCode: error?.code,
+    });
 
     if (error || !business) {
       // Log more details for debugging
@@ -164,8 +173,14 @@ async function handleGetBusiness(
 
     return NextResponse.json({ business: transformed });
   } catch (error) {
-    logger.error('Error in GET /api/businesses/[id]', { endpoint: '/api/businesses/[id]' }, error as Error);
-    return handleError(error, { endpoint: '/api/businesses/[id]' });
+    // Log to console so production (e.g. Vercel) shows the cause of 500
+    console.error('[GET /api/businesses/[id]] error', {
+      businessId,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    logger.error('Error in GET /api/businesses/[id]', { endpoint: '/api/businesses/[id]', businessId }, error as Error);
+    return handleError(error, { endpoint: '/api/businesses/[id]', businessId });
   }
 }
 
