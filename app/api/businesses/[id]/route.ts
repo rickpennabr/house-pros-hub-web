@@ -57,10 +57,17 @@ async function handleGetBusiness(
   console.log('[GET /api/businesses/[id]] request', { businessId });
 
   try {
-    // Use service role so public profile fetches match the business list (same DB access).
-    // Avoids production 404s when anon/RLS differs from list (which uses service role).
-    const supabase = createServiceRoleClient();
-    console.log('[GET /api/businesses/[id]] service role client created');
+    // Prefer service role (matches business list). Fall back to anon if key is missing (e.g. production env).
+    let supabase: Awaited<ReturnType<typeof createClient>>;
+    try {
+      supabase = createServiceRoleClient();
+      console.log('[GET /api/businesses/[id]] using service role client');
+    } catch (serviceRoleError) {
+      console.warn('[GET /api/businesses/[id]] service role unavailable, using anon client', {
+        message: serviceRoleError instanceof Error ? serviceRoleError.message : String(serviceRoleError),
+      });
+      supabase = await createClient();
+    }
 
     // Check if businessId is a UUID (36 chars with dashes) or a slug
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(businessId);
