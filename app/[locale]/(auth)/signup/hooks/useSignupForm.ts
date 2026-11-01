@@ -21,6 +21,7 @@ export interface SignupFormState {
   isLoading: boolean;
   showAddBusinessModal: boolean;
   showAddBusinessForm: boolean;
+  showInstallerForm: boolean;
   businessSuccessMessage: string | null;
   
   // Authentication backup - store user after successful signup
@@ -36,12 +37,13 @@ const initialUIState: SignupFormState = {
   isLoading: false,
   showAddBusinessModal: false,
   showAddBusinessForm: false,
+  showInstallerForm: false,
   businessSuccessMessage: null,
   signedUpUser: null,
 };
 
 interface UseSignupFormProps {
-  selectedRole?: 'customer' | 'contractor' | 'realtor' | 'both' | null;
+  selectedRole?: 'customer' | 'contractor' | 'realtor' | 'installer' | 'both' | null;
 }
 
 export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
@@ -104,7 +106,9 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
           ? USER_TYPES.CUSTOMER
           : selectedRole === 'realtor'
             ? USER_TYPES.REALTOR
-            : USER_TYPES.CONTRACTOR
+            : selectedRole === 'installer'
+              ? USER_TYPES.INSTALLER
+              : USER_TYPES.CONTRACTOR
       );
     }
   }, [selectedRole, setValue]);
@@ -205,13 +209,15 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
       }
 
       // Determine role from selectedRole (from role selection screen) or userType (from form)
-      let role: 'customer' | 'contractor' | 'realtor' | 'both' | undefined;
+      let role: 'customer' | 'contractor' | 'realtor' | 'installer' | 'both' | undefined;
       if (selectedRole) {
         role = selectedRole;
       } else if (userType === USER_TYPES.CUSTOMER) {
         role = 'customer';
       } else if (userType === USER_TYPES.REALTOR) {
         role = 'realtor';
+      } else if (userType === USER_TYPES.INSTALLER) {
+        role = 'installer';
       } else if (userType === USER_TYPES.CONTRACTOR) {
         role = 'contractor';
       }
@@ -241,7 +247,7 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
           // They'll be added via business form
           userPicture: data.userPicture,
           userType: role,
-          ...((role === 'contractor' || role === 'realtor') && data.invitationCode ? { invitationCode: data.invitationCode.trim() } : {}),
+          ...((role === 'contractor' || role === 'realtor' || role === 'installer') && data.invitationCode ? { invitationCode: data.invitationCode.trim() } : {}),
         }),
       });
 
@@ -304,7 +310,16 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
 
       // Update UI - proceed regardless of auth status since account was created
       // For contractors or realtors, show business form instead of success message
-      if (role === 'contractor' || role === 'realtor' || role === 'both') {
+      if (role === 'installer') {
+        setUiState(prev => ({
+          ...prev,
+          signedUpUser: createdUser as User,
+          isLoading: false,
+          showInstallerForm: true,
+          error: null,
+        }));
+        signedUpUserRef.current = createdUser as User;
+      } else if (role === 'contractor' || role === 'realtor' || role === 'both') {
         setUiState(prev => ({
           ...prev,
           signedUpUser: createdUser as User,

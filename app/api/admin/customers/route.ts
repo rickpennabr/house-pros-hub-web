@@ -11,6 +11,8 @@ import crypto from 'crypto';
 
 export interface AdminCustomerRow extends Profile {
   email: string | null;
+  city: string | null;
+  state: string | null;
 }
 
 async function requireAdmin() {
@@ -79,8 +81,6 @@ export async function GET(request: NextRequest) {
       'updated_at',
       'first_name',
       'last_name',
-      'city',
-      'state',
       'phone',
       'referral',
     ];
@@ -92,8 +92,18 @@ export async function GET(request: NextRequest) {
       const safe = search.replace(/[%,"\\]/g, '').trim();
       if (safe) {
         const term = `%${safe}%`;
+        const { data: addressHits } = await service
+          .from('addresses')
+          .select('user_id')
+          .eq('address_type', 'personal')
+          .in('user_id', customerIds)
+          .or(`city.ilike.${term},state.ilike.${term},street_address.ilike.${term}`);
+        const addressIds = (addressHits ?? [])
+          .map((row) => row.user_id)
+          .filter((id): id is string => Boolean(id));
+        const idFilter = addressIds.length > 0 ? `,id.in.(${addressIds.join(',')})` : '';
         query = query.or(
-          `first_name.ilike.${term},last_name.ilike.${term},city.ilike.${term},state.ilike.${term}`
+          `first_name.ilike.${term},last_name.ilike.${term},phone.ilike.${term}${idFilter}`
         );
       }
     }
@@ -144,21 +154,24 @@ export async function GET(request: NextRequest) {
       // Continue without emails; table still loads
     }
 
-    const customers: AdminCustomerRow[] = (profiles || []).map((p) => {
+    const adminEmail = ADMIN_EMAIL.toLowerCase().trim();
+    const customers: AdminCustomerRow[] = (profiles || []).flatMap((p) => {
+      const email = emailMap.get(p.id) ?? null;
+      if (email && email.toLowerCase().trim() === adminEmail) return [];
       const fromAddress = addressMap.get(p.id);
-      const city = p.city ?? fromAddress?.city ?? null;
-      const state = p.state ?? fromAddress?.state ?? null;
-      return {
+      const city = fromAddress?.city ?? null;
+      const state = fromAddress?.state ?? null;
+      return [{
         ...p,
         city,
         state,
-        email: emailMap.get(p.id) ?? null,
-      };
+        email,
+      }];
     });
 
     return NextResponse.json({
       customers,
-      total,
+      total: Math.max(0, total - ((profiles || []).length - customers.length)),
       page,
       pageSize,
     });

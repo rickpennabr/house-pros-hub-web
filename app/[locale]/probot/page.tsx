@@ -11,6 +11,7 @@ import LoadingFallback from '@/components/ui/LoadingFallback';
 import { useProBotContacts } from '@/app/[locale]/probot/hooks/useProBotContacts';
 import { useProBotPresence } from '@/app/[locale]/probot/hooks/useProBotPresence';
 import { useProBotRealtime } from '@/app/[locale]/probot/hooks/useProBotRealtime';
+import { adminConversationIdSchema } from '@/lib/schemas/chat';
 
 const PROBOT_CONTACT: ProBotContact = {
   id: 'probot',
@@ -51,6 +52,7 @@ function ProBotPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const contactParam = searchParams.get('contact');
+  const conversationParam = searchParams.get('conversation');
   const { visitorId, conversationId, chatUnreadCount } = useChat();
   const pendingUserContactParamRef = useRef<string | null>(null);
   const { isAuthenticated, user } = useAuth();
@@ -67,6 +69,8 @@ function ProBotPageContent() {
   const [contractorUnreadCount, setContractorUnreadCount] = useState(0);
   const [contractorConversations, setContractorConversations] = useState<ProBotRecentConversation[] | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  /** Contractor: opened via /probot?conversation=… until we swap URL to ?contact= */
+  const [deepLinkConversation, setDeepLinkConversation] = useState<ProBotRecentConversation | null>(null);
   /** When true, ChatArea shows the welcome (role selection) view; set when user taps "back to welcome" on mobile. */
   const [forceWelcomeView, setForceWelcomeView] = useState(false);
   /** True when user is in a chat (header visible); used for mobile back chevron and hiding sidebar expand tab. */
@@ -84,6 +88,64 @@ function ProBotPageContent() {
     isAuthenticated,
     userBusinessId: user?.businessId,
   });
+
+  useEffect(() => {
+    if (!conversationParam || !isContractor) return;
+    const parsed = adminConversationIdSchema.safeParse(conversationParam);
+    if (!parsed.success) return;
+
+    let cancelled = false;
+    fetch(`/api/chat/admin/conversations/${parsed.data}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.conversation) return;
+        const conv = data.conversation as ProBotRecentConversation;
+        setAdminViewingConversation(conv);
+        setDeepLinkConversation(conv);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationParam, isContractor]);
+
+  useEffect(() => {
+    if (!deepLinkConversation || !isContractor) return;
+
+    const contact = getContactForConversation(deepLinkConversation, contacts);
+    if (contact) {
+      setSelectedContact(contact);
+      const param = contact.slug ?? contact.id;
+      pendingUserContactParamRef.current = param;
+      router.replace(`${pathname}?contact=${encodeURIComponent(param)}`, { scroll: false });
+      setDeepLinkConversation(null);
+      return;
+    }
+
+    const stillOnFallbackContacts =
+      isAuthenticated &&
+      contacts.length === 2 &&
+      contacts[1]?.id === 'santos-general-services';
+    if (stillOnFallbackContacts) return;
+
+    const conv = deepLinkConversation;
+    const name =
+      [conv.profile_first_name, conv.profile_last_name].filter(Boolean).join(' ') ||
+      conv.visitor_display_name ||
+      'Customer';
+    const userId = (conv as { user_id?: string | null }).user_id;
+    const synthetic: ProBotContact = {
+      id: userId ? `customer-${userId}` : `conversation-${conv.id}`,
+      slug: userId ? `customer-${userId}` : undefined,
+      name,
+      isProBot: false,
+      conversationId: conv.id,
+    };
+    setSelectedContact(synthetic);
+    pendingUserContactParamRef.current = synthetic.id;
+    router.replace(`${pathname}?contact=${encodeURIComponent(synthetic.id)}`, { scroll: false });
+    setDeepLinkConversation(null);
+  }, [deepLinkConversation, isContractor, contacts, pathname, router, isAuthenticated]);
 
   const { hubOnline, setHubOnline, fetchHubPresence, HUB_PRESENCE_POLL_MS, VISITOR_HEARTBEAT_MS } = useProBotPresence(
     businessIds,

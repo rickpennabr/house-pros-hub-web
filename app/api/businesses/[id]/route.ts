@@ -7,6 +7,7 @@ import { deleteBusinessBackground, deleteBusinessLogo } from '@/lib/utils/storag
 import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
+import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
 
 interface DbLicenseRow {
   license_number: string | null;
@@ -42,6 +43,7 @@ interface BusinessUpdateBody {
   gateCode?: string;
   addressNote?: string;
   licenses?: LicenseInput[];
+  showCalendarOnProCard?: boolean;
 }
 
 /**
@@ -174,11 +176,22 @@ async function handleGetBusiness(
         mobilePhone: business.mobile_phone || undefined,
         links,
         userId: business.owner_id,
+        showCalendarOnProCard: (business as { show_calendar_on_procard?: boolean }).show_calendar_on_procard ?? false,
       },
       { licenseCategories: licenseCategoriesList }
     );
 
-    return NextResponse.json({ business: transformed });
+    let ownerRoles: string[] = [];
+    if (business.owner_id) {
+      const { data: roleRows } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', business.owner_id)
+        .eq('is_active', true);
+      ownerRoles = (roleRows ?? []).map((row) => row.role);
+    }
+
+    return NextResponse.json({ business: transformed, ownerRoles });
   } catch (error) {
     // Log to console so production (e.g. Vercel) shows the cause of 500
     console.error('[GET /api/businesses/[id]] error', {
@@ -321,10 +334,20 @@ async function handleUpdateBusiness(
     if (body.mobilePhone !== undefined) updateData.mobile_phone = body.mobilePhone;
     if (body.links !== undefined) updateData.links = body.links;
     if (body.services !== undefined) updateData.services = body.services;
-    if (body.images !== undefined) updateData.images = body.images;
+    if (body.images !== undefined) updateData.images = Array.isArray(body.images) ? body.images.slice(0, 10) : [];
     if (body.operatingHours !== undefined) updateData.operating_hours = body.operatingHours;
+    if (body.showCalendarOnProCard !== undefined) updateData.show_calendar_on_procard = body.showCalendarOnProCard;
 
-    const { error: updateError } = await supabase
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: 'No valid fields to update' },
+        { status: 400 }
+      );
+    }
+
+    // Use service role for update so RLS does not block RETURNING (ownership already verified above)
+    const serviceSupabase = createServiceRoleClient();
+    const { error: updateError } = await serviceSupabase
       .from('businesses')
       .update(updateData)
       .eq('id', businessId)
@@ -332,9 +355,19 @@ async function handleUpdateBusiness(
       .single();
 
     if (updateError) {
-      logger.error('Error updating business', { endpoint: '/api/businesses/[id]' }, updateError as Error);
+      logger.error('Error updating business', {
+        endpoint: '/api/businesses/[id]',
+        businessId,
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+      }, updateError as Error);
+      const isDev = process.env.NODE_ENV === 'development';
       return NextResponse.json(
-        { error: 'Failed to update business' },
+        {
+          error: 'Failed to update business',
+          ...(isDev && { details: updateError.message, code: updateError.code }),
+        },
         { status: 500 }
       );
     }
@@ -351,6 +384,7 @@ async function handleUpdateBusiness(
       }
     }
 
+    // Delete old background file when replacing with a new URL or when clearing (set to '')
     if (body.businessBackground !== undefined && oldBusinessBackground && body.businessBackground !== oldBusinessBackground) {
       try {
         const deleted = await deleteBusinessBackground(oldBusinessBackground);
@@ -359,6 +393,15 @@ async function handleUpdateBusiness(
         }
       } catch (error) {
         logger.warn('Error deleting old business background (post-update)', { error });
+      }
+    } else if (body.businessBackground === '' && oldBusinessBackground) {
+      try {
+        const deleted = await deleteBusinessBackground(oldBusinessBackground);
+        if (!deleted) {
+          logger.warn('Failed to delete business background on remove', { url: oldBusinessBackground });
+        }
+      } catch (error) {
+        logger.warn('Error deleting business background on remove', { error });
       }
     }
 
@@ -414,8 +457,8 @@ async function handleUpdateBusiness(
       }
     }
 
-    // Fetch complete updated business
-    const { data: completeBusiness } = await supabase
+    // Fetch complete updated business (service role to avoid RLS on read after update)
+    const { data: completeBusiness } = await serviceSupabase
       .from('businesses')
       .select(`
         *,
@@ -478,6 +521,7 @@ async function handleUpdateBusiness(
         businessName: completeBusiness.business_name,
         businessLogo: completeBusiness.business_logo || undefined,
         businessBackground: completeBusiness.business_background || undefined,
+        businessBackgroundPosition: (completeBusiness as { business_background_position?: string | null }).business_background_position ?? '50% 50%',
         slug: completeBusiness.slug || undefined,
         companyDescription: completeBusiness.company_description || undefined,
         licenses: licensesForTransform,
@@ -498,6 +542,7 @@ async function handleUpdateBusiness(
       { licenseCategories: licenseCategoriesList }
     );
 
+    invalidateBusinessDirectoryCache();
     return NextResponse.json({ business: transformed });
   } catch (error) {
     logger.error('Error in PUT /api/businesses/[id]', { endpoint: '/api/businesses/[id]' }, error as Error);
@@ -561,6 +606,7 @@ async function handleDeleteBusiness(
       );
     }
 
+    invalidateBusinessDirectoryCache();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error in DELETE /api/businesses/[id]:', error);

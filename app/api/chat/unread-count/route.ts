@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { getUnreadCountQuerySchema } from '@/lib/schemas/chat';
+import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 
 /**
  * GET /api/chat/unread-count?visitorId=xxx
@@ -20,6 +21,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
     const { visitorId } = parsed.data;
+    const cookieDenied = visitorCookieDenied(request, visitorId);
+    if (cookieDenied) return cookieDenied;
 
     const supabase = createServiceRoleClient();
     const { data: conv } = await supabase

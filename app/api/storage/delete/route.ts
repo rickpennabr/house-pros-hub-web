@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
@@ -69,7 +69,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase.storage
+    const { error } = await createServiceRoleClient().storage
       .from(bucket)
       .remove([filePath]);
 

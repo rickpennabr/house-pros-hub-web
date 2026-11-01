@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +13,7 @@ import ShareBusinessModal from '@/components/businessdetails/ShareBusinessModal'
 import SignInRequiredModal from '@/components/auth/SignInRequiredModal';
 
 import { LinkItem } from './ProLinks';
+import type { Locale } from '@/i18n';
 
 export interface ProCardData {
   id: string;
@@ -62,25 +64,15 @@ interface ProCardProps {
 export default function ProCard({ data, onShare, onReaction, isListMode = false }: ProCardProps) {
   const router = useRouter();
   const locale = useLocale();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isSignInRequiredOpen, setIsSignInRequiredOpen] = useState(false);
+  const profileHref = createLocalePath(locale as Locale, `/business/${data.slug || data.id}`);
   const [shareBusinessUrl, setShareBusinessUrl] = useState('');
 
   useEffect(() => {
-    setShareBusinessUrl(`${window.location.origin}/business/${data.slug || data.id}`);
-  }, [data.slug, data.id]);
-
-  const handleCardClick = () => {
-    if (isLoading) return;
-    const slug = data.slug || data.id;
-    const businessPath = `/business/${slug}`;
-    if (!isAuthenticated) {
-      setIsSignInRequiredOpen(true);
-      return;
-    }
-    router.push(createLocalePath(locale as 'en' | 'es', businessPath));
-  };
+    setShareBusinessUrl(`${window.location.origin}${profileHref}`);
+  }, [profileHref]);
 
   const handleReaction = (type: 'love' | 'feedback' | 'link' | 'save') => {
     if (onReaction) {
@@ -112,10 +104,9 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
     };
 
     return (
-      <div 
-        className="procard border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
-        onClick={handleCardClick}
-      >
+      <div className="procard relative border-2 border-black rounded-lg bg-white overflow-hidden hover:shadow-lg transition-shadow w-full">
+        <Link href={profileHref} className="absolute inset-0 z-[1]" aria-label={data.businessName} />
+        <div className="relative z-[2] pointer-events-none">
         <ProCardHeader
           logo={data.logo}
           businessName={data.businessName}
@@ -136,6 +127,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
           }}
           onPhoneClick={!isAuthenticated ? handlePhoneClick : undefined}
         />
+        </div>
         <ShareBusinessModal
           isOpen={isShareModalOpen}
           onClose={() => setIsShareModalOpen(false)}
@@ -150,10 +142,9 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
   }
 
   return (
-    <div 
-      className="procard border-2 border-black rounded-lg bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
-      onClick={handleCardClick}
-    >
+    <div className="procard relative border-2 border-black rounded-lg bg-white overflow-hidden hover:shadow-lg transition-shadow w-full">
+      <Link href={profileHref} className="absolute inset-0 z-[1]" aria-label={data.businessName} />
+      <div className="relative z-[2] pointer-events-none">
       <ProCardHeader
         logo={data.logo}
         businessName={data.businessName}
@@ -171,6 +162,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
           }
         }}
       />
+      <div className="pointer-events-auto relative z-20">
       <ProLinks links={data.links} maxLinks={7} onSignInRequired={!isAuthenticated ? showSignInRequired : undefined} />
       <ProReactions 
         initialReactions={data.reactions}
@@ -181,6 +173,8 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
         businessId={data.id}
         onSignInRequired={!isAuthenticated ? showSignInRequired : undefined}
       />
+      </div>
+      </div>
       
       <ShareBusinessModal
         isOpen={isShareModalOpen}

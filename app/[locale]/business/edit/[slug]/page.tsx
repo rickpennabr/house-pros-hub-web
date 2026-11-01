@@ -725,6 +725,7 @@ export default function EditBusinessPage() {
 
       const response = await fetch('/api/storage/upload-business-background', {
         method: 'POST',
+        credentials: 'include',
         body: formDataObj,
       });
 
@@ -796,22 +797,38 @@ export default function EditBusinessPage() {
 
         const response = await fetch('/api/storage/upload-business-image', {
           method: 'POST',
+          credentials: 'include',
           body: formDataObj,
         });
 
+        const result = await response.json().catch(() => ({}));
         if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.error || 'Failed to upload image');
+          let msg = (result as { error?: string; details?: string }).error ?? (result as { details?: string }).details ?? 'Failed to upload image';
+          if (response.status === 401) {
+            msg = 'Session expired or not signed in. Please refresh the page and sign in again.';
+          } else if (response.status === 403) {
+            msg = (result as { error?: string }).error ?? 'You do not have permission to add images to this business.';
+          }
+          console.error('[Business Edit] Gallery upload failed', {
+            status: response.status,
+            statusText: response.statusText,
+            error: (result as { error?: string }).error,
+            details: (result as { details?: string }).details,
+          });
+          throw new Error(msg);
         }
 
-        const result = await response.json();
-        if (result?.url) {
-          current = [...current, result.url];
-          setValue('images', current);
+        const url = (result as { url?: string }).url;
+        if (url) {
+          current = [...current, url];
+          setValue('images', current, { shouldDirty: true, shouldValidate: true });
+        } else {
+          setGalleryUploadError('Upload succeeded but no image URL was returned. Please try again.');
         }
       }
     } catch (error) {
-      setGalleryUploadError(error instanceof Error ? error.message : 'Failed to upload image');
+      const message = error instanceof Error ? error.message : 'Failed to upload image';
+      setGalleryUploadError(message);
     } finally {
       setGalleryUploading(false);
     }
@@ -894,11 +911,14 @@ export default function EditBusinessPage() {
         }
         
         const csrfData = await csrfResponse.json();
-        csrfToken = csrfData.csrfToken;
-        
+        const token = csrfData?.csrfToken ?? csrfData?.token;
+        if (typeof token !== 'string' || !token.trim()) {
+          throw new Error('Invalid CSRF token response');
+        }
+        csrfToken = token.trim();
+
         console.log('[Business Edit] CSRF token received:', {
           tokenLength: csrfToken.length,
-          tokenPrefix: csrfToken.substring(0, 10) + '...',
           userId: userId,
         });
       } catch (csrfError) {
@@ -906,41 +926,48 @@ export default function EditBusinessPage() {
         throw new Error('Failed to get security token. Please refresh the page and try again.');
       }
 
-      // Update business in database via API
-      console.log('[Business Edit] About to send PUT request:', {
-        url: `/api/businesses/${businessId}`,
-        hasToken: !!csrfToken,
-        userId: userId,
-        credentials: 'include',
-      });
+      const putBody = {
+        businessName: data.businessName,
+        slug: finalUpdate.slug,
+        businessLogo: data.businessLogo || undefined,
+        businessBackground: data.businessBackground || undefined,
+        businessBackgroundPosition: data.businessBackgroundPosition || undefined,
+        companyDescription: data.companyDescription || undefined,
+        email: data.email || undefined,
+        phone: data.phone || undefined,
+        mobilePhone: data.mobilePhone || undefined,
+        links: links,
+        streetAddress: data.streetAddress || undefined,
+        apartment: data.apartment || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
+        zipCode: data.zipCode || undefined,
+        licenses: data.licenses || undefined,
+        services: data.services || undefined,
+        images: data.images || undefined,
+        csrfToken,
+      };
+
+      // Debug: confirm token is in body and headers before send
+      if (process.env.NODE_ENV === 'development') {
+        const bodyKeys = Object.keys(putBody);
+        console.log('[Business Edit] PUT payload', {
+          url: `/api/businesses/${businessId}`,
+          bodyKeys,
+          hasCsrfInBody: 'csrfToken' in putBody && !!putBody.csrfToken,
+          csrfLength: typeof putBody.csrfToken === 'string' ? putBody.csrfToken.length : 0,
+        });
+      }
 
       const updateResponse = await fetch(`/api/businesses/${businessId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrfToken,
+          'x-csrf-token': csrfToken,
         },
         credentials: 'include',
-        body: JSON.stringify({
-          businessName: data.businessName,
-          slug: finalUpdate.slug,
-          businessLogo: data.businessLogo || undefined,
-          businessBackground: data.businessBackground || undefined,
-          businessBackgroundPosition: data.businessBackgroundPosition || undefined,
-          companyDescription: data.companyDescription || undefined,
-          email: data.email || undefined,
-          phone: data.phone || undefined,
-          mobilePhone: data.mobilePhone || undefined,
-          links: links,
-          streetAddress: data.streetAddress || undefined,
-          apartment: data.apartment || undefined,
-          city: data.city || undefined,
-          state: data.state || undefined,
-          zipCode: data.zipCode || undefined,
-          licenses: data.licenses || undefined,
-          services: data.services || undefined,
-          images: data.images || undefined,
-        }),
+        body: JSON.stringify(putBody),
       });
 
       if (!updateResponse.ok) {
@@ -1235,14 +1262,6 @@ export default function EditBusinessPage() {
                       type="file"
                       accept="image/*"
                       onChange={handleBgChange}
-                      className="hidden"
-                    />
-                    <input
-                      ref={galleryImageInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleGalleryImageChange}
                       className="hidden"
                     />
                   </div>
@@ -1658,6 +1677,20 @@ export default function EditBusinessPage() {
                       {galleryUploadError}
                     </p>
                   )}
+                  {!businessId && (
+                    <p className="text-sm text-amber-600" role="status">
+                      {tBusinessForm('images.loadingBusiness')}
+                    </p>
+                  )}
+                  <input
+                    ref={galleryImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleGalleryImageChange}
+                    className="hidden"
+                    aria-hidden
+                  />
                   <div className="flex flex-wrap gap-2 items-center">
                     <button
                       type="button"
@@ -1670,7 +1703,7 @@ export default function EditBusinessPage() {
                     </button>
                   </div>
                   {(watch('images') ?? []).length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                       {(watch('images') ?? []).map((url: string, index: number) => (
                         <div key={`${url}-${index}`} className="relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-100">
                           <Image
@@ -1679,6 +1712,7 @@ export default function EditBusinessPage() {
                             fill
                             className="object-cover"
                             sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                            unoptimized
                           />
                           <button
                             type="button"

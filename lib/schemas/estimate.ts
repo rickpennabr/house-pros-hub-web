@@ -29,6 +29,11 @@ export const estimateSchema = z.object({
   timeline: z.enum(['asap', 'within_month', '1_3_months', '3_6_months', '6_plus_months', 'flexible']).optional(),
   preferredContactMethod: z.enum(['phone', 'email', 'text', 'either']).optional(),
   additionalNotes: z.string().trim().optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  locationAccuracyM: z.number().min(0).optional(),
+  projectDriveFileIds: z.array(z.string().uuid()).max(5).optional(),
+  source: z.enum(['web', 'agent', 'quick_repair']).optional(),
 }).refine((data) => {
   // If projectType is 'other', projectTypeOther is required
   if (data.projectType === 'other') {

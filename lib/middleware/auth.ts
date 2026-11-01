@@ -78,8 +78,24 @@ export function requireAuth(
       let body: unknown = {};
       try {
         body = await request.json();
-      } catch {
+      } catch (parseErr) {
         // Body might be empty or already parsed
+        if (process.env.NODE_ENV === 'development') {
+          logger.debug('Auth: request.json() failed', {
+            path: request.nextUrl.pathname,
+            error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+          });
+        }
+      }
+
+      if (process.env.NODE_ENV === 'development' && ['PUT', 'POST', 'PATCH', 'DELETE'].includes(request.method)) {
+        const bodyObj = body && typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+        logger.debug('Auth: parsed body for CSRF', {
+          path: request.nextUrl.pathname,
+          bodyKeys: Object.keys(bodyObj),
+          hasCsrfToken: 'csrfToken' in bodyObj,
+          has_csrf: '_csrf' in bodyObj,
+        });
       }
 
       // Check CSRF token for state-changing operations (pass parsed body to avoid re-reading)

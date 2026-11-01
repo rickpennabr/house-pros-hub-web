@@ -3,6 +3,8 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { getUnreadCountQuerySchema } from '@/lib/schemas/chat';
+import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
+import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 
 /**
  * GET /api/notifications/unread-count
@@ -39,12 +41,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ count: n, chat: n }, { status: 200 });
       }
 
-      const { data: profile } = await supabaseAuth
-        .from('profiles')
-        .select('business_id')
-        .eq('id', user.id)
-        .single();
-      const userBusinessId = (profile as { business_id?: string } | null)?.business_id ?? null;
+      const userBusinessId = await getOwnedBusinessId(user.id);
       if (userBusinessId) {
         const { count: visitorCount, error: visitorError } = await supabase
           .from('probot_messages')
@@ -93,6 +90,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ count: 0 }, { status: 200 });
     }
     const { visitorId } = parsed.data;
+    const cookieDenied = visitorCookieDenied(request, visitorId);
+    if (cookieDenied) return cookieDenied;
     const { data: conv } = await supabase
       .from('probot_conversations')
       .select('id')

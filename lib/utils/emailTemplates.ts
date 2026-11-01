@@ -38,6 +38,8 @@ export interface EmailTranslations {
   thankYouAdmin: string;
   proWillContact: string;
   copyBelow: string;
+  /** Customer sentence when an agent app opened the request. Contains %%APP%%. */
+  agentNotice: string;
   sections: {
     customerInfo: string;
     projectAddress: string;
@@ -63,6 +65,11 @@ export interface EmailTranslations {
     submittedAt: string;
     userId: string;
     anonymous: string;
+    source: string;
+    /** Contains %%APP%%. */
+    viaAgent: string;
+    viaWebsite: string;
+    viaQuickRepair: string;
   };
   yes: string;
   no: string;
@@ -74,6 +81,8 @@ export interface EstimateEmailData extends EstimateSchema {
   estimateId?: string;
   submittedAt?: string;
   userId?: string | null;
+  /** Set when an agent app opened the request. Shown to the homeowner and the admin. */
+  agentAppName?: string | null;
 }
 
 export interface WelcomeEmailTranslations {
@@ -99,7 +108,7 @@ export interface WelcomeEmailData {
   firstName: string;
   lastName: string;
   email: string;
-  userType: 'customer' | 'contractor' | 'realtor' | 'both';
+  userType: 'customer' | 'contractor' | 'realtor' | 'installer' | 'both';
 }
 
 export interface SetPasswordEmailTranslations {
@@ -115,7 +124,7 @@ export interface SetPasswordEmailTranslations {
 }
 
 export interface NewSignupAdminNotificationData {
-  type: 'customer' | 'contractor' | 'realtor' | 'business';
+  type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business';
   /** For customer/contractor/realtor: full name. For business: business name. */
   name: string;
   email: string;
@@ -134,7 +143,9 @@ export function generateNewSignupAdminNotification(data: NewSignupAdminNotificat
         ? 'New contractor signed up'
         : data.type === 'realtor'
           ? 'New realtor signed up'
-          : 'New business added';
+          : data.type === 'installer'
+            ? 'New installer signed up'
+            : 'New business added';
   const typeLabel =
     data.type === 'customer'
       ? 'Customer'
@@ -226,6 +237,14 @@ function formatValue(value: string | boolean | undefined | null, translations: E
   return String(value);
 }
 
+function estimateSourceLabel(estimate: EstimateEmailData, translations: EmailTranslations): string {
+  if (estimate.source === 'quick_repair') return translations.admin.viaQuickRepair;
+  if (estimate.agentAppName) {
+    return translations.admin.viaAgent.replace('%%APP%%', escapeHtml(estimate.agentAppName));
+  }
+  return translations.admin.viaWebsite;
+}
+
 /**
  * Generate HTML email template for estimate confirmation
  */
@@ -313,7 +332,9 @@ export function generateEstimateConfirmationEmail(
         <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #000;">${translations.admin.submittedAt}</h3>
         <p style="margin: 0 0 10px 0; color: #333;">${estimate.submittedAt || 'N/A'}</p>
         <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #000;">${translations.admin.userId}</h3>
-        <p style="margin: 0; color: #333;">${estimate.userId || translations.admin.anonymous}</p>
+        <p style="margin: 0 0 10px 0; color: #333;">${estimate.userId || translations.admin.anonymous}</p>
+        <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #000;">${translations.admin.source}</h3>
+        <p style="margin: 0; color: #333;">${estimateSourceLabel(estimate, translations)}</p>
       </td>
     </tr>
   ` : '';
@@ -343,6 +364,7 @@ export function generateEstimateConfirmationEmail(
             <td style="padding: 30px;">
               <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${translations.greeting},</p>
               <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${thankYou}</p>
+              ${!isAdmin && estimate.agentAppName ? `<p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${translations.agentNotice.replace('%%APP%%', escapeHtml(estimate.agentAppName))}</p>` : ''}
               ${!isAdmin ? `<p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">${translations.proWillContact}</p>
               <p style="margin: 0 0 30px 0; font-size: 16px; color: #333;">${translations.copyBelow}</p>` : ''}
               
@@ -467,6 +489,7 @@ export function generateWelcomeEmail(
       nextStepsContent = translations.contractorNextSteps;
       break;
     case 'realtor':
+    case 'installer':
       welcomeMessage = translations.contractorWelcomeMessage;
       nextStepsContent = translations.contractorNextSteps;
       break;
@@ -893,6 +916,288 @@ export function generateIncomingEmailNotification(
             </td>
           </tr>
         </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+/** ProEstimate booking confirmation email data */
+export interface ProEstimateBookingEmailData {
+  businessName: string;
+  /** Customer display name (first + last or "Guest") */
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string | null;
+  /** Formatted date and time, e.g. "Friday, March 13, 2026 at 2:00 PM" */
+  slotDisplay: string;
+  slotStartAt: string;
+  slotEndAt: string;
+  /** Catalog service chosen for this visit, when the customer picked one. */
+  serviceName?: string | null;
+}
+
+/** Translations for ProEstimate booking emails */
+export interface ProEstimateBookingEmailTranslations {
+  subjectCustomer: string;
+  subjectPro: string;
+  greetingCustomer: string;
+  greetingPro: string;
+  bodyCustomer: string;
+  bodyPro: string;
+  detailsLabel: string;
+  dateTimeLabel: string;
+  withLabel: string;
+  serviceLabel?: string;
+  footer: { companyName: string; contactInfo: string };
+}
+
+/**
+ * Generate HTML for ProEstimate booking confirmation (customer or pro).
+ */
+export function generateProEstimateBookingEmail(
+  data: ProEstimateBookingEmailData,
+  translations: ProEstimateBookingEmailTranslations,
+  recipient: 'customer' | 'pro'
+): string {
+  const isPro = recipient === 'pro';
+  const subject = isPro ? translations.subjectPro : translations.subjectCustomer;
+  const greeting = isPro ? translations.greetingPro : translations.greetingCustomer;
+  const body = isPro ? translations.bodyPro : translations.bodyCustomer;
+  const withLabel = isPro ? `${translations.withLabel} ${data.customerName} (${data.customerEmail}${data.customerPhone ? `, ${data.customerPhone}` : ''})` : `${translations.withLabel} ${data.businessName}`;
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 24px 30px;">
+              <p style="margin: 0 0 16px 0; font-size: 16px; color: #333;">${greeting}</p>
+              <p style="margin: 0 0 16px 0; font-size: 16px; color: #333;">${body}</p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 20px; font-size: 15px; color: #333; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <tr>
+                  <td style="padding: 16px; background-color: #f9fafb;">
+                    <strong>${translations.detailsLabel}</strong>
+                  </td>
+                </tr>
+                ${data.serviceName ? `<tr>
+                  <td style="padding: 12px 16px;">${translations.serviceLabel ?? 'Service'}: ${data.serviceName}</td>
+                </tr>` : ''}
+                <tr>
+                  <td style="padding: 12px 16px;">${translations.dateTimeLabel}: ${data.slotDisplay}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px;">${translations.withLabel}: ${withLabel}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; background-color: #f9fafb; border-top: 2px solid #000000; text-align: center;">
+              <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">${translations.footer.companyName}</p>
+              <p style="margin: 0 0 10px 0; font-size: 12px; color: #666;">${translations.footer.contactInfo}</p>
+              ${getFooterContactCta()}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+export interface InvoiceEmailData {
+  businessName: string;
+  invoiceNumber: string;
+  amountCents: number;
+  viewUrl: string;
+  message?: string;
+}
+
+/**
+ * Generate HTML for "You have an invoice" email (customer)
+ */
+export function generateInvoiceEmail(data: InvoiceEmailData): string {
+  const amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(data.amountCents / 100);
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <tr>
+      <td style="padding: 32px 24px;">
+        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">You have an invoice from ${data.businessName}</h1>
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Invoice #${data.invoiceNumber}</p>
+        <p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
+        ${data.message ? `<p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">${data.message}</p>` : ''}
+        <p style="margin: 0 0 24px 0;"><a href="${data.viewUrl}" style="display: inline-block; padding: 12px 24px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">View invoice</a></p>
+        <p style="margin: 0; font-size: 12px; color: #6b7280;">If the button doesn't work, copy and paste this link into your browser:</p>
+        <p style="margin: 4px 0 0 0; font-size: 12px; word-break: break-all;"><a href="${data.viewUrl}" style="color: #2563eb;">${data.viewUrl}</a></p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+export interface EstimateReviewEmailData {
+  businessName: string;
+  estimateNumber: string;
+  amountCents: number;
+  validUntilDate?: string | null;
+  reviewUrl: string;
+  message?: string;
+}
+
+/**
+ * Generate HTML for "Review and approve estimate" email (customer).
+ */
+export function generateEstimateReviewEmail(data: EstimateReviewEmailData): string {
+  const amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(data.amountCents / 100);
+  const validUntil = data.validUntilDate
+    ? new Date(data.validUntilDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    : null;
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <tr>
+      <td style="padding: 32px 24px;">
+        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">Review your estimate from ${data.businessName}</h1>
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Estimate #${data.estimateNumber}</p>
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
+        ${validUntil ? `<p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">Valid until: <strong>${validUntil}</strong></p>` : '<p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;"></p>'}
+        ${data.message ? `<p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">${data.message}</p>` : ''}
+        <p style="margin: 0 0 24px 0;"><a href="${data.reviewUrl}" style="display: inline-block; padding: 12px 24px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">Review & approve estimate</a></p>
+        <p style="margin: 0; font-size: 12px; color: #6b7280;">If the button doesn't work, copy and paste this link into your browser:</p>
+        <p style="margin: 4px 0 0 0; font-size: 12px; word-break: break-all;"><a href="${data.reviewUrl}" style="color: #2563eb;">${data.reviewUrl}</a></p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+export interface EstimateApprovedEmailCommon {
+  businessName: string;
+  estimateNumber: string;
+  amountCents: number;
+  customerName: string;
+}
+
+/**
+ * Customer confirmation after they approve an estimate online.
+ */
+export function generateEstimateApprovedCustomerEmail(data: EstimateApprovedEmailCommon): string {
+  const amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(data.amountCents / 100);
+  const biz = escapeHtml(data.businessName);
+  const num = escapeHtml(data.estimateNumber);
+  const name = escapeHtml(data.customerName);
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <tr>
+      <td style="padding: 32px 24px;">
+        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">Estimate approved</h1>
+        <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">Hi ${name},</p>
+        <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">Thank you. Your approval of <strong>estimate #${num}</strong> from <strong>${biz}</strong> is confirmed.</p>
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
+        <p style="margin: 16px 0 0 0; font-size: 14px; color: #374151;">${COMPANY_INFO.name} will share this confirmation with your contractor.</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+/**
+ * Contractor / business owner: customer approved the estimate.
+ */
+export function generateEstimateApprovedContractorEmail(data: EstimateApprovedEmailCommon): string {
+  const amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(data.amountCents / 100);
+  const biz = escapeHtml(data.businessName);
+  const num = escapeHtml(data.estimateNumber);
+  const cust = escapeHtml(data.customerName);
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <tr>
+      <td style="padding: 32px 24px;">
+        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">Estimate approved by customer</h1>
+        <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;"><strong>${cust}</strong> approved <strong>estimate #${num}</strong> for <strong>${biz}</strong>.</p>
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
+        <p style="margin: 16px 0 0 0; font-size: 14px; color: #374151;">Open ProsCRM to view the estimate and next steps (e.g. convert to invoice).</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+export interface EstimateApprovedAdminEmailData extends EstimateApprovedEmailCommon {
+  customerEmail: string;
+}
+
+/**
+ * Platform admin notification when an estimate is accepted online.
+ */
+export function generateEstimateApprovedAdminEmail(data: EstimateApprovedAdminEmailData): string {
+  const amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(data.amountCents / 100);
+  const biz = escapeHtml(data.businessName);
+  const num = escapeHtml(data.estimateNumber);
+  const cust = escapeHtml(data.customerName);
+  const ce = escapeHtml(data.customerEmail);
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <tr>
+      <td style="padding: 32px 24px;">
+        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">Estimate accepted (public approval)</h1>
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Estimate <strong>#${num}</strong> · ${biz}</p>
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Customer: <strong>${cust}</strong> (${ce})</p>
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
       </td>
     </tr>
   </table>

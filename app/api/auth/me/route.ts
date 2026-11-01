@@ -4,6 +4,7 @@ import type { AuthError } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { getUserRoles } from '@/lib/utils/roles';
+import { getPersonalAddress } from '@/lib/data/personalAddress';
 import type { UserRole } from '@/lib/utils/roles';
 
 const AUTH_ME_TIMEOUT_MS = 5000;
@@ -13,9 +14,9 @@ const AUTH_ME_TIMEOUT_MS = 5000;
  * without triggering a failed request (401) in the console.
  * Optionally clear auth cookies when they are stale/invalid.
  */
-async function notAuthenticatedResponse(clearCookies = false): Promise<NextResponse> {
+async function notAuthenticatedResponse(clearCookies = false, sessionMissing = false): Promise<NextResponse> {
   const res = NextResponse.json(
-    { user: null, isAdmin: false, roles: [] },
+    { user: null, isAdmin: false, roles: [], sessionMissing },
     { status: 200 }
   );
   if (clearCookies) {
@@ -70,7 +71,9 @@ export async function GET() {
       // Do not clear cookies here: the reset-password page may be in the process of setting
       // the session from the URL hash; clearing cookies would remove the session before the
       // client has a chance to use it.
-      return notAuthenticatedResponse(false);
+      // Timeout is not proof the session is gone. A missing session is.
+      const timedOut = userError?.message === 'timeout';
+      return notAuthenticatedResponse(false, !timedOut);
     }
 
     // Fetch user profile
@@ -98,6 +101,8 @@ export async function GET() {
       businessLogo = business?.business_logo ?? null;
     }
 
+    const address = await getPersonalAddress(supabase, user.id);
+
     // Return user data
     const userData = {
       id: user.id,
@@ -107,13 +112,13 @@ export async function GET() {
       phone: profile?.phone || user.user_metadata?.phone || null,
       referral: profile?.referral || user.user_metadata?.referral || null,
       referralOther: profile?.referral_other || user.user_metadata?.referralOther || null,
-      streetAddress: profile?.street_address || user.user_metadata?.streetAddress || null,
-      apartment: profile?.apartment || user.user_metadata?.apartment || null,
-      city: profile?.city || user.user_metadata?.city || null,
-      state: profile?.state || user.user_metadata?.state || null,
-      zipCode: profile?.zip_code || user.user_metadata?.zipCode || null,
-      gateCode: profile?.gate_code || user.user_metadata?.gateCode || null,
-      addressNote: profile?.address_note || user.user_metadata?.addressNote || null,
+      streetAddress: address?.street_address || user.user_metadata?.streetAddress || null,
+      apartment: address?.apartment || user.user_metadata?.apartment || null,
+      city: address?.city || user.user_metadata?.city || null,
+      state: address?.state || user.user_metadata?.state || null,
+      zipCode: address?.zip_code || user.user_metadata?.zipCode || null,
+      gateCode: address?.gate_code || user.user_metadata?.gateCode || null,
+      addressNote: address?.address_note || user.user_metadata?.addressNote || null,
       businessId: profile?.business_id || user.user_metadata?.businessId || null,
       businessLogo: businessLogo ?? user.user_metadata?.businessLogo ?? null,
       companyName: companyName || user.user_metadata?.companyName || null,

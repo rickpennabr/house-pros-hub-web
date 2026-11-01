@@ -12,6 +12,8 @@ interface ShareBusinessModalProps {
   contractorType: string;
   logo?: string;
   businessUrl: string;
+  /** Header title. Defaults to the business share label. */
+  title?: string;
 }
 
 function getInitials(name: string): string {
@@ -33,6 +35,7 @@ export default function ShareBusinessModal({
   contractorType,
   logo,
   businessUrl,
+  title = 'Share Business',
 }: ShareBusinessModalProps) {
   const [copied, setCopied] = useState(false);
   const initials = getInitials(businessName);
@@ -71,7 +74,7 @@ export default function ShareBusinessModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Share Business"
+      title={title}
       showHeader={true}
       maxWidth="md"
     >

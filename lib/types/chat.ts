@@ -8,6 +8,37 @@ export interface ChatAttachment {
   contentType: string;
 }
 
+export interface ProAgentProCard {
+  id: string;
+  name: string;
+  category: string | null;
+  city: string | null;
+  state: string | null;
+  profileUrl: string;
+}
+
+export interface ProAgentEstimateSummary {
+  firstName: string;
+  lastName: string;
+  streetAddress: string;
+  city: string;
+  state: string;
+  trades: string[];
+  budgetRange: string;
+  timeline: string;
+  projectType: string;
+}
+
+/** Cards attached to a ProAgent chat message. Plain text stays in body. */
+export interface ProAgentPayload {
+  pros?: ProAgentProCard[];
+  confirm?: {
+    stepId: string;
+    summary: ProAgentEstimateSummary;
+  };
+  confirmed?: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'visitor' | 'admin';
@@ -27,4 +58,5 @@ export interface ChatMessage {
   admin_avatar_url?: string | null;
   /** Resolved from profiles when admin_sent_as === 'hub_agent'. */
   admin_display_name?: string | null;
+  payload?: ProAgentPayload | null;
 }

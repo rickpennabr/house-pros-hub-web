@@ -126,7 +126,6 @@ export default function ProBotSidebar({
   const isControlled = controlledSidebarOpen !== undefined && onSidebarOpenChange !== undefined;
   const sidebarOpen = isControlled ? controlledSidebarOpen : internalSidebarOpen;
   const setSidebarOpen = isControlled ? onSidebarOpenChange! : setInternalSidebarOpen;
-  const [historyOpen, setHistoryOpen] = useState(true);
   const [contactsOpen, setContactsOpen] = useState(true);
   // Single search bar at top (mobile and desktop); filters both history and contacts.
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
@@ -150,32 +149,7 @@ export default function ProBotSidebar({
     if (isDesktop) setSidebarOpen(true);
   }, []);
 
-  const qHistory = sidebarSearchQuery.trim().toLowerCase();
-  const filteredRecentConversations = useMemo(() => {
-    if (!recentConversations || !qHistory) return recentConversations ?? [];
-    return recentConversations.filter((c) => {
-      const isContractor = c.participant_type === 'contractor' && c.business_name;
-      const profileName = (c.profile_first_name || c.profile_last_name)
-        ? [c.profile_first_name, c.profile_last_name].filter(Boolean).join(' ').trim()
-        : undefined;
-      const displayName = c.display_as_probot
-        ? 'ProBot'
-        : isContractor
-          ? c.business_name
-          : (profileName || c.visitor_display_name?.trim() || t('customer'));
-      const preview = c.lastMessage?.body ?? c.firstVisitorMessage?.body ?? undefined;
-      return (displayName ?? '').toLowerCase().includes(qHistory) || (preview && preview.toLowerCase().includes(qHistory));
-    });
-  }, [recentConversations, qHistory, t]);
-
-  const showVisitorProBotInHistory = useMemo(() => {
-    if (!visitorProBotConversation) return false;
-    if (!qHistory) return true;
-    const preview = visitorProBotConversation.preview ?? '';
-    return 'probot'.includes(qHistory) || (preview && preview.toLowerCase().includes(qHistory));
-  }, [visitorProBotConversation, qHistory]);
-
-  const qContacts = qHistory;
+  const qContacts = sidebarSearchQuery.trim().toLowerCase();
   const filteredContacts = useMemo(() => {
     if (!qContacts) return contacts;
     return contacts.filter((c) => c.name.toLowerCase().includes(qContacts));
@@ -212,26 +186,14 @@ export default function ProBotSidebar({
           <ChevronRight className="w-4 h-4 text-black" aria-hidden />
         </button>
       )}
-      {/* Mobile: backdrop when sidebar is open; tap to close (starts below header so header stays visible) */}
+      {/* Mobile: backdrop when sidebar is open; tap to close (full height when sidebar is full height) */}
       {isMobile && sidebarOpen && (
         <div
-          className="fixed left-0 right-0 top-[60px] bottom-0 z-40 md:hidden bg-black/40"
+          className="fixed left-[256px] right-0 top-0 bottom-0 z-40 md:hidden bg-black/40"
           onClick={() => setSidebarOpen(false)}
           onKeyDown={(e) => e.key === 'Escape' && setSidebarOpen(false)}
           aria-hidden
         />
-      )}
-      {/* Mobile: collapse tab only when viewing ProBot (hide when user is chatting with a pro) */}
-      {isMobile && sidebarOpen && selectedContactId === 'probot' && (
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(false)}
-          className="fixed left-[256px] top-[60px] z-[60] w-7 h-[60px] min-h-[60px] rounded-r-md bg-white border-2 border-black border-l-0 flex items-center justify-center text-black shadow-md touch-manipulation md:hidden"
-          aria-label={t('collapseSidebar')}
-          title={t('collapseSidebar')}
-        >
-          <ChevronLeft className="w-4 h-4 text-black" aria-hidden />
-        </button>
       )}
       <div
         className={`flex flex-col border-r bg-white shrink-0 transition-[width] duration-200 ease-out relative ${
@@ -239,7 +201,7 @@ export default function ProBotSidebar({
         } ${sidebarOpen ? 'overflow-hidden' : 'overflow-visible'} ${
           isMobile && !sidebarOpen ? 'w-0 min-w-0 overflow-hidden' : ''
         } ${
-          isMobile && sidebarOpen ? 'fixed left-0 top-[60px] bottom-0 z-50 w-[256px] shadow-xl border-r-2 border-t-2 border-b-2' : ''
+          isMobile && sidebarOpen ? 'fixed left-0 top-0 bottom-0 z-50 w-[256px] shadow-xl border-r-2 border-t-2 border-b-2' : ''
         }`}
         style={
           !isMobile
@@ -250,7 +212,7 @@ export default function ProBotSidebar({
         }
         onPointerEnter={handlePointerEnter}
       >
-      {/* PC: collapse-only tab on right edge when sidebar is expanded (expand stays as-is via collapsed icons + hover) */}
+      {/* PC: collapse tab on right edge when sidebar is expanded */}
       {!isMobile && sidebarOpen && (
         <button
           type="button"
@@ -260,6 +222,18 @@ export default function ProBotSidebar({
           title={t('collapseSidebar')}
         >
           <ChevronLeft className="w-4 h-4 text-black" aria-hidden />
+        </button>
+      )}
+      {/* PC: expand tab on right edge when sidebar is collapsed */}
+      {!isMobile && !sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="absolute right-0 top-1/2 z-10 -translate-y-1/2 translate-x-full w-7 h-14 flex items-center justify-center rounded-r-md bg-white border-2 border-black border-l-0 text-black shadow-md hover:bg-gray-50 transition-colors cursor-pointer"
+          aria-label={t('expandSidebar')}
+          title={t('expandSidebar')}
+        >
+          <ChevronRight className="w-4 h-4 text-black" aria-hidden />
         </button>
       )}
 
@@ -272,8 +246,8 @@ export default function ProBotSidebar({
             type="button"
             onClick={() => setSidebarOpen(true)}
             className="relative flex flex-col items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 transition-colors"
-            title={t('historyChat')}
-            aria-label={t('historyChat')}
+            title={t('contacts')}
+            aria-label={t('contacts')}
           >
             <MessageCircle className="w-5 h-5" aria-hidden />
             {collapsedMessageBadgeCount > 0 && (
@@ -285,222 +259,38 @@ export default function ProBotSidebar({
               </span>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="flex flex-col items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 transition-colors"
-            title={t('contacts')}
-            aria-label={t('contacts')}
-          >
-            <Users className="w-5 h-5" aria-hidden />
-          </button>
         </div>
       )}
 
       {sidebarOpen && (
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          {/* Search bar at top - mobile only; desktop sidebar goes straight to History + Contacts */}
-          {isMobile && (
-            <div className="shrink-0 h-[60px] min-h-[60px] w-full pl-2 pr-0 flex items-center justify-center border-b-2 border-black bg-white">
-              <div className="relative w-full min-w-0 flex items-center">
-                <input
-                  ref={sidebarSearchInputRef}
-                  type="text"
-                  value={sidebarSearchQuery}
-                  onChange={(e) => setSidebarSearchQuery(e.target.value)}
-                  placeholder={t('searchContacts')}
-                  className="w-full h-10 min-w-0 pl-9 pr-8 border-2 border-black rounded-lg bg-white text-gray-900 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-                  aria-label={t('searchContacts')}
-                />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-                {sidebarSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSidebarSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1"
-                    aria-label={t('closeSearch')}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+          {/* Search bar at top - mobile and PC when sidebar is expanded */}
+          <div className="shrink-0 min-h-[60px] w-full pl-2 pr-2 pt-3 pb-2 flex items-center justify-center border-b-2 border-black bg-white">
+            <div className="relative w-full min-w-0 flex items-center">
+              <input
+                ref={sidebarSearchInputRef}
+                type="text"
+                value={sidebarSearchQuery}
+                onChange={(e) => setSidebarSearchQuery(e.target.value)}
+                placeholder={t('searchContacts')}
+                className="w-full h-10 min-w-0 pl-9 pr-8 border-2 border-black rounded-lg bg-white text-gray-900 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+                aria-label={t('searchContacts')}
+              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+              {sidebarSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1"
+                  aria-label={t('closeSearch')}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
-          )}
-          {/* History Chat list - desktop only; no header row */}
-          {!isMobile && (
-          <>
-          <div className="border-b border-gray-200 relative">
-            {historyOpen && (
-              <div className="py-1 px-1 max-h-48 overflow-y-auto">
-                {historyChatLoading ? (
-                  <ul className="space-y-1" aria-busy="true" aria-label={t('loading')}>
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <li key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg animate-pulse">
-                        <div className="w-8 h-8 rounded-lg bg-gray-200 shrink-0" />
-                        <div className="flex-1 min-w-0 space-y-1.5">
-                          <div className="h-3.5 bg-gray-200 rounded w-3/4" />
-                          <div className="h-3 bg-gray-100 rounded w-1/2" />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : recentConversations && recentConversations.length > 0 ? (
-                  filteredRecentConversations.length === 0 ? (
-                    <p className="text-xs text-gray-500 py-2">{t('noRecentChats')}</p>
-                  ) : (
-                  <ul className="space-y-1">
-                    {filteredRecentConversations.map((c) => {
-                      const isSelected = selectedConversationIdForAdmin === c.id;
-                      const hasUnread = unreadConversationIds?.has(c.id);
-                      /** WhatsApp-style: show number of unread (from API or 1 if we only know "has unread") */
-                      const unreadBadgeCount = (c.unread_count ?? (hasUnread ? 1 : 0)) > 0
-                        ? Math.min(c.unread_count ?? (hasUnread ? 1 : 0), 99)
-                        : 0;
-                      const isContractor = c.participant_type === 'contractor' && c.business_name;
-                      const profileName =
-                        (c.profile_first_name || c.profile_last_name)
-                          ? [c.profile_first_name, c.profile_last_name].filter(Boolean).join(' ').trim()
-                          : undefined;
-                      const displayName = c.display_as_probot
-                        ? 'ProBot'
-                        : isContractor
-                          ? c.business_name
-                          : (profileName || c.visitor_display_name?.trim() || t('customer'));
-                      // WhatsApp-style: show last message in thread and when it arrived
-                      const previewText = c.lastMessage?.body ?? c.firstVisitorMessage?.body ?? undefined;
-                      const lastMessageTime = c.lastMessage?.created_at ?? c.updated_at;
-                      const customerPicture = c.display_as_probot ? null : (isContractor ? null : c.profile_user_picture) || null;
-                      const hasContractorLogo = isContractor && c.business_logo;
-                      const showProBotAvatar = c.display_as_probot;
-                      return (
-                        <li key={c.id}>
-                          <button
-                            type="button"
-                            onClick={() => onSelectConversation?.(c.id)}
-                            className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-xs transition-colors min-w-0 cursor-pointer ${
-                              isSelected
-                                ? 'bg-gray-900 text-white'
-                                : 'text-gray-700 md:hover:bg-gray-100'
-                            }`}
-                            title={previewText ?? displayName}
-                          >
-                            <div className="relative w-8 h-8 rounded-lg border-2 border-black shrink-0 overflow-hidden bg-gray-200 flex items-center justify-center">
-                              {showProBotAvatar ? (
-                                <Image
-                                  src={PROBOT_ASSETS.avatar}
-                                  alt=""
-                                  width={32}
-                                  height={32}
-                                  className="w-full h-full object-contain"
-                                />
-                              ) : hasContractorLogo ? (
-                                <img
-                                  src={c.business_logo!}
-                                  alt=""
-                                  width={32}
-                                  height={32}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : isContractor ? (
-                                <Building2 className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-gray-500'}`} />
-                              ) : customerPicture ? (
-                                <img
-                                  src={customerPicture}
-                                  alt=""
-                                  width={32}
-                                  height={32}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <User className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-gray-500'}`} aria-hidden />
-                              )}
-                            </div>
-                            <span className="min-w-0 flex-1 truncate">
-                              <span className="flex items-start justify-between gap-1">
-                                <span className={`truncate text-sm font-medium ${isSelected ? 'text-gray-200' : 'text-gray-800'}`}>{displayName}</span>
-                                <span className="flex flex-col items-end shrink-0 gap-0.5">
-                                  {lastMessageTime && (
-                                    <span className={`text-[10px] ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>
-                                      {formatMessageTime(lastMessageTime)}
-                                    </span>
-                                  )}
-                                  {unreadBadgeCount > 0 && (
-                                    <span className="min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold" aria-label={t('unread')}>
-                                      {unreadBadgeCount > 99 ? '99+' : unreadBadgeCount}
-                                    </span>
-                                  )}
-                                </span>
-                              </span>
-                              {previewText && (
-                                <span className={`block truncate text-xs ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>{previewText}</span>
-                              )}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  )
-                ) : visitorProBotConversation && showVisitorProBotInHistory ? (
-                  (() => {
-                    const vUnread = visitorProBotConversation.unreadCount ?? (visitorProBotConversation.unread ? 1 : 0);
-                    const vBadge = vUnread > 0 ? Math.min(vUnread, 99) : 0;
-                    const vTime = visitorProBotConversation.lastMessageTime;
-                    return (
-                      <ul className="space-y-1">
-                        <li>
-                          <button
-                            type="button"
-                            onClick={() => onSelectVisitorProBot?.()}
-                            className={`w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg text-xs transition-colors min-w-0 cursor-pointer ${
-                              selectedContactId === 'probot' ? 'bg-gray-900 text-white' : 'text-gray-700 md:hover:bg-gray-100'
-                            }`}
-                            title={visitorProBotConversation.preview ?? 'ProBot'}
-                          >
-                            <div className="relative w-8 h-8 rounded-lg border-2 border-black shrink-0 overflow-hidden bg-gray-200 flex items-center justify-center">
-                              <Image
-                                src={PROBOT_ASSETS.avatar}
-                                alt=""
-                                width={32}
-                                height={32}
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                            <span className="min-w-0 flex-1 truncate">
-                              <span className="flex items-start justify-between gap-1">
-                                <span className={`truncate text-sm font-medium ${selectedContactId === 'probot' ? 'text-gray-200' : 'text-gray-800'}`}>ProBot</span>
-                                <span className="flex flex-col items-end shrink-0 gap-0.5">
-                                  {vTime && (
-                                    <span className={`text-[10px] ${selectedContactId === 'probot' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                      {formatMessageTime(vTime)}
-                                    </span>
-                                  )}
-                                  {vBadge > 0 && (
-                                    <span className="min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold" aria-label={t('unread')}>
-                                      {vBadge > 99 ? '99+' : vBadge}
-                                    </span>
-                                  )}
-                                </span>
-                              </span>
-                              {visitorProBotConversation.preview && (
-                                <span className={`block truncate text-xs ${selectedContactId === 'probot' ? 'text-gray-400' : 'text-gray-500'}`}>{visitorProBotConversation.preview}</span>
-                              )}
-                            </span>
-                          </button>
-                        </li>
-                      </ul>
-                    );
-                  })()
-                ) : (
-                  <p className="text-xs text-gray-500 py-2">{t('noRecentChats')}</p>
-                )}
-              </div>
-            )}
           </div>
-          </>
-          )}
 
-          {/* Contacts list - no header row; search bar at top filters both history and contacts */}
+          {/* Contacts list; on mobile search bar at top filters contacts */}
           <div className="flex flex-col flex-1 min-h-0 flex overflow-hidden">
             {(contactsOpen || isMobile) && (
               <div className="flex-1 overflow-y-auto py-1 px-1">
@@ -577,6 +367,18 @@ export default function ProBotSidebar({
       </>
       )}
     </div>
+      {/* Mobile: collapse tab outside sidebar, aligned with search bar (below 60px header) */}
+      {isMobile && sidebarOpen && selectedContactId === 'probot' && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed left-[256px] top-[60px] z-[60] w-7 h-[64px] min-h-[64px] rounded-r-md bg-white border-2 border-black border-l-0 flex items-center justify-center text-black shadow-md touch-manipulation md:hidden"
+          aria-label={t('collapseSidebar')}
+          title={t('collapseSidebar')}
+        >
+          <ChevronLeft className="w-4 h-4 text-black" aria-hidden />
+        </button>
+      )}
     </>
   );
 }

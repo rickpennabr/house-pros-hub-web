@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
+import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import { validateCustomerEmail, validateCustomerPhone } from '@/lib/schemas/crm';
 
@@ -19,16 +20,25 @@ const STEPS = [
   { id: 'phone', field: 'phone', type: 'tel' as const, messageKey: 'phone' },
   { id: 'mobile_number', field: 'mobile_number', type: 'tel' as const, messageKey: 'mobileNumber' },
   { id: 'website', field: 'website', type: 'url' as const, messageKey: 'website' },
-  { id: 'street_address', field: 'street_address', type: 'text' as const, messageKey: 'streetAddress' },
-  { id: 'apartment', field: 'apartment', type: 'text' as const, messageKey: 'apartment' },
-  { id: 'city', field: 'city', type: 'text' as const, messageKey: 'city' },
-  { id: 'state', field: 'state', type: 'text' as const, messageKey: 'state' },
-  { id: 'zip_code', field: 'zip_code', type: 'text' as const, messageKey: 'zipCode' },
+  { id: 'address', field: 'address', type: 'address' as const, messageKey: 'address' },
   { id: 'notes', field: 'notes', type: 'textarea' as const, messageKey: 'notes' },
 ] as const;
 
-function formatDisplayValue(step: (typeof STEPS)[number], value: string | undefined): string {
+function formatDisplayValue(
+  step: (typeof STEPS)[number],
+  value: string | undefined,
+  allValues?: Record<string, string>
+): string {
   if (value === undefined || value === null) return '';
+  if (step.id === 'address' && allValues) {
+    const addr = String(allValues.address ?? '').trim();
+    if (addr) return addr;
+    const parts = [
+      allValues.street_address,
+      [allValues.city, allValues.state, allValues.zip_code].filter(Boolean).join(' '),
+    ].filter(Boolean);
+    return parts.join(', ') || '—';
+  }
   const trimmed = String(value).trim();
   return trimmed || '—';
 }
@@ -62,6 +72,7 @@ export default function AddCustomerForm({
     phone: '',
     mobile_number: '',
     website: '',
+    address: '',
     street_address: '',
     apartment: '',
     city: '',
@@ -115,6 +126,28 @@ export default function AddCustomerForm({
     setError(null);
   }, []);
 
+  const handleAddressSelect = useCallback((addr: AddressData) => {
+    setValues((prev) => ({
+      ...prev,
+      address: addr.fullAddress,
+      street_address: addr.streetAddress || addr.fullAddress || prev.street_address,
+      apartment: addr.apartment ?? prev.apartment,
+      city: addr.city || prev.city,
+      state: addr.state || prev.state,
+      zip_code: addr.zipCode || prev.zip_code,
+    }));
+    setError(null);
+  }, []);
+
+  const handleAddressChange = useCallback((value: string) => {
+    setValues((prev) => ({
+      ...prev,
+      address: value,
+      street_address: value,
+    }));
+    setError(null);
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, []);
@@ -134,9 +167,20 @@ export default function AddCustomerForm({
     setError(null);
   }, [isFirst, showBackToChoice, onCancel, stepIndex]);
 
+  const goNext = useCallback(() => {
+    setStepIndex((i) => i + 1);
+    setError(null);
+    setTimeout(scrollToBottom, 100);
+  }, [scrollToBottom]);
+
   const validateAndNext = useCallback(() => {
     if (!currentStep) return;
     const raw = String(values[currentStep.field] ?? '').trim();
+    if (currentStep.field === 'address') {
+      setError(null);
+      goNext();
+      return;
+    }
     if (currentStep.field === 'first_name' || currentStep.field === 'last_name') {
       if (!raw) {
         setError(
@@ -208,7 +252,7 @@ export default function AddCustomerForm({
           phone: phone.trim(),
           mobile_number: trim(values.mobile_number) || undefined,
           website: trim(values.website) || undefined,
-          street_address: trim(values.street_address) || undefined,
+          street_address: trim(values.street_address || values.address) || undefined,
           apartment: trim(values.apartment) || undefined,
           city: trim(values.city) || undefined,
           state: trim(values.state) || undefined,
@@ -230,9 +274,8 @@ export default function AddCustomerForm({
         .finally(() => setSubmitting(false));
       return;
     }
-    setStepIndex((i) => i + 1);
-    setTimeout(scrollToBottom, 100);
-  }, [currentStep, values, isLast, tValidation, onSuccess, scrollToBottom]);
+    goNext();
+  }, [currentStep, values, isLast, tValidation, onSuccess, goNext]);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -242,7 +285,7 @@ export default function AddCustomerForm({
     [validateAndNext]
   );
 
-  const stepHasFocusableInput = currentStep && ['text', 'email', 'tel', 'url', 'textarea'].includes(currentStep.type);
+  const stepHasFocusableInput = currentStep && ['text', 'email', 'tel', 'url', 'address', 'textarea'].includes(currentStep.type);
   useEffect(() => {
     if (!isTypingComplete || !stepHasFocusableInput) return;
     const t = setTimeout(() => {
@@ -266,7 +309,7 @@ export default function AddCustomerForm({
               {tSteps(step.messageKey)}
             </div>
             <div className="self-end max-w-[85%] rounded-2xl rounded-tr-sm bg-gray-900 text-white px-3 py-2 text-sm">
-              {formatDisplayValue(step, values[step.field])}
+              {formatDisplayValue(step, values[step.field], values)}
             </div>
           </div>
         ))}
@@ -307,7 +350,16 @@ export default function AddCustomerForm({
                     {error}
                   </p>
                 )}
-                {currentStep.type === 'tel' ? (
+                {currentStep.type === 'address' ? (
+                  <AddressAutocomplete
+                    id="add-customer-address"
+                    value={values.address ?? ''}
+                    onChange={handleAddressChange}
+                    onAddressSelect={handleAddressSelect}
+                    onConfirmWithEnter={values.street_address ? goNext : undefined}
+                    placeholder={tPlaceholders('address')}
+                  />
+                ) : currentStep.type === 'tel' ? (
                   <Input
                     type="tel"
                     value={values[currentStep.field] ?? ''}
@@ -320,10 +372,10 @@ export default function AddCustomerForm({
                   <textarea
                     value={values[currentStep.field] ?? ''}
                     onChange={(e) => setValue(currentStep.field, e.target.value)}
-                    placeholder={tPlaceholders(currentStep.messageKey)}
+                    placeholder={tPlaceholders('notes')}
                     autoFocus
                     rows={3}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
+                    className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white placeholder-white focus:border-white focus:outline-none focus:ring-1 focus:ring-white"
                   />
                 ) : (
                   <Input

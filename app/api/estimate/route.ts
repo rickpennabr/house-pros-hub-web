@@ -6,6 +6,8 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { sendEstimateEmails } from '@/lib/services/emailService';
+import { sendAdminPushNotification } from '@/lib/services/pushNotificationService';
+import { signDriveFilesForStaff } from '@/lib/drive/server';
 import { getTranslations } from 'next-intl/server';
 import type { EmailTranslations } from '@/lib/utils/emailTemplates';
 import type { EstimateEmailData } from '@/lib/utils/emailTemplates';
@@ -35,6 +37,11 @@ function transformEstimateToDb(estimate: z.infer<typeof estimateSchema>) {
     timeline: estimate.timeline!,
     preferred_contact_method: estimate.preferredContactMethod!,
     additional_notes: estimate.additionalNotes || null,
+    latitude: estimate.latitude ?? null,
+    longitude: estimate.longitude ?? null,
+    location_accuracy_m: estimate.locationAccuracyM ?? null,
+    project_drive_file_ids: estimate.projectDriveFileIds ?? [],
+    ...(estimate.source ? { source: estimate.source } : {}),
   };
 }
 
@@ -55,6 +62,7 @@ async function getEmailTranslations(locale: string): Promise<EmailTranslations> 
     thankYouAdmin: t('thankYouAdmin'),
     proWillContact: t('proWillContact'),
     copyBelow: t('copyBelow'),
+    agentNotice: t('agentNotice'),
     sections: {
       customerInfo: tSections('customerInfo'),
       projectAddress: tSections('projectAddress'),
@@ -80,6 +88,10 @@ async function getEmailTranslations(locale: string): Promise<EmailTranslations> 
       submittedAt: tAdmin('submittedAt'),
       userId: tAdmin('userId'),
       anonymous: tAdmin('anonymous'),
+      source: tAdmin('source'),
+      viaAgent: tAdmin('viaAgent'),
+      viaWebsite: tAdmin('viaWebsite'),
+      viaQuickRepair: tAdmin('viaQuickRepair'),
     },
     yes: t('yes'),
     no: t('no'),
@@ -122,6 +134,7 @@ export async function POST(request: NextRequest) {
     }
 
     const estimateData = validationResult.data;
+    const driveFileIds = estimateData.projectDriveFileIds ?? [];
 
     // Get authenticated user (optional - estimates can be submitted anonymously)
     const supabase = await createClient();
@@ -129,11 +142,26 @@ export async function POST(request: NextRequest) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       userId = user?.id || null;
-    } catch (error) {
+    } catch {
       // User not authenticated - that's okay for anonymous submissions
       logger.debug('No authenticated user for estimate submission', {
         endpoint: '/api/estimate',
       });
+    }
+
+    if (driveFileIds.length > 0) {
+      if (!userId) {
+        return NextResponse.json({ error: 'Sign in before attaching ProDrive photos' }, { status: 401 });
+      }
+      const { data: ownedFiles, error: ownedError } = await supabase
+        .from('pro_drive_files')
+        .select('id')
+        .in('id', driveFileIds)
+        .eq('owner_type', 'user')
+        .eq('owner_id', userId);
+      if (ownedError || (ownedFiles?.length ?? 0) !== driveFileIds.length) {
+        return NextResponse.json({ error: 'One or more photos are not in your ProDrive' }, { status: 400 });
+      }
     }
 
     // Transform data for database
@@ -163,12 +191,33 @@ export async function POST(request: NextRequest) {
 
     // Get email translations
     const emailTranslations = await getEmailTranslations(locale);
+    const isQuickRepair = estimateData.source === 'quick_repair';
+    if (isQuickRepair) {
+      const repairCopy = await getTranslations({ locale, namespace: 'estimate.email' });
+      emailTranslations.subjectAdmin = repairCopy('subjectAdminQuickRepair');
+      emailTranslations.thankYouAdmin = repairCopy('thankYouAdminQuickRepair');
+    }
+
+    let projectImages = estimateData.projectImages ?? [];
+    if (isQuickRepair && driveFileIds.length > 0) {
+      try {
+        const signed = await signDriveFilesForStaff(driveFileIds, 60 * 60 * 24 * 7);
+        if (signed.length > 0) projectImages = signed.map((file) => file.url);
+      } catch (signError) {
+        logger.warn('Quick Repair photo links were not added to the email', {
+          endpoint: '/api/estimate',
+          estimateId: savedEstimate.id,
+          error: signError instanceof Error ? signError.message : 'Unknown error',
+        });
+      }
+    }
 
     // Prepare email data
     const emailData: EstimateEmailData = {
       ...estimateData,
+      projectImages,
       estimateId: savedEstimate.id,
-      submittedAt: new Date(savedEstimate.created_at).toLocaleString(locale === 'es' ? 'es-US' : 'en-US'),
+      submittedAt: new Date(savedEstimate.created_at).toLocaleString(locale === 'es' ? 'es-US' : locale === 'pt' ? 'pt-BR' : 'en-US'),
       userId,
     };
 
@@ -192,6 +241,26 @@ export async function POST(request: NextRequest) {
         estimateId: savedEstimate.id,
         customerEmail: estimateData.email,
       });
+    }
+
+    if (isQuickRepair) {
+      const who = [estimateData.firstName, estimateData.lastName].filter(Boolean).join(' ').trim() || 'Someone';
+      try {
+        await sendAdminPushNotification(
+          'New Quick Repair',
+          `${who} just dropped a repair.`,
+          '/admin/estimates',
+          undefined,
+          'quick-repair',
+          '/icons/icon-192.png'
+        );
+      } catch (pushError) {
+        logger.warn('Quick Repair push was not sent', {
+          endpoint: '/api/estimate',
+          estimateId: savedEstimate.id,
+          error: pushError instanceof Error ? pushError.message : 'Unknown error',
+        });
+      }
     }
 
     // Return success response

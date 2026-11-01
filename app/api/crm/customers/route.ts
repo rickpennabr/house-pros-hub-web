@@ -19,7 +19,7 @@ async function requireContractor() {
   return { error: null, user };
 }
 
-const VALID_SORT = ['created_at', 'updated_at', 'last_name', 'first_name', 'company_name', 'display_name', 'city', 'state', 'phone', 'email'] as const;
+const VALID_SORT = ['created_at', 'updated_at', 'display_id', 'last_name', 'first_name', 'company_name', 'display_name', 'city', 'state', 'phone', 'email'] as const;
 
 /**
  * GET /api/crm/customers
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       if (safe) {
         const term = `%${safe}%`;
         query = query.or(
-          `first_name.ilike.${term},last_name.ilike.${term},company_name.ilike.${term},display_name.ilike.${term},email.ilike.${term},city.ilike.${term},state.ilike.${term},phone.ilike.${term},mobile_number.ilike.${term}`
+          `display_id.ilike.${term},first_name.ilike.${term},last_name.ilike.${term},company_name.ilike.${term},display_name.ilike.${term},email.ilike.${term},city.ilike.${term},state.ilike.${term},phone.ilike.${term},mobile_number.ilike.${term}`
         );
       }
     }
@@ -128,7 +128,6 @@ export async function POST(request: NextRequest) {
       shipping_address_state: str('shipping_address_state'),
       shipping_address_zip_code: str('shipping_address_zip_code'),
       shipping_address_country: str('shipping_address_country'),
-      note: str('note'),
       notes: str('notes'),
       primary_payment_method: str('primary_payment_method'),
       payment_terms: str('payment_terms'),
@@ -138,13 +137,13 @@ export async function POST(request: NextRequest) {
     const { data: row, error } = await supabase
       .from('pro_crm_customers')
       .insert(insertPayload)
-      .select('id, created_at')
+      .select('id, display_id, created_at')
       .single();
 
     if (error) {
       return NextResponse.json({ error: error.message || 'Failed to create customer' }, { status: 500 });
     }
-    return NextResponse.json({ id: row.id, created_at: row.created_at }, { status: 201 });
+    return NextResponse.json({ id: row.id, display_id: row.display_id, created_at: row.created_at }, { status: 201 });
   } catch (err) {
     console.error('POST /api/crm/customers', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

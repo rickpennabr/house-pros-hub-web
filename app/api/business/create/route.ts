@@ -8,8 +8,8 @@ import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { requireRole } from '@/lib/middleware/requireRole';
-import { hasRole } from '@/lib/utils/roles';
 import { sendNewSignupAdminNotification } from '@/lib/services/emailService';
+import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
 
 /**
  * Convert base64 string to Buffer for server-side file handling
@@ -270,36 +270,6 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
 
     const supabase = await createClient();
     const serviceRoleClient = createServiceRoleClient();
-
-    // Automatically grant contractor role if user doesn't have it (e.g. legacy flow)
-    // Realtors keep their role; only grant contractor when user has neither
-    const userHasContractorRole = await hasRole(userId, 'contractor');
-    const userHasRealtorRole = await hasRole(userId, 'realtor');
-    if (!userHasContractorRole && !userHasRealtorRole) {
-      logger.info('Auto-granting contractor role to user creating business', { userId });
-      // Use service role client to bypass RLS restrictions
-      try {
-        const { error: roleError } = await serviceRoleClient
-          .from('user_roles')
-          .upsert({
-            user_id: userId,
-            role: 'contractor',
-            is_active: true,
-            activated_at: new Date().toISOString(),
-            deactivated_at: null,
-          }, { onConflict: 'user_id,role' });
-
-        if (roleError) {
-          logger.warn('Failed to auto-grant contractor role, but continuing with business creation', { userId, error: roleError });
-          // Continue anyway - the business creation should still work
-        } else {
-          logger.info('Successfully auto-granted contractor role', { userId });
-        }
-      } catch (error) {
-        logger.warn('Error auto-granting contractor role, but continuing with business creation', { userId, error });
-        // Continue anyway - the business creation should still work
-      }
-    }
 
     // Generate slug if not provided
     let businessSlug = slug ? sanitizeText(slug) || generateSlug(safeBusinessName) : generateSlug(safeBusinessName);
@@ -609,6 +579,7 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       userId,
     });
 
+    invalidateBusinessDirectoryCache();
     return NextResponse.json(
       { business: businessForCard },
       { status: 201 }
@@ -619,5 +590,4 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
   }
 }
 
-// Export with authentication (role is auto-granted inside handler)
 export const POST = requireRole(['contractor', 'realtor'], handleCreateBusiness);

@@ -12,22 +12,25 @@ import ChatSignupForm from '@/components/chat/ChatSignupForm';
 import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
 import ChatInputBar from '@/components/chat/ChatInputBar';
 import AddCustomerForm from '@/components/chat/AddCustomerForm';
+import ProEstimateBookingFlow from '@/components/probot/ProEstimateBookingFlow';
 import { PROBOT_ASSETS, PROBOT_CHAT_BG } from '@/lib/constants/probot';
 import ProBotMessageList from './ProBotMessageList';
+import { ProBotCrmViews, type ProBotCrmViewType } from './ProBotCrmViews';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
 import type { ChatMessage, ChatAttachment } from '@/lib/types/chat';
 import {
-  getMessages,
   createConversation,
-  sendMessage as sendMessageApi,
-  sendAdminMessage,
-  getVisitorDeleteToken,
   deleteConversation,
+  getMessages,
+  getVisitorDeleteToken,
+  sendAdminMessage,
+  sendMessage as sendMessageApi,
 } from '@/lib/api/chat';
+import { useChatThreadRefresh } from '@/hooks/useChatThreadRefresh';
 
 export type { ChatMessage, ChatAttachment };
 
-type UserChoice = null | 'create_account' | 'free_estimate' | 'add_customer';
+type UserChoice = null | 'create_account' | 'free_estimate' | 'add_customer' | 'book_proestimate';
 
 interface ProBotChatAreaProps {
   selectedContact: ProBotContact | null;
@@ -60,7 +63,6 @@ interface ProBotChatAreaProps {
   onWelcomeChoiceMade?: () => void;
 }
 
-const POLL_INTERVAL_MS = 2_000;
 const TYPING_MS = 60;
 const WHERE_START_TYPING_MS = 45;
 
@@ -119,6 +121,7 @@ export default function ProBotChatArea({
   const [uploadingAttach, setUploadingAttach] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
+  const [confirmingStepId, setConfirmingStepId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,11 +156,25 @@ export default function ProBotChatArea({
     zipCode: string;
     apartment?: string;
   } | null>(null);
+  /** Guest contact for Book a ProEstimate when not signed in (separate from free_estimate) */
+  const [bookingGuestContact, setBookingGuestContact] = useState<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    streetAddress: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    apartment?: string;
+  } | null>(null);
   const [clearingMessages, setClearingMessages] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   /** 0–3: segment of welcome animation (0,2 = first GIF; 1,3 = second GIF). After 2 cycles show static. */
   const [welcomeGifStep, setWelcomeGifStep] = useState(0);
   const [welcomeShowStaticImage, setWelcomeShowStaticImage] = useState(false);
+  /** When set, show this CRM flow inline in ProBot (contractor only). */
+  const [probotCrmView, setProbotCrmView] = useState<ProBotCrmViewType | null>(null);
 
   /** Duration each welcome GIF shows before switching. Animation runs 2 full cycles then shows static image. */
   const WELCOME_GIF_0_MS = 5000;
@@ -181,7 +198,20 @@ export default function ProBotChatArea({
       showProjectEstimateSuccess);
   const showAddCustomerFlow = selectedContact?.isProBot && userChoice === 'add_customer' && !addCustomerSubmitted;
   const showAddCustomerSuccess = selectedContact?.isProBot && userChoice === 'add_customer' && addCustomerSubmitted;
-  const showProBotWizardFlow = showAccountEstimateFlow || showAddCustomerFlow || showAddCustomerSuccess;
+  /** Book a ProEstimate: when chatting with a business, show calendar → time → confirm (or guest form first if not signed in) */
+  const showBookingGuestForm =
+    !selectedContact?.isProBot &&
+    selectedContact?.businessId &&
+    userChoice === 'book_proestimate' &&
+    !isAuthenticated &&
+    bookingGuestContact === null;
+  const showBookingFlow =
+    !selectedContact?.isProBot &&
+    selectedContact?.businessId &&
+    userChoice === 'book_proestimate' &&
+    (isAuthenticated || bookingGuestContact !== null);
+  const showProBotWizardFlow =
+    showAccountEstimateFlow || showAddCustomerFlow || showAddCustomerSuccess || showBookingGuestForm || showBookingFlow;
 
   const displayName = user?.firstName ?? t('guestName');
   const hiText = t('hiUser', { name: displayName });
@@ -217,9 +247,22 @@ export default function ProBotChatArea({
   const loadMessages = useCallback(async () => {
     if (!conversationId || !visitorId) return;
     try {
-      const data = await getMessages(conversationId, { visitorId });
+      const data = await getMessages(conversationId, {
+        visitorId,
+        ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
+      });
       const msgs = (data.messages ?? []) as ChatMessage[];
-      setMessages(dedupeMessagesById(msgs));
+      const estimateBody = t('replyAccountEstimate');
+      const withLink = msgs.map((m) =>
+        m.sender === 'admin' && m.body === estimateBody
+          ? {
+              ...m,
+              replyLinkUrl: `/${locale}/estimate`,
+              replyLinkLabel: t('replyAccountEstimateLink'),
+            }
+          : m
+      );
+      setMessages(dedupeMessagesById(withLink));
       setHubAgent(data.hubAgent ?? null);
       setMessagesLoadedOnce(true);
     } catch {
@@ -227,7 +270,35 @@ export default function ProBotChatArea({
       setHubAgent(null);
       setMessagesLoadedOnce(true);
     }
-  }, [conversationId, visitorId]);
+  }, [conversationId, visitorId, t, locale]);
+
+  const confirmEstimate = useCallback(async (stepId: string) => {
+    if (!visitorId || !conversationId || confirmingStepId) return;
+    setConfirmingStepId(stepId);
+    setError(null);
+    try {
+      const res = await fetch('/api/chat/agent/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId,
+          visitorId,
+          stepId,
+          ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data.error === 'string' ? data.error : t('confirmEstimateFailed'));
+        return;
+      }
+      await loadMessages();
+    } catch {
+      setError(t('confirmEstimateFailed'));
+    } finally {
+      setConfirmingStepId(null);
+    }
+  }, [visitorId, conversationId, confirmingStepId, locale, loadMessages, t]);
 
   const loadAdminViewMessages = useCallback(async () => {
     if (!adminViewingConversation?.id) return;
@@ -259,48 +330,19 @@ export default function ProBotChatArea({
     }
   }, [adminViewingConversation, loadMessages, loadAdminViewMessages]);
 
-  useEffect(() => {
-    const load = adminViewingConversation?.id ? loadAdminViewMessages : loadMessages;
-    const shouldPoll = adminViewingConversation?.id || (conversationId && visitorId);
-    if (!shouldPoll) return;
-
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const startPolling = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        load();
-        intervalId = setInterval(load, POLL_INTERVAL_MS);
-      }
-    };
-    const stopPolling = () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
-    };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') startPolling();
-      else stopPolling();
-    };
-    const onWindowFocus = () => {
-      if (document.visibilityState === 'visible' && !adminViewingConversation?.id && conversationId && visitorId) {
-        loadMessages();
-      }
-    };
-
-    startPolling();
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', onVisibilityChange);
-      window.addEventListener('focus', onWindowFocus);
+  const refreshOpenThread = useCallback(() => {
+    if (adminViewingConversation?.id) {
+      void loadAdminViewMessages();
+    } else {
+      void loadMessages();
     }
-    return () => {
-      stopPolling();
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', onVisibilityChange);
-        window.removeEventListener('focus', onWindowFocus);
-      }
-    };
-  }, [adminViewingConversation?.id, conversationId, visitorId, loadMessages, loadAdminViewMessages]);
+  }, [adminViewingConversation?.id, loadAdminViewMessages, loadMessages]);
+
+  useChatThreadRefresh(
+    adminViewingConversation?.id ?? conversationId,
+    Boolean(adminViewingConversation?.id || (conversationId && visitorId)),
+    refreshOpenThread
+  );
 
   // When conversation is cleared (e.g. sign out), reset message state so UI shows welcome
   useEffect(() => {
@@ -344,7 +386,8 @@ export default function ProBotChatArea({
 
   // When ProBot is selected, show conversation if we have messages; otherwise show welcome steps.
   // Show welcome for visitors, customers, and contractors when role is known (not admin view), and when there are no messages.
-  // For guests: always show welcome when they open ProBot (so they see it again after visiting other pages). For signed-in users: once per device (localStorage).
+  // For guests: always show welcome when they open ProBot. For signed-in customers: once per device (localStorage).
+  // For contractors: always show welcome when no messages so they always see "Hi {name}", "How do you want to start?" and CRM buttons.
   const isCustomer = !isAdmin && !isContractor;
   const showWelcome =
     (roleKnown &&
@@ -352,9 +395,9 @@ export default function ProBotChatArea({
       selectedContact?.isProBot &&
       !error &&
       !hasChosenThisVisit &&
-      (!hasSeenWelcomePersisted || !isAuthenticated) &&
       filteredMessages.length === 0 &&
-      userChoice !== 'add_customer') ||
+      userChoice !== 'add_customer' &&
+      (isContractor || !hasSeenWelcomePersisted || !isAuthenticated)) ||
     forceWelcomeView;
 
   // Admin initial screen: ProBot selected, no conversation open, no messages yet. Show simplified welcome (no "How do you want to start?", no CTA buttons, different tagline/placeholder).
@@ -384,6 +427,11 @@ export default function ProBotChatArea({
   useEffect(() => {
     setHiTypedLength(0);
     setWhereStartTypedLength(0);
+  }, [selectedContact?.id]);
+
+  // When switching away from ProBot, clear inline CRM view so returning shows welcome.
+  useEffect(() => {
+    if (selectedContact?.id !== 'probot') setProbotCrmView(null);
   }, [selectedContact?.id]);
 
   // When opened with ?contact= (e.g. from business card Message), focus the message input once the chat view is ready.
@@ -441,7 +489,6 @@ export default function ProBotChatArea({
       if (!visitorId || sending) return;
       setSending(true);
       setError(null);
-      const choiceAccountEstimate = tBot('choiceAccountEstimate');
       try {
         const displayName =
           isAuthenticated && user
@@ -455,31 +502,31 @@ export default function ProBotChatArea({
           ...(displayName ? { displayName } : {}),
           ...(isAuthenticated && user?.id ? { userId: user.id } : {}),
           ...(pendingAttachments.length > 0 ? { attachments: pendingAttachments } : {}),
+          ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
         });
         if (data.message) {
-          const msg = data.message as { id: string; conversationId?: string; sender: string; body: string; created_at: string; attachments?: ChatAttachment[] };
+          const msg = data.message as { id: string; conversationId?: string; sender: string; body: string; created_at: string; attachments?: ChatAttachment[]; payload?: ChatMessage['payload'] };
           const newMsg: ChatMessage = { ...msg, sender: msg.sender as 'visitor' | 'admin', attachments: msg.attachments ?? [] };
+          const bot = data.botMessage;
           setMessages((prev) => {
             const next: ChatMessage[] = [...prev, newMsg];
-            if (selectedContact?.isProBot && !businessId) {
-              const createAccountLabel = tBot('createAccount');
-              const getFreeEstimateLabel = tBot('getFreeEstimate');
-              const createAccountEstimateLabel = tBot('createAccountAndFreeEstimate');
-              if (
-                body === choiceAccountEstimate ||
-                body === createAccountEstimateLabel ||
-                body === createAccountLabel ||
-                body === getFreeEstimateLabel
-              ) {
-                next.push({
-                  id: `bot-reply-${Date.now()}`,
-                  sender: 'admin',
-                  body: t('replyAccountEstimate'),
-                  created_at: new Date().toISOString(),
-                  replyLinkUrl: `/${locale}/estimate`,
-                  replyLinkLabel: t('replyAccountEstimateLink'),
-                });
-              }
+            if (bot && selectedContact?.isProBot && !businessId) {
+              const isEstimateReply = bot.body === t('replyAccountEstimate');
+              const botPayload = (bot as { payload?: ChatMessage['payload'] }).payload;
+              next.push({
+                id: bot.id,
+                sender: 'admin',
+                body: bot.body,
+                created_at: bot.created_at,
+                admin_sent_as: 'probot',
+                ...(botPayload ? { payload: botPayload } : {}),
+                ...(isEstimateReply
+                  ? {
+                      replyLinkUrl: `/${locale}/estimate`,
+                      replyLinkLabel: t('replyAccountEstimateLink'),
+                    }
+                  : {}),
+              });
             }
             return next;
           });
@@ -501,7 +548,7 @@ export default function ProBotChatArea({
         setSending(false);
       }
     },
-    [visitorId, conversationId, businessId, setConversationId, sending, selectedContact?.isProBot, t, tBot, locale, isAuthenticated, user, pendingAttachments, loadMessages]
+    [visitorId, conversationId, businessId, setConversationId, sending, selectedContact?.isProBot, t, locale, isAuthenticated, user, pendingAttachments, loadMessages]
   );
 
   const sendAdminReply = useCallback(
@@ -831,43 +878,124 @@ export default function ProBotChatArea({
           >
             {(showWelcome || showAdminInitialWelcome) ? (
               <div className="probot-welcome flex-1 flex flex-col items-center px-2 pt-6 pb-4 min-h-0 md:px-4">
-                <div className="flex flex-col items-center text-center w-full md:w-[75%]">
-                  <div className="flex items-center justify-center w-24 h-24 rounded-lg bg-white shadow-sm overflow-hidden shrink-0 mb-4">
-                    {welcomeShowStaticImage || showAdminInitialWelcome ? (
-                      <img
-                        src="/pro-bot-solo.png"
-                        alt="ProBot"
-                        width={96}
-                        height={96}
-                        className="w-full h-full object-contain"
+                {isContractor && probotCrmView ? (
+                  <>
+                    <div className="flex flex-col flex-1 min-h-0 w-full max-w-[90%]">
+                      <ProBotCrmViews
+                        view={probotCrmView}
+                        onBack={() => setProbotCrmView(null)}
+                        onOpenAddCustomer={() => {
+                          setUserChoice('add_customer');
+                          setProbotCrmView(null);
+                          setHasChosenThisVisit(true);
+                          markProBotWelcomeSeen();
+                          onWelcomeChoiceMade?.();
+                        }}
+                        onAddTaskSuccess={() => {}}
                       />
-                    ) : (
-                      <img
-                        src={welcomeGifStep % 2 === 0 ? PROBOT_ASSETS.avatarWelcome : PROBOT_ASSETS.avatarWelcomeSecond}
-                        alt="ProBot"
-                        width={96}
-                        height={96}
-                        className="w-full h-full object-contain"
-                      />
+                    </div>
+                    {!showProBotWizardFlow && !showAdminInitialWelcome && (
+                      <div className="w-full shrink-0 mt-4">
+                        {pendingAttachments.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {pendingAttachments.map((att, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm"
+                              >
+                                {att.contentType.startsWith('image/') ? (
+                                  <ImageIcon className="w-4 h-4 shrink-0" />
+                                ) : (
+                                  <Paperclip className="w-4 h-4 shrink-0" />
+                                )}
+                                <span className="max-w-[120px] truncate">{att.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removePendingAttachment(i)}
+                                  className="shrink-0 text-gray-500 hover:text-red-600"
+                                  aria-label="Remove"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <form
+                          onSubmit={handleSubmit}
+                          className="w-full rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5"
+                        >
+                          <ChatInputBar
+                            wrapperClassName="flex items-center gap-0 w-full"
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            placeholder={isAdminView ? t('replyToCustomer') : t('messagePlaceholder')}
+                            disabled={sending}
+                            maxLength={2000}
+                            inputRef={messageInputRef}
+                            fileInputRef={fileInputRef}
+                            onFileSelect={handleFileSelect}
+                            attachMenuOpen={attachMenuOpen}
+                            setAttachMenuOpen={setAttachMenuOpen}
+                            attachDisabled={uploadingAttach || pendingAttachments.length >= 10}
+                            sendDisabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
+                            hasText={!!(inputValue.trim() || pendingAttachments.length > 0)}
+                            labels={{
+                              attachFiles: t('attachFiles'),
+                              uploadFiles: t('uploadFiles'),
+                              addFromGoogleDrive: t('addFromGoogleDrive'),
+                              photos: t('photos'),
+                              send: t('send'),
+                            }}
+                          />
+                        </form>
+                      </div>
                     )}
-                  </div>
-                  <p className="text-lg text-gray-800 font-medium min-h-[1.75rem]">
+                  </>
+                ) : (
+                <div className={`flex flex-col items-center text-center w-full md:w-[90%] ${isContractor ? 'flex-1 min-h-0' : ''}`}>
+                  {!isContractor && (
+                    <div className="flex items-center justify-center w-24 h-24 rounded-lg bg-white shadow-sm overflow-hidden shrink-0 mb-4">
+                      {welcomeShowStaticImage || showAdminInitialWelcome ? (
+                        <img
+                          src="/pro-bot-solo.png"
+                          alt="ProBot"
+                          width={96}
+                          height={96}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <img
+                          src={welcomeGifStep % 2 === 0 ? PROBOT_ASSETS.avatarWelcome : PROBOT_ASSETS.avatarWelcomeSecond}
+                          alt="ProBot"
+                          width={96}
+                          height={96}
+                          className="w-full h-full object-contain"
+                        />
+                      )}
+                    </div>
+                  )}
+                  <p className="text-lg text-gray-800 font-medium min-h-[1.75rem] shrink-0">
                     {showAdminInitialWelcome ? hiText : hiText.slice(0, hiTypedLength)}
                     {!showAdminInitialWelcome && hiTypedLength < hiText.length && (
                       <span className="animate-pulse">|</span>
                     )}
                   </p>
-                  <p className="text-[1.95rem] md:text-[2.7rem] text-gray-700 mt-1 whitespace-nowrap">{t('welcomeToMyPage')}</p>
-                  {showAdminInitialWelcome ? (
+                  {!isContractor && (
                     <>
-                      <p className="text-[1.95rem] md:text-[2.7rem] font-medium text-gray-800 mt-0.5">{t('letsConnect')}</p>
-                      <p className="text-[1.95rem] md:text-[2.7rem] font-medium text-gray-800 mt-0.5">{t('customerWithPros')}</p>
+                      <p className="text-[1.95rem] md:text-[2.7rem] text-gray-700 mt-1 whitespace-nowrap">{t('welcomeToMyPage')}</p>
+                      {showAdminInitialWelcome ? (
+                        <>
+                          <p className="text-[1.95rem] md:text-[2.7rem] font-medium text-gray-800 mt-0.5">{t('letsConnect')}</p>
+                          <p className="text-[1.95rem] md:text-[2.7rem] font-medium text-gray-800 mt-0.5">{t('customerWithPros')}</p>
+                        </>
+                      ) : (
+                        <p className="text-[1.95rem] md:text-[2.7rem] font-medium text-gray-800 mt-0.5">{t('letsGetItDone')}</p>
+                      )}
                     </>
-                  ) : (
-                    <p className="text-[1.95rem] md:text-[2.7rem] font-medium text-gray-800 mt-0.5">{t('letsGetItDone')}</p>
                   )}
                   {!showAdminInitialWelcome && (
-                  <div className="flex justify-center w-full mt-4 mb-4 min-h-[1.5em]">
+                  <div className="flex justify-center w-full mt-4 mb-4 min-h-[1.5em] shrink-0">
                     <div className="flex items-center justify-center gap-2">
                       <div className="shrink-0 w-12 h-12 rounded-lg bg-white shadow-sm flex items-center justify-center overflow-hidden" aria-hidden>
                         <img
@@ -888,20 +1016,71 @@ export default function ProBotChatArea({
                   </div>
                   )}
                   {!showAdminInitialWelcome && (
-                  <div className="flex flex-wrap justify-center gap-2 mb-4">
+                  <div className={isContractor ? 'flex-1 min-h-0 overflow-y-auto overflow-x-hidden w-full flex flex-col items-center' : 'flex flex-wrap justify-center gap-2 mb-4'}>
                     {isContractor ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setHasChosenThisVisit(true);
-                          markProBotWelcomeSeen();
-                          setUserChoice('add_customer');
-                          onWelcomeChoiceMade?.();
-                        }}
-                        className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
-                      >
-                        {tBot('addCustomer')}
-                      </button>
+                      <div className="flex flex-wrap justify-center gap-2 mb-4 py-2 w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
+                        <button
+                          type="button"
+                          onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('calendar'); }}
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        >
+                          {tBot('crmCalendar')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('customers'); }}
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        >
+                          {tBot('crmCustomers')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('estimates'); }}
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        >
+                          {tBot('crmEstimates')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('invoices'); }}
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        >
+                          {tBot('crmInvoices')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('projects'); }}
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        >
+                          {tBot('crmProjects')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('expenses'); }}
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        >
+                          {tBot('crmExpenses')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('add_task'); }}
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        >
+                          {tBot('addTask')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHasChosenThisVisit(true);
+                            markProBotWelcomeSeen();
+                            setUserChoice('add_customer');
+                            onWelcomeChoiceMade?.();
+                          }}
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        >
+                          {tBot('addCustomer')}
+                        </button>
+                      </div>
                     ) : isAuthenticated ? (
                       <button
                         type="button"
@@ -949,7 +1128,7 @@ export default function ProBotChatArea({
                               onOpenSidebar();
                               onWelcomeChoiceMade?.();
                             }}
-                            className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-black hover:bg-gray-50 transition-colors cursor-pointer"
+                            className="probot-sky-btn md:hidden px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-black hover:bg-gray-50 transition-colors cursor-pointer"
                           >
                             {tBot('chatWithAPro')}
                           </button>
@@ -959,7 +1138,7 @@ export default function ProBotChatArea({
                   </div>
                   )}
                   {!showProBotWizardFlow && !showAdminInitialWelcome && (
-                    <div className="w-full">
+                    <div className="w-full shrink-0">
                       {pendingAttachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-2">
                           {pendingAttachments.map((att, i) => (
@@ -1016,6 +1195,7 @@ export default function ProBotChatArea({
                     </div>
                   )}
                 </div>
+                )}
               </div>
             ) : showSignupForm ? (
               <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
@@ -1027,11 +1207,6 @@ export default function ProBotChatArea({
                     setHasChosenThisVisit(false);
                   }}
                   onSuccess={() => setEstimateSubmitted(true)}
-                  onSuccessWithRole={(role) => {
-                    if (role === 'customer') {
-                      setShowProjectInfoForm(true);
-                    }
-                  }}
                   onStepIndexChange={setSignupStepIndex}
                 />
               </div>
@@ -1046,6 +1221,36 @@ export default function ProBotChatArea({
                   }}
                   onGuestSubmit={(data) => setGuestContact(data)}
                   onStepIndexChange={setSignupStepIndex}
+                />
+              </div>
+            ) : showBookingGuestForm ? (
+              <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
+                <ChatSignupForm
+                  mode="guest_estimate"
+                  showBackToChoice
+                  onCancel={() => {
+                    setUserChoice(null);
+                    setBookingGuestContact(null);
+                  }}
+                  onGuestSubmit={(data) => setBookingGuestContact(data)}
+                  onStepIndexChange={setSignupStepIndex}
+                />
+              </div>
+            ) : showBookingFlow && selectedContact?.businessId ? (
+              <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
+                <ProEstimateBookingFlow
+                  businessId={selectedContact.businessId}
+                  businessName={selectedContact.name ?? ''}
+                  isAuthenticated={!!isAuthenticated}
+                  guestContact={bookingGuestContact ?? undefined}
+                  onSuccess={() => {
+                    setUserChoice(null);
+                    setBookingGuestContact(null);
+                  }}
+                  onCancel={() => {
+                    setUserChoice(null);
+                    setBookingGuestContact(null);
+                  }}
                 />
               </div>
             ) : showAddCustomerFlow ? (
@@ -1077,16 +1282,40 @@ export default function ProBotChatArea({
                     <h2 className="text-2xl font-semibold mb-4 text-black">
                       {tBot('addCustomerSuccess')}
                     </h2>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUserChoice(null);
-                        setAddCustomerSubmitted(false);
-                      }}
-                      className="mt-4 px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
-                    >
-                      {tBot('continueToChat')}
-                    </button>
+                    <div className="flex flex-col gap-3 mt-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserChoice(null);
+                          setAddCustomerSubmitted(false);
+                          setHasChosenThisVisit(false);
+                        }}
+                        className="w-full px-4 py-2.5 rounded-lg border-2 border-black bg-white text-black text-sm font-medium hover:bg-gray-100 transition-colors cursor-pointer"
+                      >
+                        {tBot('backToProBotMenu')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserChoice('free_estimate');
+                          setAddCustomerSubmitted(false);
+                          setHasChosenThisVisit(true);
+                        }}
+                        className="w-full px-4 py-2.5 rounded-lg border-2 border-black bg-black text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
+                      >
+                        {tBot('addAnEstimate')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserChoice(null);
+                          setAddCustomerSubmitted(false);
+                        }}
+                        className="w-full px-4 py-2.5 rounded-lg border-2 border-black bg-black text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
+                      >
+                        {tBot('continueToChat')}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1132,10 +1361,10 @@ export default function ProBotChatArea({
                       />
                     </svg>
                     <h2 className="text-2xl font-semibold mb-4 text-black">
-                      {tBot('estimateSuccessMessageLine1')}
+                      {tBot('accountCreatedSuccess')}
                     </h2>
                     <p className="text-gray-700">
-                      {tBot('estimateSuccessMessageLine2')}
+                      {tBot('accountCreatedMessage')}
                     </p>
                   </div>
                 </div>
@@ -1214,9 +1443,16 @@ export default function ProBotChatArea({
                       </div>
                     )}
                   </div>
-                  <p className="text-xl font-semibold text-gray-900 mb-6">
+                  <p className="text-xl font-semibold text-gray-900 mb-4">
                     {t('chatWithBusiness', { name: selectedContact?.name ?? '' })}
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => setUserChoice('book_proestimate')}
+                    className="probot-sky-btn mb-6 px-4 py-2.5 rounded-lg bg-black text-white border-2 border-black text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
+                  >
+                    {t('booking.bookProEstimate')}
+                  </button>
                   <form
                     onSubmit={handleSubmit}
                     className="w-full rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5"
@@ -1291,6 +1527,9 @@ export default function ProBotChatArea({
                         ? user.businessLogo
                         : user?.userPicture ?? null
                   }
+                  confirmingStepId={confirmingStepId}
+                  onConfirmEstimate={isAdminView ? undefined : confirmEstimate}
+                  onEditEstimate={() => messageInputRef.current?.focus()}
                 />
               </>
             )}

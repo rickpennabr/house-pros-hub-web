@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
+import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 
 /**
  * GET /api/chat/contractor/unread-count
@@ -23,12 +24,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const { data: profile } = await supabaseAuth
-      .from('profiles')
-      .select('business_id')
-      .eq('id', user.id)
-      .single();
-    const userBusinessId = (profile as { business_id?: string } | null)?.business_id ?? null;
+    const userBusinessId = await getOwnedBusinessId(user.id);
     if (!userBusinessId) {
       return NextResponse.json({ count: 0 }, { status: 200 });
     }

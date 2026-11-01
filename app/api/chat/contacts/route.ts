@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 
 /**
  * GET /api/chat/contacts
@@ -29,15 +30,7 @@ export async function GET(request: NextRequest) {
       !!user.email && user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
     // Get user's business (contractor)
-    let userBusinessId: string | null = null;
-    if (!isAdmin) {
-      const { data: profile } = await supabaseAuth
-        .from('profiles')
-        .select('business_id')
-        .eq('id', user.id)
-        .single();
-      userBusinessId = (profile as { business_id?: string } | null)?.business_id ?? null;
-    }
+    const userBusinessId = isAdmin ? null : await getOwnedBusinessId(user.id);
 
     const supabase = createServiceRoleClient();
 

@@ -121,6 +121,11 @@ function getLicenseDisplayName(
   return licenseInfo ? licenseInfo.name : 'General Contractor';
 }
 
+/** Use a single category label: "Landscape Contracting" displays as "Landscape". */
+function normalizeCategoryLabel(label: string): string {
+  return label?.trim() === 'Landscape Contracting' ? 'Landscape' : (label ?? '');
+}
+
 /**
  * Transform business form data to ProCardData format
  */
@@ -148,6 +153,8 @@ export function transformBusinessToProCardData(
     mobilePhone?: string;
     links?: LinkItem[];
     userId: string;
+    /** When true, show calendar/booking icon on ProCard and add link to public booking page */
+    showCalendarOnProCard?: boolean;
   },
   options?: TransformBusinessOptions
 ): ProCardData & { userId: string } {
@@ -160,12 +167,12 @@ export function transformBusinessToProCardData(
   const primaryLicense = licenses[0];
   const licenseCode = primaryLicense?.license || 'GENERAL';
 
-  let contractorType = getLicenseDisplayName(licenseCode, licenseCategoriesMap);
+  let contractorType = normalizeCategoryLabel(getLicenseDisplayName(licenseCode, licenseCategoriesMap));
 
   // If we have a trade string that isn't just numbers, it might be a custom trade name
   const tradeValue = primaryLicense?.trade;
   if (tradeValue && typeof tradeValue === 'string' && !/^\d+$/.test(tradeValue.trim())) {
-    contractorType = tradeValue;
+    contractorType = normalizeCategoryLabel(tradeValue);
   }
 
   // Calculate category from license code - always ensure a category is set
@@ -186,6 +193,8 @@ export function transformBusinessToProCardData(
     if (licenseTradeValue && typeof licenseTradeValue === 'string' && !/^\d+$/.test(licenseTradeValue.trim())) {
       tradeName = licenseTradeValue.replace(/\s*Contractor\s*/gi, ' ').trim();
     }
+
+    tradeName = normalizeCategoryLabel(tradeName);
 
     const tradeIconForLicense = getTradeIconFromLicense(licenseCodeForLicense);
 
@@ -233,6 +242,16 @@ export function transformBusinessToProCardData(
   const baseSlug = generateSlug(businessData.businessName);
   const shortId = businessData.id.split('_').pop() || Math.random().toString(36).substring(7);
   const slug = businessData.slug?.trim() || `${baseSlug}-${shortId}`;
+
+  // Show calendar icon on ProCard only when pro has "Show on ProCard" checked in CRM calendar
+  if (businessData.showCalendarOnProCard && slug) {
+    const existingCalendarIndex = links.findIndex(l => l.type === 'calendar' && l.url?.startsWith('/book/'));
+    if (existingCalendarIndex >= 0) {
+      links[existingCalendarIndex] = { type: 'calendar', url: `/book/${slug}` };
+    } else {
+      links.push({ type: 'calendar', url: `/book/${slug}` });
+    }
+  }
 
   const services: string[] = (businessData.services || []).map((s) =>
     typeof s === 'string' ? s : (s as { name?: string })?.name ?? ''

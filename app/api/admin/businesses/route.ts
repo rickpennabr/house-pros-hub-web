@@ -58,13 +58,23 @@ export async function GET(request: NextRequest) {
       'email',
       'is_active',
       'is_verified',
+      'display_order',
     ];
     const orderColumn = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
+
+    const orderOpts =
+      orderColumn === 'display_order'
+        ? { ascending: sortDir === 'asc', nullsFirst: false }
+        : { ascending: sortDir === 'asc' };
 
     let query = service
       .from('businesses')
       .select('*', { count: 'exact' })
-      .order(orderColumn, { ascending: sortDir === 'asc' });
+      .order(orderColumn, orderOpts);
+
+    if (orderColumn === 'display_order') {
+      query = query.order('created_at', { ascending: false });
+    }
 
     if (search) {
       const safe = search.replace(/[%,"\\]/g, '').trim();

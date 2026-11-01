@@ -6,6 +6,7 @@ import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { deleteProfilePicture } from '@/lib/utils/storage';
 import { sanitizeText } from '@/lib/utils/sanitize';
+import { getPersonalAddress, upsertPersonalAddress } from '@/lib/data/personalAddress';
 
 /**
  * PUT /api/profile
@@ -110,28 +111,29 @@ async function handleUpdateProfile(request: AuthenticatedRequest) {
     if (updates.referralOther !== undefined) {
       profileUpdate.referral_other = updates.referralOther ? sanitizeText(updates.referralOther) || null : null;
     }
-    if (updates.streetAddress !== undefined) {
-      profileUpdate.street_address = updates.streetAddress ? sanitizeText(updates.streetAddress) || null : null;
-    }
-    if (updates.apartment !== undefined) {
-      profileUpdate.apartment = updates.apartment ? sanitizeText(updates.apartment) || null : null;
-    }
-    if (updates.city !== undefined) {
-      profileUpdate.city = updates.city ? sanitizeText(updates.city) || null : null;
-    }
-    if (updates.state !== undefined) {
-      profileUpdate.state = updates.state ? sanitizeText(updates.state) || null : null;
-    }
-    if (updates.zipCode !== undefined) {
-      profileUpdate.zip_code = updates.zipCode ? sanitizeText(updates.zipCode) || null : null;
-    }
-    if (updates.gateCode !== undefined) {
-      profileUpdate.gate_code = updates.gateCode ? sanitizeText(updates.gateCode) || null : null;
-    }
-    if (updates.addressNote !== undefined) {
-      profileUpdate.address_note = updates.addressNote ? sanitizeText(updates.addressNote) || null : null;
-    }
+    const addressTouched =
+      updates.streetAddress !== undefined ||
+      updates.apartment !== undefined ||
+      updates.city !== undefined ||
+      updates.state !== undefined ||
+      updates.zipCode !== undefined ||
+      updates.gateCode !== undefined ||
+      updates.addressNote !== undefined;
     if (updates.businessId !== undefined) {
+      if (updates.businessId) {
+        const { data: ownedBusiness } = await serviceRoleClient
+          .from('businesses')
+          .select('id')
+          .eq('id', updates.businessId)
+          .eq('owner_id', userId)
+          .maybeSingle();
+        if (!ownedBusiness) {
+          return NextResponse.json(
+            { error: 'You can only link a business you own' },
+            { status: 403 }
+          );
+        }
+      }
       profileUpdate.business_id = updates.businessId || null;
     }
     if (updates.companyRole !== undefined) {
@@ -147,13 +149,26 @@ async function handleUpdateProfile(request: AuthenticatedRequest) {
       profileUpdate.preferred_locale = updates.preferredLocale || null;
     }
 
+    if (addressTouched) {
+      const currentAddress = await getPersonalAddress(serviceRoleClient, userId);
+      const textOrNull = (value: string | null | undefined) =>
+        value ? sanitizeText(value) || null : null;
+      await upsertPersonalAddress(serviceRoleClient, userId, {
+        streetAddress: updates.streetAddress !== undefined ? textOrNull(updates.streetAddress) : currentAddress?.street_address,
+        apartment: updates.apartment !== undefined ? textOrNull(updates.apartment) : currentAddress?.apartment,
+        city: updates.city !== undefined ? textOrNull(updates.city) : currentAddress?.city,
+        state: updates.state !== undefined ? textOrNull(updates.state) : currentAddress?.state,
+        zipCode: updates.zipCode !== undefined ? textOrNull(updates.zipCode) : currentAddress?.zip_code,
+        gateCode: updates.gateCode !== undefined ? textOrNull(updates.gateCode) : currentAddress?.gate_code,
+        addressNote: updates.addressNote !== undefined ? textOrNull(updates.addressNote) : currentAddress?.address_note,
+      });
+    }
+
     // Update profile in database using service role client to bypass RLS
-    const { data: updatedProfile, error: profileError } = await serviceRoleClient
-      .from('profiles')
-      .update(profileUpdate)
-      .eq('id', userId)
-      .select()
-      .single();
+    const profileQuery = serviceRoleClient.from('profiles').select('*').eq('id', userId);
+    const { data: updatedProfile, error: profileError } = Object.keys(profileUpdate).length
+      ? await serviceRoleClient.from('profiles').update(profileUpdate).eq('id', userId).select().single()
+      : await profileQuery.single();
 
     if (profileError) {
       logger.error('Error updating profile', { endpoint: '/api/profile' }, profileError as Error);
@@ -174,6 +189,8 @@ async function handleUpdateProfile(request: AuthenticatedRequest) {
       companyName = business?.business_name || null;
     }
 
+    const address = await getPersonalAddress(serviceRoleClient, userId);
+
     // Return updated profile data immediately
     const response = NextResponse.json({
       profile: {
@@ -184,13 +201,13 @@ async function handleUpdateProfile(request: AuthenticatedRequest) {
         phone: updatedProfile.phone,
         referral: updatedProfile.referral,
         referralOther: updatedProfile.referral_other,
-        streetAddress: updatedProfile.street_address,
-        apartment: updatedProfile.apartment,
-        city: updatedProfile.city,
-        state: updatedProfile.state,
-        zipCode: updatedProfile.zip_code,
-        gateCode: updatedProfile.gate_code,
-        addressNote: updatedProfile.address_note,
+        streetAddress: address?.street_address ?? null,
+        apartment: address?.apartment ?? null,
+        city: address?.city ?? null,
+        state: address?.state ?? null,
+        zipCode: address?.zip_code ?? null,
+        gateCode: address?.gate_code ?? null,
+        addressNote: address?.address_note ?? null,
         businessId: updatedProfile.business_id,
         companyName: companyName,
         companyRole: updatedProfile.company_role,

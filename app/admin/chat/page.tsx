@@ -9,6 +9,7 @@ import { playNotificationSound } from '@/lib/utils/notificationSound';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import type { ProAgentPayload } from '@/lib/types/chat';
 
 interface Conversation {
   id: string;
@@ -35,6 +36,14 @@ interface ChatMessage {
   business_name?: string;
   read_at?: string;
   attachments?: ChatAttachment[];
+  payload?: ProAgentPayload | null;
+}
+
+interface AgentStep {
+  id: string;
+  messageId: string | null;
+  label: string;
+  status: string;
 }
 
 function formatTime(iso: string) {
@@ -58,6 +67,9 @@ export default function AdminChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [agentPaused, setAgentPaused] = useState(false);
+  const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
+  const [handingBack, setHandingBack] = useState(false);
   const [reply, setReply] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
@@ -153,6 +165,19 @@ export default function AdminChatPage() {
     }
   }, []);
 
+  const fetchAgent = useCallback(async (conversationId: string) => {
+    try {
+      const res = await fetch(`/api/chat/admin/agent?conversationId=${encodeURIComponent(conversationId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setAgentPaused(data.paused === true);
+      setAgentSteps(data.steps ?? []);
+    } catch {
+      setAgentPaused(false);
+      setAgentSteps([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchConversations();
     const interval = setInterval(fetchConversations, 50_000);
@@ -193,10 +218,13 @@ export default function AdminChatPage() {
   useEffect(() => {
     if (!selectedId) {
       setMessages([]);
+      setAgentSteps([]);
+      setAgentPaused(false);
       return;
     }
     fetchMessages(selectedId);
-  }, [selectedId, fetchMessages]);
+    fetchAgent(selectedId);
+  }, [selectedId, fetchMessages, fetchAgent]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -215,11 +243,13 @@ export default function AdminChatPage() {
             if (soundEnabled) playNotificationSound();
             if (row.conversation_id === selectedId) {
               fetchMessages(selectedId);
+              fetchAgent(selectedId);
             } else {
               fetchConversations();
             }
           } else if (row.sender === 'admin' && row.conversation_id === selectedId) {
             fetchMessages(selectedId);
+            fetchAgent(selectedId);
           }
         }
       )
@@ -228,7 +258,7 @@ export default function AdminChatPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedId, soundEnabled, supabase, fetchMessages, fetchConversations]);
+  }, [selectedId, soundEnabled, supabase, fetchMessages, fetchAgent, fetchConversations]);
 
   const handleClearHistory = useCallback(async () => {
     if (!selectedId || clearing) return;
@@ -285,14 +315,17 @@ export default function AdminChatPage() {
         body: JSON.stringify({
           conversationId: selectedId,
           body: reply.trim() || ' ',
+          sentAs: 'hub_agent',
           ...(pendingAttachments.length > 0 ? { attachments: pendingAttachments } : {}),
         }),
       });
       if (res.ok) {
         const data = await res.json();
         if (data.message) setMessages((prev) => [...prev, { ...data.message, attachments: data.message.attachments ?? [] }]);
+        setAgentPaused(true);
         setReply('');
         setPendingAttachments([]);
+        fetchAgent(selectedId);
       }
     } finally {
       setSending(false);
@@ -438,6 +471,31 @@ export default function AdminChatPage() {
                     </>
                   )}
                 </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {agentPaused && (
+                    <button
+                      type="button"
+                      disabled={handingBack}
+                      onClick={async () => {
+                        if (!selectedId) return;
+                        setHandingBack(true);
+                        try {
+                          const res = await fetch('/api/chat/admin/agent', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ conversationId: selectedId, paused: false }),
+                          });
+                          if (res.ok) setAgentPaused(false);
+                        } finally {
+                          setHandingBack(false);
+                        }
+                      }}
+                      className="rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-800 hover:bg-gray-100 disabled:opacity-50"
+                    >
+                      Hand back to ProAgent
+                    </button>
+                  )}
+                  {agentPaused && <span className="text-xs text-gray-500">ProAgent is paused</span>}
                 <button
                   type="button"
                   onClick={handleClearHistory}
@@ -448,6 +506,7 @@ export default function AdminChatPage() {
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
                 {messages.map((m) => (
@@ -479,6 +538,24 @@ export default function AdminChatPage() {
                         {m.sender === 'admin' ? 'ProBot' : m.business_name ? `Customer · To: ${m.business_name}` : 'Customer'}
                       </p>
                       {m.body.trim() && <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>}
+                      {m.payload?.pros?.map((pro) => (
+                        <a key={pro.id} href={pro.profileUrl} className="mt-1 block text-xs underline">
+                          {pro.name}
+                        </a>
+                      ))}
+                      {m.payload?.confirm && !m.payload.confirmed && (
+                        <p className="mt-1 text-xs opacity-80">Estimate draft waiting for confirm</p>
+                      )}
+                      {m.payload?.confirmed && (
+                        <p className="mt-1 text-xs opacity-80">Request sent</p>
+                      )}
+                      {agentSteps.filter((step) => step.messageId === m.id).length > 0 && (
+                        <ul className="mt-2 space-y-0.5">
+                          {agentSteps.filter((step) => step.messageId === m.id).map((step) => (
+                            <li key={step.id} className="text-xs opacity-80">{step.label}</li>
+                          ))}
+                        </ul>
+                      )}
                       {m.attachments?.length ? (
                         <div className="mt-2 space-y-2">
                           {m.attachments.map((att: ChatAttachment, i: number) =>
@@ -522,7 +599,11 @@ export default function AdminChatPage() {
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-gray-500">Replying as ProBot</p>
+                <p className="text-xs text-gray-500">
+                  {agentPaused
+                    ? 'You have this chat. ProAgent stays paused until you hand it back.'
+                    : 'Your reply pauses ProAgent until you hand the chat back.'}
+                </p>
                 <div className="flex gap-0 items-end">
                   <input ref={fileInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={handleAdminFileSelect} />
                   <div className="relative">

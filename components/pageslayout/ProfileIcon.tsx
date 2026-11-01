@@ -17,7 +17,9 @@ import {
   Users,
   LayoutDashboard,
   MessageCircle,
-  Briefcase
+  Briefcase,
+  HardDrive,
+  Home
 } from 'lucide-react';
 
 interface ProfileIconProps {
@@ -106,7 +108,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
   };
 
   return (
-    <div className="relative z-[100]">
+    <div className="relative z-[200]">
       <button
         ref={buttonRef}
         onClick={handleAccountButtonClick}
@@ -187,7 +189,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
       {isDropdownOpen && (
         <div
           ref={dropdownRef}
-          className="absolute right-0 mt-2 w-64 bg-white rounded-lg border-2 border-black shadow-lg z-[100] overflow-hidden"
+          className="absolute right-0 mt-2 w-64 bg-white rounded-lg border-2 border-black shadow-lg z-[200] overflow-hidden"
         >
           {/* Account Section */}
           {isAuthenticated ? (
@@ -269,13 +271,27 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   </Link>
                 )}
                 <button
+                  onClick={() => handleMenuItemClick('/places')}
+                  className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                >
+                  <Home className="w-4 h-4" />
+                  <span>{t('myPlaces')}</span>
+                </button>
+                <button
+                  onClick={() => handleMenuItemClick('/prodrive')}
+                  className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                >
+                  <HardDrive className="w-4 h-4" />
+                  <span>ProDrive</span>
+                </button>
+                <button
                   onClick={() => handleMenuItemClick('/account-management')}
                   className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
                 >
                   <Users className="w-4 h-4" />
                   <span>{t('accountManagement')}</span>
                 </button>
-                {isContractor && (
+                {isContractor && !isAdmin && (
                   <button
                     onClick={() => handleMenuItemClick('/crm')}
                     className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"

@@ -30,6 +30,7 @@ export async function GET() {
         business_background,
         business_background_position,
         slug,
+        show_calendar_on_procard,
         company_description,
         email,
         phone,
@@ -89,6 +90,7 @@ export async function GET() {
         mobilePhone: (business.mobile_phone as string) || undefined,
         links,
         userId: business.owner_id as string,
+        showCalendarOnProCard: (business.show_calendar_on_procard as boolean) ?? false,
       });
       return { ...transformed, userId: user.id };
     });

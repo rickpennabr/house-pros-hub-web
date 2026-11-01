@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
@@ -11,7 +11,7 @@ import { useProBotTransition } from '@/contexts/ProBotTransitionContext';
 import { HUB_WHATSAPP_URL } from '@/lib/constants/company';
 
 const PHONE_NUMBER = '702-232-0411';
-const BLACKOUT_MS = 500;
+const PROBOT_BLACKOUT_MS = 500;
 
 interface BusinessListMobileBottomBarProps {
   currentView: ViewType;
@@ -20,8 +20,8 @@ interface BusinessListMobileBottomBarProps {
 
 /**
  * Mobile-only bottom bar on the business list (HousePros) page.
- * Left: view toggle (card/list + day cycle). Right: ProBot, WhatsApp, Phone (mobile-only; header hides these on mobile).
- * Rendered via portal to document.body so it stays fixed to the viewport (not the scroll container).
+ * Left: view toggle (card/list + day cycle). Right: ProBot (same as before), WhatsApp, Phone.
+ * On mobile the unread ProBot badge sits in the menu, to the right of Pros.
  */
 export default function BusinessListMobileBottomBar({
   currentView,
@@ -33,12 +33,12 @@ export default function BusinessListMobileBottomBar({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const handleProBotClick = () => {
+  const handleProBotClick = useCallback(() => {
     setTransitioningToProbot(true);
     setTimeout(() => {
       router.push(`/${locale}/probot`);
-    }, BLACKOUT_MS);
-  };
+    }, PROBOT_BLACKOUT_MS);
+  }, [locale, router, setTransitioningToProbot]);
 
   const handlePhoneClick = () => {
     window.location.href = `tel:${PHONE_NUMBER.replace(/-/g, '')}`;
@@ -59,9 +59,8 @@ export default function BusinessListMobileBottomBar({
       {/* Center white vertical divider */}
       <div className="h-11 w-px flex-shrink-0 bg-white opacity-90" aria-hidden />
 
-      {/* Right 50%: ProBot, WhatsApp, Phone (mobile only; header shows these on desktop only) */}
+      {/* Right 50%: ProBot, WhatsApp, Phone (mobile only; header shows WA/phone on desktop only) */}
       <div className="flex flex-1 min-w-0 flex-shrink-0 basis-0 items-center justify-between overflow-visible pl-3">
-        {/* ProBot with Beta badge on top-right */}
         <div className="relative flex items-center justify-center shrink-0">
           <span
             className="beta-badge-dynamic absolute -top-[10px] -right-2 z-10 px-0.5 rounded text-[9px] font-bold text-black border border-black shadow"

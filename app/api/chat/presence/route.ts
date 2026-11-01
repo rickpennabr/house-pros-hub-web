@@ -7,6 +7,7 @@ import {
   presenceVisitorIdParamSchema,
 } from '@/lib/schemas/chat';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -45,18 +46,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
       }
       const keysToDelete: string[] = [`u:${user.id}`];
-      const { data: profile } = await supabaseAuth
-        .from('profiles')
-        .select('business_id')
-        .eq('id', user.id)
-        .single();
-      const profileBusinessId = (profile as { business_id?: string } | null)?.business_id;
-      if (profileBusinessId) keysToDelete.push(`b:${profileBusinessId}`);
       const { data: bizRows } = await supabase
         .from('businesses')
         .select('id')
-        .eq('owner_id', user.id)
-        .eq('is_active', true);
+        .eq('owner_id', user.id);
       (bizRows ?? []).forEach((r) => {
         const id = (r as { id: string }).id;
         if (id && !keysToDelete.includes(`b:${id}`)) keysToDelete.push(`b:${id}`);
@@ -71,6 +64,8 @@ export async function POST(request: NextRequest) {
       if (!visitorId) {
         return NextResponse.json({ error: 'visitorId required for visitor' }, { status: 400 });
       }
+      const cookieDenied = visitorCookieDenied(request, visitorId);
+      if (cookieDenied) return cookieDenied;
       const key = `v:${visitorId}`;
       const { error } = await supabase
         .from('chat_presence')

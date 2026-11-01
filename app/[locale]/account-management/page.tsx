@@ -17,7 +17,10 @@ import {
   Bookmark,
   Edit,
   Trash2,
-  LayoutDashboard
+  LayoutDashboard,
+  FileText,
+  HardDrive,
+  CreditCard
 } from 'lucide-react';
 
 interface Account {
@@ -48,7 +51,7 @@ function AccountManagementContent() {
   const locale = useLocale();
   const searchParams = useSearchParams();
   const t = useTranslations('accountManagement');
-  const { user, roles, logout, isLoading: authLoading } = useAuth();
+  const { user, roles, logout, isAdmin, isLoading: authLoading } = useAuth();
   const userId = user?.id ?? '';
   const [accountSelection, setAccountSelection] = useState<{
     userId: string;
@@ -63,6 +66,11 @@ function AccountManagementContent() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const selectedAccountId = accountSelection.userId === userId ? accountSelection.accountId : '';
   const effectiveSelectedAccountId = selectedAccountId || userId;
+
+  // Drop the previous account's businesses as soon as the session is gone.
+  useEffect(() => {
+    if (!userId) setApiBusinesses(null);
+  }, [userId]);
 
   // Load current user's businesses from API so they always appear in Select Account (not only from localStorage)
   useEffect(() => {
@@ -149,6 +157,12 @@ function AccountManagementContent() {
     }
   }, [searchParams, userId, router]);
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace(`/${locale}`);
+    }
+  }, [authLoading, user, router, locale]);
+
   const userBusinesses = useMemo<ProCardData[]>(() => {
     if (!userId) return [];
     return businessStorage.getBusinessesByUserId(userId);
@@ -195,6 +209,36 @@ function AccountManagementContent() {
       iconColor: 'text-white',
       borderColor: 'border-black',
       path: `/${locale}/crm`,
+    },
+    {
+      id: 'personal-prodrive',
+      title: t('actions.personal.prodrive.title'),
+      description: t('actions.personal.prodrive.description'),
+      icon: HardDrive,
+      iconBg: 'bg-black',
+      iconColor: 'text-white',
+      borderColor: 'border-black',
+      path: `/${locale}/prodrive`,
+    },
+    {
+      id: 'personal-subscription',
+      title: t('actions.personal.subscription.title'),
+      description: t('actions.personal.subscription.description'),
+      icon: CreditCard,
+      iconBg: 'bg-black',
+      iconColor: 'text-white',
+      borderColor: 'border-black',
+      path: `/${locale}/subscription`,
+    },
+    {
+      id: 'personal-proresume',
+      title: t('actions.personal.proresume.title'),
+      description: t('actions.personal.proresume.description'),
+      icon: FileText,
+      iconBg: 'bg-black',
+      iconColor: 'text-white',
+      borderColor: 'border-black',
+      path: `/${locale}/proresume`,
     },
   ], [t, locale]);
 
@@ -269,9 +313,14 @@ function AccountManagementContent() {
   // Filter quick actions based on account type. ProsCRM only when personal + contractor.
   const selectedAccount = visibleAccounts.find(acc => acc.id === effectiveSelectedAccountId);
   const isContractor = roles.includes('contractor');
+  const isInstaller = (roles as string[]).includes('installer');
   const visibleActions =
     selectedAccount?.type === 'personal'
-      ? personalActions.filter((a) => a.id !== 'personal-proscrm' || isContractor)
+      ? personalActions.filter((action) => {
+          if (action.id === 'personal-proscrm') return isContractor && !isAdmin;
+          if (action.id === 'personal-proresume') return isInstaller;
+          return true;
+        })
       : businessActions.map((action) => {
           if (action.id === '1') {
             // Edit Business
@@ -345,6 +394,10 @@ function AccountManagementContent() {
       </div>
     );
   };
+
+  if (!authLoading && !user) {
+    return null;
+  }
 
   return (
     <div className="bg-white">

@@ -1,8 +1,8 @@
 'use client';
 
-import { ReactNode, Suspense, useState, useEffect } from 'react';
+import { ReactNode, Suspense, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { CategoryProvider } from '@/contexts/CategoryContext';
+import { CategoryProvider, useCategory } from '@/contexts/CategoryContext';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { WelcomeProvider } from '@/contexts/WelcomeContext';
 import { BackgroundModeProvider, useBackgroundMode } from '@/contexts/BackgroundModeContext';
@@ -18,11 +18,22 @@ import Footer from '@/components/layout/Footer';
 function MainLayoutContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { mode } = useBackgroundMode();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const { isSearchOpen, setIsSearchOpen } = useCategory();
+
+  useEffect(() => {
+    setIsSearchOpen(false);
+  }, [pathname, setIsSearchOpen]);
 
   const isBusinessList = pathname?.includes('/businesslist') ?? false;
-  const useDayCycleBg = mounted && isBusinessList;
+  const isBlog = pathname?.includes('/blog') ?? false;
+  const isBlogArticle = /\/blog\/[^/]+\/?$/.test(pathname ?? '');
+  const isProJobs = pathname?.includes('/projobs') ?? false;
+  const keepsMenuVisible =
+    isProJobs ||
+    (pathname?.includes('/prosuppliers') ?? false) ||
+    (pathname?.includes('/proresume') ?? false);
+  const collapseMenuForSearch = isSearchOpen && !keepsMenuVisible;
+  const useDayCycleBg = isBusinessList;
   const isDynamic = mode === 'dynamic';
   const showSkyBg = useDayCycleBg && isDynamic;
 
@@ -39,11 +50,30 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
           </div>
         )}
         <PageContainer transparentBg={showSkyBg}>
-          <PageHeader />
-          <PagesMenu />
-          <PageCategories />
-          <PageContent>{children}</PageContent>
-          <Footer />
+          {isBlogArticle ? (
+            <div className="flex min-h-full flex-col">
+              {children}
+              <Footer />
+            </div>
+          ) : (
+            <>
+              <div
+                className={
+                  collapseMenuForSearch
+                    ? 'max-md:pointer-events-none max-md:invisible max-md:h-0 max-md:min-h-0 max-md:max-h-0 max-md:overflow-hidden max-md:opacity-0 md:visible md:opacity-100'
+                    : 'visible opacity-100'
+                }
+              >
+                <PageHeader />
+                <PagesMenu />
+              </div>
+              <Suspense fallback={<div className="h-[60px] w-full shrink-0 border-b-2 border-black" />}>
+                <PageCategories />
+              </Suspense>
+              <PageContent scroll={isBlog} flushTop={isProJobs}>{children}</PageContent>
+              <Footer />
+            </>
+          )}
         </PageContainer>
         <Suspense fallback={null}>
           <BotChatDrawer />
@@ -55,17 +85,15 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
 
 export default function MainLayout({ children }: { children: ReactNode }) {
   return (
-    <Suspense fallback={null}>
-      <CategoryProvider>
-        <ChatProvider>
-          <WelcomeProvider>
-            <BackgroundModeProvider>
-              <MainLayoutContent>{children}</MainLayoutContent>
-            </BackgroundModeProvider>
-          </WelcomeProvider>
-        </ChatProvider>
-      </CategoryProvider>
-    </Suspense>
+    <CategoryProvider>
+      <ChatProvider>
+        <WelcomeProvider>
+          <BackgroundModeProvider>
+            <MainLayoutContent>{children}</MainLayoutContent>
+          </BackgroundModeProvider>
+        </WelcomeProvider>
+      </ChatProvider>
+    </CategoryProvider>
   );
 }
 

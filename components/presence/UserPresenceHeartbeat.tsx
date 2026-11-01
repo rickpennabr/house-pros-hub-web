@@ -1,45 +1,32 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { runWhileVisible } from '@/lib/utils/runWhileVisible';
 
-const USER_HEARTBEAT_MS = 35_000;
+const USER_HEARTBEAT_MS = 60_000;
 
 /**
  * When the current user is authenticated, sends periodic presence heartbeats
- * so they show as online in the admin ProBot Contacts list (anywhere on the platform).
- * Skips requests when not logged in to avoid 401 noise in the console.
+ * so they show as online in the admin ProBot Contacts list.
+ * Pauses while the tab is hidden. Skips requests when not logged in.
  */
 export default function UserPresenceHeartbeat() {
   const { user } = useAuth();
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!user) return;
 
-    let mounted = true;
-
-    const run = async () => {
-      try {
-        await fetch('/api/chat/presence', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'user' }),
-          credentials: 'include',
-        });
-      } catch {
-        // ignore
-      }
+    const run = () => {
+      fetch('/api/chat/presence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'user' }),
+        credentials: 'include',
+      }).catch(() => {});
     };
 
-    run();
-    if (!intervalRef.current) {
-      intervalRef.current = setInterval(run, USER_HEARTBEAT_MS);
-    }
-    return () => {
-      mounted = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    return runWhileVisible(run, USER_HEARTBEAT_MS);
   }, [user]);
 
   return null;

@@ -80,6 +80,11 @@ function getRequiredEnvVars(): EnvVar[] {
       required: process.env.NODE_ENV === 'production' && !isBuildPhase(),
       description: 'Admin email address for authorization (required in production)',
     },
+    {
+      name: 'CHAT_VISITOR_TOKEN_SECRET',
+      required: process.env.NODE_ENV === 'production' && !isBuildPhase(),
+      description: 'Secret used to sign visitor chat cookies (required in production)',
+    },
   ];
 }
 

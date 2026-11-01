@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Building2, Paperclip, User, Check, CheckCheck, ImageIcon } from 'lucide-react';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import type { ChatMessage } from '@/lib/types/chat';
+import ProAgentCards from './ProAgentCards';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
 
 /** Renders image with WhatsApp-style thumbnail; shows placeholder if load fails. */
@@ -48,6 +49,9 @@ interface ProBotMessageBubbleProps {
   adminViewingConversation: ProBotRecentConversation | null;
   selectedContact: ProBotContact | null;
   visitorAvatarUrl: string | null;
+  confirmingStepId?: string | null;
+  onConfirmEstimate?: (stepId: string) => void;
+  onEditEstimate?: () => void;
 }
 
 export default function ProBotMessageBubble({
@@ -56,6 +60,9 @@ export default function ProBotMessageBubble({
   adminViewingConversation,
   selectedContact,
   visitorAvatarUrl,
+  confirmingStepId,
+  onConfirmEstimate,
+  onEditEstimate,
 }: ProBotMessageBubbleProps) {
   const t = useTranslations('probot');
   const isVisitor = msg.sender === 'visitor';
@@ -91,10 +98,23 @@ export default function ProBotMessageBubble({
         <div className="min-w-0 flex-1">
           {msg.sender === 'admin' && (
             <p className="text-xs font-medium text-gray-500 mb-1">
-              {msg.admin_sent_as === 'business' ? (msg.business_name ?? selectedContact?.name ?? 'Business') : 'ProBot'}
+              {msg.admin_sent_as === 'business'
+                ? (msg.business_name ?? selectedContact?.name ?? 'Business')
+                : msg.admin_sent_as === 'hub_agent'
+                  ? (msg.admin_display_name || t('replyAsHubAgent'))
+                  : 'ProBot'}
             </p>
           )}
           {msg.body.trim() && <p className="whitespace-pre-wrap break-words">{msg.body}</p>}
+          {msg.payload && (
+            <ProAgentCards
+              payload={msg.payload}
+              canConfirm={!isAdminView && !msg.payload.confirmed}
+              confirming={confirmingStepId === msg.payload.confirm?.stepId}
+              onConfirm={onConfirmEstimate}
+              onEdit={onEditEstimate}
+            />
+          )}
           {msg.attachments?.length ? (
             <div className="mt-2 space-y-2">
               {msg.attachments.map((att, i) =>

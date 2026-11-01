@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { useLocale } from 'next-intl';
 import { ChevronDown, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle } from 'lucide-react';
 import Pagination from '@/components/ui/Pagination';
 import { FormField } from '@/components/ui/FormField';
@@ -67,6 +70,8 @@ function SortHeader({ label, sortKey, currentSort, currentDir, onSort }: { label
 type ViewMode = 'table' | 'add' | 'edit';
 
 export default function CRMProjectsPage() {
+  const searchParams = useSearchParams();
+  const locale = useLocale();
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -97,6 +102,7 @@ export default function CRMProjectsPage() {
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const prefillsAppliedRef = useRef(false);
 
   const fetchProjects = useCallback(async () => {
     const isFirst = !hasLoadedOnceRef.current;
@@ -123,6 +129,12 @@ export default function CRMProjectsPage() {
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
   useEffect(() => {
+    const requestedCustomerId = searchParams.get('customerId');
+    if (!requestedCustomerId) return;
+    setViewMode('add');
+  }, [searchParams]);
+
+  useEffect(() => {
     if (viewMode === 'add' || viewMode === 'edit') {
       Promise.all([
         fetch('/api/crm/customers?pageSize=500', { credentials: 'include' }).then((r) => r.json()),
@@ -133,6 +145,17 @@ export default function CRMProjectsPage() {
       }).catch(() => { setCustomers([]); setEstimates([]); });
     }
   }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== 'add') return;
+    if (prefillsAppliedRef.current) return;
+    if (customers.length === 0) return;
+    const requestedCustomerId = searchParams.get('customerId');
+    if (requestedCustomerId && customers.some((customer) => customer.id === requestedCustomerId)) {
+      setFormCustomerId(requestedCustomerId);
+    }
+    prefillsAppliedRef.current = true;
+  }, [customers, searchParams, viewMode]);
 
   useEffect(() => {
     if (viewMode !== 'edit' || !editingId) return;
@@ -391,6 +414,7 @@ export default function CRMProjectsPage() {
       {openActionsId && menuPosition && typeof document !== 'undefined' &&
         createPortal(
           <div ref={actionsMenuRef} className="fixed z-[100] min-w-[120px] py-1 bg-white border border-gray-200 rounded-md shadow-lg" style={{ top: menuPosition.top, left: menuPosition.left }}>
+            <Link href={`/${locale}/crm/projects/${openActionsId}/photos`} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { setOpenActionsId(null); setMenuPosition(null); }}>Photos</Link>
             <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { setEditingId(openActionsId); setViewMode('edit'); setOpenActionsId(null); setMenuPosition(null); }}><Pencil className="w-3.5 h-3.5" /> Edit</button>
             <button type="button" className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { setDeleteConfirm({ id: openActionsId }); setOpenActionsId(null); setMenuPosition(null); }}><Trash2 className="w-3.5 h-3.5" /> Delete</button>
           </div>,

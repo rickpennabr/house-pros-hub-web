@@ -6,6 +6,7 @@ import { adminSendMessageSchema } from '@/lib/schemas/chat';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { filterAllowedAttachments } from '@/lib/utils/chatAttachmentAllowlist';
 import { sendVisitorPushNotification } from '@/lib/services/pushNotificationService';
+import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 
 /**
  * POST /api/chat/admin/messages
@@ -56,12 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isAdmin) {
-      const { data: profile } = await supabaseAuth
-        .from('profiles')
-        .select('business_id')
-        .eq('id', user.id)
-        .single();
-      const userBusinessId = (profile as { business_id?: string } | null)?.business_id ?? null;
+      const userBusinessId = await getOwnedBusinessId(user.id);
       if (!userBusinessId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
@@ -168,6 +164,18 @@ export async function POST(request: NextRequest) {
         admin_display_name = [p.first_name, p.last_name].filter(Boolean).join(' ').trim() || undefined;
       }
     }
+    if (message.admin_sent_as === 'hub_agent') {
+      await supabase
+        .from('probot_conversations')
+        .update({ agent_paused_at: new Date().toISOString() })
+        .eq('id', conversationId);
+      await supabase
+        .from('probot_agent_steps')
+        .update({ status: 'failed', output: { reason: 'superseded' } })
+        .eq('conversation_id', conversationId)
+        .eq('status', 'needs_confirm');
+    }
+
     const pushBody = (messageBody ?? '').trim().slice(0, 80) + ((messageBody ?? '').trim().length > 80 ? '…' : '');
     await sendVisitorPushNotification(
       conversationId,

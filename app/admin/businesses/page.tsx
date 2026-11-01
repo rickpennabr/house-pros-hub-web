@@ -22,7 +22,7 @@ import Modal from '@/components/ui/Modal';
 const PAGE_SIZE = 25;
 
 type ViewMode = 'table' | 'add' | 'edit';
-type SortKey = 'created_at' | 'updated_at' | 'business_name' | 'email' | 'is_active' | 'is_verified';
+type SortKey = 'created_at' | 'updated_at' | 'business_name' | 'email' | 'is_active' | 'is_verified' | 'display_order';
 
 function formatDate(iso: string | null) {
   if (!iso) return '—';
@@ -33,11 +33,65 @@ function formatDate(iso: string | null) {
   });
 }
 
+function OrderCell({
+  businessId,
+  value,
+  isSaving,
+  onSave,
+  onClick,
+}: {
+  businessId: string;
+  value: number | null;
+  isSaving: boolean;
+  onSave: (value: number | null) => void;
+  onClick: (e: React.MouseEvent) => void;
+}) {
+  const [local, setLocal] = useState(value === null ? '' : String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setLocal(value === null ? '' : String(value));
+  }, [value, focused]);
+
+  const commit = () => {
+    const trimmed = local.trim();
+    if (trimmed === '') {
+      onSave(null);
+      return;
+    }
+    const n = parseInt(trimmed, 10);
+    if (!Number.isNaN(n) && n >= 0) onSave(n);
+    else setLocal(value === null ? '' : String(value));
+  };
+
+  return (
+    <div onClick={onClick} role="presentation">
+      <input
+        type="text"
+        inputMode="numeric"
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={commit}
+        onFocus={() => setFocused(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur();
+          }
+        }}
+        disabled={isSaving}
+        className="w-14 px-2 py-0.5 border border-gray-300 rounded text-sm bg-white text-gray-900 disabled:opacity-60"
+        aria-label="Display order"
+      />
+    </div>
+  );
+}
+
 const BUSINESS_COLUMNS: AdminDataTableColumn<AdminBusinessRow>[] = [
+  { id: 'order', label: 'Order', sortKey: 'display_order' },
   { id: 'name', label: 'Name', sortKey: 'business_name' },
   { id: 'email', label: 'Email', sortKey: 'email' },
   { id: 'phone', label: 'Phone' },
-  { id: 'status', label: 'Status' },
+  { id: 'status', label: 'Status', sortKey: 'is_active' },
   { id: 'created', label: 'Created', sortKey: 'created_at' },
   { id: 'actions', label: 'Actions', resizable: false },
 ];
@@ -46,8 +100,9 @@ export default function BusinessesPage() {
   const [businesses, setBusinesses] = useState<AdminBusinessRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<SortKey>('created_at');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [sortBy, setSortBy] = useState<SortKey>('display_order');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [orderSavingId, setOrderSavingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -218,8 +273,43 @@ export default function BusinessesPage() {
     setViewMode('edit');
   };
 
+  const saveDisplayOrder = useCallback(
+    async (id: string, value: number | null) => {
+      setOrderSavingId(id);
+      setError(null);
+      try {
+        const res = await fetch(`/api/admin/businesses/${id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ display_order: value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Failed to update order');
+        setBusinesses((prev) =>
+          prev.map((b) => (b.id === id ? { ...b, display_order: value } : b))
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to update order');
+      } finally {
+        setOrderSavingId(null);
+      }
+    },
+    []
+  );
+
   const renderCell = (row: AdminBusinessRow, columnId: string) => {
     switch (columnId) {
+      case 'order':
+        return (
+          <OrderCell
+            businessId={row.id}
+            value={row.display_order ?? null}
+            isSaving={orderSavingId === row.id}
+            onSave={(value) => saveDisplayOrder(row.id, value)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        );
       case 'name':
         return row.business_name || '—';
       case 'email':
@@ -379,7 +469,27 @@ export default function BusinessesPage() {
       {viewMode === 'table' && (
       <>
       <AdminDataTable<AdminBusinessRow>
+        columnOrderKey="admin-businesses"
+        exportName="businesses"
         columns={BUSINESS_COLUMNS}
+        getCellText={(row, columnId) => {
+          switch (columnId) {
+            case 'order':
+              return row.display_order == null ? '' : String(row.display_order);
+            case 'name':
+              return row.business_name || '';
+            case 'email':
+              return row.email || '';
+            case 'phone':
+              return row.phone || row.mobile_phone || '';
+            case 'status':
+              return `${row.is_active ? 'Active' : 'Inactive'} ${row.is_verified ? 'Verified' : 'Unverified'}`;
+            case 'created':
+              return formatDate(row.created_at);
+            default:
+              return '';
+          }
+        }}
         data={businesses}
         total={total}
         page={page}

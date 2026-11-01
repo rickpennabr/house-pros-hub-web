@@ -10,7 +10,7 @@ interface CRMHeaderProps {
 
 export function CRMHeader({ locale }: CRMHeaderProps) {
   return (
-    <header className="w-full h-[60px] border-b-2 border-black px-2 md:px-2 py-2 md:py-2 bg-white sticky top-0 z-50 shrink-0">
+    <header className="no-print w-full h-[60px] border-b-2 border-black px-2 md:px-2 py-2 md:py-2 bg-white sticky top-0 z-50 shrink-0">
       <div className="w-full h-full flex items-center justify-between gap-2">
         <div className="flex items-center flex-shrink-0 gap-2">
           <Link

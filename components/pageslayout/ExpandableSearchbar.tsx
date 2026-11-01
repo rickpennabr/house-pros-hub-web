@@ -262,21 +262,21 @@ export default function ExpandableSearchbar({
       {/* Search Bar - Expands when open */}
       <div
         ref={searchBarRef}
-        className={`absolute left-0 right-0 top-0 bottom-0 flex items-center transition-all duration-300 z-30 ${
+        className={`absolute inset-0 z-30 flex p-2 transition-all duration-300 ${
           isSearchOpen 
             ? 'opacity-100 pointer-events-auto' 
             : 'opacity-0 pointer-events-none'
         }`}
       >
-        <div className="w-full px-2 flex items-center gap-2">
-          <div className="relative flex-1">
+        <div className="flex h-full w-full items-center gap-2">
+          <div className="relative h-full min-w-0 flex-1">
             <input
               ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={searchQuery ? displayPlaceholder : animatedPlaceholder}
-              className="w-full h-10 pl-8 md:pl-10 pr-2 md:pr-10 border-2 border-black dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a1a] focus:outline-none transition-all text-black dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm md:text-base"
+              className="h-full w-full pl-8 md:pl-10 pr-2 md:pr-10 border-2 border-black dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a1a] focus:outline-none transition-all text-black dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm md:text-base"
               suppressHydrationWarning
             />
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-red-500 pointer-events-none" size={20} />
@@ -292,7 +292,7 @@ export default function ExpandableSearchbar({
           </div>
           <button
             onClick={handleSearchToggle}
-            className="h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-colors"
+            className="h-full aspect-square rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-colors"
             aria-label="Close search"
           >
             <X className="w-5 h-5 text-white" />

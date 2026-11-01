@@ -7,6 +7,7 @@ import { useLocale } from 'next-intl';
 import { useTranslations } from 'next-intl';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useChatThreadRefresh } from '@/hooks/useChatThreadRefresh';
 import ChatSignupForm from '@/components/chat/ChatSignupForm';
 import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
 import { LeavePageWarningModal } from '@/app/[locale]/(auth)/signup/components/LeavePageWarningModal';
@@ -255,12 +256,30 @@ export default function BotChatDrawer() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const refreshDrawerMessages = useCallback(() => {
+    if (!conversationId || !visitorId) return;
+    fetch(
+      `/api/chat/messages?conversationId=${encodeURIComponent(conversationId)}&visitorId=${encodeURIComponent(visitorId)}`
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setMessages(data.messages ?? []);
+      })
+      .catch(() => {});
+  }, [conversationId, visitorId]);
+
+  useChatThreadRefresh(
+    conversationId,
+    Boolean(isOpen && conversationId && visitorId && userChoice !== 'account_estimate'),
+    refreshDrawerMessages
+  );
+
   // Fetch pros list when user chooses "Talk to a pro" or "Message a pro"
   useEffect(() => {
     if (!isOpen || (userChoice !== 'talk_to_pro' && userChoice !== 'message_a_pro')) return;
     setChatProListLoading(true);
     setChatProListError(null);
-    fetch('/api/businesses')
+    fetch('/api/businesses?limit=50')
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load pros');
         return res.json();
@@ -272,25 +291,6 @@ export default function BotChatDrawer() {
       .catch((e) => setChatProListError(e instanceof Error ? e.message : 'Failed to load pros'))
       .finally(() => setChatProListLoading(false));
   }, [isOpen, userChoice]);
-
-  // Poll for new messages (admin replies) while drawer is open; skip when on estimate form to avoid state churn
-  useEffect(() => {
-    if (!isOpen || !conversationId || !visitorId || userChoice === 'account_estimate') return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(
-          `/api/chat/messages?conversationId=${encodeURIComponent(conversationId)}&visitorId=${encodeURIComponent(visitorId)}`
-        );
-        if (res.ok) {
-          const { messages: msgs } = await res.json();
-          setMessages(msgs ?? []);
-        }
-      } catch {
-        // ignore
-      }
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [isOpen, conversationId, visitorId, userChoice]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -4,9 +4,10 @@
  * Verifying ensures the token was issued by the server and not expired.
  */
 
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 
 const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
+export const VISITOR_COOKIE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function getSecret(): string {
   const secret = process.env.CHAT_VISITOR_TOKEN_SECRET?.trim();
@@ -33,27 +34,44 @@ function hmacSha256Base64Url(message: string, secret: string): string {
   return Buffer.from(sig).toString('base64url');
 }
 
-export function signVisitorDeleteToken(visitorId: string): string {
-  const expiry = Date.now() + TOKEN_TTL_MS;
+function signaturesMatch(actual: string, expected: string): boolean {
+  const left = Buffer.from(actual);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
+export function signVisitorCapability(visitorId: string, ttlMs: number): string {
+  const expiry = Date.now() + ttlMs;
   const payload = `${visitorId}:${expiry}`;
   const encoded = base64UrlEncode(payload);
-  const secret = getSecret();
-  const signature = hmacSha256Base64Url(encoded, secret);
+  const signature = hmacSha256Base64Url(encoded, getSecret());
   return `${encoded}.${signature}`;
 }
 
-export function verifyVisitorDeleteToken(token: string, visitorId: string): boolean {
-  if (!token || typeof token !== 'string') return false;
+/** Returns the visitor id when the signature is valid and the token has not expired. */
+export function readSignedVisitorId(token: string): string | null {
+  if (!token || typeof token !== 'string') return null;
   const parts = token.split('.');
-  if (parts.length !== 2) return false;
+  if (parts.length !== 2) return null;
   const [encoded, signature] = parts;
-  const secret = getSecret();
-  const expectedSig = hmacSha256Base64Url(encoded, secret);
-  if (expectedSig !== signature) return false;
+  const expectedSig = hmacSha256Base64Url(encoded, getSecret());
+  if (!signaturesMatch(signature, expectedSig)) return null;
   const decoded = base64UrlDecode(encoded);
-  const [tokenVisitorId, expiryStr] = decoded.split(':');
-  if (tokenVisitorId !== visitorId) return false;
-  const expiry = parseInt(expiryStr ?? '0', 10);
-  if (Number.isNaN(expiry) || expiry < Date.now()) return false;
-  return true;
+  const splitAt = decoded.lastIndexOf(':');
+  if (splitAt <= 0) return null;
+  const visitorId = decoded.slice(0, splitAt);
+  const expiry = parseInt(decoded.slice(splitAt + 1), 10);
+  if (!visitorId || Number.isNaN(expiry) || expiry < Date.now()) return null;
+  return visitorId;
+}
+
+export function signVisitorDeleteToken(visitorId: string): string {
+  return signVisitorCapability(visitorId, TOKEN_TTL_MS);
+}
+
+export function verifyVisitorDeleteToken(token: string, visitorId: string): boolean {
+  const signedId = readSignedVisitorId(token);
+  if (!signedId || signedId.length !== visitorId.length) return false;
+  return signaturesMatch(signedId, visitorId);
 }

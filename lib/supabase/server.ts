@@ -40,6 +40,25 @@ export async function createClient() {
  * This bypasses RLS and should only be used for server-side operations
  * @throws Error if SUPABASE_SERVICE_ROLE_KEY environment variable is not set
  */
+/**
+ * Anon client for public reads. It does not touch cookies, so the page can
+ * stay cacheable instead of becoming dynamic on every request.
+ */
+export function createPublicClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) {
+    throw new Error('Supabase URL and anon key are required for public reads.');
+  }
+
+  return createSupabaseJSClient<Database>(supabaseUrl, anonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
 export function createServiceRoleClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

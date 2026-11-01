@@ -8,7 +8,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : null;
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  outputFileTracingIncludes: {
+    "/api/chat/messages": ["./lib/chat/probot-hardscape.md"],
+  },
   experimental: {
     optimizePackageImports: [
       'react-icons/gi',
@@ -39,9 +41,20 @@ const nextConfig: NextConfig = {
         protocol: 'https' as const,
         hostname: supabaseHostname,
       }] : []),
+      {
+        protocol: 'https',
+        hostname: 'hzhyuuiovwayblkovfpr.supabase.co',
+      },
     ],
     // Configure supported image qualities
     qualities: [75, 90],
+  },
+  async rewrites() {
+    return [
+      { source: '/llms.txt', destination: '/api/agent/discovery/llms' },
+      { source: '/.well-known/mcp/server-card.json', destination: '/api/agent/discovery/server-card' },
+      { source: '/.well-known/api-catalog', destination: '/api/agent/discovery/api-catalog' },
+    ];
   },
   async headers() {
     return [
@@ -75,7 +88,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()',
+            value: 'camera=(self), microphone=(), geolocation=(self)',
           },
           // Content-Security-Policy with Google Maps support
           {
@@ -92,6 +105,9 @@ const nextConfig: NextConfig = {
               process.env.NODE_ENV === 'development'
                 ? "connect-src 'self' https: http://localhost:* http://127.0.0.1:* http://192.168.0.25:3000 http://192.168.0.26:3000 http://127.0.0.1:7243 https://maps.googleapis.com https://*.googleapis.com"
                 : "connect-src 'self' https: https://maps.googleapis.com https://*.googleapis.com",
+              "base-uri 'self'",
+              "object-src 'none'",
+              "form-action 'self'",
               "frame-ancestors 'self'",
               // Allow Google Maps worker scripts
               "worker-src 'self' blob:",

@@ -102,12 +102,10 @@ export default function PageHeader({ children }: PageHeaderProps) {
   const isHomePage = pathname?.includes('/businesslist') || pathname === `/${locale}` || pathname === `/${locale}/`;
   const isSuppliersPage = pathname?.includes('/prosuppliers');
   const isContractor = roles.includes('contractor');
-  const isCustomer = !isAdmin && !isContractor;
   const showFreeEstimate = (isHomePage || isSuppliersPage) && !isAdmin && !isContractor;
-  /** Mobile header logo: mobile-optimized logo with Pro Bot */
-  const mobileLogoSrc = '/hph-logo-with-pro-bot-mobile.png';
-  /** Mobile dark (dynamic sky or system dark): white logo (same as desktop dark for consistency) */
-  const mobileDarkLogoSrc = '/hph-logo-with-pro-bot-wt.png';
+  /** Mobile header logo: compact house mark (light and dark) */
+  const mobileLogoSrc = '/houseproshub_logo.png';
+  const mobileDarkLogoSrc = '/houseproshub_logo.png';
   /** PC desktop dark (dynamic sky or system dark): white logo */
   const desktopDarkLogoSrc = '/hph-logo-with-pro-bot-wt.png';
 
@@ -153,7 +151,7 @@ export default function PageHeader({ children }: PageHeaderProps) {
   // #endregion
 
   return (
-    <header ref={headerRef} className="w-full h-[60px] border-b-2 border-black p-1 md:px-2 flex-shrink-0 flex items-center">
+    <header ref={headerRef} className="relative z-[200] w-full h-[60px] border-b-2 border-black p-1 md:px-2 flex-shrink-0 flex items-center">
       <div className="relative w-full h-10 flex items-center justify-between gap-2">
         {/* Left: Logo button for legal pages, Language Switcher for others */}
         <div className="flex items-center flex-shrink-0 z-10 h-10">

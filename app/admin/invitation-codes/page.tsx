@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 
-type InvitationRole = 'contractor' | 'realtor';
+type InvitationRole = 'contractor' | 'realtor' | 'installer';
 
 interface InvitationCodeRow {
   id: string;
@@ -11,6 +12,37 @@ interface InvitationCodeRow {
   expires_at: string;
   used_at: string | null;
   used_by: string | null;
+}
+
+function codeStatus(row: InvitationCodeRow): string {
+  if (row.used_at) return 'Used';
+  if (new Date(row.expires_at) <= new Date()) return 'Expired';
+  return 'Unused';
+}
+
+const CODE_COLUMNS: AdminDataTableColumn<InvitationCodeRow>[] = [
+  { id: 'code', label: 'Code', width: 160 },
+  { id: 'created_at', label: 'Created', width: 180 },
+  { id: 'expires_at', label: 'Expires', width: 180 },
+  { id: 'status', label: 'Status', width: 120 },
+  { id: 'used_at', label: 'Used', width: 180 },
+];
+
+function codeCellText(row: InvitationCodeRow, columnId: string): string {
+  switch (columnId) {
+    case 'code':
+      return row.code;
+    case 'created_at':
+      return formatDate(row.created_at);
+    case 'expires_at':
+      return formatDate(row.expires_at);
+    case 'status':
+      return codeStatus(row);
+    case 'used_at':
+      return row.used_at ? formatDate(row.used_at) : '';
+    default:
+      return '';
+  }
 }
 
 function formatDate(iso: string) {
@@ -86,7 +118,7 @@ export default function InvitationCodesPage() {
     }
   };
 
-  const roleLabel = role === 'realtor' ? 'Realtor' : 'Contractor';
+  const roleLabel = role === 'realtor' ? 'Realtor' : role === 'installer' ? 'Installer' : 'Contractor';
 
   return (
     <div className="w-full">
@@ -94,7 +126,7 @@ export default function InvitationCodesPage() {
         <div>
           <h1 className="text-3xl font-semibold text-black mb-2">Invitation codes</h1>
           <p className="text-gray-600 mb-3">
-            Generate one-time codes for contractor or realtor signup. Each code expires in 30 days.
+            Generate one-time codes for contractor, realtor, or installer signup. Each code expires in 30 days.
           </p>
           <div className="flex gap-2 border-b border-gray-200">
             <button
@@ -119,6 +151,17 @@ export default function InvitationCodesPage() {
             >
               Realtor
             </button>
+            <button
+              type="button"
+              onClick={() => setRole('installer')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                role === 'installer'
+                  ? 'border-black text-black'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Installer
+            </button>
           </div>
         </div>
         <button
@@ -140,7 +183,7 @@ export default function InvitationCodesPage() {
       {newCode && newCode.role === role && (
         <div className="mb-6 p-4 border-2 border-black rounded-lg bg-gray-50 flex flex-col gap-2">
           <p className="font-medium text-black">
-            New {newCode.role === 'realtor' ? 'realtor' : 'contractor'} code created — give this to the {newCode.role === 'realtor' ? 'realtor' : 'contractor'}:
+            New {roleLabel.toLowerCase()} code created — give this to the {roleLabel.toLowerCase()}:
           </p>
           <div className="flex items-center gap-2 flex-wrap">
             <code className="px-3 py-2 bg-white border border-gray-300 rounded font-mono text-lg">
@@ -162,48 +205,33 @@ export default function InvitationCodesPage() {
         </div>
       )}
 
-      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-        {loading ? (
-          <p className="p-6 text-gray-500">Loading…</p>
-        ) : codes.length === 0 ? (
-          <p className="p-6 text-gray-500">No {role} invitation codes yet. Generate one above.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="px-4 py-3 font-semibold text-black">Code</th>
-                  <th className="px-4 py-3 font-semibold text-black">Created</th>
-                  <th className="px-4 py-3 font-semibold text-black">Expires</th>
-                  <th className="px-4 py-3 font-semibold text-black">Status</th>
-                  <th className="px-4 py-3 font-semibold text-black">Used</th>
-                </tr>
-              </thead>
-              <tbody>
-                {codes.map((row) => (
-                  <tr key={row.id} className="border-b border-gray-100">
-                    <td className="px-4 py-3 font-mono text-sm">{row.code}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{formatDate(row.created_at)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{formatDate(row.expires_at)}</td>
-                    <td className="px-4 py-3 text-sm">
-                      {row.used_at ? (
-                        <span className="text-gray-600">Used</span>
-                      ) : new Date(row.expires_at) <= new Date() ? (
-                        <span className="text-gray-500">Expired</span>
-                      ) : (
-                        <span className="text-green-600 font-medium">Unused</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {row.used_at ? formatDate(row.used_at) : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <AdminDataTable
+        clientSide
+        columnOrderKey="admin-invitation-codes"
+        exportName="invitation-codes"
+        columns={CODE_COLUMNS}
+        data={codes}
+        total={codes.length}
+        pageSize={50}
+        isLoading={loading}
+        hasLoadedOnce={!loading}
+        error={null}
+        getRowId={(row) => row.id}
+        getCellText={codeCellText}
+        searchPlaceholder="Search codes..."
+        emptyMessage={`No ${role} invitation codes yet. Generate one above.`}
+        itemLabel="codes"
+        primaryColumnId="code"
+        renderCell={(row, columnId) => {
+          if (columnId === 'code') return <span className="font-mono text-sm">{row.code}</span>;
+          if (columnId === 'status') {
+            const status = codeStatus(row);
+            const className = status === 'Unused' ? 'text-green-600 font-medium' : 'text-gray-600';
+            return <span className={className}>{status}</span>;
+          }
+          return codeCellText(row, columnId) || '—';
+        }}
+      />
     </div>
   );
 }

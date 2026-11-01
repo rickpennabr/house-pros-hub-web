@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
+import { crmEstimateCreateSchema, normalizeEstimateAmountCents } from '@/lib/schemas/crmEstimate';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -20,6 +21,12 @@ async function requireContractor() {
 
 const VALID_SORT = ['created_at', 'updated_at', 'status', 'due_date', 'amount_cents'] as const;
 
+function getDefaultEstimateValidityDate(days = 30) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { error: authError, user } = await requireContractor();
@@ -30,6 +37,7 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '25', 10)));
     const sortBy = (searchParams.get('sortBy') || 'created_at') as (typeof VALID_SORT)[number];
     const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc';
+    const search = searchParams.get('search')?.trim() || '';
     const statusFilter = searchParams.get('status') || '';
 
     const supabase = await createClient();
@@ -43,6 +51,24 @@ export async function GET(request: NextRequest) {
 
     if (statusFilter && ['draft', 'sent', 'accepted', 'declined'].includes(statusFilter)) {
       query = query.eq('status', statusFilter as 'draft' | 'sent' | 'accepted' | 'declined');
+    }
+
+    if (search) {
+      const { data: matchingCustomers } = await supabase
+        .from('pro_crm_customers')
+        .select('id')
+        .eq('owner_id', user.id)
+        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,display_name.ilike.%${search}%,company_name.ilike.%${search}%`);
+      const matchingCustomerIds = (matchingCustomers ?? []).map((customer) => customer.id);
+      if (matchingCustomerIds.length === 0) {
+        return NextResponse.json({
+          estimates: [],
+          total: 0,
+          page,
+          pageSize,
+        });
+      }
+      query = query.in('customer_id', matchingCustomerIds);
     }
 
     const from = (page - 1) * pageSize;
@@ -90,9 +116,22 @@ export async function POST(request: NextRequest) {
     const { error: authError, user } = await requireContractor();
     if (authError || !user) return authError!;
 
-    const body = await request.json();
-    const customerId = body.customerId ?? body.customer_id;
-    if (!customerId || typeof customerId !== 'string') {
+    const rawBody = await request.json();
+    const parsed = crmEstimateCreateSchema.safeParse({
+      customerId: rawBody.customerId ?? rawBody.customer_id,
+      lineItems: rawBody.lineItems ?? rawBody.line_items ?? null,
+      status: rawBody.status,
+      dueDate: rawBody.dueDate ?? rawBody.due_date ?? null,
+      validityDate: rawBody.validityDate ?? rawBody.validity_date ?? rawBody.valid_until ?? null,
+      note: rawBody.note ?? null,
+    });
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid estimate payload' }, { status: 400 });
+    }
+
+    const body = parsed.data;
+    const customerId = body.customerId;
+    if (!customerId) {
       return NextResponse.json({ error: 'Customer is required' }, { status: 400 });
     }
 
@@ -107,11 +146,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    const amountCents = typeof body.amountCents === 'number' ? body.amountCents : parseInt(String(body.amountCents || 0), 10) || 0;
-    const status = ['draft', 'sent', 'accepted', 'declined'].includes(body.status) ? body.status : 'draft';
-    const dueDate = body.dueDate || body.due_date || null;
-    const note = typeof body.note === 'string' ? body.note.trim() || null : null;
-    const lineItems = body.lineItems ?? body.line_items ?? null;
+    const lineItems = body.lineItems ?? null;
+    const amountCents = normalizeEstimateAmountCents(lineItems);
+    const status = body.status ?? 'draft';
+    const dueDate = body.validityDate ?? body.dueDate ?? getDefaultEstimateValidityDate();
+    const note = body.note?.trim() || null;
 
     const { data: row, error } = await supabase
       .from('pro_crm_estimates')
@@ -124,13 +163,13 @@ export async function POST(request: NextRequest) {
         due_date: dueDate,
         note,
       })
-      .select('id, created_at')
+      .select('id, display_id, created_at')
       .single();
 
     if (error) {
       return NextResponse.json({ error: error.message || 'Failed to create estimate' }, { status: 500 });
     }
-    return NextResponse.json({ id: row.id, created_at: row.created_at }, { status: 201 });
+    return NextResponse.json({ id: row.id, display_id: row.display_id, created_at: row.created_at }, { status: 201 });
   } catch (err) {
     console.error('POST /api/crm/estimates', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

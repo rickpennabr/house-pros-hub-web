@@ -5,6 +5,7 @@ import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { transformBusinessToProCardData } from '@/lib/utils/businessTransform';
 import { normalizeLinks } from '@/lib/utils/normalizeLinks';
 import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
+import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
 
 interface DbLicenseRow {
   license_number: string | null;
@@ -42,6 +43,7 @@ interface BusinessUpdateBody {
   licenses?: LicenseInput[];
   is_active?: boolean;
   is_verified?: boolean;
+  display_order?: number | null;
 }
 
 async function requireAdmin() {
@@ -298,10 +300,11 @@ export async function PUT(
     if (body.mobilePhone !== undefined) updateData.mobile_phone = body.mobilePhone;
     if (body.links !== undefined) updateData.links = body.links;
     if (body.services !== undefined) updateData.services = body.services;
-    if (body.images !== undefined) updateData.images = body.images;
+    if (body.images !== undefined) updateData.images = Array.isArray(body.images) ? body.images.slice(0, 10) : [];
     if (body.operatingHours !== undefined) updateData.operating_hours = body.operatingHours;
     if (body.is_active !== undefined) updateData.is_active = body.is_active;
     if (body.is_verified !== undefined) updateData.is_verified = body.is_verified;
+    if (body.display_order !== undefined) updateData.display_order = body.display_order;
 
     const { error: updateError } = await service
       .from('businesses')
@@ -385,6 +388,7 @@ export async function PUT(
       .single();
 
     if (completeError || !completeBusiness) {
+      invalidateBusinessDirectoryCache();
       return NextResponse.json({ ok: true });
     }
 
@@ -429,6 +433,7 @@ export async function PUT(
       userId: completeBusiness.owner_id,
     });
 
+    invalidateBusinessDirectoryCache();
     return NextResponse.json({ business: transformed });
   } catch (err) {
     console.error('PUT /api/admin/businesses/[id]', err);
@@ -473,6 +478,7 @@ export async function DELETE(
       );
     }
 
+    invalidateBusinessDirectoryCache();
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/admin/businesses/[id]', err);

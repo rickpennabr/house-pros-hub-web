@@ -4,6 +4,18 @@ import { useEffect, useRef, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
+let modalLockCount = 0;
+
+function lockModalBody() {
+  modalLockCount += 1;
+  document.body.style.overflow = 'hidden';
+}
+
+function unlockModalBody() {
+  modalLockCount = Math.max(0, modalLockCount - 1);
+  if (modalLockCount === 0) document.body.style.overflow = '';
+}
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -11,10 +23,13 @@ interface ModalProps {
   title?: ReactNode;
   showHeader?: boolean;
   showCloseButton?: boolean;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '6xl' | '7xl' | 'full';
   className?: string;
   onOverlayClick?: () => void;
   preventCloseOnOverlayClick?: boolean;
+  contentClassName?: string;
+  /** Outer overlay (e.g. `md:p-2` for wider modals on desktop) */
+  overlayClassName?: string;
 }
 
 export default function Modal({
@@ -28,6 +43,8 @@ export default function Modal({
   className = '',
   onOverlayClick,
   preventCloseOnOverlayClick = false,
+  contentClassName = 'p-6',
+  overlayClassName = '',
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -47,17 +64,21 @@ export default function Modal({
       }
     };
 
+    let locked = false;
+    let timeout = 0;
     if (isOpen) {
+      locked = true;
+      lockModalBody();
       // Use a small delay to prevent immediate propagation
-      setTimeout(() => {
+      timeout = window.setTimeout(() => {
         document.addEventListener('mousedown', handleClickOutside);
       }, 0);
-      document.body.style.overflow = 'hidden';
     }
 
     return () => {
+      window.clearTimeout(timeout);
       document.removeEventListener('mousedown', handleClickOutside);
-      document.body.style.overflow = 'unset';
+      if (locked) unlockModalBody();
     };
   }, [isOpen, onClose, onOverlayClick, preventCloseOnOverlayClick]);
 
@@ -65,6 +86,7 @@ export default function Modal({
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (preventCloseOnOverlayClick) return;
         onClose();
       }
     };
@@ -76,7 +98,7 @@ export default function Modal({
     return () => {
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, preventCloseOnOverlayClick]);
 
   if (!isOpen) return null;
 
@@ -85,6 +107,9 @@ export default function Modal({
     md: 'md:max-w-md',
     lg: 'md:max-w-lg',
     xl: 'md:max-w-xl',
+    '2xl': 'md:max-w-2xl',
+    '6xl': 'md:max-w-6xl',
+    '7xl': 'md:max-w-7xl',
     full: 'md:max-w-full',
   };
 
@@ -104,7 +129,7 @@ export default function Modal({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center md:p-4 bg-black/50"
+      className={`fixed inset-0 z-[110] flex items-center justify-center md:p-4 bg-black/50 ${overlayClassName}`.trim()}
       onClick={handleOverlayClick}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -137,7 +162,7 @@ export default function Modal({
         )}
 
         {/* Content */}
-        {children}
+        <div className={contentClassName}>{children}</div>
       </div>
     </div>
   );

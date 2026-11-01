@@ -209,14 +209,35 @@ export async function checkCsrfToken(
     return null;
   }
 
-  // Get token from header (preferred) or body
-  const headerToken = request.headers.get('X-CSRF-Token');
+  // Get token from header (preferred) or body. Headers are often lowercased by the server.
+  const headerToken =
+    request.headers.get('x-csrf-token') ||
+    request.headers.get('X-CSRF-Token') ||
+    null;
   let bodyToken: string | null = null;
+
+  if (process.env.NODE_ENV === 'development' && !headerToken) {
+    const allHeaders: Record<string, string> = {};
+    request.headers.forEach((value, key) => {
+      allHeaders[key] = value;
+    });
+    logger.debug('CSRF: request header keys', {
+      path: request.nextUrl.pathname,
+      headerKeys: Object.keys(allHeaders),
+      hasXCsrf: 'x-csrf-token' in allHeaders || 'X-CSRF-Token' in allHeaders,
+    });
+  }
 
   // Use provided parsed body if available, otherwise try to parse
   if (parsedBody && typeof parsedBody === 'object' && parsedBody !== null) {
     const body = parsedBody as Record<string, unknown>;
     bodyToken = (body.csrfToken || body._csrf || null) as string | null;
+    if (process.env.NODE_ENV === 'development' && !bodyToken) {
+      logger.debug('CSRF: parsed body keys (no token found)', {
+        path: request.nextUrl.pathname,
+        bodyKeys: Object.keys(body),
+      });
+    }
   } else {
     // Only read body if not already provided
     try {
@@ -243,17 +264,25 @@ export async function checkCsrfToken(
       endpoint: request.nextUrl.pathname,
       method,
     });
-    
+
+    const bodyKeys =
+      parsedBody && typeof parsedBody === 'object' && parsedBody !== null
+        ? Object.keys(parsedBody as Record<string, unknown>)
+        : [];
+
     // In development, include diagnostic information
-    const diagnosticInfo = process.env.NODE_ENV === 'development' ? {
-      userId,
-      hasHeaderToken: !!headerToken,
-      hasBodyToken: !!bodyToken,
-      hasParsedBody: !!parsedBody,
-    } : {};
-    
+    const diagnosticInfo = process.env.NODE_ENV === 'development'
+      ? {
+          userId,
+          hasHeaderToken: !!headerToken,
+          hasBodyToken: !!bodyToken,
+          hasParsedBody: !!parsedBody,
+          bodyKeys,
+        }
+      : {};
+
     return NextResponse.json(
-      { 
+      {
         error: 'CSRF token is required',
         ...diagnosticInfo,
       },

@@ -20,6 +20,18 @@ Summary of `app/api` routes and how they are protected.
 - `GET /api/health` – health check.
 - `POST /api/auth/login`, `POST /api/auth/signup`, `GET /api/auth/callback`.
 - `POST /api/estimate` – submit estimate form (rate-limited).
+- `GET /llms.txt`, `GET /api/openapi.json`, `GET /.well-known/mcp/server-card.json`, `GET /.well-known/api-catalog` – agent discovery. No key.
+
+### Agent (Bearer `hph_…` key, no browser CSRF)
+
+- `GET /api/agent/v1/categories` – category labels that have an active pro.
+- `GET /api/agent/v1/pros` – search pros (`search`, `category`, `city`, `limit`, `offset`).
+- `GET /api/agent/v1/pros/[id]` – one pro by id or slug.
+- `POST /api/agent/v1/estimates` – open an estimate. Optional `Idempotency-Key`. Response includes `messageForUser`.
+- `GET /api/agent/v1/estimates/[id]` – status for an estimate this app created.
+- `POST /api/mcp` – same tools over MCP. `initialize` is public; tool calls need the bearer key.
+
+Keys are created in the admin under Agent apps (`/api/admin/agent-apps`). The raw key is returned once.
 
 ### Authenticated (CSRF for state changes)
 

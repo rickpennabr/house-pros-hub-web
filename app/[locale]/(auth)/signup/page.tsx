@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { createClient } from '@/lib/supabase/client';
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout';
 import { USER_TYPES } from '@/lib/constants/auth';
 import { useSignupForm } from './hooks/useSignupForm';
@@ -15,6 +16,7 @@ import { SignupSuccessMessage } from './components/SignupSuccessMessage';
 import { BusinessSuccessMessage } from './components/BusinessSuccessMessage';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { RoleSelectionScreen } from './components/RoleSelectionScreen';
+import { InstallerProfileForm } from './components/InstallerProfileForm';
 import { InvitationCodeScreen } from './components/InvitationCodeScreen';
 import { CustomerStep1 } from './components/steps/CustomerStep1';
 import { CustomerStep2 } from './components/steps/CustomerStep2';
@@ -30,25 +32,27 @@ type SignupStep = 'role-selection' | 'invitation-code' | 'form' | 'success' | 'b
 
 function SignUpForm() {
   const searchParams = useSearchParams();
+  const locale = useLocale();
   const t = useTranslations('auth.signup');
   const { user, checkAuth } = useAuth();
   
   // Get role from URL if coming from Free Estimate button
-  const urlRole = searchParams.get('role') as 'customer' | 'contractor' | 'realtor' | null;
+  const urlRole = searchParams.get('role') as 'customer' | 'contractor' | 'realtor' | 'installer' | null;
   const skipRoleSelection = searchParams.get('skipRoleSelection') === 'true';
   
   // If skipRoleSelection is true, go directly to form step (skip role selection). Otherwise,
   // show role selection unless role is in URL. For contractor or realtor from URL, show invitation-code first.
   const [currentStep, setCurrentStep] = useState<SignupStep>(() => {
     if (skipRoleSelection) return 'form';
-    if (urlRole === 'contractor' || urlRole === 'realtor') return 'invitation-code';
+    if (urlRole === 'contractor' || urlRole === 'realtor' || urlRole === 'installer') return 'invitation-code';
     if (urlRole === 'customer') return 'form';
     return 'role-selection';
   });
-  const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | 'realtor' | null>(
+  const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | 'realtor' | 'installer' | null>(
     skipRoleSelection ? 'customer' : urlRole
   );
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const {
     formState,
@@ -59,6 +63,7 @@ function SignUpForm() {
     getStepLabel,
     handleNext,
     handlePrevious,
+    setError,
     handleAddressSelect,
     handleAddressChange,
     handleSignUp,
@@ -76,7 +81,9 @@ function SignUpForm() {
         ? USER_TYPES.CUSTOMER
         : selectedRole === 'realtor'
           ? USER_TYPES.REALTOR
-          : USER_TYPES.CONTRACTOR
+          : selectedRole === 'installer'
+            ? USER_TYPES.INSTALLER
+            : USER_TYPES.CONTRACTOR
     );
   }
 
@@ -91,7 +98,41 @@ function SignUpForm() {
     await handleNext();
   };
 
-  const handleRoleSelect = (role: 'customer' | 'contractor' | 'realtor') => {
+  const appliedOauthError = useRef(false);
+  useEffect(() => {
+    const oauthError = searchParams.get('error');
+    if (!appliedOauthError.current && oauthError && selectedRole === 'customer') {
+      appliedOauthError.current = true;
+      setError(oauthError);
+    }
+  }, [searchParams, selectedRole, setError]);
+
+  const handleGoogleSignUp = async () => {
+    setError(null);
+    setIsGoogleLoading(true);
+    const returnUrl = searchParams.get('returnUrl');
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `hph_oauth_flow=customer; Path=/; Max-Age=600; SameSite=Lax${secure}`;
+    document.cookie = `hph_oauth_locale=${encodeURIComponent(locale)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
+    if (returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//')) {
+      document.cookie = `hph_oauth_next=${encodeURIComponent(returnUrl)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
+    } else {
+      document.cookie = 'hph_oauth_next=; Path=/; Max-Age=0; SameSite=Lax';
+    }
+
+    const supabase = createClient();
+    const redirectTo = `${window.location.origin}/api/auth/callback?locale=${encodeURIComponent(locale)}&flow=customer`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+    if (error) {
+      setError(t('errors.googleSignInFailed'));
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const handleRoleSelect = (role: 'customer' | 'contractor' | 'realtor' | 'installer') => {
     setSelectedRole(role);
     setCurrentStep(role === 'customer' ? 'form' : 'invitation-code');
     setIsAuthLoading(false);
@@ -108,7 +149,7 @@ function SignUpForm() {
   };
 
   const handleStepPrevious = () => {
-    if (formState.currentStep === 1 && (selectedRole === 'contractor' || selectedRole === 'realtor')) {
+    if (formState.currentStep === 1 && (selectedRole === 'contractor' || selectedRole === 'realtor' || selectedRole === 'installer')) {
       setCurrentStep('invitation-code');
       return;
     }
@@ -244,7 +285,7 @@ function SignUpForm() {
         )}
 
         {/* Contractor or Realtor: Invitation code before personal info */}
-        {currentStep === 'invitation-code' && (selectedRole === 'contractor' || selectedRole === 'realtor') && (
+        {currentStep === 'invitation-code' && (selectedRole === 'contractor' || selectedRole === 'realtor' || selectedRole === 'installer') && (
           <>
             <SignupHeader isLoading={false} />
             <InvitationCodeScreen
@@ -259,7 +300,9 @@ function SignUpForm() {
         {currentStep === 'form' && (
           <>
             {/* Add Business Form - takes priority */}
-            {formState.showAddBusinessForm ? (
+            {formState.showInstallerForm ? (
+              <InstallerProfileForm />
+            ) : formState.showAddBusinessForm ? (
               <AddBusinessForm
                 personalData={getPersonalData()}
                 onSubmit={handleBusinessSubmit}
@@ -320,11 +363,13 @@ function SignUpForm() {
                   <SignupNavigation
                     currentStep={formState.currentStep}
                     totalSteps={getTotalSteps()}
-                    isLoading={formState.isLoading}
+                    isLoading={formState.isLoading || isGoogleLoading}
                     agreeToTerms={formState.agreeToTerms}
                     userType={formState.userType}
+                    showGoogleSignUp={selectedRole === 'customer'}
                     onPrevious={handleStepPrevious}
                     onNext={handleStepNext}
+                    onGoogleSignUp={handleGoogleSignUp}
                     onAddBusiness={handleAddBusiness}
                   />
                 </form>

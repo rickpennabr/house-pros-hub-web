@@ -7,20 +7,21 @@ import BusinessDetailsHeader from '@/components/businessdetails/BusinessDetailsH
 import BusinessHeroImage from '@/components/businessdetails/BusinessHeroImage';
 import { BackgroundImageEdit } from '@/components/businessdetails/BackgroundImageEdit';
 import ProReactions from '@/components/proscard/ProReactions';
-import BusinessDetailsTabs from '@/components/businessdetails/BusinessDetailsTabs';
+import BusinessDetailsTabs, { type BusinessDetailsTab } from '@/components/businessdetails/BusinessDetailsTabs';
+import BusinessServicesTab from '@/components/businessdetails/BusinessServicesTab';
 import BusinessContactIcons from '@/components/businessdetails/BusinessContactIcons';
-import ContractorPushButton from '@/components/probot/ContractorPushButton';
 import BusinessContactInfo from '@/components/businessdetails/BusinessContactInfo';
 import BusinessLinksTab from '@/components/businessdetails/BusinessLinksTab';
 import BusinessAboutTab from '@/components/businessdetails/BusinessAboutTab';
 import BusinessImagesTab from '@/components/businessdetails/BusinessImagesTab';
 import { ProCardData } from '@/components/proscard/ProCard';
-import StructuredData from '@/components/seo/StructuredData';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { parseObjectPosition, formatObjectPosition } from '@/lib/utils/backgroundPosition';
+import { getCsrfToken } from '@/lib/utils/csrf';
+import { ImagePlus, Loader2, X } from 'lucide-react';
 
-type TabType = 'contact' | 'links' | 'about' | 'images';
+type TabType = BusinessDetailsTab;
 
 import { getBusinessData } from '@/lib/mockData/mockBusinessData';
 import { businessStorage } from '@/lib/storage/businessStorage';
@@ -43,6 +44,7 @@ export default function BusinessDetailsPage() {
   const { user } = useAuth();
   const [business, setBusiness] = useState<BusinessWithMeta | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('contact');
+  const [ownerRoles, setOwnerRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [bgSaving, setBgSaving] = useState(false);
   const bgInputRef = useRef<HTMLInputElement>(null);
@@ -54,11 +56,13 @@ export default function BusinessDetailsPage() {
   
   // Refs for tab content sections for auto-scrolling
   const contactRef = useRef<HTMLDivElement>(null);
+  const servicesRef = useRef<HTMLDivElement>(null);
   const linksRef = useRef<HTMLDivElement>(null);
   const aboutRef = useRef<HTMLDivElement>(null);
   const imagesRef = useRef<HTMLDivElement>(null);
   
   const isOwner = !!user?.id && !!business?.userId && user.id === business.userId;
+  const showServices = ownerRoles.includes('contractor');
 
   // Drag-to-position hero image (owner only); save on mouseup
   const heroDragPositionRef = useRef<string | null>(null);
@@ -99,6 +103,7 @@ export default function BusinessDetailsPage() {
 
   // Auto-scroll to active tab content
   useAutoScroll({ ref: contactRef, shouldScroll: activeTab === 'contact' });
+  useAutoScroll({ ref: servicesRef, shouldScroll: activeTab === 'services' });
   useAutoScroll({ ref: linksRef, shouldScroll: activeTab === 'links' });
   useAutoScroll({ ref: aboutRef, shouldScroll: activeTab === 'about' });
   useAutoScroll({ ref: imagesRef, shouldScroll: activeTab === 'images' });
@@ -117,6 +122,7 @@ export default function BusinessDetailsPage() {
       try {
         let data: BusinessWithMeta | null = null;
         let ownerProfile: OwnerProfile | null = null;
+        let rolesFromApi: string[] = [];
 
         // Fetch from API with timeout so we don't hang indefinitely
         try {
@@ -130,6 +136,7 @@ export default function BusinessDetailsPage() {
           if (response.ok) {
             const result = await response.json();
             data = result.business;
+            rolesFromApi = Array.isArray(result.ownerRoles) ? result.ownerRoles : [];
 
             if (data?.userId) {
               try {
@@ -196,6 +203,7 @@ export default function BusinessDetailsPage() {
           data.businessBackground = data.business_background;
         }
 
+        setOwnerRoles(rolesFromApi);
         setBusiness(data);
         if (data?.businessBackgroundPosition != null) {
           setSavedBgPosition(data.businessBackgroundPosition);
@@ -238,14 +246,24 @@ export default function BusinessDetailsPage() {
     if (!business?.id || bgSaving) return;
     setBgSaving(true);
     try {
+      const csrfToken = await getCsrfToken();
       const res = await fetch(`/api/businesses/${business.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
         credentials: 'include',
         body: JSON.stringify({ businessBackgroundPosition: position }),
       });
       if (!res.ok) throw new Error('Failed to update position');
-      setBusiness((prev) => prev ? { ...prev, businessBackgroundPosition: position } : null);
+      const result = await res.json();
+      if (result?.business?.businessBackgroundPosition != null) {
+        setBusiness((prev) => (prev ? { ...prev, businessBackgroundPosition: result.business.businessBackgroundPosition } : null));
+        businessStorage.updateBusiness(business.id, { businessBackgroundPosition: result.business.businessBackgroundPosition });
+      } else {
+        setBusiness((prev) => (prev ? { ...prev, businessBackgroundPosition: position } : null));
+      }
     } catch (e) {
       console.error('Failed to update background position:', e);
     } finally {
@@ -277,16 +295,31 @@ export default function BusinessDetailsPage() {
         throw new Error(err.error || 'Upload failed');
       }
       const { url } = await uploadRes.json();
+      const csrfToken = await getCsrfToken();
       const patchRes = await fetch(`/api/businesses/${business.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
         credentials: 'include',
         body: JSON.stringify({ businessBackground: url }),
       });
       if (!patchRes.ok) throw new Error('Failed to update business');
-      setBusiness((prev) => prev ? { ...prev, businessBackground: url } : null);
+      const result = await patchRes.json();
+      if (result?.business) {
+        setBusiness((prev) => (prev ? { ...prev, ...result.business } : result.business));
+        businessStorage.updateBusiness(business.id, {
+          businessBackground: result.business.businessBackground,
+          businessBackgroundPosition: '50% 50%',
+        });
+      } else {
+        setBusiness((prev) => (prev ? { ...prev, businessBackground: url } : null));
+      }
       setSavedBgPosition('50% 50%');
-      setIsAdjustMode(false);
+      // Enter adjust mode so the user can immediately drag to position the new image (same as "Adjust image" button)
+      setShowAdjustHint(true);
+      setIsAdjustMode(true);
     } catch (err) {
       console.error('Background upload/update failed:', err);
     } finally {
@@ -294,19 +327,50 @@ export default function BusinessDetailsPage() {
     }
   };
 
+  const handleRemoveBackground = async () => {
+    if (!business?.id || bgSaving) return;
+    setBgSaving(true);
+    try {
+      const csrfToken = await getCsrfToken();
+      const res = await fetch(`/api/businesses/${business.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ businessBackground: '' }),
+      });
+      if (!res.ok) throw new Error('Failed to remove background');
+      const result = await res.json();
+      // Always clear background in state: JSON omits undefined so result.business may not have businessBackground,
+      // and spreading would leave the old URL in state and the image would still show.
+      setBusiness((prev) => (prev ? { ...prev, ...result?.business, businessBackground: '' } : null));
+      businessStorage.updateBusiness(business.id, {
+        businessBackground: '',
+        businessBackgroundPosition: '50% 50%',
+      });
+      setSavedBgPosition('50% 50%');
+      setIsAdjustMode(false);
+    } catch (err) {
+      console.error('Failed to remove background:', err);
+    } finally {
+      setBgSaving(false);
+    }
+  };
+
   return (
     <div className="w-full">
-      {/* JSON-LD Structured Data for SEO */}
-      <StructuredData business={business} />
-      
       <BusinessDetailsHeader
         logo={business.logo || business.businessLogo}
         businessName={business.businessName}
         contractorType={business.contractorType}
+        isOwner={isOwner}
       />
       
       <div ref={heroContainerRef} className="relative overflow-hidden shrink-0">
         <BusinessHeroImage 
+          key={business.businessBackground ?? 'no-bg'}
           imageUrl={business.businessBackground} 
           businessName={business.businessName}
           objectPosition={business.businessBackgroundPosition ?? '50% 50%'}
@@ -335,32 +399,74 @@ export default function BusinessDetailsPage() {
             ) : (
               <div className="absolute inset-0 z-10 pointer-events-none" aria-hidden />
             )}
-            <BackgroundImageEdit
-              position={business.businessBackgroundPosition ?? '50% 50%'}
-              savedPosition={savedBgPosition}
-              onSave={() => {
-                setSavedBgPosition(business.businessBackgroundPosition ?? '50% 50%');
-                setIsAdjustMode(false);
-              }}
-              onPositionChange={handleBackgroundPositionChange}
-              onUploadClick={handleBackgroundUploadClick}
-              onAdjustClick={() => {
-                setSavedBgPosition(business.businessBackgroundPosition ?? '50% 50%');
-                setShowAdjustHint(true);
-                setIsAdjustMode(true);
-              }}
-              disabled={bgSaving}
-              adjustImageLabel="Adjust image"
-              uploadNewLabel="Upload new"
-            />
-            <input
-              ref={bgInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleBackgroundFileChange}
-              className="hidden"
-            />
+            <div className="absolute top-2 right-2 flex items-center gap-2 z-30">
+              {bgSaving && (
+                <span className="flex h-8 w-8 items-center justify-center text-black" aria-hidden>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                </span>
+              )}
+              <BackgroundImageEdit
+                inline
+                position={business.businessBackgroundPosition ?? '50% 50%'}
+                savedPosition={savedBgPosition}
+                onSave={() => {
+                  setSavedBgPosition(business.businessBackgroundPosition ?? '50% 50%');
+                  setIsAdjustMode(false);
+                }}
+                onPositionChange={handleBackgroundPositionChange}
+                onUploadClick={handleBackgroundUploadClick}
+                onAdjustClick={() => {
+                  setSavedBgPosition(business.businessBackgroundPosition ?? '50% 50%');
+                  setShowAdjustHint(true);
+                  setIsAdjustMode(true);
+                }}
+                disabled={bgSaving}
+                adjustImageLabel="Adjust image"
+                uploadNewLabel="Upload new"
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveBackground();
+                }}
+                disabled={bgSaving}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-black shadow hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                title="Remove background"
+                aria-label="Remove background"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </>
+        )}
+        {isOwner && !business.businessBackground && (
+          <div className="absolute top-2 right-2 z-30">
+            <button
+              type="button"
+              onClick={() => bgInputRef.current?.click()}
+              disabled={bgSaving}
+              className="flex h-8 items-center gap-2 rounded-lg border-2 border-black bg-white px-3 py-1.5 text-sm font-medium text-black shadow hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+              title="Upload background image"
+              aria-label={bgSaving ? 'Uploading…' : 'Upload background image'}
+            >
+              {bgSaving ? (
+                <Loader2 className="w-4 h-4 shrink-0 animate-spin" aria-hidden />
+              ) : (
+                <ImagePlus className="w-4 h-4 shrink-0" />
+              )}
+              <span>{bgSaving ? 'Uploading…' : 'Upload'}</span>
+            </button>
+          </div>
+        )}
+        {isOwner && (
+          <input
+            ref={bgInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleBackgroundFileChange}
+            className="hidden"
+          />
         )}
       </div>
       
@@ -396,7 +502,6 @@ export default function BusinessDetailsPage() {
             businessSlug={business?.slug}
             businessId={business?.id}
           />
-          {isOwner && <ContractorPushButton />}
         </div>
       </div>
       
@@ -404,6 +509,7 @@ export default function BusinessDetailsPage() {
         <BusinessDetailsTabs
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          showServices={showServices}
         />
       </div>
 
@@ -417,6 +523,17 @@ export default function BusinessDetailsPage() {
           </div>
         )}
         
+        {activeTab === 'services' && showServices && business.slug && (
+          <div ref={servicesRef}>
+            <BusinessServicesTab
+              businessId={business.id}
+              businessSlug={business.slug}
+              isOwner={isOwner}
+              fallbackNames={business.services}
+            />
+          </div>
+        )}
+
         {activeTab === 'links' && (
           <div ref={linksRef}>
             <BusinessLinksTab links={business.links} />
@@ -442,7 +559,13 @@ export default function BusinessDetailsPage() {
 
         {activeTab === 'images' && (
           <div ref={imagesRef}>
-            <BusinessImagesTab images={business.images} businessName={business.businessName} />
+            <BusinessImagesTab
+              images={business.images}
+              businessName={business.businessName}
+              isOwner={isOwner}
+              businessId={business.id}
+              onImagesChange={(newImages) => setBusiness((prev) => (prev ? { ...prev, images: newImages } : null))}
+            />
           </div>
         )}
       </div>

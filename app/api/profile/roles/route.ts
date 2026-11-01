@@ -10,9 +10,7 @@ import { z } from 'zod';
  * Schema for role management requests
  */
 const roleSchema = z.object({
-  role: z.enum(['customer', 'contractor'], {
-    message: 'Role must be either "customer" or "contractor"',
-  }),
+  role: z.enum(['customer', 'contractor', 'realtor']),
 });
 
 /**
@@ -43,7 +41,8 @@ async function handleGetRoles(request: AuthenticatedRequest) {
 /**
  * POST /api/profile/roles
  * Add a role to the user
- * Body: { role: 'customer' | 'contractor' }
+ * Body: { role: 'customer' }
+ * Contractor and realtor roles are granted only by invitation signup.
  */
 async function handleAddRole(request: AuthenticatedRequest) {
   try {
@@ -70,7 +69,13 @@ async function handleAddRole(request: AuthenticatedRequest) {
 
     const { role } = validationResult.data;
 
-    // Add the role
+    if (role !== 'customer') {
+      return NextResponse.json(
+        { error: 'Contractor and realtor roles require an invitation code' },
+        { status: 403 }
+      );
+    }
+
     const success = await addRole(userId, role);
 
     if (!success) {

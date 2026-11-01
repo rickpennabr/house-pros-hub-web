@@ -3,6 +3,33 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { Database } from '@/lib/types/supabase';
 import { logger } from '@/lib/utils/logger';
+import { locales, type Locale } from '@/i18n';
+import { provisionGoogleCustomer } from '@/lib/auth/googleCustomer';
+
+function safeLocale(value: string | null): Locale {
+  return locales.includes(value as Locale) ? (value as Locale) : 'en';
+}
+
+function safeAppPath(value: string | null, locale: string): string {
+  if (!value) return `/${locale}`;
+  let decoded = value;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    return `/${locale}`;
+  }
+  if (!decoded.startsWith('/') || decoded.startsWith('//') || decoded.includes('\\') || decoded.includes('://')) {
+    return `/${locale}`;
+  }
+  return decoded;
+}
+
+function clearOauthCookies(response: NextResponse) {
+  const expired = { path: '/', maxAge: 0 };
+  response.cookies.set('hph_oauth_flow', '', expired);
+  response.cookies.set('hph_oauth_locale', '', expired);
+  response.cookies.set('hph_oauth_next', '', expired);
+}
 
 /**
  * GET /api/auth/callback
@@ -10,11 +37,19 @@ import { logger } from '@/lib/utils/logger';
  * API sends an email link that points here. Supabase redirects with ?code=...; we exchange
  * the code for a session, set cookies, and redirect to /[locale]/reset-password. The reset
  * page then relies on getSession() (cookies) only — no hash tokens.
+ *
+ * Customer Google sign-up uses the same exchange, then assigns the customer role and
+ * sends the person to their return path. Contractor, realtor, and installer accounts
+ * are not created here.
  */
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
-  const locale = requestUrl.searchParams.get('locale') || 'en';
+  const flow = requestUrl.searchParams.get('flow') || request.cookies.get('hph_oauth_flow')?.value || '';
+  const isCustomerGoogle = flow === 'customer';
+  const locale = safeLocale(
+    requestUrl.searchParams.get('locale') || request.cookies.get('hph_oauth_locale')?.value || 'en'
+  );
 
   logger.info('[Auth Callback] GET', {
     path: requestUrl.pathname,
@@ -37,14 +72,21 @@ export async function GET(request: NextRequest) {
   const errorDescription = requestUrl.searchParams.get('error_description');
   if (errorParam || errorCode) {
     const message = errorDescription || errorParam || 'Link expired or invalid';
-    logger.info('[Auth Callback] redirecting to reset-password with error', { message });
-    return NextResponse.redirect(
-      new URL(`/${locale}/reset-password?error=${encodeURIComponent(message)}`, normalizedBaseUrl)
-    );
+    const errorPath = isCustomerGoogle
+      ? `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`
+      : `/${locale}/reset-password?error=${encodeURIComponent(message)}`;
+    logger.info('[Auth Callback] redirecting with error', { message, isCustomerGoogle });
+    const errorResponse = NextResponse.redirect(new URL(errorPath, normalizedBaseUrl));
+    if (isCustomerGoogle) clearOauthCookies(errorResponse);
+    return errorResponse;
   }
 
   if (code) {
-    const successRedirectUrl = new URL(`/${locale}/reset-password`, normalizedBaseUrl);
+    const nextPath = safeAppPath(request.cookies.get('hph_oauth_next')?.value ?? null, locale);
+    const successRedirectUrl = new URL(
+      isCustomerGoogle ? nextPath : `/${locale}/reset-password`,
+      normalizedBaseUrl
+    );
     const redirectResponse = NextResponse.redirect(successRedirectUrl);
 
     const cookieStore = await cookies();
@@ -73,15 +115,37 @@ export async function GET(request: NextRequest) {
         logger.info('[Auth Callback] PKCE hint: open the reset link in the SAME browser where you requested the reset.');
       }
       const message = error.message || 'Link expired or invalid';
-      return NextResponse.redirect(
-        new URL(`/${locale}/reset-password?error=${encodeURIComponent(message)}`, normalizedBaseUrl)
-      );
+      const failPath = isCustomerGoogle
+        ? `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`
+        : `/${locale}/reset-password?error=${encodeURIComponent(message)}`;
+      const failResponse = NextResponse.redirect(new URL(failPath, normalizedBaseUrl));
+      if (isCustomerGoogle) clearOauthCookies(failResponse);
+      return failResponse;
     }
 
     if (exchangeData?.user ?? exchangeData?.session) {
-      logger.info('[Auth Callback] exchangeCodeForSession ok, redirecting to reset-password', {
+      if (isCustomerGoogle && exchangeData.user) {
+        try {
+          await provisionGoogleCustomer(exchangeData.user);
+        } catch (provisionError) {
+          logger.error('[Auth Callback] Google customer provisioning failed', {
+            error: provisionError instanceof Error ? provisionError.message : 'unknown',
+          });
+          const failResponse = NextResponse.redirect(
+            new URL(
+              `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`,
+              normalizedBaseUrl
+            )
+          );
+          clearOauthCookies(failResponse);
+          return failResponse;
+        }
+      }
+      logger.info('[Auth Callback] exchangeCodeForSession ok', {
         redirectPath: successRedirectUrl.pathname,
+        isCustomerGoogle,
       });
+      if (isCustomerGoogle) clearOauthCookies(redirectResponse);
       return redirectResponse;
     }
 

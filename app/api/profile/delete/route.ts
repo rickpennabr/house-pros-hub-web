@@ -72,13 +72,6 @@ async function handleDeleteAccount(request: AuthenticatedRequest) {
         first_name: '[Deleted]',
         last_name: '[Deleted]',
         phone: null,
-        street_address: null,
-        apartment: null,
-        city: null,
-        state: null,
-        zip_code: null,
-        gate_code: null,
-        address_note: null,
         business_id: null,
         company_role: null,
         company_role_other: null,
@@ -87,6 +80,8 @@ async function handleDeleteAccount(request: AuthenticatedRequest) {
         referral_other: null,
       })
       .eq('id', userId);
+
+    await serviceRoleClient.from('addresses').delete().eq('user_id', userId).eq('address_type', 'personal');
 
     if (profileError) {
       logger.error('Error anonymizing profile', { endpoint: '/api/profile/delete', userId }, profileError as Error);

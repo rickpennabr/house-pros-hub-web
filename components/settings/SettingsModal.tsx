@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Modal from '@/components/ui/Modal';
 import { UsFlagIcon, SpainFlagIcon, BrazilFlagIcon } from '@/components/pageslayout/LocaleFlagIcons';
 import { locales, type Locale } from '@/i18n';
+import ContractorPushButton from '@/components/probot/ContractorPushButton';
 
 type AccordionSection = 'account' | 'language' | 'privacy';
 
@@ -145,7 +146,7 @@ export default function SettingsModal({
               />
             </button>
             {openSection === 'account' && (
-            <div className="p-2 border-t-2 border-black">
+            <div className="p-2 border-t-2 border-black space-y-1">
               <button
                 onClick={() => {
                   onClose();
@@ -164,6 +165,12 @@ export default function SettingsModal({
               >
                 Account Management
               </button>
+              {user?.businessId && (
+                <div className="flex items-center justify-between gap-2 px-4 py-2.5 rounded-lg">
+                  <span className="text-sm font-medium text-black">ProBot visitor messages: push notifications</span>
+                  <ContractorPushButton />
+                </div>
+              )}
             </div>
             )}
           </div>

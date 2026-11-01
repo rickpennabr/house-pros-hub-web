@@ -30,6 +30,13 @@ export const RATE_LIMIT_CONFIGS = {
     message: 'Upload limit exceeded. Please try again later.',
   } as RateLimitConfig,
 
+  // Business gallery images (up to 10 per business) - separate from logo/background so adding multiple photos is allowed
+  businessGalleryUpload: {
+    windowMs: 60 * 60 * 1000, // 1 hour
+    maxRequests: 20,
+    message: 'Upload limit exceeded. Please try again later.',
+  } as RateLimitConfig,
+
   // General API endpoints - more lenient
   general: {
     windowMs: 60 * 1000, // 1 minute
@@ -63,6 +70,34 @@ export const RATE_LIMIT_CONFIGS = {
     windowMs: 2 * 60 * 1000, // 2 minutes
     maxRequests: 60,
     message: 'Too many presence updates. Please slow down.',
+  } as RateLimitConfig,
+
+  // Guest and signed-in ProEstimate bookings
+  booking: {
+    windowMs: 60 * 60 * 1000, // 1 hour
+    maxRequests: 8,
+    message: 'Too many booking attempts. Please try again later.',
+  } as RateLimitConfig,
+
+  // Live agent apps searching or reading. Keyed by app id.
+  agent: {
+    windowMs: 60 * 1000,
+    maxRequests: 60,
+    message: 'Agent rate limit exceeded. Please slow down.',
+  } as RateLimitConfig,
+
+  // Failed agent keys, keyed by IP.
+  agentAuth: {
+    windowMs: 60 * 1000,
+    maxRequests: 30,
+    message: 'Too many failed agent authentication attempts. Please try again later.',
+  } as RateLimitConfig,
+
+  // Estimate requests opened by an agent app. Keyed by app id.
+  agentWrite: {
+    windowMs: 60 * 60 * 1000,
+    maxRequests: 20,
+    message: 'Agent estimate limit exceeded. Please try again later.',
   } as RateLimitConfig,
 
   // Push subscription (admin, contractor, visitor) - prevent subscription spam

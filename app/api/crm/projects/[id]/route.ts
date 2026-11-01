@@ -11,6 +11,26 @@ async function requireContractor() {
   return { error: null, user };
 }
 
+async function validateEstimateLink(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ownerId: string,
+  customerId: string,
+  estimateId: string | null
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!estimateId) return { ok: true };
+  const { data: estimate } = await supabase
+    .from('pro_crm_estimates')
+    .select('id, customer_id')
+    .eq('id', estimateId)
+    .eq('owner_id', ownerId)
+    .single();
+  if (!estimate) return { ok: false, message: 'Estimate not found' };
+  if (estimate.customer_id !== customerId) {
+    return { ok: false, message: 'Estimate must belong to the same customer' };
+  }
+  return { ok: true };
+}
+
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { error: authError, user } = await requireContractor();
@@ -49,20 +69,39 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!id) return NextResponse.json({ error: 'Project ID required' }, { status: 400 });
 
     const body = await request.json();
+    const supabase = await createClient();
+    const { data: currentProject } = await supabase
+      .from('pro_crm_projects')
+      .select('customer_id, estimate_id')
+      .eq('id', id)
+      .eq('owner_id', user.id)
+      .single();
+    if (!currentProject) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
     const updates: Record<string, unknown> = {};
+    let targetCustomerId = currentProject.customer_id;
     if (body.name !== undefined) updates.name = typeof body.name === 'string' ? body.name.trim() : undefined;
     if (body.customerId !== undefined) {
-      const supabase = await createClient();
       const { data: c } = await supabase.from('pro_crm_customers').select('id').eq('id', body.customerId).eq('owner_id', user.id).single();
-      if (c) updates.customer_id = body.customerId;
+      if (c) {
+        updates.customer_id = body.customerId;
+        targetCustomerId = body.customerId;
+      }
     }
-    if (body.estimateId !== undefined) updates.estimate_id = body.estimateId || null;
+    if (body.estimateId !== undefined) {
+      const estimateValidation = await validateEstimateLink(supabase, user.id, targetCustomerId, body.estimateId || null);
+      if (!estimateValidation.ok) {
+        return NextResponse.json({ error: estimateValidation.message }, { status: 400 });
+      }
+      updates.estimate_id = body.estimateId || null;
+    }
     if (body.status !== undefined && ['planned', 'in_progress', 'on_hold', 'completed', 'cancelled'].includes(body.status)) updates.status = body.status;
     if (body.startDate !== undefined) updates.start_date = body.startDate || null;
     if (body.endDate !== undefined) updates.end_date = body.endDate || null;
     if (body.note !== undefined) updates.note = typeof body.note === 'string' ? body.note.trim() || null : null;
 
-    const supabase = await createClient();
     const { error } = await supabase.from('pro_crm_projects').update(updates).eq('id', id).eq('owner_id', user.id);
     if (error) return NextResponse.json({ error: error.message || 'Failed to update project' }, { status: 500 });
     return NextResponse.json({ ok: true });

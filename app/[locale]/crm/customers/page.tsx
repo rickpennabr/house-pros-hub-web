@@ -2,18 +2,27 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useTranslations } from 'next-intl';
-import { ChevronDown, Search, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, User, MapPin, FileText, CreditCard } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { ChevronDown, Search, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, User, MapPin, FileText, FileCheck, CreditCard, FolderOpen, PlusCircle, Mail, Globe } from 'lucide-react';
 import Pagination from '@/components/ui/Pagination';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import Accordion from '@/components/ui/Accordion';
+import { useSingleOpenAccordion } from '@/hooks/useSingleOpenAccordion';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import Modal from '@/components/ui/Modal';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { validateCustomerEmail, validateCustomerPhone } from '@/lib/schemas/crm';
 import type { Database } from '@/lib/types/supabase';
+import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useScrollPosition } from '@/hooks/useScrollPosition';
+import { useWindowDimensions } from '@/hooks/useWindowDimensions';
+import CustomerCard from '@/components/crm/CustomerCard';
+import AddTaskModal from '@/components/crm/AddTaskModal';
+import CustomerQuickActionsBar from '@/components/crm/CustomerQuickActionsBar';
 
 type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'];
 
@@ -21,6 +30,7 @@ const PAGE_SIZE = 25;
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Joined' },
   { value: 'updated_at', label: 'Updated' },
+  { value: 'display_id', label: 'Customer ID' },
   { value: 'last_name', label: 'Last name' },
   { value: 'first_name', label: 'First name' },
   { value: 'company_name', label: 'Company' },
@@ -34,6 +44,7 @@ type SortKey = (typeof SORT_OPTIONS)[number]['value'];
 
 /** All pro_crm_customers columns for table display (order matches schema). */
 const CUSTOMER_TABLE_COLUMNS: { key: keyof CRMCustomerRow; label: string; sortKey?: SortKey }[] = [
+  { key: 'display_id', label: 'Customer ID', sortKey: 'display_id' },
   { key: 'first_name', label: 'First name', sortKey: 'first_name' },
   { key: 'last_name', label: 'Last name', sortKey: 'last_name' },
   { key: 'company_name', label: 'Company', sortKey: 'company_name' },
@@ -82,6 +93,14 @@ function formatCellValue(row: CRMCustomerRow, key: keyof CRMCustomerRow): string
   if (typeof v === 'object') return JSON.stringify(v).slice(0, 50) + (JSON.stringify(v).length > 50 ? '…' : '');
   const s = String(v).trim();
   return s || '—';
+}
+
+function customerDisplayName(row: CRMCustomerRow): string {
+  if (row.display_name?.trim()) return row.display_name.trim();
+  const fullName = [row.first_name?.trim(), row.last_name?.trim()].filter(Boolean).join(' ');
+  if (fullName) return fullName;
+  if (row.company_name?.trim()) return row.company_name.trim();
+  return 'Customer';
 }
 
 function SortHeader({
@@ -141,6 +160,7 @@ function SortHeader({
 }
 
 export type CRMCustomerFormData = {
+  displayId: string;
   firstName: string;
   lastName: string;
   companyName: string;
@@ -176,6 +196,7 @@ export type CRMCustomerFormData = {
 };
 
 const emptyForm: CRMCustomerFormData = {
+  displayId: '',
   firstName: '',
   lastName: '',
   companyName: '',
@@ -204,13 +225,14 @@ const emptyForm: CRMCustomerFormData = {
   shippingZipCode: '',
   shippingCountry: '',
   notes: '',
-  primaryPaymentMethod: '',
-  paymentTerms: '',
+  primaryPaymentMethod: 'check',
+  paymentTerms: 'Due on receipt',
   invoiceLanguage: 'en',
   openingBalance: '',
 };
 
-type AccordionKey = 'nameAndContact' | 'addresses' | 'notesAndAttachments' | 'payments';
+const CRM_ACCORDION_KEYS = ['nameAndContact', 'addresses', 'notesAndAttachments', 'payments'] as const;
+type AccordionKey = (typeof CRM_ACCORDION_KEYS)[number];
 
 function CustomerForm({
   mode,
@@ -226,12 +248,7 @@ function CustomerForm({
   const [form, setForm] = useState<CRMCustomerFormData>({ ...emptyForm, ...initial });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [accordionOpen, setAccordionOpen] = useState<Record<AccordionKey, boolean>>({
-    nameAndContact: true,
-    addresses: true,
-    notesAndAttachments: false,
-    payments: false,
-  });
+  const { isOpen, toggle: toggleAccordion } = useSingleOpenAccordion(CRM_ACCORDION_KEYS, 'nameAndContact');
   const firstInputRef = useRef<HTMLInputElement>(null);
   const tValidation = useTranslations('validation');
 
@@ -244,9 +261,6 @@ function CustomerForm({
   const update = (key: keyof CRMCustomerFormData, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setError(null);
-  };
-  const toggleAccordion = (key: AccordionKey) => {
-    setAccordionOpen((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -357,16 +371,18 @@ function CustomerForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="md:p-6 space-y-4 max-w-4xl md:mx-auto">
+    <form onSubmit={handleSubmit} className="md:p-0 space-y-4 max-w-4xl md:mx-auto">
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>
       )}
 
       <Accordion
         title="Name and contact"
-        isOpen={accordionOpen.nameAndContact}
+        isOpen={isOpen('nameAndContact')}
         onToggle={() => toggleAccordion('nameAndContact')}
         required
+        isComplete={Boolean(form.firstName.trim() && form.lastName.trim())}
+        showCompleteStyle={false}
         icon={<User className="w-5 h-5" />}
       >
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -402,7 +418,7 @@ function CustomerForm({
 
       <Accordion
         title="Addresses"
-        isOpen={accordionOpen.addresses}
+        isOpen={isOpen('addresses')}
         onToggle={() => toggleAccordion('addresses')}
         icon={<MapPin className="w-5 h-5" />}
       >
@@ -500,7 +516,7 @@ function CustomerForm({
 
       <Accordion
         title="Notes and attachments"
-        isOpen={accordionOpen.notesAndAttachments}
+        isOpen={isOpen('notesAndAttachments')}
         onToggle={() => toggleAccordion('notesAndAttachments')}
         icon={<FileText className="w-5 h-5" />}
       >
@@ -527,7 +543,7 @@ function CustomerForm({
 
       <Accordion
         title="Payments"
-        isOpen={accordionOpen.payments}
+        isOpen={isOpen('payments')}
         onToggle={() => toggleAccordion('payments')}
         icon={<CreditCard className="w-5 h-5" />}
       >
@@ -580,7 +596,7 @@ function CustomerForm({
           Cancel
         </Button>
         <Button type="submit" variant="primary" size="sm" disabled={saving}>
-          {saving ? 'Saving…' : mode === 'add' ? 'Add Customer' : 'Save changes'}
+          {saving ? 'Saving…' : mode === 'add' ? 'New Customer' : 'Save changes'}
         </Button>
       </div>
     </form>
@@ -590,6 +606,9 @@ function CustomerForm({
 type ViewMode = 'table' | 'add' | 'edit';
 
 export default function CRMCustomersPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const locale = useLocale();
   const [customers, setCustomers] = useState<CRMCustomerRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -607,9 +626,29 @@ export default function CRMCustomersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingInitial, setEditingInitial] = useState<(CRMCustomerFormData & { id?: string }) | null>(null);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; above: boolean } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; firstName: string | null; lastName: string | null } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [taskCustomerContext, setTaskCustomerContext] = useState<{ id: string; name: string } | null>(null);
+
+  const [savedListView, setSavedListView] = useLocalStorage<string>('crmCustomersView', 'card');
+  const listView: ViewType = (savedListView === 'card' || savedListView === 'list') ? savedListView : 'card';
+  const setListView = (v: ViewType) => setSavedListView(v);
+  const { isAtBottom } = useScrollPosition({ threshold: 50 });
+  const { isMobile } = useWindowDimensions();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setViewMode('add');
+      setEditingId(null);
+      setEditingInitial(null);
+    }
+  }, [searchParams]);
+  const isMobileSafe = mounted && isMobile;
+  const showViewToggle = viewMode === 'table' && !isLoading && customers.length > 0;
+  const bottomPadding = showViewToggle && isAtBottom ? (isMobileSafe ? 'pb-[72px]' : 'pb-[140px]') : '';
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -667,6 +706,7 @@ export default function CRMCustomersPage() {
         const num = (v: unknown) => (typeof v === 'number' ? String(v) : '');
         setEditingInitial({
           id: editingId,
+          displayId: empty(data.display_id),
           firstName: empty(data.first_name),
           lastName: empty(data.last_name),
           companyName: empty(data.company_name),
@@ -732,22 +772,31 @@ export default function CRMCustomersPage() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const editingCustomerName = editingInitial
+    ? [editingInitial.displayName, editingInitial.companyName, [editingInitial.firstName, editingInitial.lastName].filter(Boolean).join(' ')]
+        .find((name) => Boolean(name && name.trim())) || 'Customer'
+    : 'Customer';
+  const editingPrimaryPhone = editingInitial ? (editingInitial.mobileNumber || editingInitial.phone || null) : null;
+  const editingDisplayId = editingInitial?.displayId || null;
+  const editingPhoneHref = editingPrimaryPhone ? `tel:${editingPrimaryPhone.replace(/[^\d+]/g, '')}` : null;
 
   return (
-    <div className="w-full">
+    <div className={`w-full ${bottomPadding}`}>
       {viewMode === 'table' && (
         <>
           <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
             <div className="min-w-0">
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Customers</h1>
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900 inline-flex items-center gap-2">
+                Customers
+                <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border-2 border-black bg-white px-1 text-xs font-semibold text-black">
+                  {total}
+                </span>
+              </h1>
               <p className="text-sm text-gray-500 mt-0.5">Manage your customer contacts.</p>
-            </div>
-            <div className="md:hidden h-9 px-4 rounded-md border-2 border-black bg-white flex items-center justify-center shrink-0 text-sm font-medium text-black">
-              {total} customer{total !== 1 ? 's' : ''}
             </div>
             <Button variant="primary" size="sm" className="hidden md:flex items-center gap-2 shrink-0" onClick={() => setViewMode('add')}>
               <Plus className="w-4 h-4" />
-              Add Customer
+              New Customer
             </Button>
           </div>
         </>
@@ -755,20 +804,32 @@ export default function CRMCustomersPage() {
 
       {(viewMode === 'add' || viewMode === 'edit') && (
         <div className="w-full md:max-w-4xl md:mx-auto">
-          <div className="py-2 md:py-0 md:mb-6 flex items-center justify-between gap-4">
-            <button
-              type="button"
-              onClick={() => { setViewMode('table'); setEditingId(null); setEditingInitial(null); }}
-              className="flex items-center gap-2 text-gray-700 hover:text-black font-medium cursor-pointer"
-              aria-label="Back to customers"
-            >
-              <ArrowLeft className="w-5 h-5 shrink-0" />
-              <span className="hidden md:inline">Back</span>
-            </button>
-            <span className="text-lg md:text-xl font-semibold text-gray-900">
-              {viewMode === 'add' ? 'Add Customer' : 'Edit Customer'}
-            </span>
-          </div>
+          {viewMode === 'edit' && editingId && editingInitial && (
+            <CustomerQuickActionsBar
+              customerName={editingCustomerName}
+              customerDisplayId={editingDisplayId}
+              phoneHref={editingPhoneHref}
+              onBack={() => { setViewMode('table'); setEditingId(null); setEditingInitial(null); }}
+              onAddEstimate={() => router.push(`/${locale}/crm/estimates?customerId=${editingId}`)}
+              onAddInvoice={() => router.push(`/${locale}/crm/invoices/new?customerId=${editingId}`)}
+              onAddProject={() => router.push(`/${locale}/crm/projects?customerId=${editingId}`)}
+              onScheduleTask={() => setShowAddTaskModal(true)}
+            />
+          )}
+          {viewMode === 'add' && (
+            <div className="py-2 md:py-0 md:mb-3 flex items-center justify-between gap-4">
+              <button
+                type="button"
+                onClick={() => { setViewMode('table'); setEditingId(null); setEditingInitial(null); }}
+                className="flex items-center gap-2 text-gray-700 hover:text-black font-medium cursor-pointer"
+                aria-label="Back to customers"
+              >
+                <ArrowLeft className="w-5 h-5 shrink-0" />
+                <span className="hidden md:inline">Back</span>
+              </button>
+              <span className="text-lg md:text-xl font-semibold text-gray-900">New Customer</span>
+            </div>
+          )}
           {viewMode === 'add' && (
             <CustomerForm
               mode="add"
@@ -816,102 +877,145 @@ export default function CRMCustomersPage() {
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>
           )}
 
-          <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-            {isLoading && !hasLoadedOnce ? (
-              <div className="p-12 text-center text-gray-500 text-sm">Loading customers…</div>
-            ) : (
-              <div className="overflow-x-auto relative">
-                {isRefetching && (
-                  <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center rounded-lg" aria-hidden>
-                    <span className="text-sm text-gray-500">Updating…</span>
+          {listView === 'card' ? (
+            <div>
+              {isLoading && !hasLoadedOnce ? (
+                <div className="p-12 text-center text-gray-500 text-sm">Loading customers…</div>
+              ) : customers.length === 0 ? (
+                <div className="py-12 text-center text-gray-500 text-sm">No customers found.</div>
+              ) : (
+                <div className="relative">
+                  {isRefetching && (
+                    <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center rounded-lg" aria-hidden>
+                      <span className="text-sm text-gray-500">Updating…</span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 min-[500px]:grid-cols-2 min-[768px]:grid-cols-3 min-[1100px]:grid-cols-4 gap-3 w-full">
+                    {customers.map((row) => (
+                      <CustomerCard
+                        key={row.id}
+                        customer={row}
+                        onEdit={(id) => { setEditingId(id); setViewMode('edit'); }}
+                        onCreateInvoice={(id) => router.push(`/${locale}/crm/invoices/new?customerId=${id}`)}
+                        onCreateEstimate={(id) => router.push(`/${locale}/crm/estimates?customerId=${id}`)}
+                        onCreateProject={(id) => router.push(`/${locale}/crm/projects?customerId=${id}`)}
+                        onScheduleTask={(id) => {
+                          const customer = customers.find((customerRow) => customerRow.id === id);
+                          if (customer) {
+                            setTaskCustomerContext({ id: customer.id, name: customerDisplayName(customer) });
+                            setShowAddTaskModal(true);
+                          }
+                        }}
+                        onDelete={(id) => {
+                          const c = customers.find((x) => x.id === id);
+                          if (c) setDeleteConfirm({ id: c.id, firstName: c.first_name, lastName: c.last_name });
+                        }}
+                      />
+                    ))}
                   </div>
-                )}
-                <table className="w-full border-collapse whitespace-nowrap" style={{ minWidth: 'max-content' }}>
-                  <thead>
-                    <tr className="border-b-2 border-black bg-black text-white">
-                      {CUSTOMER_TABLE_COLUMNS.map(({ key, label, sortKey }) => (
-                        <th key={key} className="px-3 py-1.5 text-left border-r border-white/30 min-w-[100px]">
-                          {sortKey && SORT_OPTIONS.some((o) => o.value === sortKey) ? (
-                            <SortHeader label={label} sortKey={sortKey} currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                          ) : (
-                            <span className="font-semibold text-white">{label}</span>
-                          )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+              {isLoading && !hasLoadedOnce ? (
+                <div className="p-12 text-center text-gray-500 text-sm">Loading customers…</div>
+              ) : (
+                <div className="overflow-x-auto relative">
+                  {isRefetching && (
+                    <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center rounded-lg" aria-hidden>
+                      <span className="text-sm text-gray-500">Updating…</span>
+                    </div>
+                  )}
+                  <table className="w-full border-collapse whitespace-nowrap" style={{ minWidth: 'max-content' }}>
+                    <thead>
+                      <tr className="border-b-2 border-black bg-black text-white">
+                        {CUSTOMER_TABLE_COLUMNS.map(({ key, label, sortKey }) => (
+                          <th key={key} className="px-3 py-1.5 text-left border-r border-white/30 min-w-[100px]">
+                            {sortKey && SORT_OPTIONS.some((o) => o.value === sortKey) ? (
+                              <SortHeader label={label} sortKey={sortKey} currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                            ) : (
+                              <span className="font-semibold text-white">{label}</span>
+                            )}
+                          </th>
+                        ))}
+                        <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white w-[72px] min-w-[72px]">
+                          <span className="font-semibold text-white">Actions</span>
                         </th>
-                      ))}
-                      <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white w-[72px] min-w-[72px]">
-                        <span className="font-semibold text-white">Actions</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {customers.length === 0 ? (
-                      <tr>
-                        <td colSpan={CUSTOMER_TABLE_COLUMNS.length + 1} className="px-4 py-12 text-center text-gray-500 text-sm">
-                          No customers found.
-                        </td>
                       </tr>
-                    ) : (
-                      customers.map((row) => (
-                        <tr
-                          key={row.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => { setEditingId(row.id); setViewMode('edit'); }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setEditingId(row.id);
-                              setViewMode('edit');
-                            }
-                          }}
-                          className="group border-b border-gray-100 hover:bg-gray-50/80 transition-colors cursor-pointer"
-                        >
-                          {CUSTOMER_TABLE_COLUMNS.map(({ key }) => (
-                            <td key={key} className="px-3 py-1.5 text-sm text-gray-700 max-w-[200px] overflow-hidden truncate" title={formatCellValue(row, key)}>
-                              {key === 'created_at' || key === 'updated_at' ? formatDate(row[key] as string | null) : formatCellValue(row, key)}
-                            </td>
-                          ))}
-                          <td
-                            className="sticky right-0 z-10 py-1.5 text-center bg-white group-hover:bg-gray-50/80 border-l-2 border-gray-100"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="relative flex justify-center items-center w-full">
-                              <button
-                                ref={openActionsId === row.id ? actionsButtonRef : undefined}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (openActionsId === row.id) {
-                                    setOpenActionsId(null);
-                                    setMenuPosition(null);
-                                    return;
-                                  }
-                                  const el = e.currentTarget;
-                                  const rect = el.getBoundingClientRect();
-                                  actionsButtonRef.current = el;
-                                  const left = Math.min(rect.right - 120, window.innerWidth - 130);
-                                  const spaceBelow = window.innerHeight - rect.bottom - 4;
-                                  setMenuPosition({
-                                    top: spaceBelow >= 80 ? rect.bottom + 4 : rect.top - 80 - 4,
-                                    left,
-                                  });
-                                  setOpenActionsId(row.id);
-                                }}
-                                className="p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer text-gray-600 hover:text-black"
-                                aria-label="Actions"
-                              >
-                                <MoreVertical className="w-5 h-5" />
-                              </button>
-                            </div>
+                    </thead>
+                    <tbody>
+                      {customers.length === 0 ? (
+                        <tr>
+                          <td colSpan={CUSTOMER_TABLE_COLUMNS.length + 1} className="px-4 py-12 text-center text-gray-500 text-sm">
+                            No customers found.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                      ) : (
+                        customers.map((row) => (
+                          <tr
+                            key={row.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => { setEditingId(row.id); setViewMode('edit'); }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setEditingId(row.id);
+                                setViewMode('edit');
+                              }
+                            }}
+                            className="group border-b border-gray-100 hover:bg-gray-50/80 transition-colors cursor-pointer"
+                          >
+                            {CUSTOMER_TABLE_COLUMNS.map(({ key }) => (
+                              <td key={key} className="px-3 py-1.5 text-sm text-gray-700 max-w-[200px] overflow-hidden truncate" title={formatCellValue(row, key)}>
+                                {key === 'created_at' || key === 'updated_at' ? formatDate(row[key] as string | null) : formatCellValue(row, key)}
+                              </td>
+                            ))}
+                            <td
+                              className="sticky right-0 z-10 py-1.5 text-center bg-white group-hover:bg-gray-50/80 border-l-2 border-gray-100"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="relative flex justify-center items-center w-full">
+                                <button
+                                  ref={openActionsId === row.id ? actionsButtonRef : undefined}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (openActionsId === row.id) {
+                                      setOpenActionsId(null);
+                                      setMenuPosition(null);
+                                      return;
+                                    }
+                                    const el = e.currentTarget;
+                                    const rect = el.getBoundingClientRect();
+                                    actionsButtonRef.current = el;
+                                    const menuWidth = 220;
+                                    const left = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8);
+                                    const spaceBelow = window.innerHeight - rect.bottom - 8;
+                                    setMenuPosition({
+                                      top: spaceBelow >= 320 ? rect.bottom + 4 : rect.top - 4,
+                                      left,
+                                      above: spaceBelow < 320,
+                                    });
+                                    setOpenActionsId(row.id);
+                                  }}
+                                  className="p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer text-gray-600 hover:text-black"
+                                  aria-label="Actions"
+                                >
+                                  <MoreVertical className="w-5 h-5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {!isLoading && total > 0 && (
             <div className="mt-4">
@@ -971,9 +1075,121 @@ export default function CRMCustomersPage() {
         createPortal(
           <div
             ref={actionsMenuRef}
-            className="fixed z-[100] min-w-[120px] py-1 bg-white border border-gray-200 rounded-md shadow-lg"
-            style={{ top: menuPosition.top, left: menuPosition.left }}
+            className="fixed z-[100] min-w-[220px] py-1 bg-white border border-gray-200 rounded-lg shadow-lg"
+            style={{
+              top: menuPosition.top,
+              left: menuPosition.left,
+              transform: menuPosition.above ? 'translateY(-100%)' : undefined,
+            }}
           >
+            <button
+              type="button"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenActionsId(null);
+                setMenuPosition(null);
+                if (openActionsId) router.push(`/${locale}/crm/invoices/new?customerId=${openActionsId}`);
+              }}
+            >
+              <FileText className="w-3.5 h-3.5 shrink-0" />
+              Create invoice
+            </button>
+            <button
+              type="button"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenActionsId(null);
+                setMenuPosition(null);
+                if (openActionsId) router.push(`/${locale}/crm/estimates?customerId=${openActionsId}`);
+              }}
+            >
+              <FileCheck className="w-3.5 h-3.5 shrink-0" />
+              Create estimate
+            </button>
+            <button
+              type="button"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenActionsId(null);
+                setMenuPosition(null);
+                if (openActionsId) router.push(`/${locale}/crm/projects?customerId=${openActionsId}`);
+              }}
+            >
+              <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+              Create project
+            </button>
+            <button
+              type="button"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                const row = customers.find((c) => c.id === openActionsId);
+                if (row) {
+                  setTaskCustomerContext({ id: row.id, name: customerDisplayName(row) });
+                  setShowAddTaskModal(true);
+                }
+                setOpenActionsId(null);
+                setMenuPosition(null);
+              }}
+            >
+              <PlusCircle className="w-3.5 h-3.5 shrink-0" />
+              Schedule task
+            </button>
+            {(() => {
+              const row = customers.find((c) => c.id === openActionsId);
+              if (!row) return null;
+
+              const emailHref = row.email?.trim() ? `mailto:${row.email.trim()}` : null;
+              const websiteHref = row.website?.trim()
+                ? (row.website.trim().startsWith('http') ? row.website.trim() : `https://${row.website.trim()}`)
+                : null;
+              const mapsQuery = [row.street_address, row.apartment, row.city, row.state, row.zip_code]
+                .filter((part) => Boolean(part && String(part).trim()))
+                .join(', ');
+              const mapsHref = mapsQuery ? `https://maps.google.com/?q=${encodeURIComponent(mapsQuery)}` : null;
+
+              return (
+                <>
+                  {emailHref && (
+                    <a
+                      href={emailHref}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+                      onClick={() => { setOpenActionsId(null); setMenuPosition(null); }}
+                    >
+                      <Mail className="w-3.5 h-3.5 shrink-0" />
+                      Email
+                    </a>
+                  )}
+                  {mapsHref && (
+                    <a
+                      href={mapsHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+                      onClick={() => { setOpenActionsId(null); setMenuPosition(null); }}
+                    >
+                      <MapPin className="w-3.5 h-3.5 shrink-0" />
+                      Map
+                    </a>
+                  )}
+                  {websiteHref && (
+                    <a
+                      href={websiteHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+                      onClick={() => { setOpenActionsId(null); setMenuPosition(null); }}
+                    >
+                      <Globe className="w-3.5 h-3.5 shrink-0" />
+                      Website
+                    </a>
+                  )}
+                </>
+              );
+            })()}
             <button
               type="button"
               className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
@@ -985,7 +1201,7 @@ export default function CRMCustomersPage() {
                 if (row) { setEditingId(row.id); setViewMode('edit'); }
               }}
             >
-              <Pencil className="w-3.5 h-3.5" />
+              <Pencil className="w-3.5 h-3.5 shrink-0" />
               Edit
             </button>
             <button
@@ -1001,24 +1217,47 @@ export default function CRMCustomersPage() {
                 }
               }}
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-3.5 h-3.5 shrink-0" />
               Delete
             </button>
           </div>,
           document.body
         )}
 
-      {/* Mobile-only: fixed FAB to add customer (same style as nine-dot menu button) */}
+      {/* Mobile-only: fixed FAB to create a new customer (same style as nine-dot menu button) */}
       {viewMode === 'table' && (
         <button
           type="button"
           onClick={() => setViewMode('add')}
-          className="md:hidden fixed bottom-6 right-4 z-50 h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all shadow-lg"
-          aria-label="Add customer"
+          className="md:hidden fixed bottom-[100px] right-[50px] z-50 h-12 w-12 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all shadow-lg"
+          aria-label="New customer"
         >
-          <Plus className="w-5 h-5 text-white" />
+          <Plus className="w-6 h-6 text-white" />
         </button>
       )}
+
+      {/* View toggle at page bottom (Card / List) - same as business list */}
+      {showViewToggle && (
+        <ViewToggle
+          currentView={listView}
+          onViewChange={setListView}
+          hideBackgroundToggle
+        />
+      )}
+
+      <AddTaskModal
+        isOpen={showAddTaskModal}
+        onClose={() => {
+          setShowAddTaskModal(false);
+          setTaskCustomerContext(null);
+        }}
+        onSuccess={() => {
+          setShowAddTaskModal(false);
+          setTaskCustomerContext(null);
+        }}
+        initialCustomerId={taskCustomerContext?.id ?? editingId}
+        initialMeetingWith={taskCustomerContext?.name ?? editingCustomerName}
+      />
     </div>
   );
 }

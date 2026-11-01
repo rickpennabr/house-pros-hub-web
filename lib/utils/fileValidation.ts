@@ -23,6 +23,7 @@ export const MAX_FILE_SIZES = {
   background: 5 * 1024 * 1024, // 5MB
   gallery: 5 * 1024 * 1024, // 5MB per gallery image
   chat: 10 * 1024 * 1024, // 10MB per chat attachment (images + PDF)
+  invoiceAttachment: 20 * 1024 * 1024, // 20MB per invoice attachment (QuickBooks-style)
 } as const;
 
 /** Allowed chat attachment MIME types (images + PDF) */
@@ -144,5 +145,22 @@ export async function validateChatAttachmentMagicBytes(
   } catch {
     return { isValid: false, mimeType: null };
   }
+}
+
+/** Allowed invoice attachment MIME types (images + PDF), same as chat. */
+export const ALLOWED_INVOICE_ATTACHMENT_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+] as const;
+
+/**
+ * Validates invoice attachment (images + PDF) using magic bytes. Same logic as chat attachments.
+ */
+export async function validateInvoiceAttachmentMagicBytes(
+  buffer: Buffer | ArrayBuffer | Uint8Array
+): Promise<{ isValid: boolean; mimeType: string | null }> {
+  return validateChatAttachmentMagicBytes(buffer);
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { validateFileMagicBytes, validateFileSize, getExtensionFromMimeType } from '@/lib/utils/fileValidation';
 import { handleError } from '@/lib/utils/errorHandler';
@@ -73,45 +74,45 @@ export async function POST(request: NextRequest) {
       return userRateLimitResponse;
     }
 
-    // Verify business ownership
-    const { data: business, error: businessError } = await supabase
-      .from('businesses')
-      .select('owner_id')
-      .eq('id', businessId)
-      .single();
+    const isAdmin = user.email?.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase().trim();
 
-    if (businessError) {
-      logger.error('Error fetching business for ownership verification', { 
-        endpoint: '/api/storage/upload-business-background',
-        businessId,
-        error: businessError.message,
-        code: businessError.code,
-      });
-      
-      if (businessError.code === 'PGRST116') {
+    if (!isAdmin) {
+      const { data: business, error: businessError } = await supabase
+        .from('businesses')
+        .select('owner_id')
+        .eq('id', businessId)
+        .single();
+
+      if (businessError) {
+        logger.error('Error fetching business for ownership verification', {
+          endpoint: '/api/storage/upload-business-background',
+          businessId,
+          error: businessError.message,
+          code: businessError.code,
+        });
+        if (businessError.code === 'PGRST116') {
+          return NextResponse.json(
+            { error: 'Business not found. Please refresh the page and try again.' },
+            { status: 404 }
+          );
+        }
         return NextResponse.json(
-          { error: 'Business not found. Please refresh the page and try again.' },
-          { status: 404 }
+          { error: 'Failed to verify business ownership' },
+          { status: 500 }
         );
       }
-      
-      return NextResponse.json(
-        { error: 'Failed to verify business ownership' },
-        { status: 500 }
-      );
-    }
-
-    if (!business || business.owner_id !== user.id) {
-      logger.warn('Unauthorized background upload attempt', {
-        endpoint: '/api/storage/upload-business-background',
-        businessId,
-        businessOwnerId: business?.owner_id,
-        userId: user.id,
-      });
-      return NextResponse.json(
-        { error: 'Unauthorized - you do not own this business' },
-        { status: 403 }
-      );
+      if (!business || business.owner_id !== user.id) {
+        logger.warn('Unauthorized background upload attempt', {
+          endpoint: '/api/storage/upload-business-background',
+          businessId,
+          businessOwnerId: business?.owner_id,
+          userId: user.id,
+        });
+        return NextResponse.json(
+          { error: 'Unauthorized - you do not own this business' },
+          { status: 403 }
+        );
+      }
     }
 
     // Get business name for filename
@@ -128,16 +129,21 @@ export async function POST(request: NextRequest) {
       .replace(/\s+/g, '') // Remove spaces
       .substring(0, 50); // Limit length
     
-    // Upload file to storage using validated buffer and MIME type
+    // Use service role for storage when admin so RLS (owner-only) does not block the upload
+    const storageClient = isAdmin ? createServiceRoleClient() : supabase;
+    // Upload file to storage using validated buffer and MIME type.
+    // Use a unique path per upload (timestamp) so re-uploads always succeed and return a new URL,
+    // avoiding "file already exists" and ensuring the UI shows the new image instead of cached old one.
     const fileExt = getExtensionFromMimeType(fileValidation.mimeType);
-    const fileName = sanitizedName ? `Background-${sanitizedName}${fileExt}` : `Background-${Date.now()}${fileExt}`;
+    const baseName = sanitizedName ? `Background-${sanitizedName}` : 'Background';
+    const fileName = `${baseName}-${Date.now()}${fileExt}`;
     const filePath = `${businessId}/${fileName}`;
 
-    const { data, error } = await supabase.storage
+    const { data, error } = await storageClient.storage
       .from('business-backgrounds')
       .upload(filePath, buffer, {
         cacheControl: '3600',
-        upsert: false,
+        upsert: true,
         contentType: fileValidation.mimeType,
       });
 
@@ -164,8 +170,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
+    // Get public URL (same bucket, either client works)
+    const { data: { publicUrl } } = storageClient.storage
       .from('business-backgrounds')
       .getPublicUrl(data.path);
 

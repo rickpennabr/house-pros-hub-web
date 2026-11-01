@@ -2,23 +2,25 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Search, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useLocale } from 'next-intl';
+import { ChevronDown, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, FileCheck, FolderPlus, Search, Send, Loader2, Copy } from 'lucide-react';
 import Pagination from '@/components/ui/Pagination';
-import { FormField } from '@/components/ui/FormField';
-import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { Select } from '@/components/ui/Select';
 import Modal from '@/components/ui/Modal';
+import { EstimateDocumentForm } from '@/components/estimates/EstimateDocumentForm';
+import { CustomerEstimatePreview, type CustomerEstimatePreviewData } from '@/components/estimates/CustomerEstimatePreview';
+import { AddProductServicePanel, type ProCrmItem } from '@/components/invoices/AddProductServicePanel';
+import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
+import { DOCUMENT_FORM_LAYOUT } from '@/lib/constants/documentFormLayout';
+import {
+  duplicateEstimateDraftFromGetResponse,
+  lineItemsForEstimateForm,
+  type CrmEstimateLineItemForm,
+} from '@/lib/utils/crmEstimateFormLineItems';
 
 const PAGE_SIZE = 25;
-const SORT_OPTIONS = [
-  { value: 'created_at', label: 'Created' },
-  { value: 'updated_at', label: 'Updated' },
-  { value: 'status', label: 'Status' },
-  { value: 'due_date', label: 'Due date' },
-  { value: 'amount_cents', label: 'Amount' },
-] as const;
-type SortKey = (typeof SORT_OPTIONS)[number]['value'];
+type SortKey = 'created_at' | 'updated_at' | 'status' | 'due_date' | 'amount_cents';
 
 const STATUS_OPTIONS = ['draft', 'sent', 'accepted', 'declined'] as const;
 
@@ -42,17 +44,19 @@ function formatAmount(cents: number) {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(cents / 100);
 }
 
+function getDefaultEstimateValidityDate(days = 30) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function SortHeader({
   label,
   sortKey,
-  currentSort,
-  currentDir,
   onSort,
 }: {
   label: string;
   sortKey: SortKey;
-  currentSort: string;
-  currentDir: 'asc' | 'desc';
   onSort: (key: SortKey, dir: 'asc' | 'desc') => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -87,14 +91,22 @@ interface CustomerOption {
   last_name: string;
 }
 
+export type EstimateLineItem = CrmEstimateLineItemForm;
+
 type ViewMode = 'table' | 'add' | 'edit';
 
 export default function CRMEstimatesPage() {
+  const router = useRouter();
+  const locale = useLocale();
+  const searchParams = useSearchParams();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +114,9 @@ export default function CRMEstimatesPage() {
   const hasLoadedOnceRef = useRef(false);
 
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [reusableItems, setReusableItems] = useState<ProCrmItem[]>([]);
+  const [addItemPanelOpen, setAddItemPanelOpen] = useState(false);
+  const [addItemPanelRowIndex, setAddItemPanelRowIndex] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<{
@@ -110,20 +125,35 @@ export default function CRMEstimatesPage() {
     status: string;
     dueDate: string;
     note: string;
+    estimateNumber: string;
+    customerEmail: string | null;
   } | null>(null);
   const [formCustomerId, setFormCustomerId] = useState('');
-  const [formAmountDollars, setFormAmountDollars] = useState('');
+  const [formLineItems, setFormLineItems] = useState<EstimateLineItem[]>([
+    { product_or_service: '', description: '', qty: 1, rate_cents: 0, amount_cents: 0 },
+  ]);
   const [formStatus, setFormStatus] = useState('draft');
-  const [formDueDate, setFormDueDate] = useState('');
+  const [formDueDate, setFormDueDate] = useState(getDefaultEstimateValidityDate());
   const [formNote, setFormNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const prefillsAppliedRef = useRef(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
+  const [loadingDuplicateId, setLoadingDuplicateId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [sendDialogEstimateId, setSendDialogEstimateId] = useState<string | null>(null);
+  const [sendDialogStep, setSendDialogStep] = useState<'preview' | 'compose' | 'confirm'>('preview');
+  const [sendPreviewData, setSendPreviewData] = useState<CustomerEstimatePreviewData | null>(null);
+  const [sendPreviewLoading, setSendPreviewLoading] = useState(false);
+  const [sendPreviewError, setSendPreviewError] = useState<string | null>(null);
+  const [sendDialogCustomerEmail, setSendDialogCustomerEmail] = useState<string | null>(null);
+  const [sendMessage, setSendMessage] = useState('');
+  const [sendingEstimateId, setSendingEstimateId] = useState<string | null>(null);
+  const [sendSuccessMessage, setSendSuccessMessage] = useState<string | null>(null);
 
   const fetchEstimates = useCallback(async () => {
     const isFirst = !hasLoadedOnceRef.current;
@@ -131,6 +161,7 @@ export default function CRMEstimatesPage() {
       if (isFirst) setIsLoading(true);
       setError(null);
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sortBy, sortDir });
+      if (search) params.set('search', search);
       if (statusFilter) params.set('status', statusFilter);
       const res = await fetch(`/api/crm/estimates?${params}`, { credentials: 'include' });
       if (!res.ok) {
@@ -148,18 +179,49 @@ export default function CRMEstimatesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, sortBy, sortDir, statusFilter]);
+  }, [page, sortBy, sortDir, search, statusFilter]);
 
   useEffect(() => { fetchEstimates(); }, [fetchEstimates]);
 
   useEffect(() => {
+    if (!sendSuccessMessage) return;
+    const id = window.setTimeout(() => setSendSuccessMessage(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [sendSuccessMessage]);
+
+  useEffect(() => {
+    const requestedCustomerId = searchParams.get('customerId');
+    if (!requestedCustomerId) return;
+    setViewMode('add');
+  }, [searchParams]);
+
+  useEffect(() => {
     if (viewMode === 'add' || viewMode === 'edit') {
-      fetch('/api/crm/customers?pageSize=500', { credentials: 'include' })
-        .then((r) => r.json())
-        .then((d) => setCustomers(d.customers ?? []))
-        .catch(() => setCustomers([]));
+      Promise.all([
+        fetch('/api/crm/customers?pageSize=500', { credentials: 'include' }).then((r) => r.json()),
+        fetch('/api/crm/items', { credentials: 'include' }).then((r) => r.json()),
+      ])
+        .then(([customersData, itemsData]) => {
+          setCustomers(customersData.customers ?? []);
+          setReusableItems(itemsData.items ?? []);
+        })
+        .catch(() => {
+          setCustomers([]);
+          setReusableItems([]);
+        });
     }
   }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== 'add') return;
+    if (prefillsAppliedRef.current) return;
+    if (customers.length === 0) return;
+    const requestedCustomerId = searchParams.get('customerId');
+    if (requestedCustomerId && customers.some((customer) => customer.id === requestedCustomerId)) {
+      setFormCustomerId(requestedCustomerId);
+    }
+    prefillsAppliedRef.current = true;
+  }, [customers, searchParams, viewMode]);
 
   useEffect(() => {
     if (viewMode !== 'edit' || !editingId) return;
@@ -169,20 +231,27 @@ export default function CRMEstimatesPage() {
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
+        const items = lineItemsForEstimateForm(data.lineItems, data.amountCents ?? 0);
         setEditingData({
           customerId: data.customerId ?? '',
           amountCents: data.amountCents ?? 0,
           status: data.status ?? 'draft',
           dueDate: data.dueDate ? data.dueDate.slice(0, 10) : '',
           note: data.note ?? '',
+          estimateNumber: data.displayId ?? data.display_id ?? '',
+          customerEmail: typeof data.customerEmail === 'string' ? data.customerEmail : null,
         });
         setFormCustomerId(data.customerId ?? '');
-        setFormAmountDollars(data.amountCents != null ? (data.amountCents / 100).toFixed(2) : '');
+        setFormLineItems(items);
         setFormStatus(data.status ?? 'draft');
         setFormDueDate(data.dueDate ? data.dueDate.slice(0, 10) : '');
         setFormNote(data.note ?? '');
       })
-      .catch(() => { if (!cancelled) setEditingData({ customerId: '', amountCents: 0, status: 'draft', dueDate: '', note: '' }); });
+      .catch(() => {
+        if (!cancelled) {
+          setEditingData({ customerId: '', amountCents: 0, status: 'draft', dueDate: '', note: '', estimateNumber: '', customerEmail: null });
+        }
+      });
     return () => { cancelled = true; };
   }, [viewMode, editingId]);
 
@@ -200,6 +269,87 @@ export default function CRMEstimatesPage() {
   }, [openActionsId]);
 
   const handleSort = (key: SortKey, dir: 'asc' | 'desc') => { setSortBy(key); setSortDir(dir); setPage(1); };
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearch(searchInput.trim());
+    setPage(1);
+  };
+
+  const handleConvertToInvoice = async (estimateId: string) => {
+    setConvertingId(estimateId);
+    setOpenActionsId(null);
+    setMenuPosition(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/crm/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ estimateId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to create invoice');
+      router.push(`/${locale}/crm/invoices/${data.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to convert to invoice');
+    } finally {
+      setConvertingId(null);
+    }
+  };
+
+  const handleConvertToProject = async (estimateId: string) => {
+    setConvertingId(estimateId);
+    setOpenActionsId(null);
+    setMenuPosition(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/crm/projects/convert-from-estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ estimateId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to create project');
+      router.push(`/${locale}/crm/projects`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to convert to project');
+    } finally {
+      setConvertingId(null);
+    }
+  };
+
+  const handleDuplicateEstimate = async (estimateId: string) => {
+    setOpenActionsId(null);
+    setMenuPosition(null);
+    setFormError(null);
+    setError(null);
+    setLoadingDuplicateId(estimateId);
+    try {
+      const res = await fetch(`/api/crm/estimates/${estimateId}`, { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Failed to load estimate');
+      const draft = duplicateEstimateDraftFromGetResponse({
+        customerId: data.customerId,
+        lineItems: data.lineItems,
+        amountCents: data.amountCents,
+        note: data.note,
+      });
+      setEditingId(null);
+      setEditingData(null);
+      setFormCustomerId(draft.customerId);
+      setFormLineItems(draft.lineItems);
+      setFormStatus('draft');
+      setFormDueDate(getDefaultEstimateValidityDate());
+      setFormNote(draft.note);
+      setViewMode('add');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to duplicate estimate');
+    } finally {
+      setLoadingDuplicateId(null);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     setDeleting(true);
     setError(null);
@@ -216,11 +366,203 @@ export default function CRMEstimatesPage() {
     }
   };
 
+  const openSendDialog = (estimateId: string) => {
+    setSendDialogEstimateId(estimateId);
+    setSendMessage('');
+    setSendDialogStep('preview');
+    setSendPreviewData(null);
+    setSendPreviewError(null);
+    setSendDialogCustomerEmail(null);
+    setSendPreviewLoading(true);
+    fetch(`/api/crm/estimates/${estimateId}/customer-preview`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) throw new Error(typeof d.error === 'string' ? d.error : 'Failed to load preview');
+        setSendPreviewData(d as CustomerEstimatePreviewData);
+        const email =
+          typeof d.customer?.email === 'string' && d.customer.email.trim() ? d.customer.email.trim() : null;
+        setSendDialogCustomerEmail(email);
+      })
+      .catch((err) => {
+        setSendPreviewData(null);
+        setSendDialogCustomerEmail(null);
+        setSendPreviewError(err instanceof Error ? err.message : 'Could not load preview.');
+      })
+      .finally(() => setSendPreviewLoading(false));
+  };
+
+  const handleSendEstimate = async () => {
+    if (!sendDialogEstimateId) return;
+    setSendingEstimateId(sendDialogEstimateId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/crm/estimates/${sendDialogEstimateId}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ message: sendMessage.trim() || undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const base = typeof data.error === 'string' ? data.error : 'Failed to send estimate';
+        const extra = typeof data.details === 'string' ? ` ${data.details}` : '';
+        throw new Error(`${base}${extra}`);
+      }
+      setSendDialogEstimateId(null);
+      setSendMessage('');
+      setSendDialogStep('preview');
+      setSendPreviewData(null);
+      setSendSuccessMessage(`Estimate sent to ${typeof data.sentTo === 'string' ? data.sentTo : 'your customer'}.`);
+      fetchEstimates();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send estimate');
+    } finally {
+      setSendingEstimateId(null);
+    }
+  };
+
+  const applyItemToRow = (item: ProCrmItem, rowIndex: number) => {
+    setFormLineItems((prev) => {
+      const next = [...prev];
+      if (rowIndex >= 0 && rowIndex < next.length) {
+        next[rowIndex] = {
+          ...next[rowIndex],
+          product_or_service: item.name,
+          description: item.description ?? next[rowIndex].description,
+          unit: item.unit || DEFAULT_UNIT,
+          rate_cents: item.price_cents,
+          amount_cents: Math.round((next[rowIndex].qty || 1) * item.price_cents),
+        };
+      }
+      return next;
+    });
+  };
+
+  const handleAddItemSaved = (item: ProCrmItem, action: 'close' | 'saveAndNew') => {
+    setReusableItems((prev) => {
+      const idx = prev.findIndex((existingItem) => existingItem.id === item.id);
+      if (idx === -1) return [...prev, item];
+      const next = [...prev];
+      next[idx] = item;
+      return next;
+    });
+    if (addItemPanelRowIndex !== null) {
+      applyItemToRow(item, addItemPanelRowIndex);
+    }
+    if (action === 'close') {
+      setAddItemPanelRowIndex(null);
+      setAddItemPanelOpen(false);
+      return;
+    }
+    // For save-and-new, keep modal open so users can add another item quickly.
+    setAddItemPanelRowIndex(null);
+  };
+
+  const lineItemsPayload = formLineItems
+    .filter((line) => line.description || line.product_or_service || line.amount_cents > 0)
+    .map((line) => ({
+      product_or_service: line.product_or_service || null,
+      description: line.description || null,
+      unit: line.unit || DEFAULT_UNIT,
+      qty: line.qty,
+      rate_cents: line.rate_cents,
+      amount_cents: line.amount_cents,
+    }));
+  const totalAmountCents =
+    lineItemsPayload.length > 0
+      ? lineItemsPayload.reduce((sum, l) => sum + l.amount_cents, 0)
+      : 0;
+
+  const syncEstimateLinesToReusableItems = async (lines: typeof lineItemsPayload) => {
+    const normalizedIncoming = lines
+      .filter((line) => line.product_or_service && line.product_or_service.trim())
+      .map((line) => ({
+        name: (line.product_or_service ?? '').trim(),
+        description: (line.description ?? '').trim(),
+        unit: (line.unit ?? DEFAULT_UNIT).trim() || DEFAULT_UNIT,
+        price_cents: Math.max(0, Math.round(line.rate_cents ?? 0)),
+      }));
+    if (normalizedIncoming.length === 0) return;
+
+    const existingRes = await fetch('/api/crm/items', { credentials: 'include' });
+    const existingData = await existingRes.json().catch(() => ({}));
+    const existingItems: ProCrmItem[] = existingData.items ?? [];
+
+    const existingKeys = new Set(
+      existingItems.map((item) =>
+        JSON.stringify({
+          name: (item.name ?? '').trim().toLowerCase(),
+          description: (item.description ?? '').trim().toLowerCase(),
+          unit: (item.unit ?? DEFAULT_UNIT).trim().toLowerCase(),
+          price_cents: Math.max(0, Math.round(item.price_cents ?? 0)),
+        })
+      )
+    );
+
+    for (const line of normalizedIncoming) {
+      const key = JSON.stringify({
+        name: line.name.toLowerCase(),
+        description: line.description.toLowerCase(),
+        unit: line.unit.toLowerCase(),
+        price_cents: line.price_cents,
+      });
+      if (existingKeys.has(key)) continue;
+      const createRes = await fetch('/api/crm/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: line.name,
+          item_type: 'service',
+          description: line.description || undefined,
+          price_cents: line.price_cents,
+          unit: line.unit,
+        }),
+      });
+      if (createRes.ok) existingKeys.add(key);
+    }
+  };
+
+  const getCreateEstimateValidationError = (): string | null => {
+    if (!formCustomerId) return 'Select a customer';
+    const hasInvalidLine = formLineItems.some((line) => {
+      const touched =
+        Boolean(line.description?.trim()) ||
+        Boolean(line.product_or_service?.trim()) ||
+        line.qty > 0 ||
+        line.rate_cents > 0 ||
+        line.amount_cents > 0;
+      return touched && !line.product_or_service?.trim();
+    });
+    if (hasInvalidLine) {
+      return 'Choose a product or service from reusable items before saving.';
+    }
+    const seen = new Set<string>();
+    for (const line of formLineItems) {
+      const key = JSON.stringify({
+        product_or_service: (line.product_or_service ?? '').trim().toLowerCase(),
+        description: (line.description ?? '').trim().toLowerCase(),
+        unit: (line.unit ?? '').trim().toLowerCase(),
+        qty: line.qty,
+        rate_cents: line.rate_cents,
+        amount_cents: line.amount_cents,
+      });
+      if (seen.has(key)) return 'You have a duplicated item on your estimate. Modify one before creating.';
+      seen.add(key);
+    }
+    return null;
+  };
+
   const handleSubmitAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    if (!formCustomerId) { setFormError('Select a customer'); return; }
-    const amountCents = Math.round(parseFloat(formAmountDollars || '0') * 100);
+    const validationError = getCreateEstimateValidationError();
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+    const amountCents = totalAmountCents;
+    const lineItemsToSend = lineItemsPayload.length > 0 ? lineItemsPayload : null;
     setSaving(true);
     try {
       const res = await fetch('/api/crm/estimates', {
@@ -230,6 +572,7 @@ export default function CRMEstimatesPage() {
         body: JSON.stringify({
           customerId: formCustomerId,
           amountCents,
+          lineItems: lineItemsToSend,
           status: formStatus,
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
@@ -237,12 +580,53 @@ export default function CRMEstimatesPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to create estimate');
+      await syncEstimateLinesToReusableItems(lineItemsToSend ?? []);
       setViewMode('table');
       setFormCustomerId('');
-      setFormAmountDollars('');
+      setFormLineItems([{ product_or_service: '', description: '', unit: DEFAULT_UNIT, qty: 1, rate_cents: 0, amount_cents: 0 }]);
       setFormStatus('draft');
-      setFormDueDate('');
+      setFormDueDate(getDefaultEstimateValidityDate());
       setFormNote('');
+      fetchEstimates();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Request failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReviewAndSendCreate = async () => {
+    setFormError(null);
+    const validationError = getCreateEstimateValidationError();
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+    const amountCents = totalAmountCents;
+    const lineItemsToSend = lineItemsPayload.length > 0 ? lineItemsPayload : null;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/crm/estimates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          customerId: formCustomerId,
+          amountCents,
+          lineItems: lineItemsToSend,
+          status: formStatus,
+          dueDate: formDueDate || null,
+          note: formNote.trim() || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to create estimate');
+      const newId = typeof data.id === 'string' ? data.id : null;
+      if (!newId) throw new Error('Invalid response from server');
+      await syncEstimateLinesToReusableItems(lineItemsToSend ?? []);
+      setEditingId(newId);
+      setViewMode('edit');
+      openSendDialog(newId);
       fetchEstimates();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Request failed');
@@ -254,8 +638,46 @@ export default function CRMEstimatesPage() {
   const handleSubmitEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingId) return;
+    if (!formCustomerId) {
+      setFormError('Select a customer');
+      return;
+    }
+    const hasInvalidLine = formLineItems.some((line) => {
+      const touched =
+        Boolean(line.description?.trim()) ||
+        Boolean(line.product_or_service?.trim()) ||
+        line.qty > 0 ||
+        line.rate_cents > 0 ||
+        line.amount_cents > 0;
+      return touched && !line.product_or_service?.trim();
+    });
+    if (hasInvalidLine) {
+      setFormError('Choose a product or service from reusable items before saving.');
+      return;
+    }
+    const hasExactDuplicateLines = (() => {
+      const seen = new Set<string>();
+      for (const line of formLineItems) {
+        const key = JSON.stringify({
+          product_or_service: (line.product_or_service ?? '').trim().toLowerCase(),
+          description: (line.description ?? '').trim().toLowerCase(),
+          unit: (line.unit ?? '').trim().toLowerCase(),
+          qty: line.qty,
+          rate_cents: line.rate_cents,
+          amount_cents: line.amount_cents,
+        });
+        if (seen.has(key)) return true;
+        seen.add(key);
+      }
+      return false;
+    })();
+    if (hasExactDuplicateLines) {
+      setFormError('You have a duplicated item on your estimate. Modify one before creating.');
+      return;
+    }
     setFormError(null);
-    const amountCents = Math.round(parseFloat(formAmountDollars || '0') * 100);
+    const amountCents = totalAmountCents;
+    const lineItemsToSend = lineItemsPayload.length > 0 ? lineItemsPayload : null;
     setSaving(true);
     try {
       const res = await fetch(`/api/crm/estimates/${editingId}`, {
@@ -265,6 +687,7 @@ export default function CRMEstimatesPage() {
         body: JSON.stringify({
           customerId: formCustomerId || undefined,
           amountCents,
+          lineItems: lineItemsToSend,
           status: formStatus,
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
@@ -272,6 +695,7 @@ export default function CRMEstimatesPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to update estimate');
+      await syncEstimateLinesToReusableItems(lineItemsToSend ?? []);
       setViewMode('table');
       setEditingId(null);
       setEditingData(null);
@@ -287,6 +711,26 @@ export default function CRMEstimatesPage() {
 
   return (
     <div className="w-full">
+      {sendSuccessMessage && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-900 text-sm flex flex-wrap items-start justify-between gap-2">
+          <span>{sendSuccessMessage}</span>
+          <button
+            type="button"
+            className="shrink-0 text-green-800 underline font-medium cursor-pointer"
+            onClick={() => setSendSuccessMessage(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm flex flex-wrap items-start justify-between gap-2">
+          <span>{error}</span>
+          <button type="button" className="shrink-0 underline font-medium cursor-pointer" onClick={() => setError(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
       {viewMode === 'table' && (
         <>
           <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
@@ -300,6 +744,21 @@ export default function CRMEstimatesPage() {
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-4 pb-2">
+            <form onSubmit={handleSearchSubmit} className="flex gap-2 items-center flex-1 min-w-[260px] max-w-md">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search customer..."
+                  className="w-full h-9 pl-9 pr-3 border border-gray-300 rounded-md text-sm bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                />
+              </div>
+              <button type="submit" className="h-9 px-4 rounded-md bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer">
+                Search
+              </button>
+            </form>
             <form className="flex gap-2 items-center" onSubmit={(e) => e.preventDefault()}>
               <label className="text-sm text-gray-600">Status</label>
               <select
@@ -314,7 +773,6 @@ export default function CRMEstimatesPage() {
               </select>
             </form>
           </div>
-          {error && <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>}
           <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
             {isLoading && !hasLoadedOnce ? (
               <div className="p-12 text-center text-gray-500 text-sm">Loading estimates…</div>
@@ -324,16 +782,16 @@ export default function CRMEstimatesPage() {
                   <thead>
                     <tr className="border-b-2 border-black bg-black text-white">
                       <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Customer" sortKey="created_at" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Customer" sortKey="created_at" onSort={handleSort} />
                       </th>
                       <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Amount" sortKey="amount_cents" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Amount" sortKey="amount_cents" onSort={handleSort} />
                       </th>
                       <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Status" sortKey="status" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Status" sortKey="status" onSort={handleSort} />
                       </th>
                       <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Due" sortKey="due_date" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Valid until" sortKey="due_date" onSort={handleSort} />
                       </th>
                       <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white w-[72px]">Actions</th>
                     </tr>
@@ -392,48 +850,73 @@ export default function CRMEstimatesPage() {
       )}
 
       {(viewMode === 'add' || viewMode === 'edit') && (
-        <div className="w-full md:max-w-xl md:mx-auto">
-          <div className="py-2 md:mb-6 flex items-center justify-between gap-4">
+        <div className={DOCUMENT_FORM_LAYOUT.pageContainer}>
+          <div className="py-2 md:mb-6 flex items-center gap-4">
             <button
               type="button"
               onClick={() => { setViewMode('table'); setEditingId(null); setEditingData(null); }}
-              className="flex items-center gap-2 text-gray-700 hover:text-black font-medium cursor-pointer"
+              className="flex items-center gap-2 text-gray-700 hover:text-black font-medium cursor-pointer shrink-0"
             >
               <ArrowLeft className="w-5 h-5 shrink-0" />
               Back
             </button>
-            <span className="text-lg font-semibold text-gray-900">{viewMode === 'add' ? 'New Estimate' : 'Edit Estimate'}</span>
+            <span className="flex-1 text-center text-lg font-semibold text-gray-900">
+              {viewMode === 'add' ? 'New Estimate' : 'Edit Estimate'}
+            </span>
+            <div className="shrink-0 min-w-[7.5rem] flex justify-end">
+              {viewMode === 'edit' && editingId ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={() => void handleDuplicateEstimate(editingId)}
+                  disabled={loadingDuplicateId === editingId}
+                >
+                  {loadingDuplicateId === editingId ? (
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />
+                  ) : (
+                    <Copy className="w-4 h-4 shrink-0" aria-hidden />
+                  )}
+                  Duplicate
+                </Button>
+              ) : null}
+            </div>
           </div>
           {(viewMode === 'add' || editingData !== null) && (
-            <form onSubmit={viewMode === 'add' ? handleSubmitAdd : handleSubmitEdit} className="space-y-4">
-              {formError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{formError}</div>}
-              <FormField label="Customer" required>
-                <Select value={formCustomerId} onChange={(e) => setFormCustomerId(e.target.value)} required disabled={viewMode === 'edit'}>
-                  <option value="">Select customer</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-                  ))}
-                </Select>
-              </FormField>
-              <FormField label="Amount ($)">
-                <Input type="number" step="0.01" min="0" value={formAmountDollars} onChange={(e) => setFormAmountDollars(e.target.value)} placeholder="0.00" />
-              </FormField>
-              <FormField label="Status">
-                <Select value={formStatus} onChange={(e) => setFormStatus(e.target.value)}>
-                  {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Due date">
-                <Input type="date" value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)} />
-              </FormField>
-              <FormField label="Note">
-                <Input value={formNote} onChange={(e) => setFormNote(e.target.value)} placeholder="Optional note" />
-              </FormField>
-              <div className="flex gap-2 pt-2">
-                <Button type="button" variant="secondary" size="sm" onClick={() => { setViewMode('table'); setEditingId(null); setEditingData(null); }} disabled={saving}>Cancel</Button>
-                <Button type="submit" variant="primary" size="sm" disabled={saving}>{saving ? 'Saving…' : viewMode === 'add' ? 'Create Estimate' : 'Save changes'}</Button>
-              </div>
-            </form>
+            <EstimateDocumentForm
+              mode={viewMode === 'add' ? 'create' : 'edit'}
+              estimateNumber={viewMode === 'edit' ? (editingData?.estimateNumber ?? '') : ''}
+              customers={customers}
+              customerId={formCustomerId}
+              onCustomerIdChange={setFormCustomerId}
+              lineItems={formLineItems}
+              onLineItemsChange={setFormLineItems}
+              validUntilDate={formDueDate}
+              onValidUntilDateChange={setFormDueDate}
+              status={formStatus}
+              onStatusChange={setFormStatus}
+              note={formNote}
+              onNoteChange={setFormNote}
+              saving={saving}
+              error={formError}
+              onSubmit={viewMode === 'add' ? handleSubmitAdd : handleSubmitEdit}
+              onCancel={() => { setViewMode('table'); setEditingId(null); setEditingData(null); }}
+              submitLabel={viewMode === 'add' ? 'Create Estimate' : 'Save changes'}
+              reusableItems={reusableItems}
+              onReviewAndSend={
+                viewMode === 'edit' && editingId
+                  ? () => openSendDialog(editingId)
+                  : viewMode === 'add'
+                    ? handleReviewAndSendCreate
+                    : undefined
+              }
+              reviewSending={Boolean(editingId && sendingEstimateId === editingId)}
+              onOpenAddReusableItem={(rowIndex) => {
+                setAddItemPanelRowIndex(typeof rowIndex === 'number' ? rowIndex : null);
+                setAddItemPanelOpen(true);
+              }}
+            />
           )}
           {viewMode === 'edit' && editingData === null && <div className="p-12 text-center text-gray-500 text-sm">Loading…</div>}
         </div>
@@ -457,16 +940,221 @@ export default function CRMEstimatesPage() {
 
       {openActionsId && menuPosition && typeof document !== 'undefined' &&
         createPortal(
-          <div ref={actionsMenuRef} className="fixed z-[100] min-w-[120px] py-1 bg-white border border-gray-200 rounded-md shadow-lg" style={{ top: menuPosition.top, left: menuPosition.left }}>
-            <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { setEditingId(openActionsId); setViewMode('edit'); setOpenActionsId(null); setMenuPosition(null); }}>
-              <Pencil className="w-3.5 h-3.5" /> Edit
-            </button>
-            <button type="button" className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { const r = estimates.find((e) => e.id === openActionsId); if (r) setDeleteConfirm({ id: r.id, label: `${r.customerFirstName} ${r.customerLastName}` }); setOpenActionsId(null); setMenuPosition(null); }}>
-              <Trash2 className="w-3.5 h-3.5" /> Delete
-            </button>
-          </div>,
+          (() => (
+              <div ref={actionsMenuRef} className="fixed z-[100] min-w-[140px] py-1 bg-white border border-gray-200 rounded-md shadow-lg" style={{ top: menuPosition.top, left: menuPosition.left }}>
+                <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { setEditingId(openActionsId); setViewMode('edit'); setOpenActionsId(null); setMenuPosition(null); }}>
+                  <Pencil className="w-3.5 h-3.5" /> Edit
+                </button>
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  onClick={() => {
+                    if (openActionsId) void handleDuplicateEstimate(openActionsId);
+                  }}
+                  disabled={loadingDuplicateId === openActionsId}
+                >
+                  {loadingDuplicateId === openActionsId ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  Duplicate
+                </button>
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    openSendDialog(openActionsId);
+                    setOpenActionsId(null);
+                    setMenuPosition(null);
+                  }}
+                  disabled={sendingEstimateId === openActionsId}
+                >
+                  <Send className="w-3.5 h-3.5" /> Review & Send
+                </button>
+                <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => handleConvertToInvoice(openActionsId)} disabled={convertingId === openActionsId}>
+                  <FileCheck className="w-3.5 h-3.5" /> Convert to invoice
+                </button>
+                <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => handleConvertToProject(openActionsId)} disabled={convertingId === openActionsId}>
+                  <FolderPlus className="w-3.5 h-3.5" /> Convert to project
+                </button>
+                <button type="button" className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { const r = estimates.find((e) => e.id === openActionsId); if (r) setDeleteConfirm({ id: r.id, label: `${r.customerFirstName} ${r.customerLastName}` }); setOpenActionsId(null); setMenuPosition(null); }}>
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+              </div>
+          ))(),
           document.body
         )}
+
+      {sendDialogEstimateId && (
+        <Modal
+          isOpen
+          onClose={() => {
+            if (sendingEstimateId) return;
+            setSendDialogEstimateId(null);
+            setSendDialogStep('preview');
+            setSendPreviewData(null);
+            setSendPreviewError(null);
+          }}
+          showHeader={false}
+          showCloseButton
+          maxWidth={sendDialogStep === 'preview' ? 'full' : 'sm'}
+          overlayClassName={sendDialogStep === 'preview' ? 'md:!p-2 lg:!p-4' : ''}
+          className={
+            sendDialogStep === 'preview'
+              ? '!max-w-[min(100vw-1rem,96rem)] w-full'
+              : ''
+          }
+          preventCloseOnOverlayClick={Boolean(sendingEstimateId)}
+          contentClassName={sendDialogStep === 'preview' ? 'p-4 md:p-6 overflow-y-auto max-h-[calc(90vh-2rem)]' : 'p-6'}
+        >
+          <div className="relative">
+            {sendingEstimateId && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/90 rounded-lg min-h-[120px]">
+                <Loader2 className="w-10 h-10 text-gray-900 animate-spin" aria-hidden />
+                <p className="text-sm font-medium text-gray-900">Sending email…</p>
+                <p className="text-xs text-gray-500 text-center px-4">Please keep this tab open.</p>
+              </div>
+            )}
+            {sendDialogStep === 'preview' && (
+              <>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Review & Send</h2>
+                <p className="text-sm text-gray-600 mb-4">
+                  This matches what your customer will see (except they get an Approve button on the live link). When you are ready, continue to add an optional note and send the email.
+                </p>
+                {sendPreviewLoading && (
+                  <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-600">
+                    <Loader2 className="w-10 h-10 animate-spin text-gray-900" aria-hidden />
+                    <p className="text-sm">Loading customer preview…</p>
+                  </div>
+                )}
+                {!sendPreviewLoading && sendPreviewError && (
+                  <p className="text-sm text-red-600 mb-4">{sendPreviewError}</p>
+                )}
+                {!sendPreviewLoading && sendPreviewData && (
+                  <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                    <CustomerEstimatePreview data={sendPreviewData} variant="preview" />
+                  </div>
+                )}
+                <div className="flex flex-wrap justify-end gap-2 pt-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setSendDialogEstimateId(null);
+                      setSendDialogStep('preview');
+                      setSendPreviewData(null);
+                      setSendPreviewError(null);
+                    }}
+                    disabled={Boolean(sendingEstimateId)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setSendDialogStep('compose')}
+                    disabled={
+                      Boolean(sendingEstimateId) || sendPreviewLoading || !sendPreviewData || Boolean(sendPreviewError)
+                    }
+                  >
+                    Continue to email
+                  </Button>
+                </div>
+              </>
+            )}
+            {sendDialogStep === 'compose' && (
+              <>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Email to customer</h2>
+                <p className="text-sm text-gray-600 mb-4">Add an optional message, then confirm to send the secure link.</p>
+                <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                  <span className="text-gray-500">To </span>
+                  <span className="font-medium text-gray-900 break-all">{sendDialogCustomerEmail || '—'}</span>
+                </div>
+                {!sendDialogCustomerEmail && (
+                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4">
+                    Add an email address on this customer before sending.
+                  </p>
+                )}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message (optional)</label>
+                <textarea
+                  value={sendMessage}
+                  onChange={(e) => setSendMessage(e.target.value)}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  placeholder="Add a short message to include in the email."
+                  disabled={Boolean(sendingEstimateId)}
+                />
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSendDialogStep('preview')}
+                    disabled={Boolean(sendingEstimateId)}
+                  >
+                    Back to preview
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setSendDialogEstimateId(null);
+                      setSendDialogStep('preview');
+                      setSendPreviewData(null);
+                      setSendPreviewError(null);
+                    }}
+                    disabled={Boolean(sendingEstimateId)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setSendDialogStep('confirm')}
+                    disabled={Boolean(sendingEstimateId) || !sendDialogCustomerEmail}
+                  >
+                    Continue
+                  </Button>
+                </div>
+              </>
+            )}
+            {sendDialogStep === 'confirm' && (
+              <>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Send estimate</h2>
+                <p className="text-sm text-gray-700 mb-4">
+                  Send this estimate now to{' '}
+                  <strong className="break-all">{sendDialogCustomerEmail}</strong>? The customer will receive an email with a link that matches the preview you saw.
+                </p>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSendDialogStep('compose')}
+                    disabled={Boolean(sendingEstimateId)}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleSendEstimate}
+                    disabled={Boolean(sendingEstimateId) || !sendDialogCustomerEmail}
+                  >
+                    Send email
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      <AddProductServicePanel
+        isOpen={addItemPanelOpen}
+        onClose={() => { setAddItemPanelOpen(false); setAddItemPanelRowIndex(null); }}
+        onSaved={handleAddItemSaved}
+        existingItems={reusableItems}
+      />
     </div>
   );
 }

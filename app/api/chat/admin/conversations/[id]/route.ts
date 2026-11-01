@@ -3,6 +3,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { adminConversationIdSchema } from '@/lib/schemas/chat';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 
 type ConvRow = {
   id: string;
@@ -44,15 +45,7 @@ export async function GET(
 
     const isAdmin =
       !!user.email && user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
-    let userBusinessId: string | null = null;
-    if (!isAdmin) {
-      const { data: profile } = await supabaseAuth
-        .from('profiles')
-        .select('business_id')
-        .eq('id', user.id)
-        .single();
-      userBusinessId = (profile as { business_id?: string } | null)?.business_id ?? null;
-    }
+    const userBusinessId = isAdmin ? null : await getOwnedBusinessId(user.id);
 
     const supabase = createServiceRoleClient();
     const { data: adminUsers } = await supabase.from('admin_users').select('user_id');

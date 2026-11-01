@@ -8,6 +8,8 @@ import {
 } from '@/lib/utils/fileValidation';
 import { z } from 'zod';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
+import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 
 const MAX_ATTACHMENTS_PER_REQUEST = 10;
 const BUCKET = 'chat-attachments';
@@ -52,6 +54,8 @@ export async function POST(request: NextRequest) {
       if (!convId.success || !visId.success) {
         return NextResponse.json({ error: 'conversationId and visitorId are required for upload' }, { status: 400 });
       }
+      const cookieDenied = visitorCookieDenied(request, visId.data);
+      if (cookieDenied) return cookieDenied;
       const { data: conv } = await supabase
         .from('probot_conversations')
         .select('id')
@@ -79,12 +83,7 @@ export async function POST(request: NextRequest) {
       if (isAdmin) {
         prefix = `${convId.data}/admin-${user.id}`;
       } else {
-        const { data: profile } = await supabaseAuth
-          .from('profiles')
-          .select('business_id')
-          .eq('id', user.id)
-          .single();
-        const businessId = (profile as { business_id?: string } | null)?.business_id ?? null;
+        const businessId = await getOwnedBusinessId(user.id);
         if (!businessId) {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
@@ -101,6 +100,10 @@ export async function POST(request: NextRequest) {
           convVisitorId &&
           rawVisitorId &&
           convVisitorId.trim() === rawVisitorId.trim();
+        if (!hasMessage && isOwnThread) {
+          const cookieDenied = visitorCookieDenied(request, rawVisitorId.trim());
+          if (cookieDenied) return cookieDenied;
+        }
         if (!hasMessage && !isOwnThread) {
           return NextResponse.json({ error: 'Conversation not found or access denied' }, { status: 404 });
         }

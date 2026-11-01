@@ -1,8 +1,11 @@
 import "./globals.css";
 import { Suspense } from "react";
+import { headers } from "next/headers";
 import LoadingOverlay from "@/components/ui/LoadingOverlay";
+import { CsrfFetchPatch } from "@/components/security/CsrfFetchPatch";
 import type { Viewport } from "next";
 import { validateEnvVarsOrThrow } from "@/lib/utils/envValidation";
+import { resolveLocale } from "@/lib/seo/metadata";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -32,15 +35,17 @@ if (typeof window === 'undefined') {
   }
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const headerList = await headers();
+  const locale = resolveLocale(headerList.get("x-hph-locale"));
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <head>
-        <meta name="google" content="notranslate" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
@@ -49,6 +54,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
+        <CsrfFetchPatch />
         <Suspense fallback={<LoadingOverlay />}>{children}</Suspense>
       </body>
     </html>

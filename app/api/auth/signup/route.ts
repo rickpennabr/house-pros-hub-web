@@ -6,6 +6,8 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { sendWelcomeEmail, sendNewSignupAdminNotification } from '@/lib/services/emailService';
 import { getMessages } from 'next-intl/server';
 import { logger } from '@/lib/utils/logger';
+import { findInvitationCode, invitationCodeBlockReason, type InvitationRole } from '@/lib/auth/invitationCodes';
+import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import type { WelcomeEmailTranslations } from '@/lib/utils/emailTemplates';
 
 /**
@@ -138,80 +140,37 @@ export async function POST(request: NextRequest) {
 
     const serviceRoleClient = createServiceRoleClient();
 
-    // Contractor or realtor signup requires a valid invitation code
+    // Contractor, realtor, and installer signup require a valid invitation code
     let invitationCodeId: string | null = null;
-    let invitationCodeTable: 'contractor_invitation_codes' | 'realtor_invitation_codes' | null = null;
-    if (userType === 'contractor') {
+    const invitationRole: InvitationRole | null =
+      userType === 'contractor' || userType === 'both'
+        ? 'contractor'
+        : userType === 'realtor'
+          ? 'realtor'
+          : userType === 'installer'
+            ? 'installer'
+            : null;
+    if (invitationRole) {
       const rawCode = invitationCode != null ? String(invitationCode).trim().toUpperCase() : '';
       if (!rawCode) {
         return NextResponse.json(
-          { error: 'Invitation code is required for contractor signup.' },
+          { error: `Invitation code is required for ${invitationRole} signup.` },
           { status: 400 }
         );
       }
-      const { data: codeRow, error: codeError } = await serviceRoleClient
-        .from('contractor_invitation_codes')
-        .select('id, expires_at, used_at')
-        .eq('code', rawCode)
-        .maybeSingle();
-
-      if (codeError || !codeRow) {
+      const { row: codeRow, error: codeError } = await findInvitationCode(
+        serviceRoleClient,
+        invitationRole,
+        rawCode
+      );
+      const blockReason = codeError ? 'Invalid or expired invitation code.' : invitationCodeBlockReason(codeRow);
+      if (blockReason || !codeRow) {
         return NextResponse.json(
-          { error: 'Invalid or expired invitation code.' },
-          { status: 400 }
-        );
-      }
-      if (codeRow.used_at) {
-        return NextResponse.json(
-          { error: 'This invitation code has already been used.' },
-          { status: 400 }
-        );
-      }
-      const expiresAt = new Date(codeRow.expires_at);
-      if (expiresAt <= new Date()) {
-        return NextResponse.json(
-          { error: 'Invalid or expired invitation code.' },
+          { error: blockReason ?? 'Invalid or expired invitation code.' },
           { status: 400 }
         );
       }
       invitationCodeId = codeRow.id;
-      invitationCodeTable = 'contractor_invitation_codes';
-    }
-    if (userType === 'realtor') {
-      const rawCode = invitationCode != null ? String(invitationCode).trim().toUpperCase() : '';
-      if (!rawCode) {
-        return NextResponse.json(
-          { error: 'Invitation code is required for realtor signup.' },
-          { status: 400 }
-        );
-      }
-      const { data: codeRow, error: codeError } = await serviceRoleClient
-        .from('realtor_invitation_codes')
-        .select('id, expires_at, used_at')
-        .eq('code', rawCode)
-        .maybeSingle();
-
-      if (codeError || !codeRow) {
-        return NextResponse.json(
-          { error: 'Invalid or expired invitation code.' },
-          { status: 400 }
-        );
-      }
-      if (codeRow.used_at) {
-        return NextResponse.json(
-          { error: 'This invitation code has already been used.' },
-          { status: 400 }
-        );
-      }
-      const expiresAt = new Date(codeRow.expires_at);
-      if (expiresAt <= new Date()) {
-        return NextResponse.json(
-          { error: 'Invalid or expired invitation code.' },
-          { status: 400 }
-        );
-      }
-      invitationCodeId = codeRow.id;
-      invitationCodeTable = 'realtor_invitation_codes';
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -369,15 +328,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Assign role(s) if provided and valid
-    const validUserTypes = ['customer', 'contractor', 'realtor', 'both'] as const;
+    const validUserTypes = ['customer', 'contractor', 'realtor', 'installer', 'both'] as const;
     if (userType && validUserTypes.includes(userType as typeof validUserTypes[number])) {
-      const roles: ('customer' | 'contractor' | 'realtor')[] =
+      const roles: ('customer' | 'contractor' | 'realtor' | 'installer')[] =
         userType === 'both'
           ? ['customer', 'contractor']
           : userType === 'realtor'
             ? ['realtor']
-            : [userType as 'customer' | 'contractor'];
+            : userType === 'installer'
+              ? ['installer']
+              : [userType as 'customer' | 'contractor'];
 
+      let roleAssignFailed = false;
       for (const role of roles) {
         // Check if role already exists
         const { data: existingRole, error: roleCheckError } = await serviceRoleClient
@@ -402,6 +364,7 @@ export async function POST(request: NextRequest) {
             });
 
           if (roleError) {
+            roleAssignFailed = true;
             console.error(`[Signup API] Error assigning ${role} role:`, {
               error: roleError,
               code: roleError.code,
@@ -412,12 +375,25 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+      if (userType === 'installer' && roleAssignFailed) {
+        return NextResponse.json(
+          { error: 'Could not finish installer signup' },
+          { status: 500 }
+        );
+      }
+      if (normalizedEmail === ADMIN_EMAIL.toLowerCase().trim()) {
+        await serviceRoleClient
+          .from('user_roles')
+          .delete()
+          .eq('user_id', authData.user.id)
+          .eq('role', 'customer');
+      }
     }
 
     // Mark invitation code as used (contractor or realtor)
-    if (invitationCodeId && invitationCodeTable) {
+    if (invitationCodeId) {
       await serviceRoleClient
-        .from(invitationCodeTable)
+        .from('invitation_codes')
         .update({
           used_at: new Date().toISOString(),
           used_by: authData.user.id,
@@ -484,7 +460,7 @@ export async function POST(request: NextRequest) {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: normalizedEmail,
-        userType: (userType || 'customer') as 'customer' | 'contractor' | 'realtor' | 'both',
+        userType: (userType || 'customer') as 'customer' | 'contractor' | 'realtor' | 'installer' | 'both',
       };
 
       // Send welcome email (errors are logged but don't fail signup)
@@ -509,7 +485,13 @@ export async function POST(request: NextRequest) {
     // Notify admin of new customer, contractor, or realtor signup (non-blocking)
     try {
       const signupType =
-        userType === 'contractor' ? 'contractor' : userType === 'realtor' ? 'realtor' : 'customer';
+        userType === 'contractor'
+          ? 'contractor'
+          : userType === 'realtor'
+            ? 'realtor'
+            : userType === 'installer'
+              ? 'installer'
+              : 'customer';
       const name = `${firstName.trim()} ${lastName.trim()}`.trim() || normalizedEmail;
       const adminNotifyResult = await sendNewSignupAdminNotification({
         type: signupType,

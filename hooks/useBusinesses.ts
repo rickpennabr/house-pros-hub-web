@@ -1,206 +1,133 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { usePathname } from 'next/navigation';
-import { ProCardData } from '@/components/proscard/ProCard';
+import { useEffect, useState } from 'react';
+import type { ProCardData } from '@/components/proscard/ProCard';
+import { DIRECTORY_CARD_PAGE_SIZE } from '@/lib/constants/businessDirectory';
+
+export interface UseBusinessesArgs {
+  initialBusinesses?: ProCardData[] | null;
+  initialTotal?: number;
+  category?: string;
+  search?: string;
+  city?: string;
+  page?: number;
+  pageSize?: number;
+  initialCategory?: string;
+  initialCity?: string;
+}
 
 export interface UseBusinessesResult {
   businesses: ProCardData[];
+  total: number;
   isLoading: boolean;
   error: string | null;
-  refetch: () => Promise<void>;
+}
+
+const SEARCH_DEBOUNCE_MS = 300;
+
+function stripUserId(rows: Array<ProCardData & { userId?: string }>): ProCardData[] {
+  return rows.map((business) => {
+    const { userId: _userId, ...card } = business;
+    void _userId;
+    return card;
+  });
 }
 
 /**
- * Client-side request deduplication and in-memory cache (60s).
- * next.revalidate only applies to server-side fetch; this hook uses its own cache and deduplication.
+ * One page of the public directory.
+ * The server-rendered first page is reused. Search, category, and later pages
+ * are requested from the API instead of filtering a full catalog in the browser.
  */
-const requestCache = new Map<string, Promise<{ businesses: unknown[]; pagination?: unknown }>>();
-const CACHE_DURATION = 60 * 1000; // 60 seconds
-const cacheTimestamps = new Map<string, number>();
-
-/**
- * Deduplicated fetch: same URL+options share one promise; result cached for CACHE_DURATION.
- */
-async function deduplicatedFetch(
-  url: string, 
-  options?: RequestInit
-): Promise<{ businesses: unknown[]; pagination?: unknown }> {
-  const cacheKey = `${url}_${JSON.stringify(options)}`;
-  const now = Date.now();
-  
-  // Check if there's an in-flight request
-  const inFlightRequest = requestCache.get(cacheKey);
-  if (inFlightRequest) {
-    return inFlightRequest;
-  }
-  
-  // Check cache timestamp (stale-while-revalidate pattern)
-  const cacheTime = cacheTimestamps.get(cacheKey);
-  const isStale = !cacheTime || (now - cacheTime) > CACHE_DURATION;
-  
-  // Client-side fetch: next.revalidate only applies to server fetch; we use in-memory cache above
-  const requestPromise = fetch(url, options)
-    .then(async (response) => {
-      if (!response.ok) {
-        // Remove from cache on error
-        requestCache.delete(cacheKey);
-        let message = response.statusText;
-        try {
-          const body = await response.json();
-          if (body && typeof body.error === 'string') {
-            message = body.error;
-          }
-        } catch {
-          // ignore
-        }
-        throw new Error(`Failed to fetch: ${message}`);
-      }
-      
-      // Parse JSON once
-      const data = await response.json();
-      
-      // Remove from in-flight cache after completion
-      requestCache.delete(cacheKey);
-      
-      // Update cache timestamp
-      cacheTimestamps.set(cacheKey, now);
-      
-      return data as { businesses: unknown[]; pagination?: unknown };
-    })
-    .catch((error) => {
-      // Remove from in-flight cache on error
-      requestCache.delete(cacheKey);
-      throw error;
-    });
-  
-  // Store in-flight request (parsed data promise)
-  requestCache.set(cacheKey, requestPromise);
-  
-  return requestPromise;
-}
-
-/**
- * Hook to fetch and manage businesses from the API.
- * Optionally accepts initial data from server (e.g. from getCachedBusinessesList) for fast first paint.
- * Uses request deduplication and in-memory cache; refetches on focus and when navigating to list.
- * @param initialData - Optional server-fetched list for initial render (avoids loading flash)
- * @returns Businesses data, loading state, error, and refetch function
- */
-export function useBusinesses(initialData?: ProCardData[] | null): UseBusinessesResult {
-  const [businesses, setBusinesses] = useState<ProCardData[]>(initialData ?? []);
-  const [isLoading, setIsLoading] = useState(!initialData?.length);
+export function useBusinesses({
+  initialBusinesses = null,
+  initialTotal = 0,
+  category = 'All',
+  search = '',
+  city = '',
+  page = 1,
+  pageSize = DIRECTORY_CARD_PAGE_SIZE,
+  initialCategory = 'All',
+  initialCity = '',
+}: UseBusinessesArgs = {}): UseBusinessesResult {
+  const matchesServerPage =
+    page === 1 &&
+    pageSize === DIRECTORY_CARD_PAGE_SIZE &&
+    (category || 'All') === (initialCategory || 'All') &&
+    (city || '') === (initialCity || '') &&
+    search.trim().length === 0;
+  const [debouncedSearch, setDebouncedSearch] = useState(search.trim());
+  const [businesses, setBusinesses] = useState<ProCardData[]>(matchesServerPage ? (initialBusinesses ?? []) : []);
+  const [total, setTotal] = useState(matchesServerPage ? initialTotal || initialBusinesses?.length || 0 : 0);
+  const [isLoading, setIsLoading] = useState(!matchesServerPage);
   const [error, setError] = useState<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const pathname = usePathname();
-  const previousPathnameRef = useRef<string | null>(null);
-  const hasInitialData = Boolean(initialData?.length);
 
-  const fetchBusinesses = useCallback(async (forceRefresh: boolean = false) => {
-    // Cancel previous request if still in flight
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [search]);
+
+  useEffect(() => {
+    const isFirstCardPage =
+      page === 1 &&
+      pageSize === DIRECTORY_CARD_PAGE_SIZE &&
+      (category || 'All') === (initialCategory || 'All') &&
+      (city || '') === (initialCity || '') &&
+      debouncedSearch.length === 0;
+
+    if (isFirstCardPage && initialBusinesses) {
+      setBusinesses(initialBusinesses);
+      setTotal(initialTotal || initialBusinesses.length);
+      setIsLoading(false);
+      setError(null);
+      return;
     }
-    
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-    
-    if (!hasInitialData) setIsLoading(true);
+
+    const controller = new AbortController();
+    const offset = (Math.max(page, 1) - 1) * pageSize;
+    const params = new URLSearchParams({
+      limit: String(pageSize),
+      offset: String(offset),
+    });
+    if (category && category !== 'All') params.set('category', category);
+    if (city) params.set('city', city);
+    if (debouncedSearch) params.set('search', debouncedSearch);
+
+    setIsLoading(true);
     setError(null);
-    
-    try {
-      // deduplicatedFetch now returns parsed data directly
-      const data = await deduplicatedFetch('/api/businesses', {
-        signal: abortController.signal,
-        headers: {
-          'Cache-Control': forceRefresh ? 'no-cache' : 'max-age=60',
-        },
-      });
-      
-      // Remove userId from businesses before displaying (it's for internal use only)
-      const businessesForDisplay = ((data.businesses || []) as (ProCardData & { userId?: string })[]).map(
-        (business) => {
-          const { userId: _userId, ...businessData } = business;
-          void _userId;
-          return businessData;
+
+    fetch(`/api/businesses?${params.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          let message = 'Failed to load businesses';
+          try {
+            const body = (await response.json()) as { error?: string };
+            if (body.error) message = body.error;
+          } catch {
+            // keep the default message
+          }
+          throw new Error(message);
         }
-      );
-      
-      setBusinesses(businessesForDisplay);
-    } catch (err) {
-      // Ignore abort errors
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
-      
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load businesses';
-      setError(errorMessage);
-      console.error('Error loading businesses:', err);
-      setBusinesses([]);
-    } finally {
-      if (!abortController.signal.aborted) {
+        return response.json() as Promise<{
+          businesses?: Array<ProCardData & { userId?: string }>;
+          pagination?: { total?: number };
+        }>;
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        const next = stripUserId(data.businesses ?? []);
+        setBusinesses(next);
+        setTotal(typeof data.pagination?.total === 'number' ? data.pagination.total : next.length);
         setIsLoading(false);
-      }
-    }
-  }, [hasInitialData]);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        if (controller.signal.aborted) return;
+        setError(err instanceof Error ? err.message : 'Failed to load businesses');
+        setIsLoading(false);
+      });
 
-  useEffect(() => {
-    const isBusinessListPage = pathname?.includes('/businesslist');
-    
-    // If we're on the businesslist page, always fetch fresh data
-    if (isBusinessListPage) {
-      // Clear cache to ensure fresh data
-      cacheTimestamps.clear();
-      requestCache.clear();
-      fetchBusinesses(true);
-    } else {
-      // For other pages, use normal fetch (may use cache)
-      fetchBusinesses();
-    }
+    return () => controller.abort();
+  }, [category, city, debouncedSearch, page, pageSize, initialBusinesses, initialTotal, initialCategory, initialCity]);
 
-    // Reload when window gains focus (useful if business was created in another tab/window)
-    // Use a debounce to prevent rapid refetches
-    let focusTimeout: NodeJS.Timeout;
-    const handleFocus = () => {
-      clearTimeout(focusTimeout);
-      focusTimeout = setTimeout(() => {
-        fetchBusinesses(true); // Force refresh on focus
-      }, 500);
-    };
-    
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      clearTimeout(focusTimeout);
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [fetchBusinesses, pathname]);
-
-  // Refresh businesses when navigating to businesslist page (e.g., from account-management)
-  useEffect(() => {
-    const isBusinessListPage = pathname?.includes('/businesslist');
-    const wasBusinessListPage = previousPathnameRef.current?.includes('/businesslist');
-    
-    // If we just navigated TO the businesslist page (from another page), force refresh
-    if (isBusinessListPage && !wasBusinessListPage && previousPathnameRef.current !== null) {
-      console.log('[useBusinesses] Navigating to businesslist, forcing refresh');
-      // Clear cache timestamps to force fresh fetch
-      cacheTimestamps.clear();
-      requestCache.clear();
-      fetchBusinesses(true);
-    }
-    
-    // Update previous pathname
-    previousPathnameRef.current = pathname;
-  }, [pathname, fetchBusinesses]);
-
-  return {
-    businesses,
-    isLoading,
-    error,
-    refetch: () => fetchBusinesses(true),
-  };
+  return { businesses, total, isLoading, error };
 }

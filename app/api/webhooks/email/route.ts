@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyResendWebhook, verifyWebhookApiKey } from '@/lib/utils/webhookAuth';
+import { authorizeInboundEmailWebhook } from '@/lib/utils/webhookAuth';
 import { parseResendWebhook } from '@/lib/utils/emailParser';
 import { storeIncomingEmail, updateEmailStatus } from '@/lib/services/incomingEmailService';
 import { sendIncomingEmailNotification } from '@/lib/services/emailService';
@@ -26,13 +26,11 @@ import { COMPANY_INFO } from '@/lib/constants/company';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify webhook authentication
-    const isAuthenticated = verifyResendWebhook(request) || verifyWebhookApiKey(request);
-    
-    if (!isAuthenticated) {
+    const rawBody = await request.text();
+
+    if (!authorizeInboundEmailWebhook(rawBody, request)) {
       logger.warn('Unauthorized webhook request', {
         endpoint: '/api/webhooks/email',
-        ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
       });
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -40,10 +38,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse request body
     let payload: unknown;
     try {
-      payload = await request.json();
+      payload = JSON.parse(rawBody);
     } catch (error) {
       logger.warn('Invalid JSON in webhook request', {
         endpoint: '/api/webhooks/email',

@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
-import { ChevronDown, Search, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, User, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, User, X } from 'lucide-react';
 import type { AdminCustomerRow } from '@/app/api/admin/customers/route';
-import Pagination from '@/components/ui/Pagination';
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import Accordion from '@/components/ui/Accordion';
+import { useSingleOpenAccordion } from '@/hooks/useSingleOpenAccordion';
 import { Select } from '@/components/ui/Select';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import Modal from '@/components/ui/Modal';
@@ -31,12 +32,34 @@ const SORT_OPTIONS = [
 
 type SortKey = (typeof SORT_OPTIONS)[number]['value'];
 
-const COLUMN_IDS = ['name', 'email', 'phone', 'location', 'referral', 'joined', 'actions'] as const;
-const DISPLAY_COLUMN_IDS = ['select', ...COLUMN_IDS] as const;
-const ACTIONS_COLUMN_WIDTH = 72;
-const BULK_SELECT_COLUMN_WIDTH = 44;
-const RESIZABLE_COLUMN_IDS = ['name', 'email', 'phone', 'location', 'referral', 'joined'] as const;
-const MIN_COLUMN_WIDTH = 60;
+const CUSTOMER_COLUMNS: AdminDataTableColumn<AdminCustomerRow>[] = [
+  { id: 'name', label: 'Name', sortKey: 'last_name', width: 180 },
+  { id: 'email', label: 'Email', width: 200 },
+  { id: 'phone', label: 'Phone', sortKey: 'phone', width: 140 },
+  { id: 'location', label: 'Location', sortKey: 'city', width: 160 },
+  { id: 'referral', label: 'Referral', sortKey: 'referral', width: 140 },
+  { id: 'joined', label: 'Joined', sortKey: 'created_at', width: 140 },
+  { id: 'actions', label: 'Actions', resizable: false },
+];
+
+function customerCellText(row: AdminCustomerRow, columnId: string) {
+  switch (columnId) {
+    case 'name':
+      return `${row.first_name || ''} ${row.last_name || ''}`.trim();
+    case 'email':
+      return row.email || '';
+    case 'phone':
+      return row.phone || '';
+    case 'location':
+      return [row.city, row.state].filter(Boolean).join(', ');
+    case 'referral':
+      return row.referral || '';
+    case 'joined':
+      return formatDate(row.created_at);
+    default:
+      return '';
+  }
+}
 
 function formatDate(iso: string | null) {
   if (!iso) return '—';
@@ -45,71 +68,6 @@ function formatDate(iso: string | null) {
     month: 'short',
     day: 'numeric',
   });
-}
-
-function SortHeader({
-  label,
-  sortKey,
-  currentSort,
-  currentDir,
-  onSort,
-}: {
-  label: string;
-  sortKey: SortKey;
-  currentSort: string;
-  currentDir: 'asc' | 'desc';
-  onSort: (key: SortKey, dir: 'asc' | 'desc') => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-
-  const isActive = currentSort === sortKey;
-  return (
-    <div className="relative flex items-center justify-between gap-3 w-full min-w-0" ref={ref}>
-      <span className="font-semibold text-white whitespace-nowrap">{label}</span>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="p-0.5 rounded hover:bg-white/20 transition-colors text-white cursor-pointer"
-        aria-label="Sort options"
-      >
-        <ChevronDown className="w-4 h-4 shrink-0" />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 min-w-[140px] py-1 bg-white border border-gray-200 rounded-md shadow-lg text-black">
-          <button
-            type="button"
-            className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-            onClick={() => {
-              onSort(sortKey, 'asc');
-              setOpen(false);
-            }}
-          >
-            Ascending (A→Z)
-          </button>
-          <button
-            type="button"
-            className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-            onClick={() => {
-              onSort(sortKey, 'desc');
-              setOpen(false);
-            }}
-          >
-            Descending (Z→A)
-          </button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 const REFERRAL_OPTIONS = ['Google', 'Instagram', 'Facebook', 'Other'] as const;
@@ -148,7 +106,8 @@ const emptyForm: CustomerFormData = {
   zipCode: '',
 };
 
-type CustomerAccordionKey = 'personal' | 'address' | 'contact';
+const ADMIN_CUSTOMER_ACCORDION_KEYS = ['personal', 'address', 'contact'] as const;
+type CustomerAccordionKey = (typeof ADMIN_CUSTOMER_ACCORDION_KEYS)[number];
 
 function CustomerForm({
   mode,
@@ -164,18 +123,10 @@ function CustomerForm({
   const [form, setForm] = useState<CustomerFormData>({ ...emptyForm, ...initial });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [accordionOpen, setAccordionOpen] = useState<Record<CustomerAccordionKey, boolean>>({
-    personal: true,
-    address: false,
-    contact: false,
-  });
+  const { isOpen, toggle: toggleAccordion } = useSingleOpenAccordion(ADMIN_CUSTOMER_ACCORDION_KEYS, 'personal');
   const [pendingPictureFile, setPendingPictureFile] = useState<File | null>(null);
   const [picturePreviewUrl, setPicturePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const toggleAccordion = (key: CustomerAccordionKey) => {
-    setAccordionOpen((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
 
   const update = (key: keyof CustomerFormData, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -348,7 +299,7 @@ function CustomerForm({
       {/* Accordion 1: Personal & referral (same order as signup step 1: picture, referral, firstName, lastName) */}
       <Accordion
         title="Personal & referral"
-        isOpen={accordionOpen.personal}
+        isOpen={isOpen('personal')}
         onToggle={() => toggleAccordion('personal')}
         required
       >
@@ -446,7 +397,7 @@ function CustomerForm({
       {/* Accordion 2: Address (same order as signup step 2: address search, apartment, city, state, zip) */}
       <Accordion
         title="Address"
-        isOpen={accordionOpen.address}
+        isOpen={isOpen('address')}
         onToggle={() => toggleAccordion('address')}
       >
         <div className="space-y-4">
@@ -506,7 +457,7 @@ function CustomerForm({
       {/* Accordion 3: Contact & account (same order as signup step 3: phone, email, password) */}
       <Accordion
         title="Contact & account"
-        isOpen={accordionOpen.contact}
+        isOpen={isOpen('contact')}
         onToggle={() => toggleAccordion('contact')}
         required
       >
@@ -564,7 +515,6 @@ export default function CustomersPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const hasLoadedOnceRef = useRef(false);
-  const tableRef = useRef<HTMLTableElement>(null);
 
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -577,15 +527,7 @@ export default function CustomersPage() {
     lastName: string | null;
   } | null>(null);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
-  const selectAllRef = useRef<HTMLInputElement>(null);
-  const [columnWidths, setColumnWidths] = useState<Partial<Record<(typeof RESIZABLE_COLUMN_IDS)[number], number>>>({});
-  const [resizing, setResizing] = useState<{
-    columnId: (typeof RESIZABLE_COLUMN_IDS)[number];
-    startX: number;
-    startWidth: number;
-  } | null>(null);
   const MENU_HEIGHT = 80;
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -648,27 +590,6 @@ export default function CustomersPage() {
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [openActionsId]);
-
-  // Column resize: mousemove and mouseup when resizing
-  useEffect(() => {
-    if (!resizing) return;
-    const onMove = (e: MouseEvent) => {
-      const delta = e.clientX - resizing.startX;
-      const newWidth = Math.max(MIN_COLUMN_WIDTH, resizing.startWidth + delta);
-      setColumnWidths((prev) => ({ ...prev, [resizing.columnId]: newWidth }));
-    };
-    const onUp = () => setResizing(null);
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'col-resize';
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    return () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-    };
-  }, [resizing]);
 
   useEffect(() => {
     if (viewMode !== 'edit' || !editingId) return;
@@ -735,49 +656,6 @@ export default function CustomersPage() {
     }
   };
 
-  useEffect(() => {
-    const idsInData = new Set(customers.map((c) => c.id));
-    setSelectedIds((prev) => {
-      const next = new Set([...prev].filter((id) => idsInData.has(id)));
-      return next.size === prev.size && [...next].every((id) => prev.has(id)) ? prev : next;
-    });
-  }, [customers]);
-
-  const allOnPageSelected = customers.length > 0 && customers.every((c) => selectedIds.has(c.id));
-  const someOnPageSelected = customers.some((c) => selectedIds.has(c.id));
-  useEffect(() => {
-    const el = selectAllRef.current;
-    if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected;
-  }, [someOnPageSelected, allOnPageSelected]);
-
-  const toggleSelectAll = () => {
-    if (allOnPageSelected) {
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        customers.forEach((c) => next.delete(c.id));
-        return next;
-      });
-    } else {
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        customers.forEach((c) => next.add(c.id));
-        return next;
-      });
-    }
-  };
-
-  const toggleRow = (row: AdminCustomerRow, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(row.id)) next.delete(row.id);
-      else next.add(row.id);
-      return next;
-    });
-  };
-
-  const selectedRows = customers.filter((c) => selectedIds.has(c.id));
-
   const handleBulkDelete = (ids: string[]) => setBulkDeleteIds(ids);
   const handleBulkDeleteConfirm = async () => {
     if (!bulkDeleteIds?.length) return;
@@ -801,24 +679,8 @@ export default function CustomersPage() {
     }
   };
 
-  const handleBulkCopyAsJson = () => {
-    const json = JSON.stringify(selectedRows, null, 2);
-    void navigator.clipboard.writeText(json);
-    setSelectedIds(new Set());
-  };
-
-  const handleBulkEdit = () => {
-    if (selectedRows.length !== 1) return;
-    setEditingId(selectedRows[0].id);
-    setViewMode('edit');
-    setSelectedIds(new Set());
-  };
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
   return (
     <div className="w-full">
-      {/* Header: table view = title + description + Add; add/edit view = back + title + Add Customer / Save */}
       {viewMode === 'table' && (
         <>
           <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
@@ -829,7 +691,6 @@ export default function CustomersPage() {
                 <span className="hidden md:inline">Manage customers accounts and view contact details.</span>
               </p>
             </div>
-            {/* Mobile: customer count pill (white bg, black border). Desktop: Add Customer button */}
             <div className="md:hidden h-9 px-4 rounded-md border-2 border-black bg-white flex items-center justify-center shrink-0 text-sm font-medium text-black">
               {total} customer{total !== 1 ? 's' : ''}
             </div>
@@ -895,320 +756,77 @@ export default function CustomersPage() {
       )}
 
       {viewMode === 'table' && (
-        <>
-      {/* Toolbar: search + results info */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2">
-        <form onSubmit={handleSearchSubmit} className="flex gap-2 flex-1 max-w-md">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by name, city, state…"
-              className="w-full h-9 pl-9 pr-3 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-[#1a1a1a] text-black dark:text-gray-100 placeholder:dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-            />
-          </div>
-          <button
-            type="submit"
-            className="h-9 px-4 rounded-md bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
-          >
-            Search
-          </button>
-        </form>
-      </div>
-
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-200 text-sm">
-          {error}
-        </div>
-      )}
-
-      {selectedIds.size > 0 && (
-        <div className="flex flex-wrap items-center gap-3 pb-3 px-1 border-b border-gray-200 bg-gray-50 rounded-lg py-2 mb-2">
-          <span className="text-sm font-medium text-gray-700">
-            {selectedIds.size} selected
-          </span>
-          <button
-            type="button"
-            onClick={() => handleBulkDelete(Array.from(selectedIds))}
-            className="text-sm font-medium text-red-600 hover:text-red-700 cursor-pointer px-2 py-1 rounded hover:bg-red-50 border-2 border-red-600"
-          >
-            Delete
-          </button>
-          <button
-            type="button"
-            onClick={handleBulkCopyAsJson}
-            className="text-sm font-medium text-gray-700 hover:text-gray-900 cursor-pointer px-2 py-1 rounded hover:bg-gray-100 border-2 border-black"
-          >
-            Copy as JSON
-          </button>
-          {selectedIds.size === 1 && (
+        <AdminDataTable
+          columnOrderKey="admin-customers"
+          exportName="customers"
+          columns={CUSTOMER_COLUMNS}
+          data={customers}
+          total={total}
+          page={page}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+          sortBy={sortBy}
+          sortDir={sortDir}
+          onSort={(key, dir) => {
+            if ((SORT_OPTIONS as readonly { value: string }[]).some((option) => option.value === key)) {
+              handleSort(key as SortKey, dir);
+            }
+          }}
+          searchInput={searchInput}
+          onSearchInput={setSearchInput}
+          onSearchSubmit={handleSearchSubmit}
+          searchPlaceholder="Search by name, city, state…"
+          isLoading={isLoading}
+          isRefetching={isRefetching}
+          hasLoadedOnce={hasLoadedOnce}
+          error={error}
+          getRowId={(row) => row.id}
+          getCellText={customerCellText}
+          renderCell={(row, columnId) => customerCellText(row, columnId) || '—'}
+          onRowClick={(row) => {
+            setEditingId(row.id);
+            setViewMode('edit');
+          }}
+          renderActions={(row) => (
             <button
+              ref={openActionsId === row.id ? actionsButtonRef : undefined}
               type="button"
-              onClick={handleBulkEdit}
-              className="text-sm font-medium text-gray-700 hover:text-gray-900 cursor-pointer px-2 py-1 rounded hover:bg-gray-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (openActionsId === row.id) {
+                  setOpenActionsId(null);
+                  setMenuPosition(null);
+                  return;
+                }
+                const el = e.currentTarget;
+                const rect = el.getBoundingClientRect();
+                actionsButtonRef.current = el;
+                const left = Math.min(rect.right - 120, window.innerWidth - 130);
+                const spaceBelow = window.innerHeight - rect.bottom - 4;
+                const top = spaceBelow >= MENU_HEIGHT ? rect.bottom + 4 : rect.top - MENU_HEIGHT - 4;
+                setMenuPosition({ top, left });
+                setOpenActionsId(row.id);
+              }}
+              className="p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer text-gray-600 hover:text-black"
+              aria-label="Actions"
             >
-              Edit
+              <MoreVertical className="w-5 h-5" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setSelectedIds(new Set())}
-            className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer px-2 py-1 rounded hover:bg-gray-100 border-2 border-gray-400"
-          >
-            Clear selection
-          </button>
-        </div>
-      )}
-
-      {/* Table card */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-        {isLoading && !hasLoadedOnce ? (
-          <div className="p-12 text-center text-gray-500 text-sm">
-            Loading customers…
-          </div>
-        ) : (
-          <div className="overflow-x-auto relative">
-            {isRefetching && (
-              <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center rounded-lg" aria-hidden>
-                <span className="text-sm text-gray-500">Updating…</span>
-              </div>
-            )}
-            <table
-              ref={tableRef}
-              className="w-full border-collapse"
-              style={{ tableLayout: 'fixed', minWidth: 600 }}
-            >
-              <colgroup>
-                {DISPLAY_COLUMN_IDS.map((id) => (
-                  <col
-                    key={id}
-                    data-col-id={id}
-                    style={
-                      id === 'select'
-                        ? { width: BULK_SELECT_COLUMN_WIDTH, minWidth: BULK_SELECT_COLUMN_WIDTH }
-                        : id === 'actions'
-                          ? { width: ACTIONS_COLUMN_WIDTH, minWidth: ACTIONS_COLUMN_WIDTH }
-                          : columnWidths[id as (typeof RESIZABLE_COLUMN_IDS)[number]]
-                            ? {
-                                width: columnWidths[id as (typeof RESIZABLE_COLUMN_IDS)[number]],
-                                minWidth: columnWidths[id as (typeof RESIZABLE_COLUMN_IDS)[number]],
-                              }
-                            : undefined
-                    }
-                  />
-                ))}
-              </colgroup>
-              <thead>
-                <tr className="border-b-2 border-black bg-black text-white">
-                  <th className="py-1.5 text-center bg-black border-r border-white w-[44px] cursor-pointer" style={{ paddingLeft: 8, paddingRight: 8 }}>
-                    <input
-                      type="checkbox"
-                      ref={selectAllRef}
-                      checked={allOnPageSelected}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-gray-300 accent-red-600 focus:ring-red-500 cursor-pointer"
-                      aria-label="Select all on page"
-                    />
-                  </th>
-                  {(['name', 'email', 'phone', 'location', 'referral', 'joined'] as const).map((colId) => (
-                    <th
-                      key={colId}
-                      className="relative px-4 py-1.5 text-left border-r border-white whitespace-nowrap select-none"
-                    >
-                      {colId === 'name' && (
-                        <SortHeader
-                          label="Name"
-                          sortKey="last_name"
-                          currentSort={sortBy}
-                          currentDir={sortDir}
-                          onSort={handleSort}
-                        />
-                      )}
-                      {colId === 'email' && (
-                        <SortHeader
-                          label="Email"
-                          sortKey="last_name"
-                          currentSort={sortBy}
-                          currentDir={sortDir}
-                          onSort={handleSort}
-                        />
-                      )}
-                      {colId === 'phone' && (
-                        <SortHeader
-                          label="Phone"
-                          sortKey="phone"
-                          currentSort={sortBy}
-                          currentDir={sortDir}
-                          onSort={handleSort}
-                        />
-                      )}
-                      {colId === 'location' && (
-                        <SortHeader
-                          label="Location"
-                          sortKey="city"
-                          currentSort={sortBy}
-                          currentDir={sortDir}
-                          onSort={handleSort}
-                        />
-                      )}
-                      {colId === 'referral' && (
-                        <SortHeader
-                          label="Referral"
-                          sortKey="referral"
-                          currentSort={sortBy}
-                          currentDir={sortDir}
-                          onSort={handleSort}
-                        />
-                      )}
-                      {colId === 'joined' && (
-                        <SortHeader
-                          label="Joined"
-                          sortKey="created_at"
-                          currentSort={sortBy}
-                          currentDir={sortDir}
-                          onSort={handleSort}
-                        />
-                      )}
-                      <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        aria-label={`Resize ${colId} column`}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const th = (e.target as HTMLElement).closest('th');
-                          const startWidth = th ? th.getBoundingClientRect().width : 120;
-                          setResizing({ columnId: colId, startX: e.clientX, startWidth });
-                        }}
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize touch-none shrink-0 z-20 hover:bg-white/20"
-                        style={{ marginRight: -4 }}
-                      />
-                    </th>
-                  ))}
-                  <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white shadow-[-4px_0_8px_rgba(0,0,0,0.15)] box-border w-[72px]" style={{ paddingLeft: 10, paddingRight: 10 }}>
-                    <span className="font-semibold text-white whitespace-nowrap">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.length === 0 ? (
-                  <tr>
-                    <td colSpan={DISPLAY_COLUMN_IDS.length} className="px-4 py-12 text-center text-gray-500 text-sm">
-                      No customers found.
-                    </td>
-                  </tr>
-                ) : (
-                  customers.map((row) => (
-                  <tr
-                    key={row.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setEditingId(row.id);
-                      setViewMode('edit');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setEditingId(row.id);
-                        setViewMode('edit');
-                      }
-                    }}
-                    className={`group border-b border-gray-100 hover:bg-gray-50/80 transition-colors cursor-pointer ${selectedIds.has(row.id) ? 'bg-gray-50/80' : ''}`}
-                  >
-                    <td
-                      className="py-1.5 text-center bg-white group-hover:bg-gray-50/80 border-r border-gray-100 cursor-pointer"
-                      style={{ paddingLeft: 8, paddingRight: 8 }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(row.id)}
-                        onChange={() => {}}
-                        onClick={(e) => toggleRow(row, e)}
-                        className="w-4 h-4 rounded border-gray-300 accent-red-600 focus:ring-red-500 cursor-pointer"
-                        aria-label={`Select row ${row.id}`}
-                      />
-                    </td>
-                    <td className="px-4 py-1.5 max-w-0 overflow-hidden">
-                      <span className="font-medium text-gray-900 truncate block">
-                        {row.first_name || ''} {row.last_name || ''}
-                      </span>
-                    </td>
-                    <td className="px-4 py-1.5 text-sm text-gray-600 max-w-0 overflow-hidden">
-                      <span className="truncate block">{row.email || '—'}</span>
-                    </td>
-                    <td className="px-4 py-1.5 text-sm text-gray-600 max-w-0 overflow-hidden">
-                      <span className="truncate block">{row.phone || '—'}</span>
-                    </td>
-                    <td className="px-4 py-1.5 text-sm text-gray-600 max-w-0 overflow-hidden">
-                      <span className="truncate block">
-                        {[row.city, row.state].filter(Boolean).length
-                          ? [row.city, row.state].filter(Boolean).join(', ')
-                          : '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-1.5 text-sm text-gray-600 max-w-0 overflow-hidden">
-                      <span className="truncate block">{row.referral || '—'}</span>
-                    </td>
-                    <td className="px-4 py-1.5 text-sm text-gray-500 max-w-0 overflow-hidden">
-                      <span className="truncate block">{formatDate(row.created_at)}</span>
-                    </td>
-                    <td className="sticky right-0 z-10 py-1.5 text-center bg-white group-hover:bg-gray-50/80 border-l-2 border-gray-100 shadow-[-4px_0_8px_rgba(0,0,0,0.06)] box-border" style={{ paddingLeft: 10, paddingRight: 10 }}>
-                      <div className="relative flex justify-center items-center w-full">
-                        <button
-                          ref={openActionsId === row.id ? actionsButtonRef : undefined}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (openActionsId === row.id) {
-                              setOpenActionsId(null);
-                              setMenuPosition(null);
-                              return;
-                            }
-                            const el = e.currentTarget;
-                            const rect = el.getBoundingClientRect();
-                            actionsButtonRef.current = el;
-                            const left = Math.min(rect.right - 120, window.innerWidth - 130);
-                            const spaceBelow = window.innerHeight - rect.bottom - 4;
-                            const top =
-                              spaceBelow >= MENU_HEIGHT
-                                ? rect.bottom + 4
-                                : rect.top - MENU_HEIGHT - 4;
-                            setMenuPosition({ top, left });
-                            setOpenActionsId(row.id);
-                          }}
-                          className="p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer text-gray-600 hover:text-black"
-                          aria-label="Actions"
-                        >
-                          <MoreVertical className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {!isLoading && total > 0 && (
-        <div className="mt-4">
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-            totalItems={total}
-            itemsPerPage={PAGE_SIZE}
-            itemLabel="customers"
-          />
-        </div>
-      )}
-        </>
+          bulkActions={{
+            onDelete: handleBulkDelete,
+            onCopyAsJson: (rows) => {
+              void navigator.clipboard.writeText(JSON.stringify(rows, null, 2));
+            },
+            onEdit: (row) => {
+              setEditingId(row.id);
+              setViewMode('edit');
+            },
+          }}
+          emptyMessage="No customers found."
+          itemLabel="customers"
+          primaryColumnId="name"
+        />
       )}
 
       {/* Bulk delete confirmation modal */}

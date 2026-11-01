@@ -26,6 +26,7 @@ interface SupplierCardProps {
   supplier: Supplier;
   isSelected: boolean;
   onClick: () => void;
+  onHoverChange?: (hovered: boolean) => void;
   isListMode?: boolean;
 }
 
@@ -53,7 +54,7 @@ function parseSupplierName(fullName: string): { supplierName: string; branchName
   return { supplierName: fullName };
 }
 
-export default function SupplierCard({ supplier, isSelected, onClick, isListMode = false }: SupplierCardProps) {
+export default function SupplierCard({ supplier, isSelected, onClick, onHoverChange, isListMode = false }: SupplierCardProps) {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [shareSupplierUrl, setShareSupplierUrl] = useState('');
@@ -75,6 +76,8 @@ export default function SupplierCard({ supplier, isSelected, onClick, isListMode
         <div 
           className="border-2 border-black rounded-lg md:bg-white overflow-hidden cursor-pointer hover:shadow-lg transition-shadow w-full"
           onClick={onClick}
+          onMouseEnter={() => onHoverChange?.(true)}
+          onMouseLeave={() => onHoverChange?.(false)}
         >
           <div className={`relative h-[60px] flex items-center p-2`}>
             <div className={`flex items-center gap-3 md:gap-2 flex-1 ${rightPadding} min-w-0`}>
@@ -153,24 +156,25 @@ export default function SupplierCard({ supplier, isSelected, onClick, isListMode
           isSelected ? 'border-black md:bg-gray-50' : 'border-black md:bg-white'
         } rounded-lg hover:shadow-lg transition-shadow cursor-pointer w-full`}
         onClick={onClick}
+        onMouseEnter={() => onHoverChange?.(true)}
+        onMouseLeave={() => onHoverChange?.(false)}
       >
         {/* Header Section - Logo, Supplier Name, Branch Name, Share Button */}
-        <div className="relative h-[60px] flex items-center p-2 border-b border-black">
-          <div className="flex items-center gap-3 md:gap-2 flex-1 pr-10 min-w-0">
-            {/* Avatar Box - Shows only Logo or Initials */}
-            <div className={`w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden relative aspect-square ${shouldShowImage ? 'bg-white' : 'bg-black'}`}>
+        <div className="relative flex items-center border-b border-black px-2 py-[3px]">
+          <div className="flex items-center gap-2 flex-1 pr-10 min-w-0">
+            <div className={`w-[35px] h-[35px] rounded-md border-2 border-black flex items-center justify-center shrink-0 overflow-hidden relative aspect-square ${shouldShowImage ? 'bg-white' : 'bg-black'}`}>
               {shouldShowImage ? (
                 <Image
                   src={supplier.logo!}
                   alt={supplierName}
                   fill
-                  className="object-cover"
-                  sizes="48px"
+                  className="object-contain p-0.5"
+                  sizes="35px"
                   unoptimized
                   onError={() => setImageError(true)}
                 />
               ) : (
-                <span className="text-lg font-bold text-white">{initials}</span>
+                <span className="text-xs font-bold text-white">{initials}</span>
               )}
             </div>
 
@@ -189,45 +193,52 @@ export default function SupplierCard({ supplier, isSelected, onClick, isListMode
               e.stopPropagation();
               setIsShareModalOpen(true);
             }}
-            className="absolute right-2 w-10 h-10 rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg bg-transparent transition-colors hover:bg-gray-50"
             aria-label="Share"
           >
             <Share2 className="w-5 h-5 text-black" />
           </button>
         </div>
 
-        {/* Icons Section - Phone, Website, Location */}
-        <div className="h-[60px] flex items-center p-2 border-b border-black">
-          <div className="flex items-center gap-4 w-full">
-            {/* Phone Icon */}
+        <div className="flex items-center border-b border-black px-2 py-1.5">
+          <div className="min-w-0 flex-1 overflow-x-auto">
+            <div className="flex w-max min-w-full flex-nowrap items-center justify-center gap-1.5">
+              {supplier.materials.map((material) => (
+                <span
+                  key={material}
+                  className="whitespace-nowrap rounded bg-black px-2 py-1 text-xs font-medium text-white"
+                >
+                  {material}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-1 px-2 py-1">
             {supplier.phone && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   window.location.href = `tel:${supplier.phone}`;
                 }}
-                className="w-10 h-10 lg:w-9 lg:h-9 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border-2 border-black bg-white transition-colors hover:bg-gray-50"
                 aria-label="Phone"
               >
-                <Phone className="w-5 h-5 lg:w-[18px] lg:h-[18px] text-black" />
+                <Phone className="h-4 w-4 text-black" />
               </button>
             )}
-
-            {/* Website Icon */}
             {supplier.website && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   window.open(supplier.website, '_blank', 'noopener,noreferrer');
                 }}
-                className="w-10 h-10 lg:w-9 lg:h-9 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border-2 border-black bg-white transition-colors hover:bg-gray-50"
                 aria-label="Website"
               >
-                <Globe className="w-5 h-5 lg:w-[18px] lg:h-[18px] text-black" />
+                <Globe className="h-4 w-4 text-black" />
               </button>
             )}
-
-            {/* Location/Directions Icon */}
             {supplier.address && (
               <button
                 onClick={(e) => {
@@ -238,27 +249,12 @@ export default function SupplierCard({ supplier, isSelected, onClick, isListMode
                     'noopener,noreferrer'
                   );
                 }}
-                className="w-10 h-10 lg:w-9 lg:h-9 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border-2 border-black bg-white transition-colors hover:bg-gray-50"
                 aria-label="Get Directions"
               >
-                <MapPin className="w-5 h-5 lg:w-[18px] lg:h-[18px] text-black" />
+                <MapPin className="h-4 w-4 text-black" />
               </button>
             )}
-          </div>
-        </div>
-
-        {/* Materials Section - Display materials instead of reactions */}
-        <div className="h-[60px] p-2 flex items-center justify-center overflow-hidden">
-          <div className="flex items-center flex-wrap gap-2 justify-center w-full">
-            {supplier.materials.map((material) => (
-              <span
-                key={material}
-                className="px-2 py-1 bg-black text-white text-xs rounded font-medium"
-              >
-                {material}
-              </span>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -274,4 +270,3 @@ export default function SupplierCard({ supplier, isSelected, onClick, isListMode
     </>
   );
 }
-

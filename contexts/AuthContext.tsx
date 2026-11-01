@@ -1,7 +1,9 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { signOutSession } from '@/lib/auth/signOutSession';
 import { isValidEmail, isValidPassword, isNotEmpty } from '@/lib/validation';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import type { Profile } from '@/lib/types/supabase';
@@ -71,7 +73,32 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 /**
  * Map Supabase user and profile to our User interface
  */
-function mapSupabaseUserToUser(supabaseUser: SupabaseUser, profile: Profile | null, companyName?: string | null): User {
+async function loadPersonalAddress(supabase: ReturnType<typeof createClient>, userId: string) {
+  const { data } = await supabase
+    .from('addresses')
+    .select('street_address, apartment, city, state, zip_code, gate_code, address_note')
+    .eq('user_id', userId)
+    .eq('address_type', 'personal')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
+function mapSupabaseUserToUser(
+  supabaseUser: SupabaseUser,
+  profile: Profile | null,
+  companyName?: string | null,
+  address?: {
+    street_address?: string | null;
+    apartment?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip_code?: string | null;
+    gate_code?: string | null;
+    address_note?: string | null;
+  } | null
+): User {
   // Get basic info from user metadata (set during signup)
   const metadata = supabaseUser.user_metadata || {};
   
@@ -83,13 +110,13 @@ function mapSupabaseUserToUser(supabaseUser: SupabaseUser, profile: Profile | nu
     phone: profile?.phone || metadata.phone,
     referral: profile?.referral || metadata.referral,
     referralOther: profile?.referral_other || metadata.referralOther,
-    streetAddress: profile?.street_address || metadata.streetAddress,
-    apartment: profile?.apartment || metadata.apartment,
-    city: profile?.city || metadata.city,
-    state: profile?.state || metadata.state,
-    zipCode: profile?.zip_code || metadata.zipCode,
-    gateCode: profile?.gate_code || metadata.gateCode,
-    addressNote: profile?.address_note || metadata.addressNote,
+    streetAddress: address?.street_address || metadata.streetAddress,
+    apartment: address?.apartment || metadata.apartment,
+    city: address?.city || metadata.city,
+    state: address?.state || metadata.state,
+    zipCode: address?.zip_code || metadata.zipCode,
+    gateCode: address?.gate_code || metadata.gateCode,
+    addressNote: address?.address_note || metadata.addressNote,
     businessId: profile?.business_id || metadata.businessId || undefined,
     companyName: companyName || metadata.companyName || undefined,
     companyRole: profile?.company_role || metadata.companyRole,
@@ -145,15 +172,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   /** Prevents onAuthStateChange from calling loadUserFromSession while login() is doing it (avoids duplicate /api/auth/me). */
   const loginInProgressRef = useRef(false);
+  /** Bumped on logout so an in-flight profile load cannot put the previous user back. */
+  const authEpochRef = useRef(0);
+  const loggingOutRef = useRef(false);
+  /** Right after sign-in, /api/auth/me can run before the cookie is stored. */
+  const trustLocalSessionUntilRef = useRef(0);
 
   /**
    * Load user data from Supabase session
    */
   const loadUserFromSession = useCallback(async (session: Session | null) => {
+    const epoch = authEpochRef.current;
+    const stale = () => loggingOutRef.current || epoch !== authEpochRef.current;
+
     try {
+      if (stale()) return;
+
       if (!session?.user) {
         setUser(null);
         setIsAdmin(false);
@@ -174,6 +212,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Error fetching profile:', profileError);
       }
 
+      const personalAddress = await loadPersonalAddress(supabase, session.user.id);
+
       // Fetch business name if business_id exists
       let companyName: string | null = null;
       if (profile?.business_id) {
@@ -185,8 +225,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         companyName = business?.business_name || null;
       }
 
+      if (stale()) return;
+
       // Map Supabase user and profile to our User interface
-      const mappedUser = mapSupabaseUserToUser(session.user, profile, companyName);
+      const mappedUser = mapSupabaseUserToUser(session.user, profile, companyName, personalAddress);
       setUser(mappedUser);
       // Complete loading immediately so login/sign-in can resolve (avoids timeout when
       // cookies aren't yet updated after sign-in and /api/auth/me would hang or take 5s).
@@ -195,17 +237,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch admin status and roles in the background; do not block on this so that
       // sign-in after sign-out in the same browser completes without hitting the 10s timeout.
       fetch('/api/auth/me', { credentials: 'include' })
-        .then((res) => (res.ok ? res.json() : { isAdmin: false, roles: [] }))
-        .then(({ isAdmin: admin, roles: userRoles }) => {
-          setIsAdmin(!!admin);
-          setRoles(Array.isArray(userRoles) ? userRoles : []);
+        .then((res) => (res.ok ? res.json() : { user: null, isAdmin: false, roles: [], sessionMissing: false }))
+        .then((data: { user?: unknown; isAdmin?: boolean; roles?: UserRole[]; sessionMissing?: boolean }) => {
+          if (stale()) return;
+          if (data.sessionMissing && Date.now() >= trustLocalSessionUntilRef.current) {
+            loggingOutRef.current = true;
+            authEpochRef.current += 1;
+            setUser(null);
+            setIsAdmin(false);
+            setRoles([]);
+            void supabase.auth.signOut({ scope: 'local' }).finally(() => {
+              loggingOutRef.current = false;
+            });
+            return;
+          }
+          if (data.sessionMissing) return;
+          setIsAdmin(!!data.isAdmin);
+          setRoles(Array.isArray(data.roles) ? data.roles : []);
         })
         .catch(() => {
+          if (stale()) return;
           setIsAdmin(false);
           setRoles([]);
         });
     } catch (error) {
       console.error('Error loading user from session:', error);
+      if (stale()) return;
       setUser(null);
       setIsAdmin(false);
       setRoles([]);
@@ -214,7 +271,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const checkAuth = useCallback(async () => {
+    const epoch = authEpochRef.current;
+    const stale = () => loggingOutRef.current || epoch !== authEpochRef.current;
+
     try {
+      if (stale()) return;
       setIsLoading(true);
 
       if (typeof window === 'undefined') {
@@ -230,6 +291,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } = await supabase.auth.getSession();
 
         if (!error && session) {
+          if (stale()) return;
           await loadUserFromSession(session);
           return;
         }
@@ -248,6 +310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (response.ok) {
           const { user: apiUser, isAdmin: apiIsAdmin, roles: userRoles } = await response.json();
+          if (stale()) return;
           if (apiUser) {
             setUser({
               id: apiUser.id,
@@ -282,13 +345,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('API auth check failed:', apiError);
       }
 
-      // If both methods fail, user is not authenticated
+      // If both methods fail, user is not authenticated.
+      // Skip when logout or a newer attempt already owns auth state.
+      if (stale()) return;
       setUser(null);
       setIsAdmin(false);
       setRoles([]);
       setIsLoading(false);
     } catch (error) {
       console.error('Error checking auth:', error);
+      if (stale()) return;
       setUser(null);
       setIsAdmin(false);
       setRoles([]);
@@ -307,9 +373,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (loggingOutRef.current && event !== 'SIGNED_OUT') return;
+
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (!loginInProgressRef.current) {
+          const epoch = authEpochRef.current;
           setTimeout(() => {
+            if (loggingOutRef.current || epoch !== authEpochRef.current) return;
             loadUserFromSession(session).catch((err) =>
               console.error('Error loading user from session:', err)
             );
@@ -339,6 +409,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     loginInProgressRef.current = true;
+    trustLocalSessionUntilRef.current = Date.now() + 8000;
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -416,14 +487,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       phone: userData.phone || null,
       referral: userData.referral || null,
       referral_other: userData.referralOther || null,
-      street_address: userData.streetAddress || null,
-      apartment: userData.apartment || null,
-      city: userData.city || null,
-      state: userData.state || null,
-      zip_code: userData.zipCode || null,
-      gate_code: userData.gateCode || null,
-      address_note: userData.addressNote || null,
-      company_name: userData.companyName || null,
       company_role: userData.companyRole || null,
       user_picture: userData.userPicture || null,
     };
@@ -459,6 +522,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Otherwise silently skip - RLS errors or empty error objects are not logged
       // The trigger already created a basic profile, user can update later if needed
+    }
+
+    if (userData.streetAddress || userData.city || userData.state || userData.zipCode) {
+      await supabase.from('addresses').insert({
+        user_id: authData.user.id,
+        address_type: 'personal',
+        street_address: userData.streetAddress || null,
+        apartment: userData.apartment || null,
+        city: userData.city || null,
+        state: userData.state || null,
+        zip_code: userData.zipCode || null,
+        gate_code: userData.gateCode || null,
+        address_note: userData.addressNote || null,
+        is_public: false,
+        is_verified: false,
+      });
     }
 
     // Assign role(s) based on userType
@@ -501,7 +580,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Load user data from session
+    // Load user data from session. Cookies can lag the in-memory session for a moment.
+    trustLocalSessionUntilRef.current = Date.now() + 8000;
     let mappedUser: User;
     
     if (authData.session) {
@@ -526,7 +606,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           companyName = business?.business_name || null;
         }
         
-        mappedUser = mapSupabaseUserToUser(session.user, profile, companyName);
+        const personalAddress = await loadPersonalAddress(supabase, session.user.id);
+        mappedUser = mapSupabaseUserToUser(session.user, profile, companyName, personalAddress);
       } else {
         throw new Error('Failed to get session after signup');
       }
@@ -549,7 +630,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         companyName = business?.business_name || null;
       }
 
-      mappedUser = mapSupabaseUserToUser(authData.user, profile, companyName);
+      const personalAddress = await loadPersonalAddress(supabase, authData.user.id);
+      mappedUser = mapSupabaseUserToUser(authData.user, profile, companyName, personalAddress);
       setUser(mappedUser);
     }
 
@@ -557,29 +639,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase, loadUserFromSession]);
 
   const logout = useCallback(async (): Promise<void> => {
-    // Clear presence so this user/business show offline immediately (e.g. on business list)
-    try {
-      await fetch('/api/chat/presence', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'offline' }),
-        credentials: 'include',
-      });
-    } catch {
-      // ignore
-    }
-
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      console.error('Error signing out:', error);
-      // Still clear user state even if signOut fails
-    }
-
+    loggingOutRef.current = true;
+    authEpochRef.current += 1;
     setUser(null);
     setIsAdmin(false);
     setRoles([]);
-  }, [supabase]);
+    setIsLoading(false);
+
+    // Mark offline while the session cookie is still valid. Do not block sign-out on it.
+    const presence = fetch('/api/chat/presence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'offline' }),
+      credentials: 'include',
+    }).catch(() => undefined);
+
+    try {
+      await Promise.race([
+        presence,
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, 1500);
+        }),
+      ]);
+      await signOutSession(supabase);
+    } finally {
+      loggingOutRef.current = false;
+      router.refresh();
+    }
+  }, [router, supabase]);
 
   const updateUser = useCallback(async (updates: Partial<User>): Promise<void> => {
     if (!user) {
@@ -718,4 +805,9 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+/** Admin signup notifications render outside AuthProvider. */
+export function useOptionalAuth() {
+  return useContext(AuthContext);
 }

@@ -75,6 +75,16 @@ button:disabled {
   background-color: #1a1a1a;
 }
 
+/* Hide number input spinners (use .input-no-spinner on number inputs where arrows are not desired) */
+.input-no-spinner::-webkit-inner-spin-button,
+.input-no-spinner::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.input-no-spinner {
+  -moz-appearance: textfield;
+}
+
 /* Standard black scrollbar for all scrollable areas (Firefox) */
 * {
   scrollbar-width: thin;
@@ -1617,5 +1627,12 @@ button[data-bg-toggle="sky"] {
       0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
       10% 25%, 65% 58%, 48% 72%,
       100% 40%;
+  }
+}
+
+/* Print: hide CRM chrome and utility buttons so only invoice content prints */
+@media print {
+  .no-print {
+    display: none !important;
   }
 }

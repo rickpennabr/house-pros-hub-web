@@ -20,6 +20,7 @@ export const sendMessageSchema = z.object({
   displayName: z.string().trim().max(200).optional(),
   userId: z.string().uuid().optional(),
   attachments: z.array(attachmentSchema).max(10).optional(),
+  locale: z.enum(["en", "pt", "es"]).optional(),
 }).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0, {
   message: 'Message cannot be empty',
   path: ['body'],
@@ -28,13 +29,13 @@ export const sendMessageSchema = z.object({
 export const getMessagesSchema = z.object({
   conversationId: z.string().uuid(),
   visitorId: z.string().trim().max(100).optional(), // for visitor verification
+  locale: z.enum(['en', 'pt', 'es']).optional(),
 });
 
 export const deleteConversationSchema = z.object({
   conversationId: z.string().uuid(),
   visitorId: z.string().trim().min(1, 'visitorId is required').max(100),
-  /** Optional short-lived token from POST /api/chat/visitor-delete-token for extra security */
-  deleteToken: z.string().trim().max(500).optional(),
+  deleteToken: z.string().trim().min(1, 'deleteToken is required').max(500),
 });
 
 /** Identity the admin is replying as: ProBot, Hub Agent (themselves), or a specific business */
@@ -104,4 +105,18 @@ export const adminConversationIdSchema = z.string().uuid();
 /** DELETE /api/chat/admin/conversations/delete?conversationId= (required) */
 export const adminDeleteConversationQuerySchema = z.object({
   conversationId: z.string().uuid(),
+});
+
+/** POST /api/chat/agent/confirm — homeowner files a draft the model prepared. */
+export const confirmAgentEstimateSchema = z.object({
+  conversationId: z.string().uuid(),
+  visitorId: z.string().trim().min(1).max(100),
+  stepId: z.string().uuid(),
+  locale: z.enum(['en', 'pt', 'es']).optional(),
+});
+
+/** POST /api/chat/admin/agent — pause or hand the thread back to ProAgent. */
+export const adminAgentPauseSchema = z.object({
+  conversationId: z.string().uuid(),
+  paused: z.boolean(),
 });

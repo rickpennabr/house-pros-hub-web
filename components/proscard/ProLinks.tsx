@@ -26,7 +26,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { createSignInUrl } from '@/lib/redirect';
+import { createSignInUrl, createSignUpUrl, createLocalePath } from '@/lib/redirect';
 import { LeaveExternalWarningModal } from './LeaveExternalWarningModal';
 import { AngiIcon } from '@/components/ui/icons/AngiIcon';
 import type { LinkType } from '@/lib/constants/linkTypes';
@@ -71,7 +71,12 @@ const iconMap: Partial<Record<LinkItem['type'], IconComponent>> = {
 };
 
 export default function ProLinks({ links, maxLinks = 7, onSignInRequired }: ProLinksProps) {
-  const visibleLinks = links.slice(0, maxLinks);
+  // Ensure "Book" calendar link (when present) is always last in the icons row
+  const bookingCalendarLink = links.find((l) => l.type === 'calendar' && l.url?.startsWith('/book/'));
+  const otherLinks = links.filter((l) => !(l.type === 'calendar' && l.url?.startsWith('/book/')));
+  const visibleLinks = bookingCalendarLink
+    ? [...otherLinks.slice(0, maxLinks - 1), bookingCalendarLink]
+    : otherLinks.slice(0, maxLinks);
   const linkCount = visibleLinks.length;
   const shouldSpaceBetween = linkCount === 7;
   const { isAuthenticated, isLoading } = useAuth();
@@ -81,9 +86,14 @@ export default function ProLinks({ links, maxLinks = 7, onSignInRequired }: ProL
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
 
-  // Define which link types require authentication
-  const protectedLinkTypes: LinkItem['type'][] = ['phone', 'email', 'calendar'];
-  const isProtectedLink = (type: LinkItem['type']) => protectedLinkTypes.includes(type);
+  // Link types that require auth: phone, email, and in-app booking (calendar → sign-up then book)
+  const protectedLinkTypes: LinkItem['type'][] = ['phone', 'email'];
+  const isBookingCalendarLink = (link: LinkItem) =>
+    link.type === 'calendar' && link.url?.startsWith('/book/');
+  const isProtectedLink = (link: LinkItem) => {
+    if (isBookingCalendarLink(link)) return true; // booking: require sign-up, then go to pro calendar
+    return protectedLinkTypes.includes(link.type);
+  };
 
   const performLinkClick = (link: LinkItem) => {
     if (link.type === 'phone' && link.value) {
@@ -96,6 +106,9 @@ export default function ProLinks({ links, maxLinks = 7, onSignInRequired }: ProL
       const anchor = document.createElement('a');
       anchor.href = `mailto:${link.value}`;
       anchor.click();
+    } else if (link.type === 'calendar' && link.url) {
+      // Public booking page: navigate within app with locale
+      router.push(createLocalePath(locale as 'en' | 'es' | 'pt', link.url));
     } else if (link.url) {
       if (link.type === 'website') {
         setPendingUrl(link.url);
@@ -122,9 +135,14 @@ export default function ProLinks({ links, maxLinks = 7, onSignInRequired }: ProL
   const handleLinkClick = (e: React.MouseEvent, link: LinkItem) => {
     e.stopPropagation();
     
-    if (isProtectedLink(link.type)) {
+    if (isProtectedLink(link)) {
       if (isLoading) return;
       if (!isAuthenticated) {
+        if (isBookingCalendarLink(link) && link.url) {
+          // Take to sign-up page so after sign-up user lands on the pro's booking page
+          router.push(createSignUpUrl(locale as 'en' | 'es' | 'pt', link.url));
+          return;
+        }
         if (onSignInRequired) {
           onSignInRequired();
           return;
@@ -164,7 +182,7 @@ export default function ProLinks({ links, maxLinks = 7, onSignInRequired }: ProL
               key={index}
               onClick={(e) => handleLinkClick(e, link)}
               className="w-10 h-10 lg:w-9 lg:h-9 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
-              aria-label={link.type}
+              aria-label={isBookingCalendarLink(link) ? 'Book a time with this pro' : link.type}
             >
               <Icon className={`${iconSizeClass} text-black`} />
             </button>

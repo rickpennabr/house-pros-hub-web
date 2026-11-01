@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { signOutSession } from '@/lib/auth/signOutSession';
 import Image from 'next/image';
 import { LogOut } from 'lucide-react';
 import type { Profile } from '@/lib/types/supabase';
@@ -82,14 +83,10 @@ export function AdminAccountButton({ userEmail }: AdminAccountButtonProps) {
   }, [isDropdownOpen]);
 
   const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      router.push('/');
-      router.refresh();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
     setIsDropdownOpen(false);
+    await signOutSession(supabase);
+    router.push('/');
+    router.refresh();
   };
 
   return (

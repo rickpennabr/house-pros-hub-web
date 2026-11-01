@@ -3,6 +3,8 @@
 import { useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Bell, User, Briefcase, MessageCircle } from 'lucide-react';
+import { useOptionalChat } from '@/contexts/ChatContext';
+import { useOptionalAuth } from '@/contexts/AuthContext';
 
 export type NewSignupItem = {
   id: string;
@@ -11,6 +13,16 @@ export type NewSignupItem = {
   createdAt: string;
   href: string;
   eventType?: 'signup' | 'deletion';
+};
+
+type ChatUnreadBellItem = {
+  id: string;
+  conversationId: string;
+  sender: 'visitor' | 'admin';
+  title: string;
+  preview: string;
+  createdAt: string;
+  probotHrefQuery: string;
 };
 
 function formatRelativeTime(iso: string) {
@@ -38,11 +50,15 @@ interface NotificationBellDropdownProps {
 export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead, variant = 'signups', locale = 'en' }: NotificationBellDropdownProps) {
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState<NewSignupItem[]>([]);
+  const [chatUnreadItems, setChatUnreadItems] = useState<ChatUnreadBellItem[]>([]);
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
   const bellButtonRef = useRef<HTMLButtonElement>(null);
   const isChat = variant === 'chat';
+  const visitorId = useOptionalChat()?.visitorId ?? '';
+  const user = useOptionalAuth()?.user;
+  const isContractor = Boolean(user?.businessId);
 
   const handleMarkAllRead = async () => {
     if (isChat) return;
@@ -89,6 +105,20 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
       .finally(() => setNotificationLoading(false));
   }, [notificationOpen, isChat]);
 
+  useEffect(() => {
+    if (!notificationOpen || !isChat) return;
+    setNotificationLoading(true);
+    const q = !isContractor && visitorId ? `?visitorId=${encodeURIComponent(visitorId)}` : '';
+    fetch(`/api/notifications/chat-unread-items${q}`, { credentials: 'include', cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.items != null) setChatUnreadItems(data.items as ChatUnreadBellItem[]);
+        else setChatUnreadItems([]);
+      })
+      .catch(() => setChatUnreadItems([]))
+      .finally(() => setNotificationLoading(false));
+  }, [notificationOpen, isChat, isContractor, visitorId]);
+
   return (
     <div className="relative z-[100] flex items-center shrink-0">
       <button
@@ -120,29 +150,34 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
                   ProBot messages
                 </p>
               </div>
-              <div className="p-2">
-                {notificationCount > 0 ? (
-                  <Link
-                    href={`/${locale}/probot`}
-                    onClick={() => setNotificationOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                  >
-                    <span className="flex-shrink-0 w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center bg-white">
-                      <MessageCircle className="w-4 h-4 text-black" />
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-medium text-black">
-                        {notificationCount === 1 ? '1 unread message' : `${notificationCount} unread messages`}
-                      </span>
-                      <span className="block text-[10px] text-gray-500">
-                        Open ProBot to view
-                      </span>
-                    </span>
-                  </Link>
+              <div className="max-h-[min(60vh,320px)] overflow-y-auto p-2">
+                {notificationLoading && chatUnreadItems.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-gray-500">Loading…</div>
+                ) : chatUnreadItems.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-gray-500">No new messages</div>
                 ) : (
-                  <div className="py-6 text-center text-sm text-gray-500">
-                    No new messages
-                  </div>
+                  <ul className="space-y-0.5">
+                    {chatUnreadItems.map((item) => (
+                      <li key={item.id}>
+                        <Link
+                          href={`/${locale}/probot?${item.probotHrefQuery}`}
+                          onClick={() => setNotificationOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                        >
+                          <span className="flex-shrink-0 w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center bg-white">
+                            <MessageCircle className="w-4 h-4 text-black" />
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-medium text-black truncate">{item.title}</span>
+                            <span className="block text-[10px] text-gray-500 truncate">{item.preview}</span>
+                            <span className="block text-[10px] text-gray-400 mt-0.5">
+                              {formatRelativeTime(item.createdAt)}
+                            </span>
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
             </>

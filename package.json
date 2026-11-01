@@ -11,15 +11,19 @@
     "type-check": "tsc --noEmit",
     "check": "npm run lint && npm run type-check",
     "analyze": "next build",
-    "audit": "npm audit"
+    "audit": "npm audit",
+    "probot:check": "npx --yes tsx --test lib/chat/probot-eval.test.ts",
+    "probot:eval": "npx --yes tsx scripts/probot-eval.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@react-google-maps/api": "^2.20.8",
+    "@react-pdf/renderer": "^4.3.2",
     "@sentry/nextjs": "^10.32.1",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.89.0",
     "@tanstack/react-table": "^8.21.3",
+    "@vis.gl/react-google-maps": "^1.10.2",
     "browser-image-compression": "^2.0.2",
     "dompurify": "^3.3.1",
     "file-type": "^21.1.1",
@@ -32,6 +36,7 @@
     "react-hook-form": "^7.68.0",
     "react-icons": "^5.5.0",
     "resend": "^4.0.0",
+    "stripe": "^18.4.0",
     "web-push": "^3.6.7",
     "zod": "^4.2.1"
   },
@@ -42,7 +47,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "baseline-browser-mapping": "^2.10.0",
+    "baseline-browser-mapping": "^2.11.34",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
     "tailwindcss": "^4",

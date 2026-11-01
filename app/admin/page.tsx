@@ -17,6 +17,26 @@ export default function AdminDashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="p-6 border-2 border-black rounded-lg bg-white">
+          <h2 className="text-xl font-semibold mb-2">Users</h2>
+          <p className="text-gray-600 mb-4">
+            Every account, with role. The admin login is not a customer.
+          </p>
+          <Link href="/admin/users" className="text-black underline hover:no-underline">
+            Go to Users →
+          </Link>
+        </div>
+
+        <div className="p-6 border-2 border-black rounded-lg bg-white">
+          <h2 className="text-xl font-semibold mb-2">Estimates</h2>
+          <p className="text-gray-600 mb-4">
+            Estimate requests sent to the site.
+          </p>
+          <Link href="/admin/estimates" className="text-black underline hover:no-underline">
+            Go to Estimates →
+          </Link>
+        </div>
+
+        <div className="p-6 border-2 border-black rounded-lg bg-white">
           <h2 className="text-xl font-semibold mb-2">Customers</h2>
           <p className="text-gray-600 mb-4">
             View and manage customer accounts.
@@ -33,6 +53,16 @@ export default function AdminDashboardPage() {
           </p>
           <Link href="/admin/businesses" className="text-black underline hover:no-underline">
             Go to Businesses →
+          </Link>
+        </div>
+
+        <div className="p-6 border-2 border-black rounded-lg bg-white">
+          <h2 className="text-xl font-semibold mb-2">Agent apps</h2>
+          <p className="text-gray-600 mb-4">
+            Create keys for assistants that search pros and open estimates.
+          </p>
+          <Link href="/admin/agent-apps" className="text-black underline hover:no-underline">
+            Go to Agent apps →
           </Link>
         </div>
 

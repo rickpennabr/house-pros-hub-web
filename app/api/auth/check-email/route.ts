@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceRoleClient } from '@/lib/supabase/server';
 import { isValidEmail } from '@/lib/validation';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 
@@ -7,6 +6,7 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
  * POST /api/auth/check-email
  * Checks if an email is already registered (for signup flow).
  * Returns { available: boolean }. If available is false, the email is taken.
+ * Looks up that address only. Does not page through the user list.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -20,53 +20,45 @@ export async function POST(request: NextRequest) {
 
     if (!email) {
       return NextResponse.json(
-        { error: 'Email is required', available: true },
+        { error: 'Email is required' },
         { status: 400 }
       );
     }
 
     if (!isValidEmail(email)) {
       return NextResponse.json(
-        { error: 'Invalid email format', available: true },
+        { error: 'Invalid email format' },
         { status: 400 }
       );
     }
 
-    const supabase = createServiceRoleClient();
-    const perPage = 500;
-    const maxPages = 20;
-    let page = 1;
-
-    while (page <= maxPages) {
-      const { data, error } = await supabase.auth.admin.listUsers({
-        page,
-        perPage,
-      });
-
-      if (error) {
-        return NextResponse.json(
-          { error: 'Unable to check email', available: true },
-          { status: 500 }
-        );
-      }
-
-      const found = data?.users?.some(
-        (u) => u.email?.toLowerCase() === email
-      );
-      if (found) {
-        return NextResponse.json({ available: false });
-      }
-
-      if (!data?.users?.length || data.users.length < perPage) {
-        break;
-      }
-      page++;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '');
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceKey) {
+      return NextResponse.json({ error: 'Unable to check email' }, { status: 500 });
     }
 
-    return NextResponse.json({ available: true });
+    const lookup = await fetch(
+      `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
+        },
+        cache: 'no-store',
+      }
+    );
+
+    if (!lookup.ok) {
+      return NextResponse.json({ error: 'Unable to check email' }, { status: 500 });
+    }
+
+    const payload = (await lookup.json()) as { users?: { email?: string | null }[] };
+    const found = (payload.users ?? []).some((user) => user.email?.toLowerCase() === email);
+    return NextResponse.json({ available: !found });
   } catch {
     return NextResponse.json(
-      { error: 'Unable to check email', available: true },
+      { error: 'Unable to check email' },
       { status: 500 }
     );
   }

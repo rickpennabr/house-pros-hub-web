@@ -1,7 +1,7 @@
 import { COMPANY_INFO } from '@/lib/constants/company';
 
 export const metadata = {
-  title: 'Cookie Policy | House Pros Hub',
+  title: 'Cookie Policy',
   description: 'Cookie Policy for House Pros Hub marketplace platform',
 };
 

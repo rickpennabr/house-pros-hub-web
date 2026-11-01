@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
 import ShareBusinessModal from './ShareBusinessModal';
 import ProfileIcon from '@/components/pageslayout/ProfileIcon';
 
@@ -13,6 +12,12 @@ interface BusinessDetailsHeaderProps {
   businessName: string;
   contractorType?: string;
   secondaryLogo?: string;
+  /** When true, show ProfileIcon (owner's account). When false, show business logo for visitors. */
+  isOwner?: boolean;
+  /** When set, the logo returns here instead of the previous page. */
+  backHref?: string;
+  /** Share dialog title. Defaults to the business share label. */
+  shareTitle?: string;
 }
 
 function getInitials(name: string): string {
@@ -31,10 +36,12 @@ export default function BusinessDetailsHeader({
   logo, 
   businessName,
   contractorType = '',
-  secondaryLogo 
+  secondaryLogo,
+  isOwner = false,
+  backHref,
+  shareTitle,
 }: BusinessDetailsHeaderProps) {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
   const businessInitials = getInitials(businessName);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareBusinessUrl, setShareBusinessUrl] = useState('');
@@ -51,7 +58,7 @@ export default function BusinessDetailsHeader({
     <div className="relative flex items-center h-[60px] p-2 md:px-2 md:py-4 border-b-2 border-black bg-white">
       <div className="flex items-center shrink-0">
         <button
-          onClick={() => router.back()}
+          onClick={() => (backHref ? router.push(backHref) : router.back())}
           className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-white shrink-0 hover:bg-gray-50 transition-colors overflow-hidden cursor-pointer"
           aria-label="Go back"
         >
@@ -80,7 +87,7 @@ export default function BusinessDetailsHeader({
         >
           <Share2 className="w-5 h-5 text-black" />
         </button>
-        {isAuthenticated ? (
+        {isOwner ? (
           <ProfileIcon />
         ) : logo ? (
           <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-white shrink-0 overflow-hidden relative aspect-square">
@@ -116,6 +123,7 @@ export default function BusinessDetailsHeader({
         contractorType={contractorType}
         logo={logo}
         businessUrl={shareBusinessUrl}
+        title={shareTitle}
       />
     </div>
   );

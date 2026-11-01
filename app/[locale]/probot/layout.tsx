@@ -285,6 +285,7 @@ function ProBotLayoutContent({
                     width={48}
                     height={48}
                     className={`w-full h-full object-contain ${headerImageLoaded && !headerImageError ? '' : 'absolute opacity-0'}`}
+                    unoptimized
                     onLoad={() => setHeaderImageLoaded(true)}
                     onError={() => setHeaderImageError(true)}
                   />

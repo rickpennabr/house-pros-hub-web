@@ -68,11 +68,11 @@ export async function GET(
       phone: profile.phone,
       referral: profile.referral,
       userPicture: profile.user_picture ?? '',
-      streetAddress: address?.street_address ?? profile.street_address ?? '',
-      apartment: address?.apartment ?? profile.apartment ?? '',
-      city: address?.city ?? profile.city ?? '',
-      state: address?.state ?? profile.state ?? '',
-      zipCode: address?.zip_code ?? profile.zip_code ?? '',
+      streetAddress: address?.street_address ?? '',
+      apartment: address?.apartment ?? '',
+      city: address?.city ?? '',
+      state: address?.state ?? '',
+      zipCode: address?.zip_code ?? '',
     });
   } catch (error) {
     console.error('GET /api/admin/customers/[id]', error);

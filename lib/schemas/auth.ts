@@ -15,7 +15,7 @@ export const passwordSchema = z
   .regex(/[0-9]/, 'Password must contain at least one number');
 
 const signupSchemaBaseObject = z.object({
-  userType: z.enum(['customer', 'contractor', 'realtor']),
+  userType: z.enum(['customer', 'contractor', 'realtor', 'installer']),
   firstName: z.string().trim().min(1, 'First name is required'),
   lastName: z.string().trim().min(1, 'Last name is required'),
   email: z.string().trim().lowercase().email('Invalid email format').optional(),
@@ -87,7 +87,7 @@ export const signupSchema = signupSchemaBaseObject.refine((data) => {
   message: "Please enter how you heard about us",
   path: ["referralOther"],
 }).refine((data) => {
-  if (data.userType === 'customer' && !data.phone?.trim()) {
+  if ((data.userType === 'customer' || data.userType === 'installer') && !data.phone?.trim()) {
     return false;
   }
   return true;
@@ -104,7 +104,7 @@ export const signupSchema = signupSchemaBaseObject.refine((data) => {
   message: "Please enter your company role",
   path: ["companyRoleOther"],
 }).refine((data) => {
-  if (data.userType === 'contractor' || data.userType === 'realtor') {
+  if (data.userType === 'contractor' || data.userType === 'realtor' || data.userType === 'installer') {
     return !!data.invitationCode?.trim();
   }
   return true;

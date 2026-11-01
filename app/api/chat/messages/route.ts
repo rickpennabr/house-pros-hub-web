@@ -6,6 +6,23 @@ import { sendMessageSchema, getMessagesSchema } from '@/lib/schemas/chat';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { filterAllowedAttachments } from '@/lib/utils/chatAttachmentAllowlist';
 import { sendAdminPushNotification, sendBusinessPushNotification } from '@/lib/services/pushNotificationService';
+import { answerHubThread } from '@/lib/chat/hub-agent-reply';
+import { parseAgentPayload } from '@/lib/chat/proagent-policy';
+import type { ProbotTurn } from '@/lib/chat/probot-ai';
+import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
+import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
+
+async function sessionUserId(): Promise<string | undefined> {
+  try {
+    const session = await createClient();
+    const {
+      data: { user },
+    } = await session.auth.getUser();
+    return user?.id;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * POST /api/chat/messages
@@ -22,7 +39,9 @@ export async function POST(request: NextRequest) {
       const msg = parsed.error.flatten().fieldErrors?.body?.[0] ?? 'Invalid request';
       return NextResponse.json({ error: msg }, { status: 400 });
     }
-    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments } = parsed.data;
+    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments, locale } = parsed.data;
+    const cookieDenied = visitorCookieDenied(request, visitorId);
+    if (cookieDenied) return cookieDenied;
 
     const attachments = rawAttachments?.length
       ? filterAllowedAttachments(rawAttachments)
@@ -155,6 +174,33 @@ export async function POST(request: NextRequest) {
     }
 
     const msg = message as unknown as { id: string; conversation_id: string; sender: string; body: string; created_at: string; attachments?: unknown };
+
+    let botMessage: {
+      id: string;
+      conversationId: string;
+      sender: 'admin';
+      body: string;
+      created_at: string;
+      admin_sent_as: 'probot';
+    } | undefined;
+
+    // Hub thread only. A message to a pro waits for that pro.
+    if (!businessId && conversationId && claimHubReply(conversationId)) {
+      try {
+        const history = await recentHubTurns(supabase, conversationId);
+        const answered = await answerHubThread({
+          conversationId,
+          locale,
+          history: history.slice(0, -1),
+          body: messageBody ?? '',
+          userId: await sessionUserId(),
+        });
+        if (answered) botMessage = answered;
+      } finally {
+        releaseHubReply(conversationId);
+      }
+    }
+
     return NextResponse.json(
       {
         message: {
@@ -166,6 +212,7 @@ export async function POST(request: NextRequest) {
           businessId: businessId ?? undefined,
           attachments: msg.attachments ?? attachments ?? [],
         },
+        ...(botMessage ? { botMessage } : {}),
       },
       { status: 200 }
     );
@@ -187,59 +234,68 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId');
     const visitorId = searchParams.get('visitorId') ?? undefined;
-    const parsed = getMessagesSchema.safeParse({ conversationId, visitorId });
+    const locale = searchParams.get('locale') ?? undefined;
+    const parsed = getMessagesSchema.safeParse({ conversationId, visitorId, locale });
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
 
-    const supabaseServer = await createClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseServer.auth.getUser();
-    const isAdmin =
-      !userError &&
-      !!user?.email &&
-      user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    const hasVisitorId = Boolean(parsed.data.visitorId?.trim());
+    if (hasVisitorId) {
+      const cookieDenied = visitorCookieDenied(request, parsed.data.visitorId!);
+      if (cookieDenied) return cookieDenied;
+    }
+    let user: { id: string; email?: string | null } | null = null;
+    let isAdmin = false;
+    let supabaseServer: Awaited<ReturnType<typeof createClient>> | null = null;
+
+    // Guests poll with visitorId and are authorized by conversation ownership.
+    // Skip the cookie session lookup so each poll does not wait on a missing auth session.
+    if (!hasVisitorId) {
+      supabaseServer = await createClient();
+      const {
+        data: { user: authUser },
+        error: userError,
+      } = await supabaseServer.auth.getUser();
+      user = authUser;
+      isAdmin =
+        !userError &&
+        !!user?.email &&
+        user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    }
 
     const supabase = createServiceRoleClient();
 
+    // Started early so it overlaps the message query below.
+    const visitorOwnershipQuery =
+      !isAdmin && hasVisitorId
+        ? supabase
+            .from('probot_conversations')
+            .select('id')
+            .eq('id', parsed.data.conversationId)
+            .eq('visitor_id', parsed.data.visitorId!)
+            .maybeSingle()
+        : null;
+
     let contractorReadBusinessId: string | null = null;
-    if (!isAdmin) {
-      if (visitorId) {
-        const { data: conv } = await supabase
-          .from('probot_conversations')
-          .select('id')
-          .eq('id', parsed.data.conversationId)
-          .eq('visitor_id', visitorId)
-          .single();
-        if (!conv) {
-          return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
-        }
-      } else {
-        if (!user?.id) {
-          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const { data: profile } = await supabaseServer
-          .from('profiles')
-          .select('business_id')
-          .eq('id', user.id)
-          .single();
-        const userBusinessId = (profile as { business_id?: string } | null)?.business_id ?? null;
-        if (!userBusinessId) {
-          return NextResponse.json({ error: 'visitorId required for visitor' }, { status: 400 });
-        }
-        contractorReadBusinessId = userBusinessId;
-        const { data: msgRow } = await supabase
-          .from('probot_messages')
-          .select('id')
-          .eq('conversation_id', parsed.data.conversationId)
-          .eq('business_id', userBusinessId)
-          .limit(1)
-          .maybeSingle();
-        if (!msgRow) {
-          return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
-        }
+    if (!isAdmin && !hasVisitorId) {
+      if (!supabaseServer || !user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      const userBusinessId = await getOwnedBusinessId(user.id);
+      if (!userBusinessId) {
+        return NextResponse.json({ error: 'visitorId required for visitor' }, { status: 400 });
+      }
+      contractorReadBusinessId = userBusinessId;
+      const { data: msgRow } = await supabase
+        .from('probot_messages')
+        .select('id')
+        .eq('conversation_id', parsed.data.conversationId)
+        .eq('business_id', userBusinessId)
+        .limit(1)
+        .maybeSingle();
+      if (!msgRow) {
+        return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
       }
     }
 
@@ -272,16 +328,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null; read_at?: string | null; attachments?: unknown; admin_sent_as?: string | null; admin_user_id?: string | null };
+    type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null; read_at?: string | null; attachments?: unknown; admin_sent_as?: string | null; admin_user_id?: string | null; payload?: unknown };
     let rawMessages: MessageRow[] | null = null;
 
-    const selectCols = 'id, sender, body, created_at, business_id, read_at, attachments, admin_sent_as, admin_user_id';
-    const withAttachments = await supabase
+    const selectCols = 'id, sender, body, created_at, business_id, read_at, attachments, admin_sent_as, admin_user_id, payload';
+    const messagesQuery = supabase
       .from('probot_messages')
       .select(selectCols)
       .in('conversation_id', conversationIds)
       .order('created_at', { ascending: true })
       .limit(300);
+
+    const [ownershipResult, withAttachments] = await Promise.all([
+      visitorOwnershipQuery,
+      messagesQuery,
+    ]);
+
+    if (visitorOwnershipQuery && !ownershipResult?.data) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
 
     if (!withAttachments.error) {
       rawMessages = withAttachments.data as unknown as MessageRow[] | null;
@@ -337,30 +402,83 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Visitor is waiting on the hub thread (no pro selected). Answer once the latest hub message is theirs.
+    if (isVisitorContext && !contractorReadBusinessId) {
+      const hubRows = rows.filter((m) => !m.business_id);
+      const lastHub = hubRows[hubRows.length - 1];
+      if (lastHub?.sender === 'visitor' && lastHub.body.trim() && claimHubReply(parsed.data.conversationId)) {
+        try {
+        const history = hubRows
+          .slice(0, -1)
+          .map((row) => ({
+            sender: row.sender === 'admin' ? 'admin' as const : 'visitor' as const,
+            body: row.body,
+          }));
+        const answered = await answerHubThread({
+          conversationId: parsed.data.conversationId,
+          locale: parsed.data.locale,
+          history,
+          body: lastHub.body,
+          userId: await sessionUserId(),
+        });
+        if (answered) {
+          rows = [
+            ...rows,
+            {
+              id: answered.id,
+              sender: answered.sender,
+              body: answered.body,
+              created_at: answered.created_at,
+              business_id: null,
+              read_at: null,
+              attachments: [],
+              admin_sent_as: 'probot',
+              admin_user_id: null,
+              payload: answered.payload,
+            },
+          ];
+        }
+        } finally {
+          releaseHubReply(parsed.data.conversationId);
+        }
+      }
+    }
+
     // Mark as read by context: visitor viewing (has visitorId) = mark admin messages read only;
     // admin/contractor viewing = mark visitor messages read across all conversations in this thread (WhatsApp-style one thread per profile).
     const nowIso = new Date().toISOString();
     let readAtUpdated = false;
     if (isVisitorContext) {
-      const up = await supabase
-        .from('probot_messages')
-        .update({ read_at: nowIso })
-        .eq('conversation_id', parsed.data.conversationId)
-        .eq('sender', 'admin')
-        .is('read_at', null);
-      readAtUpdated = !up.error || up.error.code !== '42703';
-    } else {
-      let up = supabase
-        .from('probot_messages')
-        .update({ read_at: nowIso })
-        .in('conversation_id', conversationIds)
-        .eq('sender', 'visitor')
-        .is('read_at', null);
-      if (contractorReadBusinessId) {
-        up = up.eq('business_id', contractorReadBusinessId);
+      const hasUnreadAdmin = rows.some((m) => m.sender === 'admin' && !m.read_at);
+      if (hasUnreadAdmin) {
+        const up = await supabase
+          .from('probot_messages')
+          .update({ read_at: nowIso })
+          .eq('conversation_id', parsed.data.conversationId)
+          .eq('sender', 'admin')
+          .is('read_at', null);
+        readAtUpdated = !up.error || up.error.code !== '42703';
       }
-      const upResult = await up;
-      readAtUpdated = !upResult.error || upResult.error.code !== '42703';
+    } else {
+      const hasUnreadVisitor = rows.some(
+        (m) =>
+          m.sender === 'visitor' &&
+          !m.read_at &&
+          (!contractorReadBusinessId || m.business_id === contractorReadBusinessId)
+      );
+      if (hasUnreadVisitor) {
+        let up = supabase
+          .from('probot_messages')
+          .update({ read_at: nowIso })
+          .in('conversation_id', conversationIds)
+          .eq('sender', 'visitor')
+          .is('read_at', null);
+        if (contractorReadBusinessId) {
+          up = up.eq('business_id', contractorReadBusinessId);
+        }
+        const upResult = await up;
+        readAtUpdated = !upResult.error || upResult.error.code !== '42703';
+      }
     }
 
     const businessIds = [...new Set(rows.map((m) => m.business_id).filter(Boolean))] as string[];
@@ -411,6 +529,7 @@ export async function GET(request: NextRequest) {
         admin_user_id: adminUserId,
         admin_avatar_url: adminProfile?.admin_avatar_url ?? undefined,
         admin_display_name: adminProfile?.admin_display_name ?? undefined,
+        payload: parseAgentPayload(m.payload),
       };
     });
 
@@ -433,4 +552,36 @@ export async function GET(request: NextRequest) {
     console.error('ProBot messages GET error:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+const hubReplyInFlight = new Set<string>();
+
+function claimHubReply(conversationId: string): boolean {
+  if (hubReplyInFlight.has(conversationId)) return false;
+  hubReplyInFlight.add(conversationId);
+  return true;
+}
+
+function releaseHubReply(conversationId: string): void {
+  hubReplyInFlight.delete(conversationId);
+}
+
+async function recentHubTurns(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  conversationId: string
+): Promise<ProbotTurn[]> {
+  const { data, error } = await supabase
+    .from('probot_messages')
+    .select('sender, body, business_id, created_at')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+    .limit(16);
+  if (error) return [];
+  return ((data ?? []) as { sender: string; body: string; business_id?: string | null }[])
+    .filter((row) => !row.business_id && row.body.trim())
+    .slice(-8)
+    .map((row) => ({
+      sender: row.sender === 'admin' ? 'admin' : 'visitor',
+      body: row.body,
+    }));
 }

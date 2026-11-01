@@ -13,6 +13,26 @@ async function requireContractor() {
 
 const VALID_SORT = ['created_at', 'updated_at', 'name', 'status', 'start_date', 'end_date'] as const;
 
+async function validateEstimateLink(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ownerId: string,
+  customerId: string,
+  estimateId: string | null
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!estimateId) return { ok: true };
+  const { data: estimate } = await supabase
+    .from('pro_crm_estimates')
+    .select('id, customer_id')
+    .eq('id', estimateId)
+    .eq('owner_id', ownerId)
+    .single();
+  if (!estimate) return { ok: false, message: 'Estimate not found' };
+  if (estimate.customer_id !== customerId) {
+    return { ok: false, message: 'Estimate must belong to the same customer' };
+  }
+  return { ok: true };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { error: authError, user } = await requireContractor();
@@ -80,6 +100,11 @@ export async function POST(request: NextRequest) {
 
     const status = ['planned', 'in_progress', 'on_hold', 'completed', 'cancelled'].includes(body.status) ? body.status : 'planned';
     const estimateId = body.estimateId ?? body.estimate_id ?? null;
+    const estimateValidation = await validateEstimateLink(supabase, user.id, customerId, estimateId);
+    if (!estimateValidation.ok) {
+      return NextResponse.json({ error: estimateValidation.message }, { status: 400 });
+    }
+
     const startDate = body.startDate ?? body.start_date ?? null;
     const endDate = body.endDate ?? body.end_date ?? null;
     const note = typeof body.note === 'string' ? body.note.trim() || null : null;
@@ -96,11 +121,11 @@ export async function POST(request: NextRequest) {
         end_date: endDate,
         note,
       })
-      .select('id, created_at')
+      .select('id, display_id, created_at')
       .single();
 
     if (error) return NextResponse.json({ error: error.message || 'Failed to create project' }, { status: 500 });
-    return NextResponse.json({ id: row.id, created_at: row.created_at }, { status: 201 });
+    return NextResponse.json({ id: row.id, display_id: row.display_id, created_at: row.created_at }, { status: 201 });
   } catch (err) {
     console.error('POST /api/crm/projects', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

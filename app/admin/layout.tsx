@@ -1,7 +1,13 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { privateRobots } from '@/lib/seo/metadata';
+
+export const metadata: Metadata = {
+  robots: privateRobots,
+};
 
 export default async function AdminLayoutWrapper({
   children,

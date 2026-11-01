@@ -3,12 +3,13 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { deleteConversationSchema } from '@/lib/schemas/chat';
 import { verifyVisitorDeleteToken } from '@/lib/utils/chatVisitorToken';
+import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 
 /**
  * DELETE /api/chat/conversations/delete
- * Body: { conversationId, visitorId, deleteToken? }
- * Deletes the conversation and its messages only if visitor_id matches.
- * If deleteToken is provided, it must be valid (from POST /api/chat/visitor-delete-token) for the same visitorId.
+ * Body: { conversationId, visitorId, deleteToken }
+ * Deletes the conversation and its messages only if visitor_id matches
+ * and deleteToken was issued for that visitorId.
  */
 export async function DELETE(request: NextRequest) {
   const rateLimitRes = await checkRateLimit(request, 'chat');
@@ -24,8 +25,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
     const { conversationId, visitorId, deleteToken } = parsed.data;
+    const cookieDenied = visitorCookieDenied(request, visitorId);
+    if (cookieDenied) return cookieDenied;
 
-    if (deleteToken && !verifyVisitorDeleteToken(deleteToken, visitorId)) {
+    if (!verifyVisitorDeleteToken(deleteToken, visitorId)) {
       return NextResponse.json({ error: 'Invalid or expired delete token' }, { status: 403 });
     }
 

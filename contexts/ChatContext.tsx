@@ -1,48 +1,15 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
+import '@/components/security/CsrfFetchPatch';
 import { useAuth } from '@/contexts/AuthContext';
+import { runWhileVisible } from '@/lib/utils/runWhileVisible';
 
 const VISITOR_ID_KEY = 'probot_visitor_id';
 
-/** Generate a UUID; uses crypto.randomUUID when available, else getRandomValues or a simple fallback for older mobile browsers. */
-function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    bytes[6] = (bytes[6]! & 0x0f) | 0x40;
-    bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-    const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-function getOrCreateVisitorId(): string {
-  if (typeof window === 'undefined') return '';
-  try {
-    let id = localStorage.getItem(VISITOR_ID_KEY);
-    if (!id) {
-      id = generateUUID();
-      localStorage.setItem(VISITOR_ID_KEY, id);
-    }
-    return id;
-  } catch {
-    // localStorage unavailable (private browsing, quota, or blocked on some mobile browsers)
-    return generateUUID();
-  }
-}
-
 export type ChatOpenChoice = 'account_estimate' | null;
 
-const CHAT_UNREAD_POLL_MS = 15_000;
+const CHAT_UNREAD_POLL_MS = 30_000;
 
 interface ChatContextType {
   isOpen: boolean;
@@ -75,7 +42,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const isContractor = !isAdmin && !!user?.businessId;
 
   useEffect(() => {
-    setVisitorId(getOrCreateVisitorId());
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/chat/visitor-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({}),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && typeof data.visitorId === 'string' && data.visitorId) {
+          try {
+            localStorage.setItem(VISITOR_ID_KEY, data.visitorId);
+          } catch {
+            // localStorage can be unavailable
+          }
+          setVisitorId(data.visitorId);
+          return;
+        }
+      } catch {
+        // Leave visitor id empty until the session endpoint succeeds.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -97,9 +89,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // ignore
       }
     };
-    fetchUnread();
-    const interval = setInterval(fetchUnread, CHAT_UNREAD_POLL_MS);
-    return () => clearInterval(interval);
+    return runWhileVisible(fetchUnread, CHAT_UNREAD_POLL_MS);
   }, [isAdmin, isContractor, visitorId]);
 
   // Sync app icon badge (e.g. iPhone home screen) with unread count. Supported in iOS 16.4+ PWA.
@@ -126,11 +116,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const clearChat = useCallback(() => {
     setConversationId(null);
-    if (typeof window !== 'undefined') {
-      const newId = generateUUID();
-      localStorage.setItem(VISITOR_ID_KEY, newId);
-      setVisitorId(newId);
-    }
+    void (async () => {
+      try {
+        const res = await fetch('/api/chat/visitor-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ rotate: true }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && typeof data.visitorId === 'string' && data.visitorId) {
+          try {
+            localStorage.setItem(VISITOR_ID_KEY, data.visitorId);
+          } catch {
+            // localStorage can be unavailable
+          }
+          setVisitorId(data.visitorId);
+          return;
+        }
+      } catch {
+        // Keep the previous id when the server cannot rotate the cookie.
+      }
+    })();
   }, [setConversationId]);
 
   const prevUserRef = useRef<unknown>(undefined);
@@ -167,4 +174,9 @@ export function useChat() {
     throw new Error('useChat must be used within a ChatProvider');
   }
   return context;
+}
+
+/** Admin signup notifications render outside ChatProvider and do not need chat state. */
+export function useOptionalChat() {
+  return useContext(ChatContext);
 }

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
+import { findInvitationCode, invitationCodeBlockReason, parseInvitationRole } from '@/lib/auth/invitationCodes';
 
 /**
  * POST /api/auth/validate-invitation-code
  * Validates a contractor or realtor invitation code (exists, not used, not expired).
- * Body: { code: string, role?: 'contractor' | 'realtor' }. Default role is contractor.
+ * Body: { code: string, role?: 'contractor' | 'realtor' | 'installer' }. Default role is contractor.
  * Returns { valid: boolean, error?: string } for use in signup flows.
  */
 export async function POST(request: NextRequest) {
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const rawCode = typeof body.code === 'string' ? body.code.trim().toUpperCase() : '';
-    const role = body.role === 'realtor' ? 'realtor' : 'contractor';
+    const role = parseInvitationRole(body.role);
 
     if (!rawCode) {
       return NextResponse.json(
@@ -27,29 +28,11 @@ export async function POST(request: NextRequest) {
     }
 
     const serviceRoleClient = createServiceRoleClient();
-    const table = role === 'realtor' ? 'realtor_invitation_codes' : 'contractor_invitation_codes';
-    const { data: codeRow, error: codeError } = await serviceRoleClient
-      .from(table)
-      .select('id, expires_at, used_at')
-      .eq('code', rawCode)
-      .maybeSingle();
-
-    if (codeError || !codeRow) {
+    const { row: codeRow, error: codeError } = await findInvitationCode(serviceRoleClient, role, rawCode);
+    const blockReason = codeError ? 'Invalid or expired invitation code.' : invitationCodeBlockReason(codeRow);
+    if (blockReason) {
       return NextResponse.json(
-        { valid: false, error: 'Invalid or expired invitation code.' },
-        { status: 200 }
-      );
-    }
-    if (codeRow.used_at) {
-      return NextResponse.json(
-        { valid: false, error: 'This invitation code has already been used.' },
-        { status: 200 }
-      );
-    }
-    const expiresAt = new Date(codeRow.expires_at);
-    if (expiresAt <= new Date()) {
-      return NextResponse.json(
-        { valid: false, error: 'Invalid or expired invitation code.' },
+        { valid: false, error: blockReason },
         { status: 200 }
       );
     }

@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { headers } from 'next/headers';
 import { NextIntlClientProvider } from 'next-intl';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { getMessages } from 'next-intl/server';
@@ -11,6 +12,15 @@ import ContractorPresenceHeartbeat from '@/components/presence/ContractorPresenc
 import UserPresenceHeartbeat from '@/components/presence/UserPresenceHeartbeat';
 import ServiceWorkerRegister from '@/components/notifications/ServiceWorkerRegister';
 import { ProBotTransitionProvider } from '@/contexts/ProBotTransitionContext';
+import { QuickRepairCameraHost } from '@/components/media/QuickRepairCameraModal';
+import {
+  alternatesFor,
+  isPrivatePath,
+  pathWithoutLocale,
+  privateRobots,
+  publicRobots,
+  resolveLocale,
+} from '@/lib/seo/metadata';
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -88,8 +98,15 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
+  const headerList = await headers();
+  const pathname = headerList.get('x-hph-pathname') || `/${locale}`;
+  const search = headerList.get('x-hph-search') || '';
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://houseproshub.com';
   const meta = localeMetadata[locale as keyof typeof localeMetadata] ?? localeMetadata.en;
+  const resolvedLocale = resolveLocale(locale);
+  const barePath = pathWithoutLocale(pathname);
+  const privatePage = isPrivatePath(barePath === '' ? '/businesslist' : barePath);
+  const alternates = alternatesFor(resolvedLocale, pathname, search);
 
   return {
     metadataBase: new URL(baseUrl),
@@ -108,25 +125,29 @@ export async function generateMetadata({
       telephone: false,
     },
     icons: {
-      icon: '/fav.ico',
-      apple: '/house-pros-hub-logo-simble-bot.png',
+      icon: [
+        { url: '/fav.ico' },
+        { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+        { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      ],
+      apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
     },
     manifest: '/manifest.json',
     appleWebApp: {
+      capable: true,
       title: 'HouseProsHub',
+      statusBarStyle: 'black-translucent',
     },
     openGraph: {
       type: 'website',
       locale: meta.openGraphLocale,
-      url: '/',
+      url: alternates?.canonical || '/',
       siteName: 'House Pros Hub',
       title: meta.title,
       description: meta.descriptionShort,
       images: [
         {
           url: '/house-pros-hub-logo-simble-bot.png',
-          width: 1200,
-          height: 630,
           alt: meta.alt,
         },
       ],
@@ -138,17 +159,8 @@ export async function generateMetadata({
       images: ['/house-pros-hub-logo-simble-bot.png'],
       creator: '@houseproshub',
     },
-    robots: {
-      index: true,
-      follow: true,
-      googleBot: {
-        index: true,
-        follow: true,
-        'max-video-preview': -1,
-        'max-image-preview': 'large',
-        'max-snippet': -1,
-      },
-    },
+    alternates,
+    robots: privatePage ? privateRobots : publicRobots,
   };
 }
 
@@ -167,16 +179,21 @@ export default async function RootLayout({
   const messages = await getMessages({ locale: resolvedLocale });
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://houseproshub.com';
   
+  const meta = localeMetadata[resolvedLocale];
   const organizationStructuredData = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: 'House Pros Hub',
-    description: 'Connect with dedicated trade owners who collaborate to bring your home improvement dreams to life. Personal attention, collective expertise, built to last.',
+    description: meta.description,
     url: baseUrl,
     logo: `${baseUrl}/house-pros-hub-logo-simble-bot.png`,
     areaServed: {
-      '@type': 'Country',
-      name: 'United States',
+      '@type': 'State',
+      name: 'Nevada',
+      containedInPlace: {
+        '@type': 'Country',
+        name: 'United States',
+      },
     },
   };
 
@@ -221,6 +238,7 @@ export default async function RootLayout({
             <UserPresenceHeartbeat />
             <ContractorPresenceHeartbeat />
             <GlobalHashHandler />
+            <QuickRepairCameraHost />
             <Suspense fallback={<LoadingOverlay />}>
               {children}
             </Suspense>

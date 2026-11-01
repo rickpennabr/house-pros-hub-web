@@ -1,236 +1,63 @@
 'use client';
 
-/// <reference types="@types/google.maps" />
-
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Map, Filter, AlertCircle, List } from 'lucide-react';
-import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
-import SupplierCard, { Supplier } from './SupplierCard';
+import { Search, MapPin, AlertCircle, List, X } from 'lucide-react';
+import SupplierCard, { type Supplier } from './SupplierCard';
+import SuppliersMap from './SuppliersMap';
+import { loadSuppliers } from '@/lib/data/suppliers';
 import { Button } from '@/components/ui/Button';
-import SupplierFilterModal from './SupplierFilterModal';
-import type { ViewType } from '@/components/pageslayout/ViewToggle';
-import { LuIdCard } from 'react-icons/lu';
-import { useCategory } from '@/contexts/CategoryContext';
 
-type SupplierViewType = ViewType | 'map';
-
-const suppliers: Supplier[] = [
-  {
-    id: 1,
-    name: 'Site One Landscape Supply - Decatur',
-    type: 'Pavers Supplier',
-    materials: ['Pavers', 'Base Materials', 'Sand'],
-    address: '5455 S Decatur Blvd, Las Vegas, NV 89118',
-    phone: '(702) 873-3700',
-    website: 'https://www.siteone.com',
-    coordinates: { lat: 36.0872, lng: -115.2087 },
-  },
-  {
-    id: 2,
-    name: 'Site One Landscape Supply - Henderson',
-    type: 'Pavers Supplier',
-    materials: ['Pavers', 'Base Materials', 'Sand'],
-    address: '1801 N Boulder Hwy, Henderson, NV 89011',
-    phone: '(702) 565-1300',
-    website: 'https://www.siteone.com',
-    coordinates: { lat: 36.0395, lng: -114.9672 },
-  },
-  {
-    id: 3,
-    name: 'Site One Landscape Supply - North Las Vegas',
-    type: 'Pavers Supplier',
-    materials: ['Pavers', 'Base Materials', 'Sand'],
-    address: '3290 N Las Vegas Blvd, Las Vegas, NV 89115',
-    phone: '(702) 649-7200',
-    website: 'https://www.siteone.com',
-    coordinates: { lat: 36.2176, lng: -115.1153 },
-  },
-  {
-    id: 4,
-    name: 'Apache Stone - Las Vegas',
-    type: 'Stone Supplier',
-    materials: ['Travertine', 'Porcelain', 'Natural Stone'],
-    address: '4585 W Post Rd, Las Vegas, NV 89118',
-    phone: '(702) 222-2222',
-    website: 'https://www.apachestone.com',
-    coordinates: { lat: 36.0922, lng: -115.2047 },
-  },
-  {
-    id: 5,
-    name: 'Apache Stone - Henderson',
-    type: 'Stone Supplier',
-    materials: ['Travertine', 'Porcelain', 'Natural Stone'],
-    address: '1675 W Horizon Ridge Pkwy, Henderson, NV 89012',
-    phone: '(702) 333-3333',
-    website: 'https://www.apachestone.com',
-    coordinates: { lat: 36.0016, lng: -115.0691 },
-  },
-  {
-    id: 6,
-    name: 'Vegas Stone Brokers',
-    type: 'Miscellaneous Supplier',
-    materials: ['Pavers', 'Travertine', 'Porcelain', 'Tools'],
-    address: '4444 W Russell Rd, Las Vegas, NV 89118',
-    phone: '(702) 444-4444',
-    website: 'https://www.vegasstonebrokers.com',
-    coordinates: { lat: 36.0972, lng: -115.1987 },
-  },
-  {
-    id: 7,
-    name: 'Star Nursery',
-    type: 'Base Material Supplier',
-    materials: ['Base Materials', 'Sand', 'Rock'],
-    address: '3340 W Ann Rd, North Las Vegas, NV 89031',
-    phone: '(702) 555-5555',
-    website: 'https://www.starnursery.com',
-    coordinates: { lat: 36.1022, lng: -115.1927 },
-  },
-  {
-    id: 8,
-    name: 'Belgard Hardscapes',
-    type: 'Pavers Manufacturer',
-    materials: ['Pavers', 'Retaining Walls', 'Outdoor Living'],
-    address: '375 N Stephanie St, Henderson, NV 89014',
-    phone: '(702) 567-8900',
-    website: 'https://www.belgard.com',
-    coordinates: { lat: 36.0395, lng: -115.0457 },
-  },
-  {
-    id: 9,
-    name: 'Paver Pros Supply',
-    type: 'Paver Tools Supplier',
-    materials: ['Tools', 'Sealers', 'Cleaners'],
-    address: '6360 S Pecos Rd, Las Vegas, NV 89120',
-    phone: '(702) 778-9999',
-    website: 'https://www.paverprossupply.com',
-    coordinates: { lat: 36.0722, lng: -115.1017 },
-  },
-  {
-    id: 10,
-    name: 'Rock & Stone Supply',
-    type: 'Landscaping Materials Supplier',
-    materials: ['Rock', 'Gravel', 'Boulders'],
-    address: '5720 S Valley View Blvd, Las Vegas, NV 89118',
-    phone: '(702) 876-5555',
-    website: 'https://www.rockandstonesupply.com',
-    coordinates: { lat: 36.0872, lng: -115.1887 },
-  },
-  {
-    id: 11,
-    name: 'Concrete Solutions',
-    type: 'Concrete and Masonry Supplier',
-    materials: ['Concrete', 'Cement', 'Masonry Tools'],
-    address: '4050 W Mesa Vista Ave, Las Vegas, NV 89118',
-    phone: '(702) 989-7777',
-    website: 'https://www.concretesolutionslv.com',
-    coordinates: { lat: 36.0922, lng: -115.1787 },
-  },
-  {
-    id: 12,
-    name: 'Boulder Placement Specialists',
-    type: 'Boulder Supplier and Placement',
-    materials: ['Boulders', 'Decorative Rocks'],
-    address: '3111 S Valley View Blvd, Las Vegas, NV 89102',
-    phone: '(702) 123-4567',
-    website: 'https://www.boulderplacementspecialists.com',
-    coordinates: { lat: 36.1287, lng: -115.191 },
-  },
-  {
-    id: 13,
-    name: 'Bedrock Supply Co.',
-    type: 'Bedrock and Base Materials',
-    materials: ['Bedrock', 'Base Materials', 'Aggregates'],
-    address: '4675 Wynn Rd, Las Vegas, NV 89103',
-    phone: '(702) 987-6543',
-    website: 'https://www.bedrocksupplyco.com',
-    coordinates: { lat: 36.1066, lng: -115.1895 },
-  },
-];
-
-// Mapping of trades to their typical materials
-const TRADE_TO_MATERIALS: Record<string, string[]> = {
-  'All': [],
-  'Pavers': ['Pavers', 'Base Materials', 'Sand', 'Retaining Walls', 'Outdoor Living'],
-  'Landscape': ['Base Materials', 'Sand', 'Rock', 'Boulders', 'Decorative Rocks', 'Bedrock', 'Aggregates'],
-  'Tile': ['Travertine', 'Porcelain', 'Natural Stone'],
-  'General': ['Tools', 'Concrete', 'Cement', 'Masonry Tools'],
-  'Roofing': ['Tools'],
-  'Plumbing': ['Tools'],
-  'Electrical': ['Tools'],
-  'HVAC': ['Tools'],
-  'Painting': ['Tools', 'Sealers', 'Cleaners'],
-  'Flooring': ['Travertine', 'Porcelain', 'Natural Stone', 'Tools'],
-  'Windows': ['Tools'],
-  'Doors': ['Tools'],
-  'Fencing': ['Tools', 'Fencing Materials'],
-  'Decking': ['Tools', 'Decking Materials'],
-};
-
-// Helper function to map supplier type to trade
-const mapSupplierTypeToTrade = (type: string): string => {
-  const typeLower = type.toLowerCase();
-  if (typeLower.includes('paver')) return 'Pavers';
-  if (typeLower.includes('landscape')) return 'Landscape';
-  if (typeLower.includes('stone') || typeLower.includes('travertine') || typeLower.includes('porcelain')) return 'Tile';
-  if (typeLower.includes('concrete') || typeLower.includes('masonry')) return 'General';
-  if (typeLower.includes('base material')) return 'Landscape';
-  if (typeLower.includes('boulder')) return 'Landscape';
-  if (typeLower.includes('rock')) return 'Landscape';
-  if (typeLower.includes('bedrock')) return 'Landscape';
-  return 'General';
-};
+type SupplierViewType = 'list' | 'map';
 
 export default function SuppliersList() {
-  const { searchQuery } = useCategory();
-  const [selectedTrade, setSelectedTrade] = useState('All');
-  const [selectedMaterial, setSelectedMaterial] = useState('All Materials');
   const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null);
+  const [hoveredSupplier, setHoveredSupplier] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [view, setView] = useState<SupplierViewType>('list');
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(true);
+  const [suppliersError, setSuppliersError] = useState<string | null>(null);
+  const [mapFailed, setMapFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadSuppliers()
+      .then((rows) => {
+        if (!cancelled) setSuppliers(rows);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setSuppliersError(err instanceof Error ? err.message : 'Could not load suppliers');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSuppliersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
-  // Combine ExpandableSearchbar search query with local search term
-  const combinedSearchTerm = searchQuery || searchTerm;
-
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: apiKey,
-  });
 
-  // Enhanced error logging
+  const canHoverPin = () =>
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+  const hoverSupplier = (id: number) => {
+    if (!canHoverPin()) return;
+    setHoveredSupplier(id);
+  };
+
+  const clearSupplierHover = (id: number) => {
+    setHoveredSupplier((current) => (current === id ? null : current));
+  };
+
   useEffect(() => {
     if (!apiKey) {
-      console.error('❌ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set in environment variables');
-      console.info('ℹ️ Add it to your .env.local file');
-    } else {
-      console.log('✓ Google Maps API Key is configured');
+      console.error('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set in environment variables');
     }
-    
-    if (loadError) {
-      console.error('❌ Google Maps Load Error:', loadError);
-    }
-    
-    if (isLoaded) {
-      console.log('✓ Google Maps loaded successfully');
-    }
-  }, [loadError, apiKey, isLoaded]);
-
-  const markerIcon = useMemo<google.maps.Symbol | null>(() => {
-    if (typeof window === 'undefined' || !isLoaded) return null;
-
-    const googleMaps = (window as { google?: { maps?: typeof google.maps } }).google?.maps;
-    const circlePath = googleMaps?.SymbolPath?.CIRCLE;
-    if (!circlePath) return null;
-
-    return {
-      path: circlePath,
-      fillColor: 'black',
-      fillOpacity: 1,
-      strokeWeight: 0,
-      scale: 8,
-    } as google.maps.Symbol;
-  }, [isLoaded]);
+  }, [apiKey]);
 
   // Check if mobile on mount and resize
   useEffect(() => {
@@ -246,104 +73,18 @@ export default function SuppliersList() {
     };
   }, []);
 
-  // Listen for filter button click from PageCategories
-  useEffect(() => {
-    const handleOpenFilter = () => {
-      setIsFilterModalOpen(true);
-    };
-
-    window.addEventListener('openSuppliersFilter', handleOpenFilter);
-    return () => {
-      window.removeEventListener('openSuppliersFilter', handleOpenFilter);
-    };
-  }, []);
-
-  // Get available materials based on selected trade
-  const availableMaterials = useMemo(() => {
-    if (selectedTrade === 'All') {
-      const allMaterials = new Set<string>();
-      suppliers.forEach(supplier => {
-        supplier.materials.forEach(material => allMaterials.add(material));
-      });
-      return Array.from(allMaterials).sort();
-    }
-    return TRADE_TO_MATERIALS[selectedTrade] || [];
-  }, [selectedTrade]);
-
-  // Filter suppliers based on trade, material, and search term
   const filteredSuppliers = useMemo(() => {
+    const searchLower = searchTerm.trim().toLowerCase();
+    if (!searchLower) return suppliers;
     return suppliers.filter((supplier) => {
-      if (selectedTrade !== 'All') {
-        const supplierTrade = mapSupplierTypeToTrade(supplier.type);
-        if (supplierTrade !== selectedTrade) {
-          return false;
-        }
-      }
-
-      if (selectedMaterial !== 'All Materials') {
-        if (!supplier.materials.includes(selectedMaterial)) {
-          return false;
-        }
-      }
-
-      const searchLower = combinedSearchTerm.toLowerCase();
-      const supplierTrade = mapSupplierTypeToTrade(supplier.type);
-      const matchesSearch =
+      return (
         supplier.name.toLowerCase().includes(searchLower) ||
         supplier.type.toLowerCase().includes(searchLower) ||
-        supplierTrade.toLowerCase().includes(searchLower) ||
-        supplier.materials.some((material) => material.toLowerCase().includes(searchLower));
-
-      if (!matchesSearch) {
-        return false;
-      }
-
-      if (selectedSupplier !== null && supplier.id !== selectedSupplier) {
-        return false;
-      }
-
-      return true;
+        supplier.address.toLowerCase().includes(searchLower) ||
+        supplier.materials.some((material) => material.toLowerCase().includes(searchLower))
+      );
     });
-  }, [selectedTrade, selectedMaterial, combinedSearchTerm, selectedSupplier]);
-
-  const mapCenter = {
-    lat: 36.11,
-    lng: -115.17,
-  };
-
-  const mapContainerStyle = {
-    width: '100%',
-    height: '100%',
-    minHeight: isMobile ? '50vh' : undefined,
-  };
-
-  const renderSearchBar = () => (
-    <div className="mb-4 flex flex-row gap-2">
-      <div className="relative flex-1">
-        <input
-          type="text"
-          placeholder="Search suppliers..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full h-10 pl-10 pr-4 border-2 border-black rounded-lg bg-white focus:outline-none transition-all text-black placeholder-gray-500"
-        />
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-red-500 pointer-events-none" size={20} />
-      </div>
-      <button
-        onClick={() => setIsFilterModalOpen(true)}
-        className="h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-colors shrink-0"
-        aria-label="Filter"
-      >
-        <Filter className="w-5 h-5 text-white" />
-      </button>
-    </div>
-  );
-
-  const renderPCSidebarHeader = () => (
-    <div className="mb-2">
-      <h2 className="text-2xl font-bold text-black">Suppliers</h2>
-    </div>
-  );
+  }, [suppliers, searchTerm]);
 
   const renderMapError = () => (
     <div className="w-full h-full flex items-center justify-center border-2 border-black rounded-lg bg-gray-50">
@@ -404,51 +145,71 @@ export default function SuppliersList() {
     </div>
   );
 
-  const [showSearchInput, setShowSearchInput] = useState(false);
-
   return (
-    <div className={`flex flex-col lg:flex-row gap-2 relative flex-1 min-h-0 ${isMobile ? 'h-[calc(100vh-200px)]' : 'h-full'}`}>
-      {/* List Sidebar - Mobile: full height when card/list view, PC: always visible; only this column scrolls on desktop */}
-      <div className={`${isMobile ? (view === 'map' ? 'hidden' : 'w-full h-full') : 'lg:w-[35%] lg:flex lg:flex-col lg:min-h-0'} ${view === 'map' && isMobile ? 'hidden' : 'block'}`}>
-        {/* Mobile: Hide search bar (using top navigation), PC: Show header with Suppliers label and search button */}
-        {!isMobile && (
-          <>
-            {renderPCSidebarHeader()}
-            {(showSearchInput || searchTerm) && (
-              <div className="mb-4 flex-shrink-0">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search suppliers..."
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                      if (e.target.value === '') {
-                        setShowSearchInput(false);
-                      }
-                    }}
-                    onBlur={(e) => {
-                      // Keep input open if there's a search term
-                      if (e.target.value === '') {
-                        setShowSearchInput(false);
-                      }
-                    }}
-                    className="w-full h-10 pl-10 pr-4 border-2 border-black rounded-lg bg-white focus:outline-none transition-all text-black placeholder-gray-500"
-                    autoFocus
-                  />
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-red-500 pointer-events-none" size={20} />
-                </div>
-              </div>
-            )}
-          </>
-        )}
-        <div className={`${isMobile && view === 'list' ? 'space-y-2' : 'space-y-4'} ${isMobile ? 'h-full overflow-y-auto' : 'lg:flex-1 lg:min-h-0 lg:overflow-y-auto'}`}>
-          {filteredSuppliers.length === 0 ? (
-            <div className="w-full flex items-center justify-center py-12 text-center">
-              <p className="text-gray-600 text-lg">
-                {combinedSearchTerm
-                  ? `No suppliers found matching "${combinedSearchTerm}"`
-                  : 'No suppliers found with the selected material'}
+    <div className="relative flex h-full min-h-0 flex-1 flex-col gap-2 lg:flex-row">
+      <div className={`flex min-h-0 w-full flex-col lg:w-[30%] lg:flex-none ${isMobile && view === 'map' ? 'shrink-0' : 'flex-1'}`}>
+        <div className="mb-2 shrink-0 bg-white p-1 md:p-2">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500" />
+              <input
+                type="text"
+                placeholder="Find all Suppliers and Materials."
+                value={searchTerm}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value);
+                  setSelectedSupplier(null);
+                }}
+                className="h-10 w-full rounded-md border-2 border-red-500 bg-white pl-8 pr-8 text-base text-black placeholder:text-base focus:border-red-600 focus:outline-none md:placeholder:text-xs"
+              />
+              {searchTerm ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSelectedSupplier(null);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+            {isMobile ? (
+              <button
+                type="button"
+                className="flex h-10 items-center gap-0.5 rounded-md border-2 border-red-500 bg-black px-3 text-white"
+                onClick={() => setView(view === 'list' ? 'map' : 'list')}
+              >
+                {view === 'list' ? (
+                  <>
+                    <MapPin className="h-5 w-5" />
+                    <span className="text-sm font-medium">Map</span>
+                  </>
+                ) : (
+                  <>
+                    <List className="h-5 w-5" />
+                    <span className="text-sm font-medium">List</span>
+                  </>
+                )}
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className={`min-h-0 flex-1 space-y-3 overflow-y-auto px-1 ${isMobile && view === 'map' ? 'hidden' : ''}`}>
+          {suppliersLoading ? (
+            <div className="flex w-full items-center justify-center py-12 text-center">
+              <p className="text-lg text-gray-600">Loading suppliers...</p>
+            </div>
+          ) : suppliersError ? (
+            <div className="flex w-full items-center justify-center py-12 text-center">
+              <p className="text-lg text-gray-600">{suppliersError}</p>
+            </div>
+          ) : filteredSuppliers.length === 0 ? (
+            <div className="flex w-full items-center justify-center py-12 text-center">
+              <p className="text-lg text-gray-600">
+                {searchTerm ? `No suppliers found matching "${searchTerm}"` : 'No suppliers found'}
               </p>
             </div>
           ) : (
@@ -457,16 +218,16 @@ export default function SuppliersList() {
                 key={supplier.id}
                 supplier={supplier}
                 isSelected={selectedSupplier === supplier.id}
-                onClick={() => setSelectedSupplier(selectedSupplier === supplier.id ? null : supplier.id)}
                 isListMode={isMobile && view === 'list'}
+                onClick={() => setSelectedSupplier(selectedSupplier === supplier.id ? null : supplier.id)}
+                onHoverChange={(hovered) => (hovered ? hoverSupplier(supplier.id) : clearSupplierHover(supplier.id))}
               />
             ))
           )}
         </div>
       </div>
-      
-      {/* Map Side - Mobile: full height when map view, PC: always visible; fixed height, no scroll */}
-      <div className={`${isMobile ? (view === 'map' ? 'w-full h-full' : 'hidden') : 'lg:w-[65%] lg:min-h-0 lg:flex-1'} relative flex-1 min-h-0`}>
+
+      <div className={`${isMobile ? (view === 'map' ? 'relative min-h-0 w-full flex-1' : 'hidden') : 'relative min-h-0 flex-1 lg:w-[70%] lg:flex-none'}`}>
         {/* Search bar overlay on map removed on mobile - using top navigation instead */}
         {selectedSupplier !== null && (
           <Button
@@ -478,92 +239,21 @@ export default function SuppliersList() {
             Clear Selection
           </Button>
         )}
-        {loadError || !apiKey ? (
+        {mapFailed || !apiKey ? (
           renderMapError()
-        ) : isLoaded && (!isMobile || view === 'map') ? (
-          <GoogleMap
-            mapContainerStyle={mapContainerStyle}
-            center={
-              selectedSupplier !== null
-                ? suppliers.find((s) => s.id === selectedSupplier)?.coordinates || mapCenter
-                : mapCenter
-            }
-            zoom={selectedSupplier !== null ? 14 : 10.5}
-            options={{ gestureHandling: 'cooperative' }}
-          >
-            {filteredSuppliers.map((supplier) => {
-              if (!supplier.coordinates) return null;
-              return (
-                <Marker
-                  key={supplier.id}
-                  position={supplier.coordinates}
-                  onClick={() => setSelectedSupplier(supplier.id)}
-                  icon={markerIcon || undefined}
-                />
-              );
-            })}
-          </GoogleMap>
-        ) : (
-          <div className="w-full h-full flex items-center justify-center border-2 border-black rounded-lg bg-gray-50">
-            <div className="text-center">
-              <Map className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <h2 className="text-2xl font-bold text-black mb-2">Loading Map...</h2>
-              <p className="text-gray-600">Please wait...</p>
-            </div>
-          </div>
-        )}
+        ) : !isMobile || view === 'map' ? (
+          <SuppliersMap
+            apiKey={apiKey}
+            suppliers={filteredSuppliers}
+            selectedId={selectedSupplier}
+            hoveredId={hoveredSupplier}
+            onSelect={setSelectedSupplier}
+            onHover={hoverSupplier}
+            onHoverEnd={clearSupplierHover}
+            onError={() => setMapFailed(true)}
+          />
+        ) : null}
       </div>
-
-      {/* Filter Modal */}
-      <SupplierFilterModal
-        isOpen={isFilterModalOpen}
-        onClose={() => setIsFilterModalOpen(false)}
-        selectedTrade={selectedTrade}
-        selectedMaterial={selectedMaterial}
-        onTradeChange={setSelectedTrade}
-        onMaterialChange={setSelectedMaterial}
-        availableMaterials={availableMaterials}
-      />
-
-      {/* View Toggle - Mobile only (card/list/map all inside the same black container) */}
-      {isMobile && filteredSuppliers.length > 0 && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-300 bottom-[65px]">
-          <div className="p-2 bg-black text-white rounded-lg border-2 border-black font-bold text-[11px] flex items-center justify-center gap-2 shadow-lg">
-            <button
-              type="button"
-              onClick={() => setView('card')}
-              className={`flex items-center gap-2 p-1 md:px-2 md:py-1.5 rounded transition-all duration-200 active:scale-95 ${
-                view === 'card' ? 'bg-white text-black' : 'hover:bg-gray-800 text-white'
-              }`}
-              aria-label="Card view"
-            >
-              <LuIdCard className="w-6 h-6" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setView('list')}
-              className={`flex items-center gap-2 p-1 md:px-2 md:py-1.5 rounded transition-all duration-200 active:scale-95 ${
-                view === 'list' ? 'bg-white text-black' : 'hover:bg-gray-800 text-white'
-              }`}
-              aria-label="List view"
-            >
-              <List className="w-5 h-5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setView('map')}
-              className={`flex items-center gap-2 p-1 md:px-2 md:py-1.5 rounded transition-all duration-200 active:scale-95 ${
-                view === 'map' ? 'bg-white text-black' : 'hover:bg-gray-800 text-white'
-              }`}
-              aria-label="Map view"
-            >
-              <Map className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

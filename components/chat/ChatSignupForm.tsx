@@ -724,9 +724,10 @@ export default function ChatSignupForm({
                           <GrUserWorker className="w-5 h-5 text-red-500" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-black mb-0.5">
-                            {tRole('contractor.titleWithCode')}
+                          <h3 className="text-sm font-semibold text-black leading-snug">
+                            {tRole('contractor.title')}
                           </h3>
+                          <p className="text-[10px] font-normal text-gray-500 mb-0.5">{tRole('contractor.invitationCodeRequired')}</p>
                           <p className="text-xs text-gray-600">
                             {tRole('contractor.description')}
                           </p>
@@ -750,12 +751,10 @@ export default function ChatSignupForm({
                           <FaPersonShelter className="w-5 h-5 text-red-500" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-black mb-0.5">
+                          <h3 className="text-sm font-semibold text-black leading-snug">
                             {tRole('realtor.title')}
                           </h3>
-                          <p className="text-xs text-gray-600 mb-0.5">
-                            {tRole('realtor.invitationCodeRequired')}
-                          </p>
+                          <p className="text-[10px] font-normal text-gray-500 mb-0.5">{tRole('realtor.invitationCodeRequired')}</p>
                           <p className="text-xs text-gray-600">
                             {tRole('realtor.description')}
                           </p>

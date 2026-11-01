@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { FormProvider } from 'react-hook-form';
 import type { FieldErrors } from 'react-hook-form';
@@ -32,6 +32,8 @@ import { LinkItem } from '@/components/proscard/ProLinks';
 
 export default function AddBusinessPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get('returnTo');
   const locale = useLocale() as Locale;
   const t = useTranslations('accountManagement');
   const tBusinessForm = useTranslations('businessForm');
@@ -283,9 +285,13 @@ export default function AddBusinessPage() {
       <BusinessSuccessModal
         isOpen={isSuccessModalOpen}
         onManageBusiness={() => {
-          const path = createLocalePath(locale, '/account-management');
-          const url = createdBusinessId ? `${path}?businessId=${createdBusinessId}` : path;
-          router.push(url);
+          if (returnTo) {
+            router.push(returnTo);
+          } else {
+            const path = createLocalePath(locale, '/account-management');
+            const url = createdBusinessId ? `${path}?businessId=${createdBusinessId}` : path;
+            router.push(url);
+          }
         }}
         onGoHome={() => router.push(createLocalePath(locale, '/'))}
         onAllowNavigation={allowNavigation}

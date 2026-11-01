@@ -4,11 +4,18 @@ import { ReactNode } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { TipModal } from './TipModal';
 
+/**
+ * Single accordion panel. For a group of accordions where only one should be open at a time,
+ * use the useSingleOpenAccordion hook from @/hooks/useSingleOpenAccordion.
+ */
 interface AccordionProps {
   title: string;
   isOpen: boolean;
   onToggle: () => void;
+  /** When true, hide error state (red border) when closed. When showCompleteStyle is also true, header gets black bg. */
   isComplete?: boolean;
+  /** When false, isComplete only suppresses error styling; header stays white (no black "complete" style). Default true. */
+  showCompleteStyle?: boolean;
   error?: string;
   required?: boolean;
   icon?: ReactNode;
@@ -24,6 +31,7 @@ export default function Accordion({
   isOpen,
   onToggle,
   isComplete = false,
+  showCompleteStyle = true,
   error,
   required = false,
   icon,
@@ -35,7 +43,8 @@ export default function Accordion({
   // Determine if we should show error styling (red border and message)
   // Show when accordion is collapsed, required, and incomplete (has errors or missing info)
   const showErrorState = !isOpen && required && !isComplete;
-  
+  const useCompleteStyle = showCompleteStyle && isComplete;
+
   return (
     <div className={`border-2 rounded-lg bg-white overflow-hidden ${
       showErrorState ? 'border-red-600' : 'border-black'
@@ -45,16 +54,16 @@ export default function Accordion({
         onClick={onToggle}
         className={`w-full flex items-center justify-between p-2 md:p-4 text-left cursor-pointer transition-colors ${
           isOpen ? 'rounded-t-lg' : 'rounded-lg'
-        } ${isComplete ? 'bg-black' : 'bg-white'}`}
+        } ${useCompleteStyle ? 'bg-black' : 'bg-white'}`}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {icon && (
-            <div className={isComplete ? 'text-white' : (showErrorState ? 'text-red-600' : 'text-red-600')}>
+            <div className={useCompleteStyle ? 'text-white' : 'text-red-600'}>
               {icon}
             </div>
           )}
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <h2 className={`text-base md:text-lg font-bold overflow-hidden text-ellipsis whitespace-nowrap md:whitespace-normal md:overflow-visible ${isComplete ? 'text-white' : 'text-black'}`}>
+            <h2 className={`text-base md:text-lg font-bold overflow-hidden text-ellipsis whitespace-nowrap md:whitespace-normal md:overflow-visible ${useCompleteStyle ? 'text-white' : 'text-black'}`}>
               {title}
               {required && !isComplete && !error && (
                 <>
@@ -69,16 +78,16 @@ export default function Accordion({
               </span>
             )}
             {error && (
-              <span className={`ml-2 font-normal text-xs ${isComplete ? 'text-white' : 'text-red-600'}`}>
+              <span className={`ml-2 font-normal text-xs ${useCompleteStyle ? 'text-white' : 'text-red-600'}`}>
                 {error}
               </span>
             )}
           </div>
         </div>
         {isOpen ? (
-          <ChevronUp className={`w-5 h-5 shrink-0 ml-4 ${isComplete ? 'text-white' : 'text-black'}`} />
+          <ChevronUp className={`w-5 h-5 shrink-0 ml-4 ${useCompleteStyle ? 'text-white' : 'text-black'}`} />
         ) : (
-          <ChevronDown className={`w-5 h-5 shrink-0 ml-4 ${isComplete ? 'text-white' : (showErrorState ? 'text-red-600' : 'text-black')}`} />
+          <ChevronDown className={`w-5 h-5 shrink-0 ml-4 ${useCompleteStyle ? 'text-white' : (showErrorState ? 'text-red-600' : 'text-black')}`} />
         )}
       </button>
 

@@ -27,13 +27,14 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
-    const role = searchParams.get('role') === 'realtor' ? 'realtor' : 'contractor';
-    const table = role === 'realtor' ? 'realtor_invitation_codes' : 'contractor_invitation_codes';
+    const roleParam = searchParams.get('role');
+    const role = roleParam === 'realtor' ? 'realtor' : roleParam === 'installer' ? 'installer' : 'contractor';
 
     const service = createServiceRoleClient();
     const { data: codes, error } = await service
-      .from(table)
+      .from('invitation_codes')
       .select('id, code, created_at, expires_at, used_at, used_by')
+      .eq('role', role)
       .order('created_at', { ascending: false })
       .limit(limit);
 

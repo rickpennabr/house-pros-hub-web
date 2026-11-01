@@ -36,28 +36,47 @@ const licenseToCategoryMap: Record<string, string> = {
   'HANDYMAN_EXTERIOR': 'Handyman Exterior',
 };
 
+/** License codes whose mapped category label is `category`. */
+export function licenseCodesForCategory(category: string): string[] {
+  const label = category.trim();
+  return Object.entries(licenseToCategoryMap)
+    .filter(([, mapped]) => mapped === label)
+    .map(([code]) => code);
+}
+
+/** Normalize to a single display category so "Landscape Contracting" and "Landscape" don't both appear. */
+function normalizeCategoryForDisplay(label: string): string {
+  return label?.trim() === 'Landscape Contracting' ? 'Landscape' : (label?.trim() || '');
+}
+
 /**
  * Get all categories from a business's licenses and display fields.
  * Includes both license-derived categories and the actual display names (contractorType, tradeName)
  * so the filter bar shows real business list categories (e.g. "Handyman Interior") not only "General Contractor".
+ * Normalizes "Landscape Contracting" to "Landscape" so only one category appears.
  */
 export function getBusinessCategories(business: ProCardData): string[] {
   const categories = new Set<string>();
 
+  const addCategory = (label: string) => {
+    const normalized = normalizeCategoryForDisplay(label);
+    if (normalized) categories.add(normalized);
+  };
+
   // Prefer display names that appear on the card
   if (business.contractorType?.trim()) {
-    categories.add(business.contractorType.trim());
+    addCategory(business.contractorType.trim());
   }
   if (business.licenses?.length) {
     business.licenses.forEach((license) => {
       const name = license.tradeName?.trim();
-      if (name) categories.add(name);
+      if (name) addCategory(name);
     });
   }
 
   // Add the primary category if it exists (license-derived)
   if (business.category) {
-    categories.add(business.category);
+    addCategory(business.category);
   }
 
   // Extract categories from all license codes (for filtering by standard categories)
@@ -66,7 +85,7 @@ export function getBusinessCategories(business: ProCardData): string[] {
       const raw = license.license || 'GENERAL';
       const licenseCode = typeof raw === 'string' ? raw.toUpperCase().replace(/\s+/g, ' ').trim() : raw;
       const category = licenseToCategoryMap[licenseCode] ?? licenseToCategoryMap[raw] ?? 'General Contractor';
-      categories.add(category);
+      addCategory(category);
     });
   }
 

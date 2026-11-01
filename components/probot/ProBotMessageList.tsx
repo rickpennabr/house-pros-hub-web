@@ -23,6 +23,9 @@ interface ProBotMessageListProps {
   adminViewingConversation: ProBotRecentConversation | null;
   selectedContact: ProBotContact | null;
   visitorAvatarUrl: string | null;
+  confirmingStepId?: string | null;
+  onConfirmEstimate?: (stepId: string) => void;
+  onEditEstimate?: () => void;
 }
 
 export default function ProBotMessageList({
@@ -32,6 +35,9 @@ export default function ProBotMessageList({
   adminViewingConversation,
   selectedContact,
   visitorAvatarUrl,
+  confirmingStepId,
+  onConfirmEstimate,
+  onEditEstimate,
 }: ProBotMessageListProps) {
   const uniqueMessages = useMemo(() => dedupeMessagesById(messages), [messages]);
 
@@ -56,6 +62,9 @@ export default function ProBotMessageList({
           adminViewingConversation={adminViewingConversation}
           selectedContact={selectedContact}
           visitorAvatarUrl={visitorAvatarUrl}
+          confirmingStepId={confirmingStepId}
+          onConfirmEstimate={onConfirmEstimate}
+          onEditEstimate={onEditEstimate}
         />
       ))}
     </div>

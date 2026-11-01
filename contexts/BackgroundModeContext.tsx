@@ -23,10 +23,16 @@ export function BackgroundModeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useBackgroundMode() {
+const defaultBackgroundMode: BackgroundModeContextType = {
+  mode: 'regular',
+  setMode: () => {},
+};
+
+/**
+ * Returns background mode state. When used outside BackgroundModeProvider (e.g. CRM),
+ * returns a default so ViewToggle and other consumers can render without error.
+ */
+export function useBackgroundMode(): BackgroundModeContextType {
   const context = useContext(BackgroundModeContext);
-  if (context === undefined) {
-    throw new Error('useBackgroundMode must be used within a BackgroundModeProvider');
-  }
-  return context;
+  return context ?? defaultBackgroundMode;
 }

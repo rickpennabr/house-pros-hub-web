@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { getUnreadCountQuerySchema } from '@/lib/schemas/chat';
 import { signVisitorDeleteToken } from '@/lib/utils/chatVisitorToken';
+import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 
 /**
  * POST /api/chat/visitor-delete-token
@@ -20,6 +21,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'visitorId is required' }, { status: 400 });
     }
     const { visitorId } = parsed.data;
+    const cookieDenied = visitorCookieDenied(request, visitorId);
+    if (cookieDenied) return cookieDenied;
 
     const token = signVisitorDeleteToken(visitorId);
     return NextResponse.json({ token, expiresInSeconds: 300 }, { status: 200 });

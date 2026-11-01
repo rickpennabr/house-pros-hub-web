@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { visitorPushSubscriptionSchema } from '@/lib/schemas/chat';
+import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 
 /**
  * POST /api/chat/visitor/push-subscription
@@ -23,6 +24,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
     const { conversationId, visitorId, endpoint, keys } = parsed.data;
+    const cookieDenied = visitorCookieDenied(request, visitorId);
+    if (cookieDenied) return cookieDenied;
 
     const supabase = createServiceRoleClient();
     const { data: conv } = await supabase

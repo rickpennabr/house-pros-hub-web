@@ -5,16 +5,21 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { 
   LayoutDashboard, 
+  User,
   Users, 
   Building2, 
   Eraser, 
-  Package,
+  Truck,
   Folder,
   Search,
   X,
   MessageCircle,
   Key,
+  Bot,
   FileCheck,
+  ClipboardList,
+  BookOpen,
+  Package,
   LucideIcon 
 } from 'lucide-react';
 import { useAdminSearch } from './AdminSearchContext';
@@ -29,12 +34,17 @@ interface NavItem {
 
 export const navItems: NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/estimates', label: 'Estimates', icon: ClipboardList },
   { href: '/admin/chat', label: 'ProBot Chat', icon: MessageCircle },
-  { href: '/admin/customers', label: 'Customers', icon: Users },
+  { href: '/admin/customers', label: 'Customers', icon: User },
   { href: '/admin/businesses', label: 'Businesses', icon: Building2 },
-  { href: '/admin/suppliers', label: 'Suppliers', icon: Package },
+  { href: '/admin/suppliers', label: 'Suppliers', icon: Truck },
+  { href: '/admin/products', label: 'Products', icon: Package },
+  { href: '/admin/blog', label: 'Blog', icon: BookOpen },
   { href: '/admin/license-categories', label: 'License categories', icon: FileCheck },
   { href: '/admin/invitation-codes', label: 'Invitation codes', icon: Key },
+  { href: '/admin/agent-apps', label: 'Agent apps', icon: Bot },
   { href: '/admin/storage', label: 'Storage', icon: Folder },
   { href: '/admin/clear-data', label: 'Clear Data', icon: Eraser },
 ];
@@ -144,19 +154,19 @@ export function AdminSidebar() {
           {/* Expandable search bar - overlays row when open */}
           <div
             ref={searchBarRef}
-            className={`absolute left-0 right-0 top-0 bottom-0 flex items-center px-2 transition-all duration-300 z-30 bg-white ${
+            className={`absolute inset-0 z-30 flex bg-white p-2 transition-all duration-300 ${
               isSearchOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
             }`}
           >
-            <div className="w-full flex items-center gap-2">
-              <div className="relative flex-1">
+            <div className="flex h-full w-full items-center gap-2">
+              <div className="relative h-full min-w-0 flex-1">
                 <input
                   ref={searchInputRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search…"
-                  className="w-full h-10 pl-9 pr-9 border-2 border-black dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a1a] focus:outline-none text-black dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm"
+                  className="h-full w-full pl-9 pr-9 border-2 border-black dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a1a] focus:outline-none text-black dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm"
                 />
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none w-4 h-4" />
                 {searchQuery && (
@@ -173,7 +183,7 @@ export function AdminSidebar() {
               <button
                 type="button"
                 onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }}
-                className="h-10 w-10 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 shrink-0"
+                className="aspect-square h-full rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 shrink-0"
                 aria-label="Close search"
               >
                 <X className="w-5 h-5 text-white" />
@@ -190,8 +200,9 @@ export function AdminSidebar() {
         title="Menu"
         showHeader={true}
         maxWidth="md"
+        contentClassName="p-0 md:p-6"
       >
-        <div className="grid grid-cols-3 gap-3 p-4">
+        <div className="grid grid-cols-3 gap-3 p-2 md:p-4">
           {navItems.map((item) => {
             const isActive = isActiveRoute(item.href);
             const Icon = item.icon;
@@ -201,11 +212,11 @@ export function AdminSidebar() {
                 href={item.href}
                 onClick={() => setIsMenuOpen(false)}
                 className={`
-                  flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all font-medium cursor-pointer hover:scale-[1.02]
+                  flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 border-black transition-all font-medium cursor-pointer hover:scale-[1.02]
                   ${
                     isActive
-                      ? 'bg-white border-black text-black'
-                      : 'border-gray-200 text-black hover:border-black'
+                      ? 'bg-black text-white'
+                      : 'bg-white text-black'
                   }
                 `}
               >

@@ -6,6 +6,7 @@ import { Plus, Pencil, Trash2, MoreVertical, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 
 interface LicenseCategory {
   id: string;
@@ -18,8 +19,33 @@ interface LicenseCategory {
   updated_at?: string;
 }
 
-const ACTIONS_COLUMN_WIDTH = 72;
 const MENU_HEIGHT = 80;
+
+const CATEGORY_COLUMNS: AdminDataTableColumn<LicenseCategory>[] = [
+  { id: 'code', label: 'Code', width: 140 },
+  { id: 'name', label: 'Name', width: 180 },
+  { id: 'description', label: 'Description', width: 280 },
+  { id: 'requires_contractor_license', label: 'Requires contractor license', width: 180 },
+  { id: 'sort_order', label: 'Order', width: 90 },
+  { id: 'actions', label: 'Actions', resizable: false },
+];
+
+function categoryCellText(row: LicenseCategory, columnId: string): string {
+  switch (columnId) {
+    case 'code':
+      return row.code;
+    case 'name':
+      return row.name;
+    case 'description':
+      return row.description ?? '';
+    case 'requires_contractor_license':
+      return row.requires_contractor_license ? 'Yes' : 'No';
+    case 'sort_order':
+      return String(row.sort_order);
+    default:
+      return '';
+  }
+}
 
 export default function LicenseCategoriesPage() {
   const [categories, setCategories] = useState<LicenseCategory[]>([]);
@@ -32,7 +58,7 @@ export default function LicenseCategoriesPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; code: string; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ ids: string[]; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -136,9 +162,11 @@ export default function LicenseCategoriesPage() {
     setDeleting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/license-categories/${deleteConfirm.id}`, { method: 'DELETE', credentials: 'include' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? 'Failed to delete');
+      for (const id of deleteConfirm.ids) {
+        const res = await fetch(`/api/admin/license-categories/${id}`, { method: 'DELETE', credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? 'Failed to delete');
+      }
       setDeleteConfirm(null);
       await fetchCategories();
     } catch (e) {
@@ -178,112 +206,70 @@ export default function LicenseCategoriesPage() {
         </div>
       )}
 
-      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-        {loading ? (
-          <div className="p-12 text-center text-gray-500 text-sm">
-            Loading…
-          </div>
-        ) : (
-          <div className="overflow-x-auto relative">
-            <table className="w-full border-collapse" style={{ tableLayout: 'fixed', minWidth: 500 }}>
-              <colgroup>
-                <col />
-                <col />
-                <col />
-                <col />
-                <col />
-                <col style={{ width: ACTIONS_COLUMN_WIDTH, minWidth: ACTIONS_COLUMN_WIDTH }} />
-              </colgroup>
-              <thead>
-                <tr className="border-b-2 border-black bg-black text-white">
-                  <th className="px-4 py-1.5 text-left border-r border-white font-semibold text-white whitespace-nowrap">Code</th>
-                  <th className="px-4 py-1.5 text-left border-r border-white font-semibold text-white whitespace-nowrap">Name</th>
-                  <th className="px-4 py-1.5 text-left border-r border-white font-semibold text-white whitespace-nowrap">Description</th>
-                  <th className="px-4 py-1.5 text-left border-r border-white font-semibold text-white whitespace-nowrap">Requires contractor license</th>
-                  <th className="px-4 py-1.5 text-left border-r border-white font-semibold text-white whitespace-nowrap">Order</th>
-                  <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white shadow-[-4px_0_8px_rgba(0,0,0,0.15)] box-border" style={{ paddingLeft: 10, paddingRight: 10, width: ACTIONS_COLUMN_WIDTH }}>
-                    <span className="font-semibold text-white whitespace-nowrap">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedCategories.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center text-gray-500 text-sm">
-                      No license categories yet. Add one above.
-                    </td>
-                  </tr>
-                ) : (
-                  sortedCategories.map((row) => (
-                    <tr
-                      key={row.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => openEdit(row)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          openEdit(row);
-                        }
-                      }}
-                      className="group border-b border-gray-100 hover:bg-gray-50/80 transition-colors cursor-pointer"
-                    >
-                      <td className="px-4 py-1.5 font-mono text-sm text-gray-900 max-w-0 overflow-hidden">
-                        <span className="truncate block">{row.code}</span>
-                      </td>
-                      <td className="px-4 py-1.5 max-w-0 overflow-hidden">
-                        <span className="font-medium text-gray-900 truncate block">{row.name}</span>
-                      </td>
-                      <td className="px-4 py-1.5 text-sm text-gray-600 max-w-0 overflow-hidden">
-                        <span className="truncate block">{row.description ?? '—'}</span>
-                      </td>
-                      <td className="px-4 py-1.5 text-sm text-gray-600 max-w-0 overflow-hidden">
-                        <span className="truncate block">{row.requires_contractor_license ? 'Yes' : 'No'}</span>
-                      </td>
-                      <td className="px-4 py-1.5 text-sm text-gray-500 max-w-0 overflow-hidden">
-                        <span className="truncate block">{row.sort_order}</span>
-                      </td>
-                      <td
-                        className="sticky right-0 z-10 py-1.5 text-center bg-white group-hover:bg-gray-50/80 border-l-2 border-gray-100 shadow-[-4px_0_8px_rgba(0,0,0,0.06)] box-border"
-                        style={{ paddingLeft: 10, paddingRight: 10 }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="relative flex justify-center items-center w-full">
-                          <button
-                            ref={openActionsId === row.id ? actionsButtonRef : undefined}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (openActionsId === row.id) {
-                                setOpenActionsId(null);
-                                setMenuPosition(null);
-                                return;
-                              }
-                              const el = e.currentTarget;
-                              const rect = el.getBoundingClientRect();
-                              actionsButtonRef.current = el;
-                              const left = Math.min(rect.right - 120, window.innerWidth - 130);
-                              const spaceBelow = window.innerHeight - rect.bottom - 4;
-                              const top = spaceBelow >= MENU_HEIGHT ? rect.bottom + 4 : rect.top - MENU_HEIGHT - 4;
-                              setMenuPosition({ top, left });
-                              setOpenActionsId(row.id);
-                            }}
-                            className="p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer text-gray-600 hover:text-black"
-                            aria-label="Actions"
-                          >
-                            <MoreVertical className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+      <AdminDataTable
+        clientSide
+        columnOrderKey="admin-license-categories"
+        exportName="license-categories"
+        columns={CATEGORY_COLUMNS}
+        data={sortedCategories}
+        total={sortedCategories.length}
+        pageSize={50}
+        isLoading={loading}
+        hasLoadedOnce={!loading}
+        error={null}
+        getRowId={(row) => row.id}
+        getCellText={categoryCellText}
+        searchPlaceholder="Search categories..."
+        emptyMessage="No license categories yet. Add one above."
+        itemLabel="categories"
+        primaryColumnId="name"
+        onRowClick={(row) => openEdit(row)}
+        renderCell={(row, columnId) => {
+          if (columnId === 'code') return <span className="font-mono text-sm">{row.code}</span>;
+          return categoryCellText(row, columnId) || '—';
+        }}
+        renderActions={(row) => (
+          <button
+            ref={openActionsId === row.id ? actionsButtonRef : undefined}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (openActionsId === row.id) {
+                setOpenActionsId(null);
+                setMenuPosition(null);
+                return;
+              }
+              const el = e.currentTarget;
+              const rect = el.getBoundingClientRect();
+              actionsButtonRef.current = el;
+              const left = Math.min(rect.right - 120, window.innerWidth - 130);
+              const spaceBelow = window.innerHeight - rect.bottom - 4;
+              const top = spaceBelow >= MENU_HEIGHT ? rect.bottom + 4 : rect.top - MENU_HEIGHT - 4;
+              setMenuPosition({ top, left });
+              setOpenActionsId(row.id);
+            }}
+            className="p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer text-gray-600 hover:text-black"
+            aria-label="Actions"
+          >
+            <MoreVertical className="w-5 h-5" />
+          </button>
         )}
-      </div>
-
+        bulkActions={{
+          onDelete: (ids) => {
+            const label = ids.length === 1
+              ? (() => {
+                  const row = sortedCategories.find((category) => category.id === ids[0]);
+                  return row ? `${row.code} – ${row.name}` : 'this category';
+                })()
+              : `${ids.length} categories`;
+            setDeleteConfirm({ ids, label });
+          },
+          onEdit: (row) => openEdit(row),
+          onCopyAsJson: (rows) => {
+            void navigator.clipboard.writeText(JSON.stringify(rows, null, 2));
+          },
+        }}
+      />
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={closeModal}>
           <div
@@ -380,7 +366,7 @@ export default function LicenseCategoriesPage() {
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">Delete license category?</h2>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to delete <strong className="text-gray-900">{deleteConfirm.code} – {deleteConfirm.name}</strong>?
+              Are you sure you want to delete <strong className="text-gray-900">{deleteConfirm.label}</strong>?
               Businesses using it may need to be updated.
             </p>
             <div className="flex gap-3 justify-center">
@@ -435,7 +421,7 @@ export default function LicenseCategoriesPage() {
                 e.stopPropagation();
                 const row = sortedCategories.find((c) => c.id === openActionsId);
                 if (row) {
-                  setDeleteConfirm({ id: row.id, code: row.code, name: row.name });
+                  setDeleteConfirm({ ids: [row.id], label: `${row.code} – ${row.name}` });
                   setOpenActionsId(null);
                   setMenuPosition(null);
                 }

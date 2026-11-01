@@ -1,123 +1,117 @@
 /**
- * Webhook authentication utilities
- * Validates webhook requests from Resend
+ * Webhook authentication for Resend inbound email.
+ * Resend signs deliveries with Svix (svix-id, svix-timestamp, svix-signature).
+ * A static WEBHOOK_API_KEY is an alternate for non-Resend callers.
  */
 
+import { createHmac, timingSafeEqual } from 'crypto';
 import { NextRequest } from 'next/server';
 import { logger } from './logger';
 
-/**
- * Verify Resend webhook signature
- * 
- * Resend sends webhooks with a signature in the headers.
- * You should configure a webhook secret in Resend and verify it here.
- * 
- * @param request - Next.js request object
- * @returns true if signature is valid, false otherwise
- */
-export function verifyResendWebhook(request: NextRequest): boolean {
-  const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
-  
-  // If no secret is configured, allow in development but warn
-  if (!webhookSecret) {
-    if (process.env.NODE_ENV === 'production') {
-      logger.error('RESEND_WEBHOOK_SECRET is not configured in production', {
-        endpoint: 'webhook-auth',
-      });
-      return false;
-    }
-    
-    logger.warn('RESEND_WEBHOOK_SECRET is not configured, allowing webhook in development', {
-      endpoint: 'webhook-auth',
-    });
-    return true; // Allow in development for testing
-  }
+const TIMESTAMP_TOLERANCE_SECONDS = 5 * 60;
 
-  // Resend sends signature in X-Resend-Signature header
-  // The signature is a SHA256 HMAC of the request body using the webhook secret
-  const signature = request.headers.get('x-resend-signature');
-  
-  if (!signature) {
-    logger.warn('Missing webhook signature', {
-      endpoint: 'webhook-auth',
-    });
-    return false;
-  }
+function safeEqual(left: string, right: string): boolean {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
-  // TODO: Implement actual signature verification
-  // This requires:
-  // 1. Reading the raw request body
-  // 2. Computing HMAC-SHA256(body, webhookSecret)
-  // 3. Comparing with the signature header
-  // 
-  // Note: Next.js request body can only be read once, so we need to
-  // handle this carefully. For now, we'll use a simpler approach with
-  // an API key check or IP whitelist.
-
-  // For now, we'll use a simpler API key approach
-  // You can configure this in Resend webhook settings
-  const apiKey = request.headers.get('x-resend-api-key');
-  
-  if (apiKey && apiKey === webhookSecret) {
-    return true;
-  }
-
-  // Alternative: Check if request comes from Resend IPs
-  // Resend webhooks come from specific IP ranges (check Resend docs)
-  const forwarded = request.headers.get('x-forwarded-for');
-  const realIp = request.headers.get('x-real-ip');
-  const ip = forwarded ? forwarded.split(',')[0].trim() : realIp || 'unknown';
-  
-  // For development, we'll be more lenient
-  if (process.env.NODE_ENV === 'development') {
-    logger.debug('Webhook authentication check', {
-      endpoint: 'webhook-auth',
-      ip,
-      hasSignature: !!signature,
-      hasApiKey: !!apiKey,
-    });
-    // In development, allow if we have either signature or API key
-    return !!(signature || apiKey);
-  }
-
-  // In production, require proper authentication
-  logger.warn('Webhook authentication failed', {
-    endpoint: 'webhook-auth',
-    ip,
-    hasSignature: !!signature,
-    hasApiKey: !!apiKey,
-  });
-  
-  return false;
+function webhookSecrets(): { resend: string | null; apiKey: string | null } {
+  const resend = process.env.RESEND_WEBHOOK_SECRET?.trim() || null;
+  const apiKey = process.env.WEBHOOK_API_KEY?.trim() || null;
+  return { resend, apiKey };
 }
 
 /**
- * Simple API key authentication for webhooks
- * Useful for testing or if Resend doesn't provide signature verification
+ * Verify a Svix signature over the raw request body.
+ * Secret may be stored as `whsec_<base64>` (Resend dashboard) or raw base64.
+ */
+export function verifyResendWebhook(rawBody: string, request: NextRequest): boolean {
+  const secret = process.env.RESEND_WEBHOOK_SECRET?.trim();
+  if (!secret) return false;
+
+  const id = request.headers.get('svix-id');
+  const timestamp = request.headers.get('svix-timestamp');
+  const signatureHeader = request.headers.get('svix-signature');
+  if (!id || !timestamp || !signatureHeader) return false;
+
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts)) return false;
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - ts) > TIMESTAMP_TOLERANCE_SECONDS) {
+    logger.warn('Webhook timestamp outside tolerance', { endpoint: 'webhook-auth' });
+    return false;
+  }
+
+  const secretBytes = decodeWebhookSecret(secret);
+  if (!secretBytes) return false;
+
+  const signed = `${id}.${timestamp}.${rawBody}`;
+  const expected = createHmac('sha256', secretBytes).update(signed).digest('base64');
+
+  const parts = signatureHeader.split(' ');
+  for (const part of parts) {
+    const [version, signature] = part.split(',');
+    if (version === 'v1' && signature && safeEqual(signature, expected)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function decodeWebhookSecret(secret: string): Buffer | null {
+  const encoded = secret.startsWith('whsec_') ? secret.slice('whsec_'.length) : secret;
+  try {
+    const bytes = Buffer.from(encoded, 'base64');
+    if (bytes.length === 0) return null;
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Bearer or x-api-key check. Returns false when WEBHOOK_API_KEY is unset.
  */
 export function verifyWebhookApiKey(request: NextRequest): boolean {
-  const apiKey = request.headers.get('authorization')?.replace('Bearer ', '') ||
-                 request.headers.get('x-api-key');
-  const expectedKey = process.env.WEBHOOK_API_KEY;
+  const expectedKey = process.env.WEBHOOK_API_KEY?.trim();
+  if (!expectedKey) return false;
 
-  if (!expectedKey) {
+  const provided =
+    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
+    request.headers.get('x-api-key') ||
+    '';
+
+  if (!provided || !safeEqual(provided, expectedKey)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Accept the request when a configured secret validates.
+ * In development, with neither secret set, allow the call so local inbound tests still run.
+ */
+export function authorizeInboundEmailWebhook(rawBody: string, request: NextRequest): boolean {
+  const { resend, apiKey } = webhookSecrets();
+
+  if (!resend && !apiKey) {
     if (process.env.NODE_ENV === 'production') {
-      logger.error('WEBHOOK_API_KEY is not configured in production', {
+      logger.error('RESEND_WEBHOOK_SECRET or WEBHOOK_API_KEY is required in production', {
         endpoint: 'webhook-auth',
       });
       return false;
     }
-    // Allow in development if no key is set
+    logger.warn('No webhook secret configured, allowing inbound email webhook in development', {
+      endpoint: 'webhook-auth',
+    });
     return true;
   }
 
-  if (!apiKey || apiKey !== expectedKey) {
-    logger.warn('Invalid webhook API key', {
-      endpoint: 'webhook-auth',
-      hasKey: !!apiKey,
-    });
-    return false;
-  }
+  if (resend && verifyResendWebhook(rawBody, request)) return true;
+  if (apiKey && verifyWebhookApiKey(request)) return true;
 
-  return true;
+  logger.warn('Webhook authentication failed', { endpoint: 'webhook-auth' });
+  return false;
 }

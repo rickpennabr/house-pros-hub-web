@@ -1,22 +1,55 @@
 {
+  "id": "/",
   "name": "House Pros Hub",
   "short_name": "HouseProsHub",
   "description": "Connect with dedicated trade owners who collaborate to bring your home improvement dreams to life",
-  "start_url": "/",
+  "start_url": "/en",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#000000",
+  "background_color": "#ffffff",
   "theme_color": "#000000",
   "icons": [
     {
-      "src": "/house-pros-hub-logo-simble-bot.png",
-      "sizes": "512x512",
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/house-pros-hub-logo-simble-bot.png",
-      "sizes": "1200x630",
-      "type": "image/png"
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Quick Repair",
+      "short_name": "Repair",
+      "url": "/en/quick-repair",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/en/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "photos",
+          "accept": ["image/*"]
+        }
+      ]
+    }
+  }
 }

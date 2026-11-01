@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
+import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 
 interface CRMLayoutWrapperProps {
@@ -19,6 +20,10 @@ export default async function CRMLayoutWrapper({ children, params }: CRMLayoutWr
 
   if (error || !user) {
     redirect(`/${locale}/signin`);
+  }
+
+  if (user.email?.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase().trim()) {
+    redirect('/admin');
   }
 
   const isContractor = await hasRole(user.id, 'contractor');

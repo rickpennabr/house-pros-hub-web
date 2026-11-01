@@ -32,7 +32,7 @@ function generateCode(): string {
 /**
  * POST /api/admin/invitation-codes/generate
  * Generate a new one-time contractor or realtor invitation code. Admin only.
- * Body: { role?: 'contractor' | 'realtor' } (default contractor)
+ * Body: { role?: 'contractor' | 'realtor' | 'installer' } (default contractor)
  * Returns { code, expiresAt, role }.
  */
 export async function POST(request: NextRequest) {
@@ -40,15 +40,15 @@ export async function POST(request: NextRequest) {
     const { error: authError } = await requireAdmin();
     if (authError) return authError;
 
-    let role: 'contractor' | 'realtor' = 'contractor';
+    let role: 'contractor' | 'realtor' | 'installer' = 'contractor';
     try {
       const body = await request.json().catch(() => ({}));
       if (body.role === 'realtor') role = 'realtor';
+      if (body.role === 'installer') role = 'installer';
     } catch {
       // no body or invalid JSON, use default
     }
 
-    const table = role === 'realtor' ? 'realtor_invitation_codes' : 'contractor_invitation_codes';
     const service = createServiceRoleClient();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + EXPIRY_DAYS * 24 * 60 * 60 * 1000);
@@ -59,8 +59,9 @@ export async function POST(request: NextRequest) {
 
     while (attempts < maxAttempts) {
       const { data, error } = await service
-        .from(table)
+        .from('invitation_codes')
         .insert({
+          role,
           code,
           expires_at: expiresAt.toISOString(),
         })

@@ -29,11 +29,15 @@ export interface PushPayload {
   body: string;
   url: string;
   badge?: number;
+  tag?: string;
+  icon?: string;
 }
 
-function buildPayload(title: string, body: string, url: string, badge?: number): string {
+function buildPayload(title: string, body: string, url: string, badge?: number, tag?: string, icon?: string): string {
   const payload: PushPayload = { title, body, url };
   if (typeof badge === 'number' && badge >= 0) payload.badge = Math.min(99, badge);
+  if (tag) payload.tag = tag;
+  if (icon) payload.icon = icon;
   return JSON.stringify(payload);
 }
 
@@ -45,7 +49,9 @@ export async function sendAdminPushNotification(
   title: string,
   body: string,
   url: string = '/admin/chat',
-  badge?: number
+  badge?: number,
+  tag?: string,
+  icon?: string
 ): Promise<void> {
   if (!ensureVapid()) return;
 
@@ -56,7 +62,7 @@ export async function sendAdminPushNotification(
 
   if (error || !subs?.length) return;
 
-  const payload = buildPayload(title, body, url, badge);
+  const payload = buildPayload(title, body, url, badge, tag, icon);
 
   await Promise.allSettled(
     subs.map((sub) =>

@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Pro Suppliers | House Pros Hub',
+  title: 'Pro Suppliers',
   description: 'Find suppliers for your contracting business needs. Connect with trusted suppliers and vendors.',
   openGraph: {
     title: 'Pro Suppliers | House Pros Hub',

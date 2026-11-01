@@ -3,13 +3,13 @@
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { User } from 'lucide-react';
+import { HardHat, User } from 'lucide-react';
 import { GrUserWorker } from 'react-icons/gr';
 import { FaPersonShelter } from 'react-icons/fa6';
 import Logo from '@/components/Logo';
 
 interface RoleSelectionScreenProps {
-  onRoleSelect: (role: 'customer' | 'contractor' | 'realtor') => void;
+  onRoleSelect: (role: 'customer' | 'contractor' | 'realtor' | 'installer') => void;
   isLoading?: boolean;
 }
 
@@ -41,7 +41,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
           type="button"
           onClick={() => onRoleSelect('customer')}
           disabled={isLoading}
-          className="w-full p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+          className="w-full p-2 md:p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
         >
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
@@ -63,21 +63,41 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
           type="button"
           onClick={() => onRoleSelect('contractor')}
           disabled={isLoading}
-          className="w-full p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+          className="w-full p-2 md:p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
         >
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
               <GrUserWorker className="w-6 h-6 text-red-500" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-black mb-0.5">
+              <h3 className="text-lg font-semibold text-black leading-snug">
                 {t('contractor.title')}
               </h3>
-              <p className="text-sm text-gray-600 mb-1">
+              <p className="text-xs font-normal text-gray-500 mb-1">{t('contractor.invitationCodeRequired')}</p>
+              <p className="text-sm text-gray-600">
                 {t('contractor.description')}
               </p>
+            </div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onRoleSelect('installer')}
+          disabled={isLoading}
+          className="w-full p-2 md:p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+              <HardHat className="w-6 h-6 text-red-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-black leading-snug">
+                {t('installer.title')}
+              </h3>
+              <p className="text-xs font-normal text-gray-500 mb-1">{t('installer.invitationCodeRequired')}</p>
               <p className="text-sm text-gray-600">
-                {t('contractor.invitationCodeRequired')}
+                {t('installer.description')}
               </p>
             </div>
           </div>
@@ -88,21 +108,19 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
           type="button"
           onClick={() => onRoleSelect('realtor')}
           disabled={isLoading}
-          className="w-full p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+          className="w-full p-2 md:p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
         >
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
               <FaPersonShelter className="w-6 h-6 text-red-500" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-black mb-0.5">
+              <h3 className="text-lg font-semibold text-black leading-snug">
                 {t('realtor.title')}
               </h3>
-              <p className="text-sm text-gray-600 mb-1">
-                {t('realtor.description')}
-              </p>
+              <p className="text-xs font-normal text-gray-500 mb-1">{t('realtor.invitationCodeRequired')}</p>
               <p className="text-sm text-gray-600">
-                {t('realtor.invitationCodeRequired')}
+                {t('realtor.description')}
               </p>
             </div>
           </div>

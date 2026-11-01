@@ -25,10 +25,11 @@ export interface GetMessagesResponse {
 
 export async function getMessages(
   conversationId: string,
-  options?: { visitorId?: string; credentials?: RequestCredentials }
+  options?: { visitorId?: string; credentials?: RequestCredentials; locale?: 'en' | 'pt' | 'es' }
 ): Promise<GetMessagesResponse> {
   const params = new URLSearchParams({ conversationId });
   if (options?.visitorId) params.set('visitorId', options.visitorId);
+  if (options?.locale) params.set('locale', options.locale);
   const res = await fetch(`/api/chat/messages?${params}`, {
     cache: 'no-store',
     credentials: options?.credentials,
@@ -58,9 +59,22 @@ export interface SendMessagePayload {
   displayName?: string;
   userId?: string;
   attachments?: Array<{ url: string; name: string; contentType: string }>;
+  locale?: 'en' | 'pt' | 'es';
 }
 
-export async function sendMessage(payload: SendMessagePayload): Promise<{ message?: unknown; conversationId?: string }> {
+export async function sendMessage(payload: SendMessagePayload): Promise<{
+  message?: unknown;
+  conversationId?: string;
+  botMessage?: {
+    id: string;
+    conversationId: string;
+    sender: 'admin';
+    body: string;
+    created_at: string;
+    admin_sent_as: 'probot';
+    payload?: import('@/lib/types/chat').ProAgentPayload | null;
+  };
+}> {
   const res = await fetch('/api/chat/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -88,7 +102,7 @@ export async function sendAdminMessage(payload: {
   return data;
 }
 
-/** Fetch a short-lived token for delete (optional extra security). */
+/** Fetch a short-lived token required to delete a visitor conversation. */
 export async function getVisitorDeleteToken(visitorId: string): Promise<string> {
   const res = await fetch('/api/chat/visitor-delete-token', {
     method: 'POST',
@@ -103,7 +117,7 @@ export async function getVisitorDeleteToken(visitorId: string): Promise<string> 
 export async function deleteConversation(
   conversationId: string,
   visitorId: string,
-  options?: { deleteToken?: string }
+  options: { deleteToken: string }
 ): Promise<void> {
   const res = await fetch('/api/chat/conversations/delete', {
     method: 'DELETE',
@@ -111,7 +125,7 @@ export async function deleteConversation(
     body: JSON.stringify({
       conversationId,
       visitorId,
-      ...(options?.deleteToken ? { deleteToken: options.deleteToken } : {}),
+      deleteToken: options.deleteToken,
     }),
   });
   if (!res.ok) {

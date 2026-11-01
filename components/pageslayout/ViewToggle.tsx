@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import Image from 'next/image';
 import { List } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LuIdCard } from 'react-icons/lu';
@@ -15,10 +14,8 @@ interface ViewToggleProps {
   onViewChange: (view: ViewType) => void;
   /** When true, render only the toggle content (no fixed position, no portal). For use inside a bottom bar. */
   embedded?: boolean;
-  /** When true (desktop only), show ProBot head on the right of the toggle with Beta badge. */
-  showProBotHead?: boolean;
-  /** Called when the ProBot head is clicked. Used when showProBotHead is true. */
-  onProBotClick?: () => void;
+  /** When true, hide the background (sky/dynamic) toggle button. Useful for CRM and other non-home pages. */
+  hideBackgroundToggle?: boolean;
 }
 
 interface ViewOption {
@@ -27,7 +24,7 @@ interface ViewOption {
   labelKey: string;
 }
 
-export default function ViewToggle({ currentView, onViewChange, embedded = false, showProBotHead = false, onProBotClick }: ViewToggleProps) {
+export default function ViewToggle({ currentView, onViewChange, embedded = false, hideBackgroundToggle = false }: ViewToggleProps) {
   const t = useTranslations('common');
   const { mode, setMode } = useBackgroundMode();
   const [mounted, setMounted] = useState(false);
@@ -71,7 +68,7 @@ export default function ViewToggle({ currentView, onViewChange, embedded = false
               flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 shrink-0
               ${embedded
                 ? `w-11 h-11 min-w-[2.75rem] min-h-[2.75rem] rounded-lg border-2 ${isActive ? 'border-black' : 'border-white'}`
-                : `px-2 md:px-3 py-1.5 rounded border-2 ${isActive ? 'border-black' : 'border-white'}`}
+                : `px-2 md:px-3 py-1.5 rounded-lg border-2 ${isActive ? 'border-black' : 'border-white'}`}
               ${isActive
                 ? 'bg-white text-black'
                 : 'hover:bg-gray-800 text-white'
@@ -86,46 +83,23 @@ export default function ViewToggle({ currentView, onViewChange, embedded = false
           </button>
         );
       })}
-      <button
-        type="button"
-        onClick={() => setMode(isDynamic ? 'regular' : 'dynamic')}
-        data-bg-toggle={isDynamic ? 'dynamic' : 'sky'}
-        className={`
-          flex items-center justify-center rounded-lg border-2 border-white
-          transition-[transform] duration-200 cursor-pointer active:scale-95 shrink-0
-          ${embedded ? 'w-11 h-11 min-w-[2.75rem] min-h-[2.75rem]' : 'w-8 h-8 md:w-9 md:h-9'}
-          ${isDynamic
-            ? 'bg-white'
-            : 'bg-toggle-sky-preview'
-          }
-        `}
-        aria-label={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
-        title={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
-      />
-      {/* ProBot head on the right (desktop floating bar only), with Beta badge */}
-      {!embedded && showProBotHead && onProBotClick && (
-        <div className="relative flex items-center justify-center shrink-0">
-          <span
-            className="beta-badge-dynamic absolute -top-[10px] -right-2 z-10 px-0.5 rounded text-[9px] font-bold text-black border border-black shadow"
-            aria-hidden
-          >
-            Beta
-          </span>
-          <button
-            type="button"
-            onClick={onProBotClick}
-            className="flex items-center justify-center w-11 h-11 min-w-[2.75rem] min-h-[2.75rem] md:w-9 md:h-9 md:min-w-0 md:min-h-0 rounded-lg border-2 border-white bg-black overflow-hidden hover:opacity-90 active:scale-95 transition-all"
-            aria-label="Open ProBot"
-          >
-            <Image
-              src="/hph-pro-bot.jpg"
-              alt=""
-              width={44}
-              height={44}
-              className="w-full h-full object-contain"
-            />
-          </button>
-        </div>
+      {!hideBackgroundToggle && (
+        <button
+          type="button"
+          onClick={() => setMode(isDynamic ? 'regular' : 'dynamic')}
+          data-bg-toggle={isDynamic ? 'dynamic' : 'sky'}
+          className={`
+            flex items-center justify-center rounded-lg border-2 border-white
+            transition-[transform] duration-200 cursor-pointer active:scale-95 shrink-0
+            ${embedded ? 'w-11 h-11 min-w-[2.75rem] min-h-[2.75rem]' : 'w-8 h-8 md:w-9 md:h-9'}
+            ${isDynamic
+              ? 'bg-white'
+              : 'bg-toggle-sky-preview'
+            }
+          `}
+          aria-label={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
+          title={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
+        />
       )}
     </div>
   );
