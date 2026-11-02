@@ -581,13 +581,16 @@
       "forgotPassword": "Esqueceu a senha?",
       "submit": "Entrar",
       "submitting": "Entrando...",
+      "or": "OU",
+      "google": "Entrar com Google",
       "validation": {
         "emailRequired": "E-mail é obrigatório",
         "emailInvalid": "Digite um e-mail válido",
         "passwordRequired": "Senha é obrigatória"
       },
       "errors": {
-        "generic": "Falha ao entrar. Tente novamente."
+        "generic": "Falha ao entrar. Tente novamente.",
+        "google": "Não foi possível entrar com o Google"
       }
     },
     "forgotPassword": {
@@ -1000,6 +1003,10 @@
         "phone": {
           "label": "Phone",
           "placeholder": "Phone number"
+        },
+        "qrcode": {
+          "label": "HPH QRcode",
+          "placeholder": "HPH QRcode"
         },
         "location": {
           "label": "Business Address",

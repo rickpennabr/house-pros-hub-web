@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
   const flow = requestUrl.searchParams.get('flow') || request.cookies.get('hph_oauth_flow')?.value || '';
-  const isCustomerGoogle = flow === 'customer';
+  const isSignInGoogle = flow === 'signin';
+  const isCustomerGoogle = flow === 'customer' || isSignInGoogle;
   const locale = safeLocale(
     requestUrl.searchParams.get('locale') || request.cookies.get('hph_oauth_locale')?.value || 'en'
   );
@@ -72,9 +73,11 @@ export async function GET(request: NextRequest) {
   const errorDescription = requestUrl.searchParams.get('error_description');
   if (errorParam || errorCode) {
     const message = errorDescription || errorParam || 'Link expired or invalid';
-    const errorPath = isCustomerGoogle
-      ? `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`
-      : `/${locale}/reset-password?error=${encodeURIComponent(message)}`;
+    const errorPath = isSignInGoogle
+      ? `/${locale}/signin?error=${encodeURIComponent('Could not sign in with Google')}`
+      : isCustomerGoogle
+        ? `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`
+        : `/${locale}/reset-password?error=${encodeURIComponent(message)}`;
     logger.info('[Auth Callback] redirecting with error', { message, isCustomerGoogle });
     const errorResponse = NextResponse.redirect(new URL(errorPath, normalizedBaseUrl));
     if (isCustomerGoogle) clearOauthCookies(errorResponse);
@@ -115,9 +118,11 @@ export async function GET(request: NextRequest) {
         logger.info('[Auth Callback] PKCE hint: open the reset link in the SAME browser where you requested the reset.');
       }
       const message = error.message || 'Link expired or invalid';
-      const failPath = isCustomerGoogle
-        ? `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`
-        : `/${locale}/reset-password?error=${encodeURIComponent(message)}`;
+      const failPath = isSignInGoogle
+        ? `/${locale}/signin?error=${encodeURIComponent('Could not sign in with Google')}`
+        : isCustomerGoogle
+          ? `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`
+          : `/${locale}/reset-password?error=${encodeURIComponent(message)}`;
       const failResponse = NextResponse.redirect(new URL(failPath, normalizedBaseUrl));
       if (isCustomerGoogle) clearOauthCookies(failResponse);
       return failResponse;
@@ -133,7 +138,9 @@ export async function GET(request: NextRequest) {
           });
           const failResponse = NextResponse.redirect(
             new URL(
-              `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`,
+              isSignInGoogle
+                ? `/${locale}/signin?error=${encodeURIComponent('Could not sign in with Google')}`
+                : `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`,
               normalizedBaseUrl
             )
           );

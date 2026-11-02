@@ -7,7 +7,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useForm, useFieldArray, FormProvider } from 'react-hook-form';
 import type { FieldPath } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronDown, ChevronUp, Building2, Trash2, Globe, X, MessageCircle, Star, Home, Hammer, GripVertical, Phone, MapPin, AtSign, PenTool, Settings, FileText, ImagePlus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Building2, Trash2, Globe, X, MessageCircle, Star, Home, Hammer, GripVertical, Phone, MapPin, AtSign, PenTool, Settings, FileText, ImagePlus, QrCode } from 'lucide-react';
 import { SiNextdoor, SiWhatsapp, SiYelp, SiInstagram, SiFacebook, SiLinkedin, SiTelegram } from 'react-icons/si';
 import { AngiIcon } from '@/components/ui/icons/AngiIcon';
 
@@ -46,6 +46,7 @@ interface SocialMediaOption {
 
 const SOCIAL_MEDIA_OPTIONS: SocialMediaOption[] = [
   { key: 'phone', label: 'Phone', usePhoneIcon: true, placeholder: 'Phone number' },
+  { key: 'qrcode', label: 'HPH QRcode', placeholder: 'HPH QRcode' },
   { key: 'location', label: 'Business Address', useMapIcon: true, placeholder: 'Business address' },
   { key: 'website', label: 'Website', useGlobeIcon: true, placeholder: 'website URL' },
   { key: 'instagram', label: 'Instagram', useAtSymbol: true, placeholder: 'Enter User Name' },
@@ -67,6 +68,7 @@ const linkLabels: Record<LinkItem['type'], string> = {
   instagram: 'Instagram',
   facebook: 'Facebook',
   phone: 'Phone',
+  qrcode: 'HPH QRcode',
   email: 'Email',
   calendar: 'Schedule/Calendar',
   location: 'Location',
@@ -1916,7 +1918,8 @@ export default function EditBusinessPage() {
                                         nextdoor: SiNextdoor,
                                       };
                                       
-                                      const Icon = 
+                                      const Icon =
+                                        link.type === 'qrcode' ? QrCode :
                                         option?.usePhoneIcon ? Phone :
                                         option?.useWhatsAppIcon ? SiWhatsapp :
                                         option?.useGlobeIcon ? Globe :
@@ -1933,6 +1936,8 @@ export default function EditBusinessPage() {
                                   </div>
                                   {link.type === 'location' ? (
                                     <div className="flex items-center gap-2 p-2 bg-gray-50 border rounded text-sm truncate">{displayValue}</div>
+                                  ) : link.type === 'qrcode' ? (
+                                    <div className="flex items-center gap-2 p-2 bg-gray-50 border rounded text-sm">HPH QRcode</div>
                                   ) : (
                                     <FormField label="" error={linkErrors?.[index]?.url?.message ?? linkErrors?.[index]?.value?.message}>
                                       <Input

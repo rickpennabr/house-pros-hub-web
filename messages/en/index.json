@@ -581,13 +581,16 @@
       "forgotPassword": "Forgot password?",
       "submit": "Sign In",
       "submitting": "Signing in...",
+      "or": "OR",
+      "google": "Sign in with Google",
       "validation": {
         "emailRequired": "Email is required",
         "emailInvalid": "Please enter a valid email address",
         "passwordRequired": "Password is required"
       },
       "errors": {
-        "generic": "Failed to sign in. Please try again."
+        "generic": "Failed to sign in. Please try again.",
+        "google": "Could not sign in with Google"
       }
     },
     "forgotPassword": {
@@ -1000,6 +1003,10 @@
         "phone": {
           "label": "Phone",
           "placeholder": "Phone number"
+        },
+        "qrcode": {
+          "label": "HPH QRcode",
+          "placeholder": "HPH QRcode"
         },
         "location": {
           "label": "Business Address",

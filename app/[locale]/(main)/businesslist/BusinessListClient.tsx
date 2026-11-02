@@ -97,7 +97,7 @@ export default function BusinessListClient({
 
   return (
     <>
-      <div className={`w-full min-h-full flex flex-col ${mounted && isAtBottom && !isMobileSafe && pageCards.length > 0 ? 'pb-[140px]' : ''} ${isMobileSafe && pageCards.length > 0 ? 'pb-[72px]' : ''}`}>
+      <div className={`w-full min-h-full flex flex-col ${mounted && isAtBottom && !isMobileSafe && pageCards.length > 0 ? 'pb-[140px]' : ''} ${isMobileSafe && pageCards.length > 0 ? 'pb-28' : ''}`}>
         {isLoading && pageCards.length === 0 ? (
           <div className="w-full flex-1 flex items-center justify-center py-12" />
         ) : pageCards.length === 0 ? (

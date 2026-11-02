@@ -13,7 +13,7 @@ export default function PageContent({ children, scroll = false, flushTop = false
   return (
     <main
       id="main-content"
-      className={`w-full flex-1 min-h-0 ${padding} flex flex-col ${scroll ? 'overflow-y-auto' : ''}`}
+      className={`w-full flex flex-col ${padding} max-md:grow max-md:shrink-0 md:min-h-0 md:flex-1 ${scroll ? 'md:overflow-y-auto' : ''}`}
     >
       {children}
     </main>

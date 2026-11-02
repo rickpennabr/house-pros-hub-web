@@ -45,7 +45,7 @@ export function useAddBusinessForm(personalData?: PersonalData) {
       email: '',
       phone: '',
       mobilePhone: '',
-      links: [],
+      links: [{ type: 'qrcode', url: '', value: 'HPH QRcode' }],
     },
     mode: 'onChange',
   });
@@ -119,9 +119,9 @@ export function useAddBusinessForm(personalData?: PersonalData) {
     if (existingIndex >= 0) {
       newLinks[existingIndex] = linkData;
     } else {
-      // Limit to 15 links as requested
       if (newLinks.length < 15) {
-        newLinks.push(linkData);
+        if (type === 'phone') newLinks.unshift(linkData);
+        else newLinks.push(linkData);
       }
     }
     

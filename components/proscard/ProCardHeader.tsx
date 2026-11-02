@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { Share2, Phone, MessageCircle } from 'lucide-react';
+import { Share2, Phone, MessageCircle, QrCode } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -25,6 +25,8 @@ interface ProCardHeaderProps {
   onShare?: () => void;
   onMessage?: () => void;
   onPhoneClick?: (e: React.MouseEvent) => void;
+  /** Opens HPH QRcode. Shown in list mode, where the links row is hidden. */
+  onQrCode?: () => void;
   /** Pro online status: show green (online) or gray (offline) indicator */
   online?: boolean;
 }
@@ -156,6 +158,7 @@ export default function ProCardHeader({
   onShare,
   onMessage,
   onPhoneClick,
+  onQrCode,
   online,
 }: ProCardHeaderProps) {
   const t = useTranslations('estimate.options.trades');
@@ -182,7 +185,9 @@ export default function ProCardHeader({
 
   // Right-side actions: grouped at right-2. Use same padding as card mode so content alignment matches.
   const rightPadding = isListMode
-    ? 'pr-19 md:pr-17'
+    ? onQrCode
+      ? 'pr-28'
+      : 'pr-19 md:pr-17'
     : onMessage ? 'pr-19 md:pr-17' : 'pr-14';
 
   return (
@@ -281,6 +286,20 @@ export default function ProCardHeader({
               aria-label="Phone"
             >
               <Phone className="h-10 w-5 text-black" />
+            </button>
+          )}
+          {onQrCode && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onQrCode();
+              }}
+              className="w-[25px] h-[35px] rounded-lg bg-transparent flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+              aria-label="HPH QRcode"
+            >
+              <QrCode className="w-5 h-5 text-black" />
             </button>
           )}
           <button

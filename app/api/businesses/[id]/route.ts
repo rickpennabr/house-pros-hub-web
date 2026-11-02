@@ -269,7 +269,7 @@ async function handleUpdateBusiness(
           ? rawBody.links.map((link: { type?: string; url?: string; value?: string }) => {
               const url = link.url?.trim();
               const value = link.value != null ? sanitizeText(String(link.value)) : undefined;
-              if (link.type === 'phone' || link.type === 'email' || link.type === 'location') {
+              if (link.type === 'phone' || link.type === 'email' || link.type === 'location' || link.type === 'qrcode') {
                 return { ...link, value: value ?? link.value };
               }
               const safeUrl = url ? (sanitizeUrl(url) || url) : undefined;

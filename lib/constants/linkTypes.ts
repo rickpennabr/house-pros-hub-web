@@ -1,5 +1,6 @@
 export const LINK_TYPES = [
   'phone',
+  'qrcode',
   'email',
   'discord',
   'facebook',

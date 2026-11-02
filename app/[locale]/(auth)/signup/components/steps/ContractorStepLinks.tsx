@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { GripVertical, X, ChevronDown, ChevronUp, Globe, Phone, MapPin, AtSign, Mail } from 'lucide-react';
+import { GripVertical, X, ChevronDown, ChevronUp, Globe, Phone, MapPin, AtSign, Mail, QrCode } from 'lucide-react';
 import { SiNextdoor, SiWhatsapp, SiYelp, SiInstagram, SiFacebook, SiLinkedin, SiTelegram } from 'react-icons/si';
 import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/Input';
@@ -40,6 +40,7 @@ function getSocialMediaOptions(
 ): SocialMediaOption[] {
   return [
     { key: 'phone', label: tPlatforms('phone.label'), usePhoneIcon: true, placeholder: tPlatforms('phone.placeholder') },
+    { key: 'qrcode', label: tPlatforms('qrcode.label'), placeholder: tPlatforms('qrcode.placeholder') },
     { key: 'location', label: tPlatforms('location.label'), useMapIcon: true, placeholder: tPlatforms('location.placeholder') },
     { key: 'website', label: tPlatforms('website.label'), useGlobeIcon: true, placeholder: tPlatforms('website.placeholder') },
     { key: 'instagram', label: tPlatforms('instagram.label'), placeholder: tPlatforms('instagram.placeholder') },
@@ -186,6 +187,7 @@ export function ContractorStepLinks({ updateLink, reorderLinks, personalData }: 
   const getIconForLinkType = (type: LinkItem['type']) => {
     switch (type) {
       case 'phone': return <Phone className="w-4 h-4" />;
+      case 'qrcode': return <QrCode className="w-4 h-4" />;
       case 'location': return <MapPin className="w-4 h-4" />;
       case 'website': return <Globe className="w-4 h-4" />;
       case 'instagram': return <SiInstagram className="w-4 h-4" />;
@@ -313,10 +315,11 @@ export function ContractorStepLinks({ updateLink, reorderLinks, personalData }: 
 
                     <Input
                       type="text"
-                      value={inputValue}
+                      value={link.type === 'qrcode' ? 'HPH QRcode' : inputValue}
                       onChange={(e) => handleInputChange(index, e.target.value)}
                       placeholder={option?.placeholder || 'Enter value'}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || link.type === 'qrcode'}
+                      readOnly={link.type === 'qrcode'}
                       error={linkErrors?.[index]?.url?.message || linkErrors?.[index]?.value?.message}
                     />
                   </div>

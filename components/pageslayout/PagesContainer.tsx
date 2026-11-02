@@ -85,9 +85,10 @@ export default function PageContainer({ children, transparentBg = false }: PageC
   return (
     <div
       ref={containerRef}
-      className={`w-full max-w-[960px] mx-auto flex flex-col min-h-0
-      border-2 rounded-lg h-[calc(100vh-1rem)] overflow-y-auto overflow-x-hidden
-      md:my-2 md:h-[calc(100vh-1rem)]
+      className={`w-full max-w-[960px] mx-auto flex flex-col md:min-h-0
+      border-2 rounded-lg
+      max-md:h-auto max-md:min-h-[calc(100dvh-1rem)] max-md:overflow-visible
+      md:my-2 md:h-[calc(100vh-1rem)] md:overflow-y-auto md:overflow-x-hidden
       transition-transform duration-[500ms] ease-out origin-center ${scaleClass}
       ${transparentBg ? 'main-layout-card-transparent' : 'bg-white border-black'}`}>
       {children}

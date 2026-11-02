@@ -574,7 +574,11 @@ export default function BusinessDetailsPage() {
 
         {activeTab === 'links' && (
           <div ref={linksRef}>
-            <BusinessLinksTab links={business.links} />
+            <BusinessLinksTab
+              links={business.links}
+              businessName={business.businessName}
+              logoSrc={business.logo || business.businessLogo}
+            />
           </div>
         )}
         

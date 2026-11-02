@@ -6,6 +6,7 @@ import {
   Calendar,
   Mail,
   MapPin,
+  QrCode,
 } from 'lucide-react';
 import {
   SiInstagram,
@@ -22,9 +23,13 @@ import {
 } from 'react-icons/si';
 import { LinkItem } from '@/components/proscard/ProLinks';
 import { AngiIcon } from '@/components/ui/icons/AngiIcon';
+import { HphQrCodeModal } from '@/components/qr/HphQrCodeModal';
+import { useState } from 'react';
 
 interface BusinessLinksTabProps {
   links: LinkItem[];
+  businessName?: string;
+  logoSrc?: string | null;
 }
 
 // Type for icon components (both lucide-react and react-icons)
@@ -33,6 +38,7 @@ type IconComponent = React.ComponentType<{ className?: string }>;
 const iconMap: Partial<Record<LinkItem['type'], IconComponent>> = {
   // Generic icons from lucide-react
   phone: Phone,
+  qrcode: QrCode,
   website: Globe,
   calendar: Calendar,
   email: Mail,
@@ -55,6 +61,7 @@ const iconMap: Partial<Record<LinkItem['type'], IconComponent>> = {
 
 const linkLabels: Record<string, string> = {
   phone: 'Phone',
+  qrcode: 'HPH QRcode',
   instagram: 'Instagram',
   facebook: 'Facebook',
   website: 'Website',
@@ -63,8 +70,17 @@ const linkLabels: Record<string, string> = {
   location: 'Location',
 };
 
-export default function BusinessLinksTab({ links }: BusinessLinksTabProps) {
+export default function BusinessLinksTab({ links, businessName, logoSrc }: BusinessLinksTabProps) {
+  const [isQrOpen, setIsQrOpen] = useState(false);
+  const pageUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}${window.location.pathname}`
+    : '';
+
   const handleLinkClick = (link: LinkItem) => {
+    if (link.type === 'qrcode') {
+      setIsQrOpen(true);
+      return;
+    }
     if (link.type === 'phone' && link.value) {
       window.location.assign(`tel:${link.value}`);
     } else if (link.type === 'email' && link.value) {
@@ -111,6 +127,14 @@ export default function BusinessLinksTab({ links }: BusinessLinksTabProps) {
           );
         })}
       </div>
+      <HphQrCodeModal
+        isOpen={isQrOpen}
+        onClose={() => setIsQrOpen(false)}
+        url={pageUrl}
+        label={businessName}
+        logoSrc={logoSrc}
+        fileName="hph-qr.png"
+      />
     </div>
   );
 }

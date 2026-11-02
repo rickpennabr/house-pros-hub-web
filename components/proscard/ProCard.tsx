@@ -11,6 +11,7 @@ import ProLinks from './ProLinks';
 import ProReactions from './ProReactions';
 import ShareBusinessModal from '@/components/businessdetails/ShareBusinessModal';
 import SignInRequiredModal from '@/components/auth/SignInRequiredModal';
+import { HphQrCodeModal } from '@/components/qr/HphQrCodeModal';
 
 import { LinkItem } from './ProLinks';
 import type { Locale } from '@/i18n';
@@ -66,9 +67,14 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
   const locale = useLocale();
   const { isAuthenticated } = useAuth();
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isSignInRequiredOpen, setIsSignInRequiredOpen] = useState(false);
   const profileHref = createLocalePath(locale as Locale, `/business/${data.slug || data.id}`);
   const [shareBusinessUrl, setShareBusinessUrl] = useState('');
+  const qrFileName = `hph-${(data.slug || data.id).replace(/[^a-zA-Z0-9-_]+/g, '-')}-qr.png`;
+  const qrUrl = shareBusinessUrl || `https://houseproshub.com${profileHref}`;
+
+  const openQrCode = () => setIsQrModalOpen(true);
 
   useEffect(() => {
     setShareBusinessUrl(`${window.location.origin}${profileHref}`);
@@ -126,6 +132,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
             }
           }}
           onPhoneClick={!isAuthenticated ? handlePhoneClick : undefined}
+          onQrCode={openQrCode}
         />
         </div>
         <ShareBusinessModal
@@ -135,6 +142,14 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
           contractorType={data.contractorType}
           logo={data.logo}
           businessUrl={shareBusinessUrl}
+        />
+        <HphQrCodeModal
+          isOpen={isQrModalOpen}
+          onClose={() => setIsQrModalOpen(false)}
+          url={qrUrl}
+          label={data.businessName}
+          logoSrc={data.logo}
+          fileName={qrFileName}
         />
         <SignInRequiredModal isOpen={isSignInRequiredOpen} onClose={() => setIsSignInRequiredOpen(false)} />
       </div>
@@ -163,7 +178,12 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
         }}
       />
       <div className="pointer-events-auto relative z-20">
-      <ProLinks links={data.links} maxLinks={7} onSignInRequired={!isAuthenticated ? showSignInRequired : undefined} />
+      <ProLinks
+        links={data.links}
+        maxLinks={7}
+        onSignInRequired={!isAuthenticated ? showSignInRequired : undefined}
+        onQrCode={openQrCode}
+      />
       <ProReactions 
         initialReactions={data.reactions}
         onReaction={handleReaction}
@@ -183,6 +203,14 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
         contractorType={data.contractorType}
         logo={data.logo}
         businessUrl={shareBusinessUrl}
+      />
+      <HphQrCodeModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        url={qrUrl}
+        label={data.businessName}
+        logoSrc={data.logo}
+        fileName={qrFileName}
       />
       <SignInRequiredModal isOpen={isSignInRequiredOpen} onClose={() => setIsSignInRequiredOpen(false)} />
     </div>

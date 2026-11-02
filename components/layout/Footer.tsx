@@ -12,8 +12,8 @@ export default function Footer() {
   const textSizeClass = isSpanish ? 'text-xs md:text-sm' : 'text-sm';
 
   return (
-    <footer className="w-full h-[60px] border-t-2 border-black bg-white mt-auto">
-      <div className="max-w-7xl mx-auto h-full px-1 py-2 md:px-2 md:py-4 flex items-center">
+    <footer className="w-full shrink-0 border-t-2 border-black bg-white mt-auto max-md:h-auto md:h-[60px]">
+      <div className="max-w-7xl mx-auto px-2 py-2 md:h-full md:px-2 md:py-4 flex items-center">
         <div className="w-full flex flex-col md:flex-row justify-between items-center gap-2 md:gap-6">
           {/* Legal Links */}
           <div className={`flex flex-nowrap justify-center md:justify-start gap-2 md:gap-6 ${textSizeClass}`}>

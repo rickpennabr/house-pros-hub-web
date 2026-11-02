@@ -581,13 +581,16 @@
       "forgotPassword": "¿Olvidaste tu contraseña?",
       "submit": "Iniciar sesión",
       "submitting": "Iniciando sesión...",
+      "or": "O",
+      "google": "Iniciar sesión con Google",
       "validation": {
         "emailRequired": "El correo electrónico es requerido",
         "emailInvalid": "Por favor ingresa un correo electrónico válido",
         "passwordRequired": "La contraseña es requerida"
       },
       "errors": {
-        "generic": "No se pudo iniciar sesión. Por favor intenta de nuevo."
+        "generic": "No se pudo iniciar sesión. Por favor intenta de nuevo.",
+        "google": "No se pudo iniciar sesión con Google"
       }
     },
     "forgotPassword": {
@@ -997,6 +1000,10 @@
       "maxLinksReached": "Se alcanzó el máximo de enlaces",
       "choosePlatform": "Elige una plataforma...",
       "platforms": {
+        "qrcode": {
+          "label": "HPH QRcode",
+          "placeholder": "HPH QRcode"
+        },
         "phone": {
           "label": "Teléfono",
           "placeholder": "Número de teléfono"

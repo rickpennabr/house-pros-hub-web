@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { GripVertical, X, ChevronDown, ChevronUp, Globe, Phone, MapPin, AtSign } from 'lucide-react';
+import { GripVertical, X, ChevronDown, ChevronUp, Globe, Phone, MapPin, AtSign, QrCode } from 'lucide-react';
 import { SiNextdoor, SiWhatsapp, SiYelp, SiInstagram, SiFacebook, SiLinkedin, SiTelegram } from 'react-icons/si';
 import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/Input';
@@ -41,6 +41,7 @@ function getSocialMediaOptions(
 ): SocialMediaOption[] {
   return [
     { key: 'phone', label: tPlatforms('phone.label'), usePhoneIcon: true, placeholder: tPlatforms('phone.placeholder') },
+    { key: 'qrcode', label: tPlatforms('qrcode.label'), placeholder: tPlatforms('qrcode.placeholder') },
     { key: 'location', label: tPlatforms('location.label'), useMapIcon: true, placeholder: tPlatforms('location.placeholder') },
     { key: 'website', label: tPlatforms('website.label'), useGlobeIcon: true, placeholder: tPlatforms('website.placeholder') },
     { key: 'instagram', label: tPlatforms('instagram.label'), placeholder: tPlatforms('instagram.placeholder') },
@@ -311,7 +312,8 @@ export function BusinessStep4({ updateLink, reorderLinks, personalData }: Busine
                             nextdoor: SiNextdoor,
                           };
                           
-                          const Icon = 
+                          const Icon =
+                            link.type === 'qrcode' ? QrCode :
                             option?.usePhoneIcon ? Phone :
                             option?.useWhatsAppIcon ? SiWhatsapp :
                             option?.useGlobeIcon ? Globe :
@@ -328,6 +330,8 @@ export function BusinessStep4({ updateLink, reorderLinks, personalData }: Busine
                       </div>
                       {link.type === 'location' ? (
                         <div className="flex items-center gap-2 p-2 bg-gray-50 border rounded text-sm truncate">{displayValue}</div>
+                      ) : link.type === 'qrcode' ? (
+                        <div className="flex items-center gap-2 p-2 bg-gray-50 border rounded text-sm">HPH QRcode</div>
                       ) : (
                         <FormField
                           label=""

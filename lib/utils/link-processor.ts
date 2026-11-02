@@ -146,6 +146,9 @@ export function processLinkValue(linkName: string, value: string): { processedUr
       }
       return { processedUrl: value, displayValue: value };
 
+    case 'qrcode':
+      return { processedUrl: '', displayValue: 'HPH QRcode' };
+
     case 'phone':
       // For phone numbers, create a tel: link
       const cleanPhone = value.replace(/\D/g, '');

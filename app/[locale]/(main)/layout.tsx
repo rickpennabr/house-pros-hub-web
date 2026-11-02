@@ -40,7 +40,7 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
   return (
     <>
       <div
-        className={`relative min-h-screen w-full flex items-center justify-center p-2 md:p-0 ${
+        className={`relative w-full flex justify-center p-2 md:p-0 max-md:min-h-dvh max-md:items-start md:min-h-screen md:items-center ${
           showSkyBg ? 'probot-sky-bg main-layout-sky-mobile-only' : 'bg-white'
         }`}
       >

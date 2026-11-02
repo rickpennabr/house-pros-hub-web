@@ -66,7 +66,7 @@ function CompleteProfileForm() {
       addressNote: user?.addressNote || '',
       agreeToTerms: false,
       licenses: [{ license: '', trade: '' }],
-      links: [],
+      links: [{ type: 'qrcode', url: '', value: 'HPH QRcode' }],
       userPicture: user?.userPicture || '',
     },
     mode: 'onChange',
@@ -99,7 +99,8 @@ function CompleteProfileForm() {
       newLinks[existingIndex] = linkData;
     } else {
       if (newLinks.length < 15) {
-        newLinks.push(linkData);
+        if (type === 'phone') newLinks.unshift(linkData);
+        else newLinks.push(linkData);
       }
     }
     

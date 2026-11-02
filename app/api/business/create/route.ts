@@ -192,7 +192,7 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       for (const link of links) {
         if (link.url && link.url.trim()) {
           // Skip validation for phone, email, and location links (they use special protocols)
-          if (link.type === 'phone' || link.type === 'email' || link.type === 'location') {
+          if (link.type === 'phone' || link.type === 'email' || link.type === 'location' || link.type === 'qrcode') {
             continue;
           }
           
@@ -254,7 +254,7 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       ? links.map((link: { type?: string; url?: string; value?: string }) => {
           const url = link.url?.trim();
           const value = link.value != null ? sanitizeText(String(link.value)) : undefined;
-          if (link.type === 'phone' || link.type === 'email' || link.type === 'location') {
+          if (link.type === 'phone' || link.type === 'email' || link.type === 'location' || link.type === 'qrcode') {
             return { ...link, value: value ?? link.value };
           }
           const safeUrl = url ? (sanitizeUrl(url) || url) : undefined;
