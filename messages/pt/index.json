@@ -683,6 +683,11 @@
         "alreadyHaveAccount": "Já tem uma conta?",
         "signInLink": "Entrar"
       },
+      "customerSignupChoice": {
+        "title": "Como você quer se cadastrar?",
+        "signUpWithForm": "Cadastrar com formulário",
+        "or": "OU"
+      },
       "chat": {
         "role": "Como você quer usar o Hub?",
         "userPicture": "Adicione uma foto de perfil (opcional). Ajuda os profissionais a reconhecê-lo!",
@@ -690,6 +695,9 @@
         "lastName": "E o seu sobrenome?",
         "referral": "Como você nos encontrou?",
         "referralOther": "Conte como nos encontrou.",
+        "referralPreviousCustomerName": "Qual é o nome do cliente anterior? (opcional)",
+        "referralFriendName": "Qual é o nome do seu amigo? (opcional)",
+        "referralName": "Qual é o nome? (opcional)",
         "address": "Qual é o seu endereço? (somente Nevada)",
         "apartment": "Apartamento, suite ou unidade? (opcional)",
         "gateCode": "Código do portão? (opcional)",
@@ -733,6 +741,12 @@
         "referralOtherLabel": "Por favor especifique",
         "referralOtherPlaceholder": "Como você nos encontrou?",
         "referralOtherOption": "Outro",
+        "referralPreviousCustomerOption": "Sou um cliente anterior",
+        "referralByPreviousCustomerOption": "Indicado por um cliente anterior",
+        "referralByFriendOption": "Indicado por um amigo",
+        "referralPreviousCustomerNameLabel": "Nome do cliente",
+        "referralFriendNameLabel": "Nome do amigo",
+        "referralNamePlaceholder": "Nome",
         "invitationCodeLabel": "Código de convite",
         "invitationCodePlaceholder": "Digite o código que recebeu",
         "invitationCodeDescription": "Digite o código recebido do House Pros Hub para se cadastrar como contratado.",
@@ -1142,6 +1156,7 @@
         "renovation": "Renovation",
         "repair": "Repair",
         "remodel": "Remodel",
+        "addition_extension": "Addition/Extension",
         "other": "Other"
       },
       "budgetRange": {
@@ -1426,6 +1441,13 @@
     "howDidYouHear": "Como você nos encontrou?",
     "selectOption": "Selecione uma opção",
     "pleaseSpecify": "Por favor especifique",
+    "referralPreviousCustomer": "Sou um cliente anterior",
+    "referralByPreviousCustomer": "Indicado por um cliente anterior",
+    "referralByFriend": "Indicado por um amigo",
+    "referralOtherOption": "Outro",
+    "referralPreviousCustomerName": "Nome do cliente",
+    "referralFriendName": "Nome do amigo",
+    "referralNamePlaceholder": "Nome",
     "cancel": "Cancelar",
     "saveChanges": "Salvar alterações",
     "saving": "Salvando...",

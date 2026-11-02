@@ -745,6 +745,30 @@ export interface Database {
         };
         Relationships: [];
       };
+      referral_options: {
+        Row: {
+          id: string;
+          label: string;
+          asks_for_name: boolean;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          label: string;
+          asks_for_name?: boolean;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          label?: string;
+          asks_for_name?: boolean;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       suppliers: {
         Row: {
           id: number;
@@ -1005,7 +1029,7 @@ export interface Database {
           state: string;
           zip_code: string;
           apartment: string | null;
-          project_type: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'other';
+          project_type: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'addition_extension' | 'other';
           project_type_other: string | null;
           requires_hoa_approval: boolean;
           wants_3d: boolean;
@@ -1038,7 +1062,7 @@ export interface Database {
           state: string;
           zip_code: string;
           apartment?: string | null;
-          project_type: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'other';
+          project_type: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'addition_extension' | 'other';
           project_type_other?: string | null;
           requires_hoa_approval?: boolean;
           wants_3d?: boolean;
@@ -1071,7 +1095,7 @@ export interface Database {
           state?: string;
           zip_code?: string;
           apartment?: string | null;
-          project_type?: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'other';
+          project_type?: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'addition_extension' | 'other';
           project_type_other?: string | null;
           requires_hoa_approval?: boolean;
           wants_3d?: boolean;

@@ -9,16 +9,26 @@ import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { User, X } from 'lucide-react';
 import { SignupSchema } from '@/lib/schemas/auth';
+import {
+  REFERRAL_BY_FRIEND,
+  REFERRAL_BY_PREVIOUS_CUSTOMER,
+  REFERRAL_PREVIOUS_CUSTOMER,
+  referralNeedsDetail,
+  referralNeedsName,
+} from '@/lib/constants/referral';
 import { resizeImage, resizeImageSquare, validateFileSize } from '@/lib/utils/image';
+import { useReferralOptions } from '@/hooks/useReferralOptions';
 
 export function ContractorStep1() {
   const tFields = useTranslations('auth.signup.fields');
+  const extraReferrals = useReferralOptions();
   const { register, setValue, watch, formState: { errors, isSubmitting } } = useFormContext<SignupSchema>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const userPicture = watch('userPicture');
   const referral = watch('referral');
   const referralOther = watch('referralOther');
+  const referralRegistration = register('referral');
   const firstName = watch('firstName');
   const lastName = watch('lastName');
   const [preview, setPreview] = useState<string | null>(userPicture || null);
@@ -123,19 +133,56 @@ export function ContractorStep1() {
 
       <FormField label={tFields('referralLabel')} required error={errors.referral?.message}>
         <Select
-          {...register('referral')}
+          {...referralRegistration}
           id="referral"
           required
           disabled={isSubmitting}
           error={errors.referral?.message}
+          onChange={(e) => {
+            void referralRegistration.onChange(e);
+            if (!referralNeedsDetail(e.target.value)) {
+              setValue('referralOther', '');
+            }
+          }}
         >
           <option value="">{tFields('referralSelectPlaceholder')}</option>
           <option value="Google">Google</option>
           <option value="Instagram">Instagram</option>
           <option value="Facebook">Facebook</option>
+          <option value={REFERRAL_PREVIOUS_CUSTOMER}>{tFields('referralPreviousCustomerOption')}</option>
+          <option value={REFERRAL_BY_PREVIOUS_CUSTOMER}>{tFields('referralByPreviousCustomerOption')}</option>
+          <option value={REFERRAL_BY_FRIEND}>{tFields('referralByFriendOption')}</option>
+          {extraReferrals.map((option) => (
+            <option key={option.id} value={option.label}>{option.label}</option>
+          ))}
           <option value="Other">{tFields('referralOtherOption')}</option>
         </Select>
       </FormField>
+
+      {referralNeedsName(referral) && (
+        <FormField
+          label={
+            referral === REFERRAL_BY_FRIEND
+              ? tFields('referralFriendNameLabel')
+              : referral === REFERRAL_BY_PREVIOUS_CUSTOMER
+                ? tFields('referralPreviousCustomerNameLabel')
+                : tFields('referralNamePlaceholder')
+          }
+          error={errors.referralOther?.message}
+        >
+          <Input
+            {...register('referralOther')}
+            id="referralOther"
+            type="text"
+            value={referralOther || ''}
+            onClear={() => setValue('referralOther', '')}
+            showClear
+            placeholder={tFields('referralNamePlaceholder')}
+            disabled={isSubmitting}
+            error={errors.referralOther?.message}
+          />
+        </FormField>
+      )}
 
       {referral === 'Other' && (
         <FormField label={tFields('referralOtherLabel')} required error={errors.referralOther?.message}>

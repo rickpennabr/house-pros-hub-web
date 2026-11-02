@@ -81,7 +81,7 @@ export const AGENT_TOOLS: AgentToolDefinition[] = [
         state: { type: 'string', description: 'Two-letter state code.' },
         zipCode: { type: 'string' },
         apartment: { type: 'string' },
-        projectType: { type: 'string', enum: ['new_construction', 'renovation', 'repair', 'remodel', 'other'] },
+        projectType: { type: 'string', enum: ['new_construction', 'renovation', 'repair', 'remodel', 'addition_extension', 'other'] },
         projectTypeOther: { type: 'string' },
         requiresHoaApproval: { type: 'boolean' },
         wants3D: { type: 'boolean' },

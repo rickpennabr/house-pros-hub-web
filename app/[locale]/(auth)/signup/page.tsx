@@ -16,6 +16,7 @@ import { SignupSuccessMessage } from './components/SignupSuccessMessage';
 import { BusinessSuccessMessage } from './components/BusinessSuccessMessage';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { RoleSelectionScreen } from './components/RoleSelectionScreen';
+import { CustomerSignupChoiceScreen } from './components/CustomerSignupChoiceScreen';
 import { InstallerProfileForm } from './components/InstallerProfileForm';
 import { InvitationCodeScreen } from './components/InvitationCodeScreen';
 import { CustomerStep1 } from './components/steps/CustomerStep1';
@@ -28,7 +29,7 @@ import { LeavePageWarningModal } from './components/LeavePageWarningModal';
 import { FormProvider } from 'react-hook-form';
 import type { BusinessFormValues } from '@/lib/schemas/business';
 
-type SignupStep = 'role-selection' | 'invitation-code' | 'form' | 'success' | 'business-form';
+type SignupStep = 'role-selection' | 'customer-signup-choice' | 'invitation-code' | 'form' | 'success' | 'business-form';
 
 function SignUpForm() {
   const searchParams = useSearchParams();
@@ -53,6 +54,7 @@ function SignUpForm() {
   );
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [customerChoseForm, setCustomerChoseForm] = useState(false);
 
   const {
     formState,
@@ -134,8 +136,22 @@ function SignUpForm() {
 
   const handleRoleSelect = (role: 'customer' | 'contractor' | 'realtor' | 'installer') => {
     setSelectedRole(role);
-    setCurrentStep(role === 'customer' ? 'form' : 'invitation-code');
+    setCustomerChoseForm(false);
+    setCurrentStep(role === 'customer' ? 'customer-signup-choice' : 'invitation-code');
     setIsAuthLoading(false);
+  };
+
+  const handleCustomerFormChoice = () => {
+    setError(null);
+    setCustomerChoseForm(true);
+    setCurrentStep('form');
+  };
+
+  const handleCustomerChoiceBack = () => {
+    setError(null);
+    setSelectedRole(null);
+    setCustomerChoseForm(false);
+    setCurrentStep('role-selection');
   };
 
   const handleInvitationCodeValid = (code: string) => {
@@ -149,6 +165,10 @@ function SignUpForm() {
   };
 
   const handleStepPrevious = () => {
+    if (formState.currentStep === 1 && selectedRole === 'customer' && customerChoseForm) {
+      setCurrentStep('customer-signup-choice');
+      return;
+    }
     if (formState.currentStep === 1 && (selectedRole === 'contractor' || selectedRole === 'realtor' || selectedRole === 'installer')) {
       setCurrentStep('invitation-code');
       return;
@@ -284,6 +304,16 @@ function SignUpForm() {
           />
         )}
 
+        {currentStep === 'customer-signup-choice' && (
+          <CustomerSignupChoiceScreen
+            isLoading={isGoogleLoading}
+            error={formState.error}
+            onSignUpWithForm={handleCustomerFormChoice}
+            onGoogleSignUp={handleGoogleSignUp}
+            onBack={handleCustomerChoiceBack}
+          />
+        )}
+
         {/* Contractor or Realtor: Invitation code before personal info */}
         {currentStep === 'invitation-code' && (selectedRole === 'contractor' || selectedRole === 'realtor' || selectedRole === 'installer') && (
           <>
@@ -366,7 +396,8 @@ function SignUpForm() {
                     isLoading={formState.isLoading || isGoogleLoading}
                     agreeToTerms={formState.agreeToTerms}
                     userType={formState.userType}
-                    showGoogleSignUp={selectedRole === 'customer'}
+                    showGoogleSignUp={selectedRole === 'customer' && !customerChoseForm}
+                    showBackOnFirstStep={selectedRole === 'customer' && customerChoseForm}
                     onPrevious={handleStepPrevious}
                     onNext={handleStepNext}
                     onGoogleSignUp={handleGoogleSignUp}

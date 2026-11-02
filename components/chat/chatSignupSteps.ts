@@ -1,3 +1,5 @@
+import { referralNeedsDetail } from '@/lib/constants/referral';
+
 /**
  * Step definitions for conversational (Chatform-style) signup.
  * Each step shows one bot question and one input; order matches signup flow.
@@ -40,7 +42,7 @@ export const CHAT_SIGNUP_STEPS: ChatSignupStep[] = [
   { id: 'firstName', messageKey: 'firstName', type: 'text', field: 'firstName' },
   { id: 'lastName', messageKey: 'lastName', type: 'text', field: 'lastName' },
   { id: 'referral', messageKey: 'referral', type: 'choice', field: 'referral' },
-  { id: 'referralOther', messageKey: 'referralOther', type: 'text', field: 'referralOther', skipWhen: (v) => v.referral !== 'Other' },
+  { id: 'referralOther', messageKey: 'referralOther', type: 'text', field: 'referralOther', skipWhen: (v) => !referralNeedsDetail(typeof v.referral === 'string' ? v.referral : '') },
   { id: 'address', messageKey: 'address', type: 'address', field: 'address' },
   { id: 'apartment', messageKey: 'apartment', type: 'text', field: 'apartment' },
   { id: 'gateCode', messageKey: 'gateCode', type: 'text', field: 'gateCode' },

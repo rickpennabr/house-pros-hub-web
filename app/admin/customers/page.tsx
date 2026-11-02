@@ -17,6 +17,9 @@ import Modal from '@/components/ui/Modal';
 import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { resizeImageSquare, validateFileSize } from '@/lib/utils/image';
+import { REFERRAL_BY_FRIEND, REFERRAL_BY_PREVIOUS_CUSTOMER, REFERRAL_OPTIONS, referralNeedsDetail, referralNeedsName } from '@/lib/constants/referral';
+import { useReferralOptions } from '@/hooks/useReferralOptions';
+import { ReferralOptionsEditor } from '@/components/admin/referral-options-editor';
 
 const PAGE_SIZE = 25;
 const SORT_OPTIONS = [
@@ -53,7 +56,7 @@ function customerCellText(row: AdminCustomerRow, columnId: string) {
     case 'location':
       return [row.city, row.state].filter(Boolean).join(', ');
     case 'referral':
-      return row.referral || '';
+      return [row.referral, row.referral_other].filter(Boolean).join(' — ');
     case 'joined':
       return formatDate(row.created_at);
     default:
@@ -70,7 +73,24 @@ function formatDate(iso: string | null) {
   });
 }
 
-const REFERRAL_OPTIONS = ['Google', 'Instagram', 'Facebook', 'Other'] as const;
+function referralPayload(form: CustomerFormData) {
+  if (form.referral === 'Other') {
+    return {
+      referral: form.referralOther.trim() || undefined,
+      referralOther: '',
+    };
+  }
+  if (referralNeedsName(form.referral)) {
+    return {
+      referral: form.referral.trim() || undefined,
+      referralOther: form.referralOther.trim(),
+    };
+  }
+  return {
+    referral: form.referral.trim() || undefined,
+    referralOther: '',
+  };
+}
 
 export type CustomerFormData = {
   firstName: string;
@@ -121,6 +141,7 @@ function CustomerForm({
   onSuccess: () => void;
 }) {
   const [form, setForm] = useState<CustomerFormData>({ ...emptyForm, ...initial });
+  const extraReferrals = useReferralOptions();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { isOpen, toggle: toggleAccordion } = useSingleOpenAccordion(ADMIN_CUSTOMER_ACCORDION_KEYS, 'personal');
@@ -207,7 +228,7 @@ function CustomerForm({
             firstName: form.firstName.trim(),
             lastName: form.lastName.trim(),
             phone: form.phone.trim() || undefined,
-            referral: form.referral === 'Other' ? (form.referralOther.trim() || undefined) : (form.referral.trim() || undefined),
+            ...referralPayload(form),
             streetAddress: form.streetAddress.trim() || undefined,
             apartment: form.apartment.trim() || undefined,
             city: form.city.trim() || undefined,
@@ -246,7 +267,7 @@ function CustomerForm({
               firstName: form.firstName.trim(),
               lastName: form.lastName.trim(),
               phone: form.phone.trim() || undefined,
-              referral: form.referral === 'Other' ? (form.referralOther.trim() || undefined) : (form.referral.trim() || undefined),
+              ...referralPayload(form),
               userPicture: userPictureUrl,
               streetAddress: form.streetAddress.trim() || undefined,
               apartment: form.apartment.trim() || undefined,
@@ -268,7 +289,7 @@ function CustomerForm({
             firstName: form.firstName.trim(),
             lastName: form.lastName.trim(),
             phone: form.phone.trim() || undefined,
-            referral: form.referral === 'Other' ? (form.referralOther.trim() || undefined) : (form.referral.trim() || undefined),
+            ...referralPayload(form),
             userPicture: form.userPicture.trim() || undefined,
             streetAddress: form.streetAddress.trim() || undefined,
             apartment: form.apartment.trim() || undefined,
@@ -357,15 +378,38 @@ function CustomerForm({
           <FormField label="How did you hear about us?" required tip="Help us understand how you found our platform">
             <Select
               value={form.referral}
-              onChange={(e) => update('referral', e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                update('referral', value);
+                if (!referralNeedsDetail(value)) update('referralOther', '');
+              }}
               required
             >
               <option value="">Select…</option>
-              {REFERRAL_OPTIONS.map((opt) => (
+              {REFERRAL_OPTIONS.filter((opt) => opt !== 'Other').map((opt) => (
                 <option key={opt} value={opt}>{opt}</option>
               ))}
+              {extraReferrals.map((opt) => (
+                <option key={opt.id} value={opt.label}>{opt.label}</option>
+              ))}
+              <option value="Other">Other</option>
             </Select>
           </FormField>
+          {referralNeedsName(form.referral) && (
+            <FormField label={
+              form.referral === REFERRAL_BY_FRIEND
+                ? "Friend's name"
+                : form.referral === REFERRAL_BY_PREVIOUS_CUSTOMER
+                  ? "Previous customer's name"
+                  : 'Name'
+            }>
+              <Input
+                value={form.referralOther}
+                onChange={(e) => update('referralOther', e.target.value)}
+                placeholder="Name"
+              />
+            </FormField>
+          )}
           {form.referral === 'Other' && (
             <FormField label="Please specify">
               <Input
@@ -516,6 +560,7 @@ export default function CustomersPage() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const hasLoadedOnceRef = useRef(false);
 
+  const extraReferrals = useReferralOptions();
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingInitial, setEditingInitial] = useState<(CustomerFormData & { id?: string }) | null>(null);
@@ -600,7 +645,10 @@ export default function CustomersPage() {
       .then((data) => {
         if (cancelled) return;
         const referralVal = (data.referral ?? '').trim();
-        const isKnownReferral = REFERRAL_OPTIONS.includes(referralVal as (typeof REFERRAL_OPTIONS)[number]);
+        const savedName = (data.referralOther ?? '').trim();
+        const isKnownReferral = (REFERRAL_OPTIONS as readonly string[]).includes(referralVal)
+          || extraReferrals.some((option) => option.label === referralVal);
+        const isNameReferral = referralNeedsName(referralVal);
         setEditingInitial({
           id: editingId,
           firstName: data.firstName ?? '',
@@ -608,8 +656,10 @@ export default function CustomersPage() {
           email: data.email ?? '',
           password: '',
           phone: data.phone ?? '',
-          referral: isKnownReferral ? referralVal : (referralVal ? 'Other' : ''),
-          referralOther: isKnownReferral ? '' : referralVal,
+          referral: isNameReferral || (isKnownReferral && referralVal !== 'Other')
+            ? referralVal
+            : (referralVal ? 'Other' : ''),
+          referralOther: isNameReferral ? savedName : (referralVal === 'Other' ? savedName : (isKnownReferral ? '' : referralVal)),
           userPicture: data.userPicture ?? '',
           addressSearch: data.streetAddress ?? '',
           streetAddress: data.streetAddress ?? '',
@@ -623,7 +673,7 @@ export default function CustomersPage() {
         if (!cancelled) setEditingInitial({ ...emptyForm, id: editingId });
       });
     return () => { cancelled = true; };
-  }, [viewMode, editingId]);
+  }, [viewMode, editingId, extraReferrals]);
 
   const handleSort = (key: SortKey, dir: 'asc' | 'desc') => {
     setSortBy(key);
@@ -754,6 +804,8 @@ export default function CustomersPage() {
           )}
         </div>
       )}
+
+      {viewMode === 'table' && <ReferralOptionsEditor />}
 
       {viewMode === 'table' && (
         <AdminDataTable

@@ -263,6 +263,7 @@ export function generateEstimateConfirmationEmail(
     renovation: 'Renovation',
     repair: 'Repair',
     remodel: 'Remodel',
+    addition_extension: 'Addition/Extension',
     other: 'Other',
   };
   const projectTypeDisplay = estimate.projectType === 'other' && estimate.projectTypeOther

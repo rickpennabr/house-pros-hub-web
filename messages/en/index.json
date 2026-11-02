@@ -683,6 +683,11 @@
         "alreadyHaveAccount": "Already have an account?",
         "signInLink": "Sign in"
       },
+      "customerSignupChoice": {
+        "title": "How you want to sign up?",
+        "signUpWithForm": "Sign up with form",
+        "or": "OR"
+      },
       "chat": {
         "role": "How you want to use the Hub?",
         "userPicture": "Add a profile photo (optional). It helps pros recognize you!",
@@ -690,6 +695,9 @@
         "lastName": "And your last name?",
         "referral": "How did you hear about us?",
         "referralOther": "Tell us how you heard about us.",
+        "referralPreviousCustomerName": "What is the previous customer's name? (optional)",
+        "referralFriendName": "What is your friend's name? (optional)",
+        "referralName": "What is their name? (optional)",
         "address": "What's your address? (Nevada only)",
         "apartment": "Apartment, suite, or unit? (optional)",
         "gateCode": "Gate code? (optional)",
@@ -733,6 +741,12 @@
         "referralOtherLabel": "Please specify",
         "referralOtherPlaceholder": "How did you hear about us?",
         "referralOtherOption": "Other",
+        "referralPreviousCustomerOption": "I am a previous customer",
+        "referralByPreviousCustomerOption": "Referred by a previous customer",
+        "referralByFriendOption": "Referred by a friend",
+        "referralPreviousCustomerNameLabel": "Previous customer's name",
+        "referralFriendNameLabel": "Friend's name",
+        "referralNamePlaceholder": "Name",
         "invitationCodeLabel": "Invitation code",
         "invitationCodePlaceholder": "Enter the code you received",
         "invitationCodeDescription": "Enter the code you received from House Pros Hub to sign up as a contractor.",
@@ -1142,6 +1156,7 @@
         "renovation": "Renovation",
         "repair": "Repair",
         "remodel": "Remodel",
+        "addition_extension": "Addition/Extension",
         "other": "Other"
       },
       "budgetRange": {
@@ -1426,6 +1441,13 @@
     "howDidYouHear": "How did you hear about us?",
     "selectOption": "Select an option",
     "pleaseSpecify": "Please specify",
+    "referralPreviousCustomer": "I am a previous customer",
+    "referralByPreviousCustomer": "Referred by a previous customer",
+    "referralByFriend": "Referred by a friend",
+    "referralOtherOption": "Other",
+    "referralPreviousCustomerName": "Previous customer's name",
+    "referralFriendName": "Friend's name",
+    "referralNamePlaceholder": "Name",
     "cancel": "Cancel",
     "saveChanges": "Save Changes",
     "saving": "Saving...",

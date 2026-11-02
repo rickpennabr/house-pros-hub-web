@@ -276,7 +276,7 @@ export default function ExpandableSearchbar({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={searchQuery ? displayPlaceholder : animatedPlaceholder}
-              className="h-full w-full pl-8 md:pl-10 pr-2 md:pr-10 border-2 border-black dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a1a] focus:outline-none transition-all text-black dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm md:text-base"
+              className="h-full w-full pl-8 md:pl-10 pr-2 md:pr-10 border-2 border-black dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a1a] focus:outline-none transition-all text-black dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-base"
               suppressHydrationWarning
             />
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-red-500 pointer-events-none" size={20} />

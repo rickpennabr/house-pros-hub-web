@@ -9,19 +9,27 @@ interface TipModalProps {
   message: string;
   /** Optional className for the container */
   className?: string;
-  /** When true, tooltip shows on hover only, hides when not hovered, and icon is not clickable (e.g. for PC) */
+  /** Also open on hover. A tap still pins the tip open, which is what phones need. */
   hoverOnly?: boolean;
 }
 
 /**
- * TipModal component displays a question mark icon that shows an informational tooltip when clicked.
- * With hoverOnly, tooltip shows on hover only and the icon is not clickable.
+ * TipModal shows a question-mark icon with an informational tooltip.
+ * Hover opens it on a mouse. A tap pins it open (phones have no hover).
  */
 export function TipModal({ message, className = '', hoverOnly = false }: TipModalProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const isOpen = pinned || (hoverOnly && hovered);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const ignoreHoverRef = useRef(false);
+
+  const closeTip = () => {
+    setPinned(false);
+    setHovered(false);
+  };
 
   // Close tooltip when clicking outside
   useEffect(() => {
@@ -29,13 +37,13 @@ export function TipModal({ message, className = '', hoverOnly = false }: TipModa
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
-      
+
       // Close if click is outside both the container (button) and the tooltip
       const isInsideContainer = containerRef.current?.contains(target);
       const isInsideTooltip = tooltipRef.current?.contains(target);
-      
+
       if (!isInsideContainer && !isInsideTooltip) {
-        setIsOpen(false);
+        closeTip();
       }
     };
 
@@ -54,7 +62,8 @@ export function TipModal({ message, className = '', hoverOnly = false }: TipModa
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isOpen) {
-        setIsOpen(false);
+        setPinned(false);
+        setHovered(false);
       }
     };
 
@@ -72,9 +81,16 @@ export function TipModal({ message, className = '', hoverOnly = false }: TipModa
     const updatePosition = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
+        const tipWidth = 256;
+        const margin = 8;
+        const center = rect.left + rect.width / 2;
+        const left = Math.min(
+          window.innerWidth - tipWidth / 2 - margin,
+          Math.max(tipWidth / 2 + margin, center)
+        );
         setTooltipPosition({
-          top: rect.top - 8, // Position above the icon with 8px margin
-          left: rect.left + rect.width / 2, // Center horizontally
+          top: rect.top - 8,
+          left,
         });
       }
     };
@@ -93,57 +109,46 @@ export function TipModal({ message, className = '', hoverOnly = false }: TipModa
   }, [isOpen]);
 
   const toggleTooltip = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    setIsOpen(!isOpen);
+    // A tap also synthesizes mouseenter. Ignore that so the tip stays on the tap, not hover.
+    ignoreHoverRef.current = true;
+    window.setTimeout(() => {
+      ignoreHoverRef.current = false;
+    }, 500);
+    setHovered(false);
+    setPinned((open) => !open);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       e.stopPropagation();
-      setIsOpen(!isOpen);
+      setPinned((open) => !open);
     } else if (e.key === 'Escape' && isOpen) {
       e.stopPropagation();
-      setIsOpen(false);
+      closeTip();
     }
   };
 
-  // Hover-only: show tooltip on hover, hide when not hovered, icon not clickable
-  if (hoverOnly) {
-    return (
-      <div className={`group relative inline-flex items-center ${className}`}>
-        <div
-          className="w-4 h-4 bg-red-500 border-2 border-red-500 rounded flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors pointer-events-auto"
-          aria-label="Field information (hover to view)"
-        >
-          <HiQuestionMarkCircle className="w-3 h-3 text-white" />
-        </div>
-        <div
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-white border-2 border-red-500 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity pointer-events-none z-[9999]"
-          role="tooltip"
-        >
-          <p className="text-sm text-black">{message}</p>
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
-            <div className="w-3 h-3 bg-white border-r-2 border-b-2 border-red-500 rotate-45" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={`relative inline-flex items-center ${className}`} ref={containerRef}>
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         onClick={toggleTooltip}
         onKeyDown={handleKeyDown}
-        className="w-4 h-4 bg-red-500 border-2 border-red-500 rounded flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+        onMouseEnter={() => {
+          if (hoverOnly && !ignoreHoverRef.current) setHovered(true);
+        }}
+        onMouseLeave={() => {
+          if (hoverOnly) setHovered(false);
+        }}
+        className="relative w-4 h-4 bg-red-500 border-2 border-red-500 rounded flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 before:absolute before:-inset-3 before:content-['']"
         aria-label="Show field information"
         aria-expanded={isOpen}
       >
         <HiQuestionMarkCircle className="w-3 h-3 text-white" />
-      </div>
+      </button>
 
       {isOpen &&
         typeof window !== 'undefined' &&

@@ -11,6 +11,7 @@ interface SignupNavigationProps {
   agreeToTerms: boolean;
   userType?: UserType;
   showGoogleSignUp?: boolean;
+  showBackOnFirstStep?: boolean;
   onPrevious: () => void;
   onNext: () => void;
   onGoogleSignUp?: () => void;
@@ -24,6 +25,7 @@ export function SignupNavigation({
   agreeToTerms,
   userType,
   showGoogleSignUp = false,
+  showBackOnFirstStep = false,
   onPrevious,
   onNext,
   onGoogleSignUp,
@@ -36,7 +38,7 @@ export function SignupNavigation({
   return (
     <div className="flex flex-col gap-3 pt-4 mt-auto">
     <div className="flex gap-4">
-      {currentStep > 1 && (
+      {(currentStep > 1 || showBackOnFirstStep) && (
         <Button
           type="button"
           variant="secondary"

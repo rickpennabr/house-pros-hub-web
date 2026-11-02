@@ -208,6 +208,7 @@ export async function POST(request: NextRequest) {
       lastName,
       phone,
       referral,
+      referralOther,
       userPicture,
       streetAddress,
       apartment,
@@ -261,6 +262,7 @@ export async function POST(request: NextRequest) {
           last_name: trim(lastName),
           phone: trim(phone) || null,
           referral: trim(referral) || null,
+          referral_other: trim(referralOther) || null,
           user_picture: trim(userPicture) || null,
         },
         { onConflict: 'id' }

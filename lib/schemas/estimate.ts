@@ -18,7 +18,7 @@ export const estimateSchema = z.object({
   apartment: z.string().trim().optional(),
   
   // Project Information
-  projectType: z.enum(['new_construction', 'renovation', 'repair', 'remodel', 'other']).optional(),
+  projectType: z.enum(['new_construction', 'renovation', 'repair', 'remodel', 'addition_extension', 'other']).optional(),
   projectTypeOther: z.string().trim().optional(),
   requiresHoaApproval: z.boolean(),
   wants3D: z.boolean(),

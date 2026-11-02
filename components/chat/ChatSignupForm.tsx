@@ -16,6 +16,15 @@ import { VerticalSlider } from '@/components/ui/VerticalSlider';
 import { HorizontalSlider } from '@/components/ui/HorizontalSlider';
 import { signupSchema, signupSchemaBase, type SignupSchema } from '@/lib/schemas/auth';
 import { USER_TYPES } from '@/lib/constants/auth';
+import {
+  REFERRAL_BY_FRIEND,
+  REFERRAL_BY_PREVIOUS_CUSTOMER,
+  REFERRAL_PREVIOUS_CUSTOMER,
+  referralFollowUpMessageKey,
+  referralNeedsDetail,
+  referralNeedsName,
+} from '@/lib/constants/referral';
+import { useReferralOptions } from '@/hooks/useReferralOptions';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { resizeImageSquare, validateFileSize } from '@/lib/utils/image';
 import { CHAT_SIGNUP_STEPS, getVisibleSteps, getGuestEstimateSteps, type ChatSignupStep } from './chatSignupSteps';
@@ -130,20 +139,26 @@ export default function ChatSignupForm({
   const [focusedReferralIndex, setFocusedReferralIndex] = useState(-1);
   const referralButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const referralContainerRef = useRef<HTMLDivElement>(null);
+  const extraReferrals = useReferralOptions();
 
   const visibleSteps = useMemo(
     () =>
       mode === 'guest_estimate'
         ? getGuestEstimateSteps(values as Record<string, unknown>)
         : getVisibleSteps(values as Record<string, unknown>),
-    [values, mode]
+    [values, mode, extraReferrals]
   );
   const currentStep = visibleSteps[stepIndex];
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === visibleSteps.length - 1;
 
-  const currentMessage = currentStep
-    ? tChat(currentStep.messageKey as Parameters<typeof tChat>[0])
+  const currentMessageKey = currentStep
+    ? currentStep.id === 'referralOther'
+      ? referralFollowUpMessageKey(values.referral)
+      : currentStep.messageKey
+    : '';
+  const currentMessage = currentMessageKey
+    ? tChat(currentMessageKey as Parameters<typeof tChat>[0])
     : '';
   const isTypingComplete = typedLength >= currentMessage.length;
 
@@ -642,7 +657,7 @@ export default function ChatSignupForm({
         {visibleSteps.slice(0, stepIndex).map((step) => (
           <div key={step.id} className="flex flex-col gap-1">
             <div className="self-start max-w-[85%] rounded-2xl rounded-tl-sm bg-gray-100 text-gray-900 px-3 py-2 text-sm">
-              {tChat(step.messageKey as Parameters<typeof tChat>[0])}
+              {tChat((step.id === 'referralOther' ? referralFollowUpMessageKey(values.referral) : step.messageKey) as Parameters<typeof tChat>[0])}
             </div>
             <div className="self-end max-w-[85%] rounded-2xl rounded-tr-sm bg-gray-900 text-white px-3 py-2 text-sm">
               {formatDisplayValue(step, values[step.field ?? step.id])}
@@ -768,6 +783,10 @@ export default function ChatSignupForm({
                   { value: 'Google', label: 'Google' },
                   { value: 'Instagram', label: 'Instagram' },
                   { value: 'Facebook', label: 'Facebook' },
+                  { value: REFERRAL_PREVIOUS_CUSTOMER, label: tFields('referralPreviousCustomerOption') },
+                  { value: REFERRAL_BY_PREVIOUS_CUSTOMER, label: tFields('referralByPreviousCustomerOption') },
+                  { value: REFERRAL_BY_FRIEND, label: tFields('referralByFriendOption') },
+                  ...extraReferrals.map((option) => ({ value: option.label, label: option.label })),
                   { value: 'Other', label: tFields('referralOtherOption') },
                 ];
                 const handleReferralKeyDown = (e: React.KeyboardEvent) => {
@@ -787,6 +806,7 @@ export default function ChatSignupForm({
                     if (focusedReferralIndex >= 0) {
                       const opt = REFERRAL_OPTS[focusedReferralIndex];
                       setValue('referral', opt.value);
+                      if (!referralNeedsDetail(opt.value)) setValue('referralOther', '');
                       goNext();
                     }
                   }
@@ -809,6 +829,7 @@ export default function ChatSignupForm({
                         aria-selected={focusedReferralIndex === i}
                         onClick={() => {
                           setValue('referral', opt.value);
+                          if (!referralNeedsDetail(opt.value)) setValue('referralOther', '');
                           goNext();
                         }}
                         onFocus={() => setFocusedReferralIndex(i)}
@@ -949,7 +970,11 @@ export default function ChatSignupForm({
                 <Input
                   value={String(values[currentStep.field ?? ''] ?? '')}
                   onChange={(e) => setValue(currentStep.field ?? currentStep.id, e.target.value)}
-                  placeholder={tFields(`${currentStep.field}Placeholder` as Parameters<typeof tFields>[0])}
+                  placeholder={
+                    currentStep.id === 'referralOther' && referralNeedsName(String(values.referral ?? ''))
+                      ? tFields('referralNamePlaceholder')
+                      : tFields(`${currentStep.field}Placeholder` as Parameters<typeof tFields>[0])
+                  }
                   className="rounded-xl border-2 border-black"
                   onClear={() => setValue(currentStep.field ?? currentStep.id, '')}
                   showClear

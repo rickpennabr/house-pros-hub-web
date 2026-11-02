@@ -67,6 +67,7 @@ export async function GET(
       email,
       phone: profile.phone,
       referral: profile.referral,
+      referralOther: profile.referral_other ?? '',
       userPicture: profile.user_picture ?? '',
       streetAddress: address?.street_address ?? '',
       apartment: address?.apartment ?? '',
@@ -104,6 +105,7 @@ export async function PUT(
     const lastName = trim(body.lastName);
     const phone = trim(body.phone);
     const referral = trim(body.referral);
+    const referralOther = body.referralOther !== undefined ? trim(body.referralOther) : undefined;
     const userPicture = trim(body.userPicture);
     const streetAddress = trim(body.streetAddress);
     const apartment = trim(body.apartment);
@@ -118,6 +120,7 @@ export async function PUT(
     if (lastName !== undefined) profileUpdate.last_name = lastName || null;
     if (phone !== undefined) profileUpdate.phone = phone || null;
     if (referral !== undefined) profileUpdate.referral = referral || null;
+    if (referralOther !== undefined) profileUpdate.referral_other = referralOther || null;
     if (body.userPicture !== undefined) profileUpdate.user_picture = userPicture || null;
 
     const { error: profileError } = await service

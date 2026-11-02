@@ -15,12 +15,21 @@ import Image from 'next/image';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { createSignInUrl } from '@/lib/redirect';
 import type { Locale } from '@/i18n';
+import {
+  REFERRAL_BY_FRIEND,
+  REFERRAL_BY_PREVIOUS_CUSTOMER,
+  REFERRAL_PREVIOUS_CUSTOMER,
+  referralNeedsDetail,
+  referralNeedsName,
+} from '@/lib/constants/referral';
+import { useReferralOptions } from '@/hooks/useReferralOptions';
 
 export default function EditProfilePage() {
   const { user, isAuthenticated, isLoading, updateUser } = useAuth();
   const router = useRouter();
   const locale = useLocale() as Locale;
   const t = useTranslations('profileEdit');
+  const extraReferrals = useReferralOptions();
   const tAccount = useTranslations('accountManagement');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -236,6 +245,7 @@ export default function EditProfilePage() {
     setFormData(prev => ({
       ...prev,
       [name]: formattedValue,
+      ...(name === 'referral' && !referralNeedsDetail(formattedValue) ? { referralOther: '' } : {}),
     }));
     // Clear error for this field
     if (errors[name]) {
@@ -535,7 +545,11 @@ export default function EditProfilePage() {
         // Send phone even if empty - let the API handle empty strings vs undefined
         phone: formData.phone.trim() || undefined,
         referral: formData.referral || undefined,
-        referralOther: formData.referralOther.trim() || undefined,
+        referralOther: referralNeedsName(formData.referral)
+          ? formData.referralOther.trim()
+          : formData.referral === 'Other'
+            ? (formData.referralOther.trim() || undefined)
+            : '',
         userPicture: formData.userPicture || undefined,
         // Address fields are now stored in the addresses table, not in profiles
         // Removed: streetAddress, apartment, city, state, zipCode, gateCode, addressNote
@@ -687,9 +701,42 @@ export default function EditProfilePage() {
                       <option value="Google">Google</option>
                       <option value="Instagram">Instagram</option>
                       <option value="Facebook">Facebook</option>
-                      <option value="Other">Other</option>
+                      <option value={REFERRAL_PREVIOUS_CUSTOMER}>{t('referralPreviousCustomer')}</option>
+                      <option value={REFERRAL_BY_PREVIOUS_CUSTOMER}>{t('referralByPreviousCustomer')}</option>
+                      <option value={REFERRAL_BY_FRIEND}>{t('referralByFriend')}</option>
+                      {extraReferrals.map((option) => (
+                        <option key={option.id} value={option.label}>{option.label}</option>
+                      ))}
+                      <option value="Other">{t('referralOtherOption')}</option>
                     </select>
                   </div>
+
+                  {referralNeedsName(formData.referral) && (
+                    <div className="md:col-span-2">
+                      <FormField
+                        label={
+                          formData.referral === REFERRAL_BY_FRIEND
+                            ? t('referralFriendName')
+                            : formData.referral === REFERRAL_BY_PREVIOUS_CUSTOMER
+                              ? t('referralPreviousCustomerName')
+                              : t('referralNamePlaceholder')
+                        }
+                      >
+                        <Input
+                          type="text"
+                          id="referralOther"
+                          name="referralOther"
+                          value={formData.referralOther}
+                          onChange={handleChange}
+                          onClear={() => {
+                            setFormData(prev => ({ ...prev, referralOther: '' }));
+                          }}
+                          showClear
+                          placeholder={t('referralNamePlaceholder')}
+                        />
+                      </FormField>
+                    </div>
+                  )}
 
                   {/* Referral Other */}
                   {formData.referral === 'Other' && (

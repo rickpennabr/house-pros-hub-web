@@ -683,6 +683,11 @@
         "alreadyHaveAccount": "¿Ya tienes una cuenta?",
         "signInLink": "Iniciar sesión"
       },
+      "customerSignupChoice": {
+        "title": "¿Cómo quieres registrarte?",
+        "signUpWithForm": "Registrarse con formulario",
+        "or": "O"
+      },
       "chat": {
         "role": "¿Cómo quieres usar el Hub?",
         "userPicture": "Añade una foto de perfil (opcional). ¡Ayuda a los pros a reconocerte!",
@@ -690,6 +695,9 @@
         "lastName": "¿Y tu apellido?",
         "referral": "¿Cómo supiste de nosotros?",
         "referralOther": "Cuéntanos cómo supiste de nosotros.",
+        "referralPreviousCustomerName": "¿Cuál es el nombre del cliente anterior? (opcional)",
+        "referralFriendName": "¿Cuál es el nombre de tu amigo? (opcional)",
+        "referralName": "¿Cuál es su nombre? (opcional)",
         "address": "¿Cuál es tu dirección? (solo Nevada)",
         "apartment": "¿Apartamento, suite o unidad? (opcional)",
         "gateCode": "¿Código de acceso? (opcional)",
@@ -733,6 +741,12 @@
         "referralOtherLabel": "Por favor especifica",
         "referralOtherPlaceholder": "¿Cómo supiste de nosotros?",
         "referralOtherOption": "Otro",
+        "referralPreviousCustomerOption": "Soy un cliente anterior",
+        "referralByPreviousCustomerOption": "Referido por un cliente anterior",
+        "referralByFriendOption": "Referido por un amigo",
+        "referralPreviousCustomerNameLabel": "Nombre del cliente",
+        "referralFriendNameLabel": "Nombre del amigo",
+        "referralNamePlaceholder": "Nombre",
         "invitationCodeLabel": "Código de invitación",
         "invitationCodePlaceholder": "Ingresa el código que recibiste",
         "invitationCodeDescription": "Ingresa el código que recibiste de House Pros Hub para registrarte como contratista.",
@@ -1142,6 +1156,7 @@
         "renovation": "Renovación",
         "repair": "Reparación",
         "remodel": "Remodelación",
+        "addition_extension": "Ampliación/Extensión",
         "other": "Otro"
       },
       "budgetRange": {
@@ -1426,6 +1441,13 @@
     "howDidYouHear": "¿Cómo supiste de nosotros?",
     "selectOption": "Selecciona una opción",
     "pleaseSpecify": "Por favor especifica",
+    "referralPreviousCustomer": "Soy un cliente anterior",
+    "referralByPreviousCustomer": "Referido por un cliente anterior",
+    "referralByFriend": "Referido por un amigo",
+    "referralOtherOption": "Otro",
+    "referralPreviousCustomerName": "Nombre del cliente",
+    "referralFriendName": "Nombre del amigo",
+    "referralNamePlaceholder": "Nombre",
     "cancel": "Cancelar",
     "saveChanges": "Guardar Cambios",
     "saving": "Guardando...",

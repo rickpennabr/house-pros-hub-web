@@ -124,7 +124,7 @@ export default function ChatInputBar({
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className="w-full py-3 text-base md:text-[14.4px] chat-input-bar-input bg-transparent border-0 focus:outline-none focus:ring-0 text-black placeholder:text-black placeholder:text-base md:placeholder:text-[14.4px]"
+          className="w-full py-3 text-base chat-input-bar-input bg-transparent border-0 focus:outline-none focus:ring-0 text-black placeholder:text-black placeholder:text-base"
           disabled={disabled}
           maxLength={maxLength}
         />

@@ -69,6 +69,7 @@ export default function EstimatePage() {
     { value: 'renovation', label: tOptions('projectType.renovation'), explanation: '' },
     { value: 'repair', label: tOptions('projectType.repair'), explanation: '' },
     { value: 'remodel', label: tOptions('projectType.remodel'), explanation: '' },
+    { value: 'addition_extension', label: tOptions('projectType.addition_extension'), explanation: '' },
     { value: 'other', label: tOptions('projectType.other'), explanation: '' },
   ], [tOptions]);
 

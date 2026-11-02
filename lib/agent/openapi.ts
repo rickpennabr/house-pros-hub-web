@@ -12,8 +12,8 @@ const estimateProperties = {
   apartment: { type: 'string' },
   projectType: {
     type: 'string',
-    enum: ['new_construction', 'renovation', 'repair', 'remodel', 'other'],
-    description: 'Kind of job. Use projectTypeOther when this is other.',
+    enum: ['new_construction', 'renovation', 'repair', 'remodel', 'addition_extension', 'other'],
+    description: 'Kind of job. addition_extension is a room addition or home extension. Use projectTypeOther when this is other.',
   },
   projectTypeOther: { type: 'string' },
   requiresHoaApproval: { type: 'boolean', description: 'True when the homeowner says an HOA must approve the work.' },

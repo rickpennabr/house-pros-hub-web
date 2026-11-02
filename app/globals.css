@@ -484,12 +484,57 @@ button:disabled {
   flex-shrink: 0;
 }
 
-/* No zoom on focus: any input field (forms, search, email, etc.) uses 16px on touch-sized viewports so iOS/Android do not auto-zoom */
+/* Prevent iOS Safari / Chrome auto-zoom on focus (font-size < 16px).
+   Unlayered + !important so Tailwind text-sm / text-xs cannot override,
+   including inputs with no type and their placeholders. */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+input::placeholder,
+textarea::placeholder {
+  font-size: 16px !important;
+}
+
+/* Phones and tablets: native selects size themselves to line-height and drop vertical
+   padding, so a 48px field paints shorter than on desktop. Lock the box (BrazaLink
+   uses the same 48px mobile field height). Compact h-9 / h-10 controls keep theirs. */
 @media (max-width: 1024px) {
-  input,
-  select,
-  textarea {
-    font-size: 16px !important;
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="color"]):not([type="image"]):not(.h-7):not(.h-8):not(.h-9):not(.h-10):not(.h-11):not(.h-full):not(table *),
+  select:not(.h-7):not(.h-8):not(.h-9):not(.h-10):not(.h-11):not(table *) {
+    box-sizing: border-box;
+    height: 48px;
+    min-height: 48px;
+    line-height: 44px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  select.h-9,
+  input.h-9:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+    box-sizing: border-box;
+    height: 2.25rem;
+    min-height: 2.25rem;
+    line-height: calc(2.25rem - 2px);
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  select.h-10,
+  input.h-10:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+    box-sizing: border-box;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    line-height: calc(2.5rem - 4px);
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  input.h-full:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 100%;
   }
 }
 
