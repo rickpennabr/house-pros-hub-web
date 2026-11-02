@@ -51,6 +51,8 @@ export default function ProEstimateBookingFlow({
   const [month, setMonth] = useState(() => new Date().getMonth());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [slots, setSlots] = useState<{ start: string; end: string }[]>([]);
+  const [slotTimeZone, setSlotTimeZone] = useState('America/Los_Angeles');
+  const [slotsNote, setSlotsNote] = useState<string | null>(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: string; end: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -115,14 +117,24 @@ export default function ProEstimateBookingFlow({
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to load times');
-      setSlots(data.slots ?? []);
+      if (typeof data.timezone === 'string' && data.timezone) setSlotTimeZone(data.timezone);
+      if (data.bookingEnabled === false) {
+        setSlots([]);
+        setSlotsNote(t('notAccepting'));
+      } else if (data.closed) {
+        setSlots([]);
+        setSlotsNote(t('closedDay'));
+      } else {
+        setSlots(data.slots ?? []);
+        setSlotsNote(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load times');
       setSlots([]);
     } finally {
       setSlotsLoading(false);
     }
-  }, [businessId]);
+  }, [businessId, t]);
 
   useEffect(() => {
     if (step === 'slots' && selectedDate) fetchSlots(selectedDate);
@@ -207,7 +219,12 @@ export default function ProEstimateBookingFlow({
   };
 
   const formatSlotTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+    new Date(iso).toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: slotTimeZone,
+    });
   /** Display slot as range e.g. "7:00 AM – 8:30 AM" */
   const formatSlotRange = (startIso: string, endIso: string) => {
     const start = new Date(startIso);
@@ -222,6 +239,7 @@ export default function ProEstimateBookingFlow({
       month: 'long',
       day: 'numeric',
       year: 'numeric',
+      timeZone: slotTimeZone,
     });
     return `${dayPart}, ${formatSlotRange(selectedSlot.start, selectedSlot.end)}`;
   };
@@ -398,7 +416,7 @@ export default function ProEstimateBookingFlow({
           {slotsLoading ? (
             <p className="text-sm text-gray-500">{t('loadingSlots')}</p>
           ) : slots.length === 0 ? (
-            <p className="text-sm text-gray-500">{t('noSlots')}</p>
+            <p className="text-sm text-gray-500">{slotsNote || t('noSlots')}</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {slots.map((slot) => (

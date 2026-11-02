@@ -99,7 +99,7 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://maps.googleapis.com https://*.googleapis.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               // Allow Google Maps images and tiles
-              "img-src 'self' data: https: https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com",
+              "img-src 'self' blob: data: https: https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com",
               "font-src 'self' data: https://fonts.gstatic.com",
               // Allow connections to Google Maps APIs
               process.env.NODE_ENV === 'development'

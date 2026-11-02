@@ -587,6 +587,7 @@ export interface Database {
           is_verified: boolean;
           display_order: number | null;
           show_calendar_on_procard: boolean;
+          appointment_slot_minutes: number;
           created_at: string;
           updated_at: string;
         };
@@ -613,6 +614,7 @@ export interface Database {
           is_verified?: boolean;
           display_order?: number | null;
           show_calendar_on_procard?: boolean;
+          appointment_slot_minutes?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -639,6 +641,7 @@ export interface Database {
           is_verified?: boolean;
           display_order?: number | null;
           show_calendar_on_procard?: boolean;
+          appointment_slot_minutes?: number;
           created_at?: string;
           updated_at?: string;
         };

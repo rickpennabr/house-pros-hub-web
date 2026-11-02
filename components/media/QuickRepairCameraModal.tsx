@@ -6,7 +6,6 @@ import { Camera } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { requestCurrentLocation, reverseGeocode } from '@/lib/media/capture-location';
 import {
   QUICK_REPAIR_CAMERA_OPEN_EVENT,
   QUICK_REPAIR_PHOTO_EVENT,
@@ -44,17 +43,8 @@ async function persistCapturedPhoto(file: File): Promise<'full' | 'saved'> {
   const existing = await loadQuickRepairDraft();
   const draft = existing ?? blankDraft();
   if (draft.photos.length >= MAX_PHOTOS) return 'full';
-  const shot = await requestCurrentLocation();
-  const found = shot ? await reverseGeocode(shot.latitude, shot.longitude) : null;
   await saveQuickRepairDraft({
     ...draft,
-    streetAddress: draft.streetAddress || found?.streetAddress || '',
-    city: draft.city || found?.city || '',
-    state: draft.state || found?.state || '',
-    zipCode: draft.zipCode || found?.zipCode || '',
-    latitude: draft.latitude ?? shot?.latitude ?? null,
-    longitude: draft.longitude ?? shot?.longitude ?? null,
-    accuracyM: draft.accuracyM ?? shot?.accuracyM ?? null,
     photos: [
       ...draft.photos,
       { name: file.name, type: file.type || 'image/jpeg', blob: file, driveId: null },

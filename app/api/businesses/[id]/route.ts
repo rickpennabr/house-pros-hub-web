@@ -8,6 +8,12 @@ import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
+import {
+  DEFAULT_SLOT_MINUTES,
+  DEFAULT_TIMEZONE,
+  isSlotMinutes,
+  parseWeekSchedule,
+} from '@/lib/booking/businessHours';
 
 interface DbLicenseRow {
   license_number: string | null;
@@ -191,7 +197,17 @@ async function handleGetBusiness(
       ownerRoles = (roleRows ?? []).map((row) => row.role);
     }
 
-    return NextResponse.json({ business: transformed, ownerRoles });
+    const hours = parseWeekSchedule(business.operating_hours);
+    const slotRaw = Number(business.appointment_slot_minutes);
+    const bookingSettings = {
+      enabled: business.show_calendar_on_procard === true,
+      timezone: business.timezone || DEFAULT_TIMEZONE,
+      slotMinutes: isSlotMinutes(slotRaw) ? slotRaw : DEFAULT_SLOT_MINUTES,
+      schedule: hours.schedule,
+      hoursConfigured: hours.configured,
+    };
+
+    return NextResponse.json({ business: transformed, ownerRoles, bookingSettings });
   } catch (error) {
     // Log to console so production (e.g. Vercel) shows the cause of 500
     console.error('[GET /api/businesses/[id]] error', {

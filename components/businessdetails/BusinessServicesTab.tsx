@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { Loader2, Pencil, Tag, Trash2, Wrench } from 'lucide-react';
+import { Loader2, Pencil, Tag, Trash2, Calendar } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { getCsrfToken } from '@/lib/utils/csrf';
@@ -23,6 +23,8 @@ interface BusinessServicesTabProps {
   isOwner: boolean;
   /** Name-only services already saved on the business, shown until the catalog exists. */
   fallbackNames?: string[];
+  /** True when the pro turned on appointments in ProsCRM. */
+  bookingEnabled?: boolean;
 }
 
 interface ServiceForm {
@@ -63,7 +65,13 @@ function formFromService(service: CatalogService): ServiceForm {
   };
 }
 
-export default function BusinessServicesTab({ businessId, businessSlug, isOwner, fallbackNames = [] }: BusinessServicesTabProps) {
+export default function BusinessServicesTab({
+  businessId,
+  businessSlug,
+  isOwner,
+  fallbackNames = [],
+  bookingEnabled = false,
+}: BusinessServicesTabProps) {
   const t = useTranslations('businessServices');
   const locale = useLocale();
   const [services, setServices] = useState<CatalogService[]>([]);
@@ -211,6 +219,9 @@ export default function BusinessServicesTab({ businessId, businessSlug, isOwner,
           </Button>
         )}
       </div>
+      {isOwner && !bookingEnabled && (
+        <p className="text-sm text-gray-600">{t('bookingOffHint')}</p>
+      )}
 
       {error && (
         <p className="rounded-lg border-2 border-red-600 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
@@ -344,13 +355,15 @@ export default function BusinessServicesTab({ businessId, businessSlug, isOwner,
               </li>
             ))}
           </ul>
-          <Link
-            href={`/${locale}/book/${businessSlug}`}
-            className="inline-flex items-center gap-1 rounded-lg border-2 border-black bg-black px-3 py-1.5 text-sm font-medium text-white"
-          >
-            <Wrench className="h-4 w-4" />
-            {t('book')}
-          </Link>
+          {bookingEnabled && (
+            <Link
+              href={`/${locale}/book/${businessSlug}`}
+              className="inline-flex items-center gap-1 rounded-lg border-2 border-black bg-black px-3 py-1.5 text-sm font-medium text-white"
+            >
+              <Calendar className="h-4 w-4" />
+              {t('makeAppointment')}
+            </Link>
+          )}
         </div>
       )}
 
@@ -393,13 +406,13 @@ export default function BusinessServicesTab({ businessId, businessSlug, isOwner,
                   <p className="mt-1 line-clamp-2 text-sm text-gray-700">{service.description}</p>
                 ) : null}
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {service.isActive && (
+                  {service.isActive && bookingEnabled && (
                     <Link
                       href={`/${locale}/book/${businessSlug}?service=${service.id}`}
                       className="inline-flex items-center gap-1 rounded-lg border-2 border-black bg-black px-3 py-1 text-xs font-medium text-white"
                     >
-                      <Wrench className="h-3.5 w-3.5" />
-                      {t('book')}
+                      <Calendar className="h-3.5 w-3.5" />
+                      {t('makeAppointment')}
                     </Link>
                   )}
                   {isOwner && (

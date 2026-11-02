@@ -7,6 +7,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import { getStandardSlotsForDay } from '@/lib/constants/bookingSlots';
+import { slotsForDateKey, type WeekSchedule } from '@/lib/booking/businessHours';
 
 export type TaskType = 'estimate_appointment' | 'business_meeting' | 'follow_up' | 'other';
 
@@ -42,6 +43,8 @@ interface AddTaskModalProps {
   onSuccess: () => void;
   initialCustomerId?: string | null;
   initialMeetingWith?: string;
+  /** Saved weekly hours for the business being scheduled. */
+  businessHours?: { schedule: WeekSchedule; timezone: string; slotMinutes: number } | null;
 }
 
 export default function AddTaskModal({
@@ -50,6 +53,7 @@ export default function AddTaskModal({
   onSuccess,
   initialCustomerId = null,
   initialMeetingWith = '',
+  businessHours = null,
 }: AddTaskModalProps) {
   const [step, setStep] = useState(1);
   const [taskType, setTaskType] = useState<TaskType | null>(null);
@@ -67,6 +71,7 @@ export default function AddTaskModal({
   const [addCustomerForm, setAddCustomerForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hours, setHours] = useState<{ schedule: WeekSchedule; timezone: string; slotMinutes: number } | null>(null);
 
   const needsCustomerStep = taskType === 'estimate_appointment' || taskType === 'follow_up';
   const needsMeetingWith = taskType === 'business_meeting' || taskType === 'other' || (needsCustomerStep && !customerId);
@@ -84,6 +89,30 @@ export default function AddTaskModal({
       setCustomersLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (businessHours) {
+      setHours(businessHours);
+      return;
+    }
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch('/api/crm/hours', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const first = data?.businesses?.[0];
+        if (first?.schedule && first.timezone) {
+          setHours({ schedule: first.schedule, timezone: first.timezone, slotMinutes: first.slotMinutes });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHours(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, businessHours]);
 
   useEffect(() => {
     if (isOpen && needsCustomerStep && step >= 2) fetchCustomers();
@@ -179,7 +208,20 @@ export default function AddTaskModal({
   const year = selectedDate?.getFullYear() ?? new Date().getFullYear();
   const month = selectedDate?.getMonth() ?? new Date().getMonth();
   const dayStart = selectedDate ? new Date(year, month, selectedDate.getDate()) : null;
-  const slots = dayStart ? getStandardSlotsForDay(dayStart) : [];
+  const dateKey = dayStart
+    ? `${year}-${String(month + 1).padStart(2, '0')}-${String(dayStart.getDate()).padStart(2, '0')}`
+    : '';
+  const slots =
+    dayStart && hours
+      ? slotsForDateKey({
+          dateKey,
+          schedule: hours.schedule,
+          timeZone: hours.timezone,
+          slotMinutes: hours.slotMinutes,
+        })
+      : dayStart
+        ? getStandardSlotsForDay(dayStart)
+        : [];
   const today = new Date();
   const isPastSlot = (s: { start: Date; end: Date }) => s.end <= today;
 

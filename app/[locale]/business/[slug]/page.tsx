@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
 import BusinessDetailsHeader from '@/components/businessdetails/BusinessDetailsHeader';
 import BusinessHeroImage from '@/components/businessdetails/BusinessHeroImage';
@@ -11,6 +13,7 @@ import BusinessDetailsTabs, { type BusinessDetailsTab } from '@/components/busin
 import BusinessServicesTab from '@/components/businessdetails/BusinessServicesTab';
 import BusinessContactIcons from '@/components/businessdetails/BusinessContactIcons';
 import BusinessContactInfo from '@/components/businessdetails/BusinessContactInfo';
+import BusinessHoursList from '@/components/businessdetails/BusinessHoursList';
 import BusinessLinksTab from '@/components/businessdetails/BusinessLinksTab';
 import BusinessAboutTab from '@/components/businessdetails/BusinessAboutTab';
 import BusinessImagesTab from '@/components/businessdetails/BusinessImagesTab';
@@ -25,6 +28,7 @@ type TabType = BusinessDetailsTab;
 
 import { getBusinessData } from '@/lib/mockData/mockBusinessData';
 import { businessStorage } from '@/lib/storage/businessStorage';
+import type { WeekSchedule } from '@/lib/booking/businessHours';
 
 interface OwnerProfile {
   first_name?: string | null;
@@ -38,13 +42,24 @@ type BusinessWithMeta = ProCardData & {
   business_background?: string;
 };
 
+interface BookingSettings {
+  enabled: boolean;
+  timezone: string;
+  slotMinutes: number;
+  schedule: WeekSchedule;
+  hoursConfigured: boolean;
+}
+
 export default function BusinessDetailsPage() {
   const params = useParams();
   const slug = params.slug as string;
+  const locale = useLocale();
+  const tHours = useTranslations('businessHours');
   const { user } = useAuth();
   const [business, setBusiness] = useState<BusinessWithMeta | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('contact');
   const [ownerRoles, setOwnerRoles] = useState<string[]>([]);
+  const [bookingSettings, setBookingSettings] = useState<BookingSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [bgSaving, setBgSaving] = useState(false);
   const bgInputRef = useRef<HTMLInputElement>(null);
@@ -62,7 +77,7 @@ export default function BusinessDetailsPage() {
   const imagesRef = useRef<HTMLDivElement>(null);
   
   const isOwner = !!user?.id && !!business?.userId && user.id === business.userId;
-  const showServices = ownerRoles.includes('contractor');
+  const showServices = ownerRoles.includes('contractor') || ownerRoles.includes('realtor');
 
   // Drag-to-position hero image (owner only); save on mouseup
   const heroDragPositionRef = useRef<string | null>(null);
@@ -118,6 +133,7 @@ export default function BusinessDetailsPage() {
         return;
       }
       setLoading(true);
+      setBookingSettings(null);
 
       try {
         let data: BusinessWithMeta | null = null;
@@ -137,6 +153,11 @@ export default function BusinessDetailsPage() {
             const result = await response.json();
             data = result.business;
             rolesFromApi = Array.isArray(result.ownerRoles) ? result.ownerRoles : [];
+            if (result.bookingSettings?.schedule) {
+              setBookingSettings(result.bookingSettings as BookingSettings);
+            } else {
+              setBookingSettings(null);
+            }
 
             if (data?.userId) {
               try {
@@ -516,6 +537,22 @@ export default function BusinessDetailsPage() {
       <div className="w-full p-2 md:p-2">
         {activeTab === 'contact' && (
           <div ref={contactRef}>
+            {bookingSettings && (bookingSettings.hoursConfigured || bookingSettings.enabled) && (
+              <BusinessHoursList
+                schedule={bookingSettings.schedule}
+                timezone={bookingSettings.timezone}
+                locale={locale}
+                heading={tHours('heading')}
+                closedLabel={tHours('closed')}
+              />
+            )}
+            {isOwner && !bookingSettings?.hoursConfigured && (
+              <p className="mb-3 text-sm text-gray-700">
+                <Link href={`/${locale}/crm/calendar`} className="font-medium underline">
+                  {tHours('setHours')}
+                </Link>
+              </p>
+            )}
             <BusinessContactInfo
               phone={phoneLink?.value}
               email={emailLink?.value}
@@ -530,6 +567,7 @@ export default function BusinessDetailsPage() {
               businessSlug={business.slug}
               isOwner={isOwner}
               fallbackNames={business.services}
+              bookingEnabled={bookingSettings?.enabled === true}
             />
           </div>
         )}

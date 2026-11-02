@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import {
@@ -33,11 +34,13 @@ interface CRMSidebarProps {
 
 export function CRMSidebar({ locale }: CRMSidebarProps) {
   const pathname = usePathname();
+  const { roles } = useAuth();
   const t = useTranslations('bot');
   const base = `/${locale}/crm`;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  const realtorCalendarOnly = (roles as string[]).includes('realtor') && !roles.includes('contractor');
   const navItems: NavItem[] = [
     { href: base, labelKey: 'crmDashboard', icon: LayoutDashboard },
     { href: `${base}/customers`, labelKey: 'crmCustomers', icon: Users },
@@ -50,7 +53,7 @@ export function CRMSidebar({ locale }: CRMSidebarProps) {
     { href: `${base}/reports`, labelKey: 'crmReports', icon: BarChart3 },
     { href: `${base}/items`, labelKey: 'crmItems', icon: Package },
     { href: `${base}/calendar`, labelKey: 'crmCalendar', icon: Calendar },
-  ];
+  ].filter((item) => !realtorCalendarOnly || item.href.endsWith('/calendar'));
 
   useEffect(() => setMounted(true), []);
 

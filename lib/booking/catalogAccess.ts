@@ -64,6 +64,17 @@ export async function resolveBusiness(idOrSlug: string): Promise<BusinessRef | n
   return data;
 }
 
+export async function ownerCanManageServices(userId: string): Promise<boolean> {
+  const service = createServiceRoleClient();
+  const { data, error } = await service
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+  if (error) return false;
+  return (data ?? []).some((row) => row.role === 'contractor' || row.role === 'realtor');
+}
+
 export async function ownerIsContractor(userId: string): Promise<boolean> {
   const service = createServiceRoleClient();
   const { data, error } = await service

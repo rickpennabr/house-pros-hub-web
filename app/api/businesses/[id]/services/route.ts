@@ -7,7 +7,7 @@ import {
   createCatalogService,
   isMissingServicesTable,
   listCatalogServices,
-  ownerIsContractor,
+  ownerCanManageServices,
   resolveBusiness,
 } from '@/lib/booking/catalogAccess';
 
@@ -52,8 +52,8 @@ export async function POST(
       if (!business || business.owner_id !== userId) {
         return NextResponse.json({ error: 'Business not found' }, { status: 404 });
       }
-      if (!(await ownerIsContractor(userId))) {
-        return NextResponse.json({ error: 'Contractor role required' }, { status: 403 });
+      if (!(await ownerCanManageServices(userId))) {
+        return NextResponse.json({ error: 'Contractor or realtor role required' }, { status: 403 });
       }
 
       const raw = (authRequest._body ?? {}) as Record<string, unknown>;

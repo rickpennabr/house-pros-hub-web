@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
+import { requirePro } from '@/lib/crm/require-pro';
 
-async function requireContractor() {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) return { error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }), user: null };
-  return { error: null, user };
+async function requireCalendarPro() {
+  const result = await requirePro();
+  return { error: result.error, user: result.user };
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { error: authError, user } = await requireContractor();
+    const { error: authError, user } = await requireCalendarPro();
     if (authError || !user) return authError!;
     const { id } = await params;
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
@@ -42,7 +38,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { error: authError, user } = await requireContractor();
+    const { error: authError, user } = await requireCalendarPro();
     if (authError || !user) return authError!;
     const { id } = await params;
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });

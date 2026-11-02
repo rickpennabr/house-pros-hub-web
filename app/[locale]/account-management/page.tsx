@@ -310,14 +310,14 @@ function AccountManagementContent() {
     return accounts;
   }, [user, businessList, effectiveSelectedAccountId, t]);
 
-  // Filter quick actions based on account type. ProsCRM only when personal + contractor.
+  // Filter quick actions based on account type. ProsCRM for contractors and realtors.
   const selectedAccount = visibleAccounts.find(acc => acc.id === effectiveSelectedAccountId);
-  const isContractor = roles.includes('contractor');
+  const isPro = roles.includes('contractor') || (roles as string[]).includes('realtor');
   const isInstaller = (roles as string[]).includes('installer');
   const visibleActions =
     selectedAccount?.type === 'personal'
       ? personalActions.filter((action) => {
-          if (action.id === 'personal-proscrm') return isContractor && !isAdmin;
+          if (action.id === 'personal-proscrm') return isPro && !isAdmin;
           if (action.id === 'personal-proresume') return isInstaller;
           return true;
         })

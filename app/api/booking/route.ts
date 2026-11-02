@@ -5,8 +5,8 @@ import { sendProEstimateBookingEmails } from '@/lib/services/emailService';
 import type { ProEstimateBookingEmailData, ProEstimateBookingEmailTranslations } from '@/lib/utils/emailTemplates';
 import { COMPANY_INFO } from '@/lib/constants/company';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
-
-const SLOT_DURATION_MS = 90 * 60 * 1000; // 1.5 hours
+import { loadBusinessBookingWindow } from '@/lib/booking/loadBookingWindow';
+import { slotIsOpen } from '@/lib/booking/openSlots';
 
 /**
  * POST /api/booking
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
 
     const start = new Date(slotStartAt);
     const end = new Date(slotEndAt);
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end.getTime() - start.getTime() !== SLOT_DURATION_MS) {
-      return NextResponse.json({ error: 'Invalid slot; must be a 1.5-hour period' }, { status: 400 });
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
+      return NextResponse.json({ error: 'Invalid appointment time' }, { status: 400 });
     }
 
     const supabase = await createClient();
@@ -64,65 +64,25 @@ export async function POST(request: NextRequest) {
     }
 
     const service = createServiceRoleClient();
-    const { data: business, error: bizError } = await service
-      .from('businesses')
-      .select('id, owner_id, business_name, email')
-      .eq('id', businessId)
-      .eq('is_active', true)
-      .single();
-
-    if (bizError || !business?.owner_id) {
+    const business = await loadBusinessBookingWindow(service, businessId);
+    if (!business) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
+    if (!business.bookingEnabled) {
+      return NextResponse.json({ error: 'This pro is not accepting appointments' }, { status: 403 });
+    }
 
-    const proEmail = (business.email && String(business.email).trim()) || null;
+    const proEmail = business.email?.trim() || null;
     if (!proEmail) {
       return NextResponse.json({ error: 'Business has no contact email for notifications' }, { status: 400 });
     }
 
-    // Match CRM: "all available by default; mark OFF when not free." If pro has no "available" blocks, allow unless slot is in "unavailable" or booked.
-    const { data: availabilityBlocks } = await service
-      .from('pro_crm_availability')
-      .select('id, start_at, end_at')
-      .eq('owner_id', business.owner_id)
-      .eq('type', 'available')
-      .lte('start_at', end.toISOString())
-      .gte('end_at', start.toISOString());
-
-    const hasExplicitAvailable = (availabilityBlocks?.length ?? 0) > 0;
-    if (hasExplicitAvailable) {
-      const slotFitsInBlock = availabilityBlocks!.some(
-        (b) => new Date(b.start_at).getTime() <= start.getTime() && new Date(b.end_at).getTime() >= end.getTime()
-      );
-      if (!slotFitsInBlock) {
-        return NextResponse.json({ error: 'Selected time is not available' }, { status: 400 });
-      }
-    } else {
-      const { data: unavailableBlocks } = await service
-        .from('pro_crm_availability')
-        .select('start_at, end_at')
-        .eq('owner_id', business.owner_id)
-        .eq('type', 'unavailable')
-        .lt('start_at', end.toISOString())
-        .gt('end_at', start.toISOString());
-      const overlapsUnavailable = unavailableBlocks?.some(
-        (b) => new Date(b.start_at).getTime() < end.getTime() && new Date(b.end_at).getTime() > start.getTime()
-      );
-      if (overlapsUnavailable) {
-        return NextResponse.json({ error: 'Selected time is not available' }, { status: 400 });
-      }
+    const open = await slotIsOpen(service, businessId, start, end);
+    if (open === 'invalid') {
+      return NextResponse.json({ error: 'That time is outside this pro’s hours' }, { status: 400 });
     }
-
-    const { data: existing } = await service
-      .from('pro_estimate_bookings')
-      .select('id')
-      .eq('business_id', businessId)
-      .eq('status', 'confirmed')
-      .lt('slot_start_at', end.toISOString())
-      .gt('slot_end_at', start.toISOString());
-
-    if (existing && existing.length > 0) {
-      return NextResponse.json({ error: 'This slot was just booked. Please choose another time.' }, { status: 409 });
+    if (open !== 'ok') {
+      return NextResponse.json({ error: 'This time was just booked. Please choose another.' }, { status: 409 });
     }
 
     let serviceId: string | null = null;
@@ -162,7 +122,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: insertError.message || 'Failed to create booking' }, { status: 500 });
     }
 
-    const slotDisplay = start.toLocaleString(undefined, {
+    const slotDisplay = start.toLocaleString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -170,10 +130,11 @@ export async function POST(request: NextRequest) {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: business.timezone,
     });
 
     const emailData: ProEstimateBookingEmailData = {
-      businessName: business.business_name ?? 'Pro',
+      businessName: business.businessName || 'Pro',
       customerName,
       customerEmail,
       customerPhone: guestPhone || null,
@@ -188,7 +149,7 @@ export async function POST(request: NextRequest) {
       subjectPro: 'New ProEstimate booking',
       greetingCustomer: 'Your estimate appointment is confirmed.',
       greetingPro: 'You have a new ProEstimate booking.',
-      bodyCustomer: `You're scheduled with ${business.business_name ?? 'your pro'}. We'll send a reminder before the appointment.`,
+      bodyCustomer: `You're scheduled with ${business.businessName || 'your pro'}. We'll send a reminder before the appointment.`,
       bodyPro: 'A customer has booked an estimate slot. Details below.',
       detailsLabel: 'Appointment details',
       dateTimeLabel: 'Date & time',

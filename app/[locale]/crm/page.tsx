@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { CalendarDays, FileCheck, FilePlus2, FileText, FolderKanban, Loader2, Plus, Users } from 'lucide-react';
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
 
@@ -83,12 +84,18 @@ async function fetchJson<T>(url: string): Promise<T> {
 export default function CRMPage() {
   const locale = useLocale();
   const router = useRouter();
+  const { roles } = useAuth();
+  const realtorOnly = (roles as string[]).includes('realtor') && !roles.includes('contractor');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
+    if (realtorOnly) {
+      router.replace(`/${locale}/crm/calendar`);
+      return;
+    }
     let mounted = true;
 
     const load = async () => {
@@ -154,7 +161,7 @@ export default function CRMPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [realtorOnly, locale, router]);
 
   const totals = useMemo(() => {
     if (!data) return { estimateAmount: 0, invoiceAmount: 0, invoiceOutstanding: 0 };

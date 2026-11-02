@@ -245,7 +245,6 @@ export default function QuickRepairPage() {
       }
       return [...current, { key: crypto.randomUUID(), name: file.name, file, driveId: null, previewUrl }];
     });
-    await rememberPlace();
   };
   addFileRef.current = addLocalFile;
 
@@ -418,9 +417,25 @@ export default function QuickRepairPage() {
 
   const stepIndex = STEPS.indexOf(step);
   const returnPath = `/${locale}/quick-repair`;
+  const progress = done ? 100 : ((Math.max(stepIndex, 0) + 1) / STEPS.length) * 100;
 
   return (
-    <div className="w-full px-2 py-3 md:px-4 md:py-4">
+    <div className="w-full">
+      {ready && !isLoading && (
+        <div className="-mx-1 -mt-1 md:-mx-2 md:-mt-2">
+          <div
+            className="h-2 w-full bg-neutral-200"
+            role="progressbar"
+            aria-valuemin={1}
+            aria-valuemax={STEPS.length}
+            aria-valuenow={done ? STEPS.length : stepIndex + 1}
+            aria-label={t('stepOf', { current: done ? STEPS.length : stepIndex + 1, total: STEPS.length })}
+          >
+            <div className="h-full bg-black transition-[width] duration-300 ease-out" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
+      <div className="w-full px-2 py-3 md:px-4 md:py-4">
       <InstallAppButton />
       {isLoading || !ready ? null : done ? (
         <p>{t('success')}</p>
@@ -460,7 +475,13 @@ export default function QuickRepairPage() {
                 className="hidden"
                 onChange={(event) => void onPickFiles(event.target.files)}
               />
-              <Button type="button" onClick={() => setStep('details')}>{t('continue')}</Button>
+              <Button type="button" onClick={() => {
+                void rememberPlace();
+                setStep('details');
+              }}
+              >
+                {t('continue')}
+              </Button>
             </section>
           )}
 
@@ -574,6 +595,7 @@ export default function QuickRepairPage() {
         />
       )}
       <ProDriveQuotaModal usage={quota} onClose={() => setQuota(null)} />
+      </div>
     </div>
   );
 }
@@ -607,14 +629,16 @@ async function previewFor(fileId: string): Promise<string | null> {
 function PhotoGrid({ photos, onRemove, removeLabel }: { photos: LocalPhoto[]; onRemove: (key: string) => void; removeLabel: string }) {
   if (photos.length === 0) return null;
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className={photos.length === 1 ? 'w-48 max-w-full' : 'grid grid-cols-3 gap-3'}>
       {photos.map((photo) => (
-        <div key={photo.key} className="border-2 border-black rounded-lg p-2">
-          {photo.previewUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={photo.previewUrl} alt="" className="w-full h-20 object-cover rounded" />
-          )}
-          <button type="button" className="text-xs underline mt-1 cursor-pointer" onClick={() => onRemove(photo.key)}>
+        <div key={photo.key} className="min-w-0">
+          <div className="aspect-square overflow-hidden rounded-lg border-2 border-black bg-neutral-100">
+            {photo.previewUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photo.previewUrl} alt={photo.name} className="h-full w-full object-cover" />
+            )}
+          </div>
+          <button type="button" className="mt-1 cursor-pointer text-xs underline" onClick={() => onRemove(photo.key)}>
             {removeLabel}
           </button>
         </div>

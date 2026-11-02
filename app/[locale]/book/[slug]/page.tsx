@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { createLocalePath } from '@/lib/redirect';
@@ -29,6 +30,7 @@ export default function BookBySlugPage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [bookingEnabled, setBookingEnabled] = useState(false);
   /** For guests: collect name/email before showing calendar */
   const [guestContact, setGuestContact] = useState<GuestContactData | null>(null);
   const [showBookingFlow, setShowBookingFlow] = useState(false);
@@ -51,18 +53,22 @@ export default function BookBySlugPage() {
           setBusiness(null);
           return;
         }
-        const b = data.business as {
-          id?: string;
-          businessName?: string;
-          logo?: string;
-          contractorType?: string;
-          showCalendarOnProCard?: boolean;
-        } | undefined;
+        const payload = data as {
+          business?: {
+            id?: string;
+            businessName?: string;
+            logo?: string;
+            contractorType?: string;
+          };
+          bookingSettings?: { enabled?: boolean };
+        };
+        const b = payload.business;
         if (!b?.id || !b?.businessName) {
           setError('Business not found');
           setBusiness(null);
           return;
         }
+        setBookingEnabled(payload.bookingSettings?.enabled === true);
         setBusiness({
           id: b.id,
           businessName: b.businessName,
@@ -125,6 +131,20 @@ export default function BookBySlugPage() {
 
   if (!business) return null;
 
+  if (!bookingEnabled) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="max-w-md text-center">
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">{t('notAccepting')}</h1>
+          <p className="text-gray-600 mb-4">{t('appointmentNote')}</p>
+          <Link href={`/${locale}/estimate`} className="inline-flex rounded-lg border-2 border-black bg-black px-4 py-2 text-sm font-medium text-white">
+            {t('freeEstimateLink')}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const BookPageLayout = ({ children }: { children: React.ReactNode }): React.ReactElement => (
     <div className="w-full min-h-screen bg-white">
       <BusinessDetailsHeader
@@ -133,6 +153,7 @@ export default function BookBySlugPage() {
         contractorType={t('bookSubtitle')}
       />
       <div className="w-full border-b-2 border-black bg-white p-2 md:p-2">
+        <p className="mb-3 text-sm text-gray-600">{t('appointmentNote')}</p>
         {children}
       </div>
     </div>

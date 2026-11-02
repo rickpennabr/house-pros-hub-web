@@ -5,7 +5,7 @@ import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
 import {
   deleteCatalogService,
   isMissingServicesTable,
-  ownerIsContractor,
+  ownerCanManageServices,
   resolveBusiness,
   updateCatalogService,
 } from '@/lib/booking/catalogAccess';
@@ -13,8 +13,8 @@ import {
 async function authorize(userId: string, businessKey: string) {
   const business = await resolveBusiness(businessKey);
   if (!business || business.owner_id !== userId) return { error: NextResponse.json({ error: 'Business not found' }, { status: 404 }) };
-  if (!(await ownerIsContractor(userId))) {
-    return { error: NextResponse.json({ error: 'Contractor role required' }, { status: 403 }) };
+  if (!(await ownerCanManageServices(userId))) {
+    return { error: NextResponse.json({ error: 'Contractor or realtor role required' }, { status: 403 }) };
   }
   return { business };
 }
