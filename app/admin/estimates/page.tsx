@@ -3,10 +3,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, MoreVertical, Trash2 } from 'lucide-react';
+import { NextIntlClientProvider } from 'next-intl';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
 import type { AdminEstimateRow } from '@/app/api/admin/estimates/route';
+
+const TOGGLE_MESSAGES = {
+  common: {
+    view: {
+      card: 'Card',
+      list: 'List',
+      map: 'Map',
+      bgToggle: 'BG',
+      bgToggleRegular: 'Background: regular',
+      bgToggleDynamic: 'Background: dynamic',
+    },
+  },
+};
 
 const COLUMNS: AdminDataTableColumn<AdminEstimateRow>[] = [
   { id: 'name', label: 'Name', width: 180 },
@@ -68,6 +84,7 @@ function cellText(row: AdminEstimateRow, columnId: string): string {
 
 export default function AdminEstimatesPage() {
   const [rows, setRows] = useState<AdminEstimateRow[]>([]);
+  const [listView, setListView] = useState<ViewType>('list');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -165,6 +182,22 @@ export default function AdminEstimatesPage() {
         <h1 className="text-3xl font-semibold text-black mb-2">Estimates</h1>
         <p className="text-gray-600">Estimate requests sent to the site. Click a row to open it.</p>
       </div>
+      {listView === 'map' ? (
+        <AddressPinsMap
+          pins={rows.map((row) => ({
+            id: row.id,
+            title: row.name,
+            detail: row.project_type,
+            address: row.address,
+            latitude: row.latitude,
+            longitude: row.longitude,
+          }))}
+          onOpen={(id) => {
+            const row = rows.find((item) => item.id === id);
+            if (row) void openEstimate(row);
+          }}
+        />
+      ) : (
       <AdminDataTable
         clientSide
         columnOrderKey="admin-estimates"
@@ -213,6 +246,18 @@ export default function AdminEstimatesPage() {
           onDelete: (ids) => setDeleteIds(ids),
         }}
       />
+      )}
+
+      {!loading && rows.length > 0 && (
+        <NextIntlClientProvider locale="en" messages={TOGGLE_MESSAGES}>
+          <ViewToggle
+            currentView={listView}
+            onViewChange={setListView}
+            views={['list', 'map']}
+            hideBackgroundToggle
+          />
+        </NextIntlClientProvider>
+      )}
 
       <Modal
         isOpen={Boolean(openId)}

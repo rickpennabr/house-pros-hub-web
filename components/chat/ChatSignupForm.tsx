@@ -15,16 +15,18 @@ import { ZoomSlider } from '@/components/ui/ZoomSlider';
 import { VerticalSlider } from '@/components/ui/VerticalSlider';
 import { HorizontalSlider } from '@/components/ui/HorizontalSlider';
 import { signupSchema, signupSchemaBase, type SignupSchema } from '@/lib/schemas/auth';
-import { USER_TYPES } from '@/lib/constants/auth';
+import { isProSignup, USER_TYPES } from '@/lib/constants/auth';
 import {
   REFERRAL_BY_FRIEND,
   REFERRAL_BY_PREVIOUS_CUSTOMER,
+  REFERRAL_MY_FRIEND,
   REFERRAL_PREVIOUS_CUSTOMER,
-  referralFollowUpMessageKey,
   referralNeedsDetail,
   referralNeedsName,
+  signupReferralMessageKey,
 } from '@/lib/constants/referral';
 import { useReferralOptions } from '@/hooks/useReferralOptions';
+import { useProInviters } from '@/hooks/useProInviters';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { resizeImageSquare, validateFileSize } from '@/lib/utils/image';
 import { CHAT_SIGNUP_STEPS, getVisibleSteps, getGuestEstimateSteps, type ChatSignupStep } from './chatSignupSteps';
@@ -140,6 +142,8 @@ export default function ChatSignupForm({
   const referralButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const referralContainerRef = useRef<HTMLDivElement>(null);
   const extraReferrals = useReferralOptions();
+  const isPro = isProSignup(values.userType);
+  const { inviters: proInviters } = useProInviters(isPro);
 
   const visibleSteps = useMemo(
     () =>
@@ -153,9 +157,7 @@ export default function ChatSignupForm({
   const isLastStep = stepIndex === visibleSteps.length - 1;
 
   const currentMessageKey = currentStep
-    ? currentStep.id === 'referralOther'
-      ? referralFollowUpMessageKey(values.referral)
-      : currentStep.messageKey
+    ? signupReferralMessageKey(currentStep.id, currentStep.messageKey, values.referral, values.userType)
     : '';
   const currentMessage = currentMessageKey
     ? tChat(currentMessageKey as Parameters<typeof tChat>[0])
@@ -290,6 +292,18 @@ export default function ChatSignupForm({
     if (!step?.field) return true;
     const fieldSchema = signupSchemaBase.shape[step.field as keyof typeof signupSchemaBase.shape];
     if (!fieldSchema) return true;
+    if (step.id === 'referralOther') {
+      const referral = String(values.referral ?? '');
+      const detail = String(values.referralOther ?? '').trim();
+      if (!detail && referral === 'Other') {
+        setError(isProSignup(values.userType) ? 'Please enter who invited you' : 'Please enter how you heard about us');
+        return false;
+      }
+      if (!detail && referral === REFERRAL_MY_FRIEND && isProSignup(values.userType)) {
+        setError("Please enter your friend's name");
+        return false;
+      }
+    }
     const fieldValue = values[step.field];
     const parsed = fieldSchema.safeParse(fieldValue);
     if (parsed.success) return true;
@@ -657,7 +671,7 @@ export default function ChatSignupForm({
         {visibleSteps.slice(0, stepIndex).map((step) => (
           <div key={step.id} className="flex flex-col gap-1">
             <div className="self-start max-w-[85%] rounded-2xl rounded-tl-sm bg-gray-100 text-gray-900 px-3 py-2 text-sm">
-              {tChat((step.id === 'referralOther' ? referralFollowUpMessageKey(values.referral) : step.messageKey) as Parameters<typeof tChat>[0])}
+              {tChat(signupReferralMessageKey(step.id, step.messageKey, values.referral, values.userType) as Parameters<typeof tChat>[0])}
             </div>
             <div className="self-end max-w-[85%] rounded-2xl rounded-tr-sm bg-gray-900 text-white px-3 py-2 text-sm">
               {formatDisplayValue(step, values[step.field ?? step.id])}
@@ -701,7 +715,7 @@ export default function ChatSignupForm({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setValues((prev) => ({ ...prev, userType: USER_TYPES.CUSTOMER }));
+                        setValues((prev) => ({ ...prev, userType: USER_TYPES.CUSTOMER, referral: '', referralOther: '' }));
                         setStepIndex((i) => i + 1);
                         setError(null);
                         setTimeout(scrollToBottom, 100);
@@ -727,7 +741,7 @@ export default function ChatSignupForm({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setValues((prev) => ({ ...prev, userType: USER_TYPES.CONTRACTOR }));
+                        setValues((prev) => ({ ...prev, userType: USER_TYPES.CONTRACTOR, referral: '', referralOther: '' }));
                         setStepIndex((i) => i + 1);
                         setError(null);
                         setTimeout(scrollToBottom, 100);
@@ -754,7 +768,7 @@ export default function ChatSignupForm({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setValues((prev) => ({ ...prev, userType: USER_TYPES.REALTOR }));
+                        setValues((prev) => ({ ...prev, userType: USER_TYPES.REALTOR, referral: '', referralOther: '' }));
                         setStepIndex((i) => i + 1);
                         setError(null);
                         setTimeout(scrollToBottom, 100);
@@ -779,16 +793,22 @@ export default function ChatSignupForm({
                   </div>
                 )}
               {currentStep.type === 'choice' && currentStep.id === 'referral' && (() => {
-                const REFERRAL_OPTS = [
-                  { value: 'Google', label: 'Google' },
-                  { value: 'Instagram', label: 'Instagram' },
-                  { value: 'Facebook', label: 'Facebook' },
-                  { value: REFERRAL_PREVIOUS_CUSTOMER, label: tFields('referralPreviousCustomerOption') },
-                  { value: REFERRAL_BY_PREVIOUS_CUSTOMER, label: tFields('referralByPreviousCustomerOption') },
-                  { value: REFERRAL_BY_FRIEND, label: tFields('referralByFriendOption') },
-                  ...extraReferrals.map((option) => ({ value: option.label, label: option.label })),
-                  { value: 'Other', label: tFields('referralOtherOption') },
-                ];
+                const REFERRAL_OPTS = isPro
+                  ? [
+                      { value: REFERRAL_MY_FRIEND, label: tFields('invitedByFriendOption') },
+                      ...proInviters.map((inviter) => ({ value: inviter.label, label: inviter.label })),
+                      { value: 'Other', label: tFields('referralOtherOption') },
+                    ]
+                  : [
+                      { value: 'Google', label: 'Google' },
+                      { value: 'Instagram', label: 'Instagram' },
+                      { value: 'Facebook', label: 'Facebook' },
+                      { value: REFERRAL_PREVIOUS_CUSTOMER, label: tFields('referralPreviousCustomerOption') },
+                      { value: REFERRAL_BY_PREVIOUS_CUSTOMER, label: tFields('referralByPreviousCustomerOption') },
+                      { value: REFERRAL_BY_FRIEND, label: tFields('referralByFriendOption') },
+                      ...extraReferrals.map((option) => ({ value: option.label, label: option.label })),
+                      { value: 'Other', label: tFields('referralOtherOption') },
+                    ];
                 const handleReferralKeyDown = (e: React.KeyboardEvent) => {
                   if (e.key === 'ArrowDown') {
                     e.preventDefault();
@@ -816,13 +836,13 @@ export default function ChatSignupForm({
                     ref={referralContainerRef}
                     role="listbox"
                     tabIndex={0}
-                    aria-label={tFields('referralLabel')}
+                    aria-label={isPro ? tFields('invitedByLabel') : tFields('referralLabel')}
                     onKeyDown={handleReferralKeyDown}
                     className="flex flex-col gap-2 outline-none"
                   >
                     {REFERRAL_OPTS.map((opt, i) => (
                       <button
-                        key={opt.value}
+                        key={`${opt.value}-${i}`}
                         ref={(el) => { referralButtonRefs.current[i] = el; }}
                         type="button"
                         role="option"

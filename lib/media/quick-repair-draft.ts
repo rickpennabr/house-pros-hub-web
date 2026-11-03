@@ -18,6 +18,7 @@ export interface QuickRepairDraft {
   trade: string;
   description: string;
   streetAddress: string;
+  apartment?: string;
   city: string;
   state: string;
   zipCode: string;

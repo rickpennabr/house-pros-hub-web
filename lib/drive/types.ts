@@ -12,6 +12,7 @@ export interface DriveFolder {
   parentId: string | null;
   name: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface DriveFile {
@@ -24,6 +25,7 @@ export interface DriveFile {
   sizeBytes: number;
   storagePath: string;
   createdAt: string;
+  updatedAt: string;
   previewUrl?: string | null;
 }
 

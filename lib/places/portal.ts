@@ -1,3 +1,4 @@
+import { joinMailLine, mailStreetKey } from '@/lib/address/unit';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/types/supabase';
 
@@ -21,6 +22,7 @@ type CustomerRow = Pick<
   | 'company_name'
   | 'email'
   | 'street_address'
+  | 'apartment'
   | 'city'
   | 'state'
   | 'zip_code'
@@ -29,7 +31,7 @@ type CustomerRow = Pick<
 >;
 
 const CUSTOMER_FIELDS =
-  'id, owner_id, first_name, last_name, company_name, email, street_address, city, state, zip_code, portal_kind, place_id';
+  'id, owner_id, first_name, last_name, company_name, email, street_address, apartment, city, state, zip_code, portal_kind, place_id';
 
 export interface PortalUser {
   id: string;
@@ -62,7 +64,7 @@ async function ensurePlace(admin: Admin, userId: string, row: CustomerRow): Prom
   const zip = norm(row.zip_code);
   const match = (places ?? []).find((place) => {
     if (!street || !zip) return false;
-    return norm(place.street) === street && norm(place.zip_code) === zip;
+    return mailStreetKey(place.street) === mailStreetKey(row.street_address) && norm(place.zip_code) === zip;
   });
   if (match) return match.id;
 
@@ -73,7 +75,7 @@ async function ensurePlace(admin: Admin, userId: string, row: CustomerRow): Prom
       user_id: userId,
       kind,
       name: placeName(row),
-      street: row.street_address,
+      street: joinMailLine(row.street_address ?? '', row.apartment ?? '').slice(0, 160) || row.street_address,
       city: row.city,
       state: row.state,
       zip_code: row.zip_code,

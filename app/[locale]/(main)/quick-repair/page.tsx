@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Camera, ImagePlus, HardDrive } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
+import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
 import { InstallAppButton } from '@/components/pwa/InstallAppButton';
 import { ProDrivePicker } from '@/components/drive/ProDrivePicker';
 import { ProDriveQuotaModal } from '@/components/drive/ProDriveQuotaModal';
 import { Button } from '@/components/ui/Button';
+import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import { Input } from '@/components/ui/Input';
 import { SERVICE_CATEGORIES } from '@/lib/constants/categories';
 import { createSignInUrl, createSignUpUrl } from '@/lib/redirect';
@@ -40,6 +42,7 @@ interface LocalPhoto {
 
 export default function QuickRepairPage() {
   const t = useTranslations('procam');
+  const tHandoff = useTranslations('auth.googleHandoff');
   const labels = useTranslations('common.label');
   const address = useTranslations('profileEdit.fields');
   const locale = useLocale() as Locale;
@@ -64,6 +67,7 @@ export default function QuickRepairPage() {
   const [trade, setTrade] = useState('');
   const [description, setDescription] = useState('');
   const [streetAddress, setStreetAddress] = useState('');
+  const [apartment, setApartment] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
@@ -103,6 +107,7 @@ export default function QuickRepairPage() {
         setTrade((current) => keep(draft.trade, current));
         setDescription((current) => keep(draft.description, current));
         setStreetAddress((current) => keep(draft.streetAddress, current));
+        setApartment((current) => keep(draft.apartment ?? '', current));
         setCity((current) => keep(draft.city, current));
         setState((current) => keep(draft.state, current));
         setZipCode((current) => keep(draft.zipCode, current));
@@ -146,6 +151,7 @@ export default function QuickRepairPage() {
     setEmail((current) => current || user.email || '');
     setPhone((current) => current || user.phone || '');
     setStreetAddress((current) => current || user.streetAddress || '');
+    setApartment((current) => current || user.apartment || '');
     setCity((current) => current || user.city || '');
     setState((current) => current || user.state || '');
     setZipCode((current) => current || user.zipCode || '');
@@ -159,6 +165,7 @@ export default function QuickRepairPage() {
     trade,
     description,
     streetAddress,
+    apartment,
     city,
     state,
     zipCode,
@@ -193,6 +200,7 @@ export default function QuickRepairPage() {
     trade,
     description,
     streetAddress,
+    apartment,
     city,
     state,
     zipCode,
@@ -204,6 +212,7 @@ export default function QuickRepairPage() {
     email,
     phone,
     streetAddress,
+    apartment,
     city,
     state,
     zipCode,
@@ -230,6 +239,7 @@ export default function QuickRepairPage() {
     const found = await reverseGeocode(shot.latitude, shot.longitude);
     if (!found) return;
     setStreetAddress((current) => current || found.streetAddress);
+    setApartment((current) => current || found.apartment);
     setCity((current) => current || found.city);
     setState((current) => current || found.state);
     setZipCode((current) => current || found.zipCode);
@@ -296,6 +306,9 @@ export default function QuickRepairPage() {
   const persistNow = () => saveQuickRepairDraft(currentDraft());
 
   const continueWithGoogle = async () => {
+    // A second OAuth start overwrites the PKCE verifier of the first one, so the
+    // callback for the earlier code can no longer be exchanged.
+    if (googleLoading) return;
     if (!detailsAreValid()) {
       setError(t('checkDetails'));
       return;
@@ -383,6 +396,7 @@ export default function QuickRepairPage() {
           email,
           phone,
           streetAddress,
+          apartment,
           city,
           state,
           zipCode,
@@ -421,6 +435,11 @@ export default function QuickRepairPage() {
 
   return (
     <div className="w-full">
+      <GoogleHandoffOverlay
+        open={googleLoading}
+        title={tHandoff('title')}
+        subtitle={tHandoff('subtitle')}
+      />
       {ready && !isLoading && (
         <div className="-mx-1 -mt-1 md:-mx-2 md:-mt-2">
           <div
@@ -498,6 +517,7 @@ export default function QuickRepairPage() {
                 email={email}
                 phone={phone}
                 streetAddress={streetAddress}
+                apartment={apartment}
                 city={city}
                 state={state}
                 zipCode={zipCode}
@@ -509,6 +529,7 @@ export default function QuickRepairPage() {
                 emailLabel={labels('email')}
                 phoneLabel={labels('phone')}
                 streetLabel={address('streetAddress')}
+                unitLabel={address('apartment')}
                 cityLabel={address('city')}
                 stateLabel={address('state')}
                 zipLabel={address('zipCode')}
@@ -519,6 +540,7 @@ export default function QuickRepairPage() {
                 onEmail={setEmail}
                 onPhone={setPhone}
                 onStreet={setStreetAddress}
+                onApartment={setApartment}
                 onCity={setCity}
                 onState={setState}
                 onZip={setZipCode}
@@ -572,7 +594,7 @@ export default function QuickRepairPage() {
                 {[firstName, lastName].filter(Boolean).join(' ')}
                 {phone ? ` · ${phone}` : ''}
               </p>
-              <p className="text-sm">{[streetAddress, city, state, zipCode].filter(Boolean).join(', ')}</p>
+              <p className="text-sm">{[streetAddress, apartment, city, state, zipCode].filter(Boolean).join(', ')}</p>
               <div className="flex gap-2">
                 <Button type="button" variant="ghost" onClick={() => setStep('details')}>{t('back')}</Button>
                 <Button type="button" disabled={saving} onClick={() => void submit()}>
@@ -655,6 +677,7 @@ interface DetailsFormProps {
   email: string;
   phone: string;
   streetAddress: string;
+  apartment: string;
   city: string;
   state: string;
   zipCode: string;
@@ -666,6 +689,7 @@ interface DetailsFormProps {
   emailLabel: string;
   phoneLabel: string;
   streetLabel: string;
+  unitLabel: string;
   cityLabel: string;
   stateLabel: string;
   zipLabel: string;
@@ -676,6 +700,7 @@ interface DetailsFormProps {
   onEmail: (value: string) => void;
   onPhone: (value: string) => void;
   onStreet: (value: string) => void;
+  onApartment: (value: string) => void;
   onCity: (value: string) => void;
   onState: (value: string) => void;
   onZip: (value: string) => void;
@@ -702,7 +727,22 @@ function DetailsForm(props: DetailsFormProps) {
         <Input value={props.lastName} onChange={(event) => props.onLastName(event.target.value)} placeholder={props.lastNameLabel} />
         <Input value={props.email} onChange={(event) => props.onEmail(event.target.value)} placeholder={props.emailLabel} />
         <Input value={props.phone} onChange={(event) => props.onPhone(event.target.value)} placeholder={props.phoneLabel} />
-        <Input className="col-span-2" value={props.streetAddress} onChange={(event) => props.onStreet(event.target.value)} placeholder={props.streetLabel} />
+        <div className="col-span-2">
+          <AddressAutocomplete
+            id="quick-repair-street"
+            value={props.streetAddress}
+            onChange={props.onStreet}
+            onAddressSelect={(addr: AddressData) => {
+              props.onStreet(addr.streetAddress);
+              if (addr.apartment) props.onApartment(addr.apartment);
+              if (addr.city) props.onCity(addr.city);
+              if (addr.state) props.onState(addr.state);
+              if (addr.zipCode) props.onZip(addr.zipCode);
+            }}
+            placeholder={props.streetLabel}
+          />
+        </div>
+        <Input className="col-span-2" value={props.apartment} onChange={(event) => props.onApartment(event.target.value)} placeholder={props.unitLabel} />
         <Input value={props.city} onChange={(event) => props.onCity(event.target.value)} placeholder={props.cityLabel} />
         <Input value={props.state} onChange={(event) => props.onState(event.target.value)} placeholder={props.stateLabel} maxLength={2} />
         <Input value={props.zipCode} onChange={(event) => props.onZip(event.target.value)} placeholder={props.zipLabel} />

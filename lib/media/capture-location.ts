@@ -6,6 +6,7 @@ export interface CaptureLocation {
 
 export interface ReverseGeocodeAddress {
   streetAddress: string;
+  apartment: string;
   city: string;
   state: string;
   zipCode: string;
@@ -66,11 +67,12 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
 
     const parts = body.results[0].address_components;
     const streetAddress = [component(parts, 'street_number'), component(parts, 'route')].filter(Boolean).join(' ');
+    const apartment = component(parts, 'subpremise');
     const city = component(parts, 'locality') || component(parts, 'postal_town') || component(parts, 'sublocality');
     const state = component(parts, 'administrative_area_level_1', 'short_name');
     const zipCode = component(parts, 'postal_code');
     if (!streetAddress && !city) return null;
-    return { streetAddress, city, state, zipCode };
+    return { streetAddress, apartment, city, state, zipCode };
   } catch {
     return null;
   }

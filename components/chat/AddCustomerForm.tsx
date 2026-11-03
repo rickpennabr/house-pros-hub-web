@@ -131,7 +131,7 @@ export default function AddCustomerForm({
       ...prev,
       address: addr.fullAddress,
       street_address: addr.streetAddress || addr.fullAddress || prev.street_address,
-      apartment: addr.apartment ?? prev.apartment,
+      apartment: addr.apartment || prev.apartment,
       city: addr.city || prev.city,
       state: addr.state || prev.state,
       zip_code: addr.zipCode || prev.zip_code,

@@ -41,7 +41,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
           type="button"
           onClick={() => onRoleSelect('customer')}
           disabled={isLoading}
-          className="w-full p-2 md:p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+          className="w-full p-2 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
         >
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
@@ -63,9 +63,9 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
           type="button"
           onClick={() => onRoleSelect('contractor')}
           disabled={isLoading}
-          className="w-full p-2 md:p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+          className="w-full p-2 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
         >
-          <div className="flex items-start gap-4">
+          <div className="flex items-center gap-4">
             <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
               <GrUserWorker className="w-6 h-6 text-red-500" />
             </div>
@@ -73,7 +73,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
               <h3 className="text-lg font-semibold text-black leading-snug">
                 {t('contractor.title')}
               </h3>
-              <p className="text-xs font-normal text-gray-500 mb-1">{t('contractor.invitationCodeRequired')}</p>
+              <p className="text-xs font-normal text-red-500">{t('contractor.invitationCodeRequired')}</p>
               <p className="text-sm text-gray-600">
                 {t('contractor.description')}
               </p>
@@ -85,9 +85,9 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
           type="button"
           onClick={() => onRoleSelect('installer')}
           disabled={isLoading}
-          className="w-full p-2 md:p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+          className="w-full p-2 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
         >
-          <div className="flex items-start gap-4">
+          <div className="flex items-center gap-4">
             <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
               <HardHat className="w-6 h-6 text-red-500" />
             </div>
@@ -95,7 +95,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
               <h3 className="text-lg font-semibold text-black leading-snug">
                 {t('installer.title')}
               </h3>
-              <p className="text-xs font-normal text-gray-500 mb-1">{t('installer.invitationCodeRequired')}</p>
+              <p className="text-xs font-normal text-red-500">{t('installer.invitationCodeRequired')}</p>
               <p className="text-sm text-gray-600">
                 {t('installer.description')}
               </p>
@@ -108,9 +108,9 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
           type="button"
           onClick={() => onRoleSelect('realtor')}
           disabled={isLoading}
-          className="w-full p-2 md:p-6 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+          className="w-full p-2 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
         >
-          <div className="flex items-start gap-4">
+          <div className="flex items-center gap-4">
             <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
               <FaPersonShelter className="w-6 h-6 text-red-500" />
             </div>
@@ -118,7 +118,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
               <h3 className="text-lg font-semibold text-black leading-snug">
                 {t('realtor.title')}
               </h3>
-              <p className="text-xs font-normal text-gray-500 mb-1">{t('realtor.invitationCodeRequired')}</p>
+              <p className="text-xs font-normal text-red-500">{t('realtor.invitationCodeRequired')}</p>
               <p className="text-sm text-gray-600">
                 {t('realtor.description')}
               </p>
@@ -128,7 +128,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
       </div>
 
       {/* Already have an account */}
-      <div className="mt-8 flex flex-col gap-3">
+      <div className="mt-3 flex flex-col gap-3">
         <p className="text-sm text-gray-600 text-center">
           {t('alreadyHaveAccount')}
         </p>

@@ -24,6 +24,8 @@ import {
 import { LinkItem } from '@/components/proscard/ProLinks';
 import { AngiIcon } from '@/components/ui/icons/AngiIcon';
 import { HphQrCodeModal } from '@/components/qr/HphQrCodeModal';
+import { publicPageUrl } from '@/lib/qr/public-origin';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
 interface BusinessLinksTabProps {
@@ -72,9 +74,8 @@ const linkLabels: Record<string, string> = {
 
 export default function BusinessLinksTab({ links, businessName, logoSrc }: BusinessLinksTabProps) {
   const [isQrOpen, setIsQrOpen] = useState(false);
-  const pageUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}${window.location.pathname}`
-    : '';
+  const pathname = usePathname();
+  const pageUrl = publicPageUrl(pathname);
 
   const handleLinkClick = (link: LinkItem) => {
     if (link.type === 'qrcode') {

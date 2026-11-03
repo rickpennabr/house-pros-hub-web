@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
     const sortBy = (searchParams.get('sortBy') || 'created_at') as (typeof VALID_SORT)[number];
     const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc';
     const statusFilter = searchParams.get('status') || '';
+    const search = (searchParams.get('search') || '').replace(/[%_,.()]/g, ' ').trim();
 
     const supabase = await createClient();
     const orderColumn = VALID_SORT.includes(sortBy) ? sortBy : 'created_at';
@@ -56,6 +57,18 @@ export async function GET(request: NextRequest) {
 
     if (statusFilter && ['planned', 'in_progress', 'on_hold', 'completed', 'cancelled'].includes(statusFilter)) {
       query = query.eq('status', statusFilter as 'planned' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled');
+    }
+
+    if (search) {
+      const { data: matchingCustomers } = await supabase
+        .from('pro_crm_customers')
+        .select('id')
+        .eq('owner_id', user.id)
+        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,display_name.ilike.%${search}%,company_name.ilike.%${search}%`);
+      const ids = (matchingCustomers ?? []).map((customer) => customer.id);
+      const parts = [`name.ilike.%${search}%`];
+      if (ids.length > 0) parts.push(`customer_id.in.(${ids.join(',')})`);
+      query = query.or(parts.join(','));
     }
 
     const from = (page - 1) * pageSize;

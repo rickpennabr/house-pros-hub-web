@@ -835,7 +835,7 @@ export default function ChatEstimateForm({
                     setValue('city', addr.city);
                     setValue('state', addr.state);
                     setValue('zipCode', addr.zipCode);
-                    if (addr.apartment != null) setValue('apartment', addr.apartment);
+                    if (addr.apartment) setValue('apartment', addr.apartment);
                   }}
                   placeholder={tFields('streetAddressPlaceholder')}
                   required

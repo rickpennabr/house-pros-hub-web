@@ -407,6 +407,50 @@ button:disabled {
   transform-origin: center;
 }
 
+/* Google account handoff: dots carry the profile from Google over to House Pros Hub. */
+@keyframes google-transfer-dot {
+  0% {
+    transform: translateX(0) scale(0.4);
+    opacity: 0;
+  }
+  15% {
+    transform: translateX(0.8rem) scale(1);
+    opacity: 1;
+  }
+  85% {
+    transform: translateX(4.7rem) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(5.5rem) scale(0.4);
+    opacity: 0;
+  }
+}
+
+.animate-google-transfer-dot {
+  animation: google-transfer-dot 1.6s linear infinite;
+}
+
+@keyframes google-transfer-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-google-transfer-bar {
+  animation: google-transfer-bar 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-google-transfer-dot,
+  .animate-google-transfer-bar {
+    animation-duration: 0s;
+  }
+}
+
 @keyframes slide-in-icon {
   0% {
     transform: translateX(-20px);

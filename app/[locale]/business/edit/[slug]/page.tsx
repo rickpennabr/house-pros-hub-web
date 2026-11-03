@@ -842,6 +842,7 @@ export default function EditBusinessPage() {
     setValue('city', addressData.city);
     setValue('state', addressData.state);
     setValue('zipCode', addressData.zipCode);
+    if (addressData.apartment) setValue('apartment', addressData.apartment);
   };
 
   const onSubmit = async (data: BusinessFormValues) => {

@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
-import { ToolPage } from '@/components/pageslayout/ToolPage';
 import { ProDriveBrowser } from '@/components/drive/ProDriveBrowser';
+import { ProDriveWorkspace } from '@/components/drive/ProDriveWorkspace';
 import { createSignInUrl } from '@/lib/redirect';
 import type { Locale } from '@/i18n';
-import type { DriveOwnerType } from '@/lib/drive/types';
+import type { DriveOwnerType, DriveUsage } from '@/lib/drive/types';
 
 interface BusinessOption {
   id: string;
@@ -21,7 +21,10 @@ export default function ProDrivePage() {
   const [businesses, setBusinesses] = useState<BusinessOption[]>([]);
   const [ownerType, setOwnerType] = useState<DriveOwnerType>('user');
   const [businessOwnerId, setBusinessOwnerId] = useState('');
+  const [usage, setUsage] = useState<DriveUsage | null>(null);
+  const [query, setQuery] = useState('');
   const ownerId = ownerType === 'user' ? user?.id ?? '' : businessOwnerId;
+  const onUsageChange = useCallback((next: DriveUsage | null) => setUsage(next), []);
 
   useEffect(() => {
     if (!user) return;
@@ -31,37 +34,48 @@ export default function ProDrivePage() {
       .catch(() => setBusinesses([]));
   }, [user]);
 
+  const signedIn = !isLoading && isAuthenticated && !!user;
+
   return (
-    <ToolPage title={t('title')}>
+    <ProDriveWorkspace
+      locale={locale}
+      businesses={businesses}
+      ownerType={ownerType}
+      ownerId={ownerId}
+      usage={usage}
+      query={query}
+      onQueryChange={setQuery}
+      showNavigation={signedIn}
+      onOwnerChange={(nextType, nextId) => {
+        setQuery('');
+        setUsage(null);
+        if (nextType === 'user') {
+          setOwnerType('user');
+          setBusinessOwnerId('');
+        } else {
+          setOwnerType('business');
+          setBusinessOwnerId(nextId);
+        }
+      }}
+    >
       {isLoading ? (
-        <p>{t('loading')}</p>
-      ) : !isAuthenticated || !user ? (
-        <a className="underline" href={createSignInUrl(locale, `/${locale}/prodrive`)}>{t('signIn')}</a>
-      ) : (
-        <div className="space-y-4">
-          {businesses.length > 0 && (
-            <select
-              className="border-2 border-black rounded-lg px-3 py-2 text-sm"
-              value={ownerType === 'user' ? 'user' : ownerId}
-              onChange={(event) => {
-                const value = event.target.value;
-                if (value === 'user') {
-                  setOwnerType('user');
-                } else {
-                  setOwnerType('business');
-                  setBusinessOwnerId(value);
-                }
-              }}
-            >
-              <option value="user">{t('myDrive')}</option>
-              {businesses.map((business) => (
-                <option key={business.id} value={business.id}>{business.name}</option>
-              ))}
-            </select>
-          )}
-          {ownerId && <ProDriveBrowser key={`${ownerType}:${ownerId}`} ownerType={ownerType} ownerId={ownerId} />}
+        <p className="px-4 py-6 text-sm md:px-6">{t('loading')}</p>
+      ) : !signedIn ? (
+        <div className="flex flex-1 items-center justify-center px-6">
+          <a className="text-lg font-medium underline" href={createSignInUrl(locale, `/${locale}/prodrive`)}>
+            {t('signIn')}
+          </a>
         </div>
-      )}
-    </ToolPage>
+      ) : ownerId ? (
+        <ProDriveBrowser
+          key={`${ownerType}:${ownerId}`}
+          variant="workspace"
+          ownerType={ownerType}
+          ownerId={ownerId}
+          filterQuery={query}
+          onUsageChange={onUsageChange}
+        />
+      ) : null}
+    </ProDriveWorkspace>
   );
 }

@@ -1,9 +1,9 @@
 'use client';
 
-import { CheckSquare, Link as LinkIcon, Building2, Images, Wrench } from 'lucide-react';
+import { CheckSquare, Clock, Link as LinkIcon, Building2, Images, Wrench } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
-export type BusinessDetailsTab = 'contact' | 'services' | 'links' | 'about' | 'images';
+export type BusinessDetailsTab = 'contact' | 'hours' | 'services' | 'links' | 'about' | 'images';
 
 interface BusinessDetailsTabsProps {
   activeTab: BusinessDetailsTab;
@@ -13,8 +13,10 @@ interface BusinessDetailsTabsProps {
 
 export default function BusinessDetailsTabs({ activeTab, onTabChange, showServices = false }: BusinessDetailsTabsProps) {
   const t = useTranslations('businessServices');
+  const tHours = useTranslations('businessHours');
   const tabs = [
     { id: 'contact' as const, label: 'Contact', icon: CheckSquare },
+    { id: 'hours' as const, label: tHours('tab'), icon: Clock },
     ...(showServices ? [{ id: 'services' as const, label: t('tab'), icon: Wrench }] : []),
     { id: 'links' as const, label: 'Links', icon: LinkIcon },
     { id: 'about' as const, label: 'About', icon: Building2 },

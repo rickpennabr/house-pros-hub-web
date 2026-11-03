@@ -81,21 +81,52 @@ export async function GET(request: NextRequest) {
 
     const list = estimates ?? [];
     const customerIds = [...new Set(list.map((e) => e.customer_id))];
-    const customerMap = new Map<string, { first_name: string; last_name: string }>();
+    const customerMap = new Map<string, {
+      first_name: string;
+      last_name: string;
+      street_address: string | null;
+      apartment: string | null;
+      city: string | null;
+      state: string | null;
+      zip_code: string | null;
+      phone: string | null;
+      billing_address_street_1: string | null;
+      billing_address_street_2: string | null;
+      billing_address_city: string | null;
+      billing_address_state: string | null;
+      billing_address_zip_code: string | null;
+    }>();
     if (customerIds.length > 0) {
       const { data: customers } = await supabase
         .from('pro_crm_customers')
-        .select('id, first_name, last_name')
+        .select('id, first_name, last_name, street_address, apartment, city, state, zip_code, phone, billing_address_street_1, billing_address_street_2, billing_address_city, billing_address_state, billing_address_zip_code')
         .in('id', customerIds);
-      customers?.forEach((c) => customerMap.set(c.id, { first_name: c.first_name, last_name: c.last_name }));
+      customers?.forEach((c) => customerMap.set(c.id, c));
     }
 
     const customersList = list.map((e) => {
       const c = customerMap.get(e.customer_id);
+      const home = [c?.street_address, c?.apartment, c?.city, c?.state, c?.zip_code]
+        .map((part) => part?.trim() ?? '')
+        .filter(Boolean)
+        .join(', ');
+      const billing = [
+        c?.billing_address_street_1,
+        c?.billing_address_street_2,
+        c?.billing_address_city,
+        c?.billing_address_state,
+        c?.billing_address_zip_code,
+      ]
+        .map((part) => part?.trim() ?? '')
+        .filter(Boolean)
+        .join(', ');
+      const address = home || billing;
       return {
         ...e,
         customerFirstName: c?.first_name ?? null,
         customerLastName: c?.last_name ?? null,
+        customerPhone: c?.phone ?? null,
+        customerAddress: address,
       };
     });
 

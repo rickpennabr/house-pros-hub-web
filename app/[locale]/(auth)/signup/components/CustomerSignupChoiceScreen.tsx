@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { ClipboardList } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Logo from '@/components/Logo';
 import { Button } from '@/components/ui/Button';
@@ -24,6 +26,8 @@ export function CustomerSignupChoiceScreen({
   const t = useTranslations('auth.signup.customerSignupChoice');
   const tNav = useTranslations('auth.signup.navigation');
   const locale = useLocale();
+  const searchParams = useSearchParams();
+  const forEstimate = (searchParams.get('returnUrl') ?? '').includes('/estimate');
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col text-black md:pt-12">
@@ -38,8 +42,11 @@ export function CustomerSignupChoiceScreen({
         </Link>
       </div>
 
-      <div className="flex items-center justify-center mb-6 md:mb-8 md:pt-4 animate-slide-in-right">
+      <div className="mb-6 flex flex-col items-center justify-center gap-2 md:mb-8 md:pt-4 animate-slide-in-right">
         <h2 className="text-3xl font-semibold text-center">{t('title')}</h2>
+        {forEstimate && (
+          <p className="text-center text-sm text-gray-600">{t('estimateHint')}</p>
+        )}
       </div>
 
       <ErrorMessage message={error || ''} />
@@ -50,9 +57,12 @@ export function CustomerSignupChoiceScreen({
           variant="primary"
           onClick={onSignUpWithForm}
           disabled={isLoading}
-          className="w-full whitespace-nowrap px-4 py-2.5 md:py-3"
+          className="flex w-full items-center justify-center whitespace-nowrap px-4 py-2.5 md:py-3"
         >
-          {t('signUpWithForm')}
+          <span className="inline-flex items-center justify-center gap-2">
+            <ClipboardList className="h-5 w-5 shrink-0" aria-hidden="true" />
+            {t('signUpWithForm')}
+          </span>
         </Button>
 
         <div className="flex items-center gap-3">

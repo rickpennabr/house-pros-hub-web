@@ -17,6 +17,7 @@ import {
   BarChart3,
   Camera,
   Home,
+  QrCode,
   LucideIcon,
 } from 'lucide-react';
 import { BsGrid3X3Gap } from 'react-icons/bs';
@@ -53,7 +54,8 @@ export function CRMSidebar({ locale }: CRMSidebarProps) {
     { href: `${base}/reports`, labelKey: 'crmReports', icon: BarChart3 },
     { href: `${base}/items`, labelKey: 'crmItems', icon: Package },
     { href: `${base}/calendar`, labelKey: 'crmCalendar', icon: Calendar },
-  ].filter((item) => !realtorCalendarOnly || item.href.endsWith('/calendar'));
+    { href: `${base}/qrcode`, labelKey: 'crmQrcode', icon: QrCode },
+  ].filter((item) => !realtorCalendarOnly || item.href.endsWith('/calendar') || item.href.endsWith('/qrcode'));
 
   useEffect(() => setMounted(true), []);
 

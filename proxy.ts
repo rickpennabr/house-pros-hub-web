@@ -93,9 +93,19 @@ export default async function proxy(request: NextRequest) {
     return ensureCsrfCookie(request, NextResponse.next());
   }
 
-  const response = pathname.startsWith('/admin')
-    ? NextResponse.next({ request: { headers: seoRequest.headers } })
-    : intlMiddleware(seoRequest);
+  // /q/:code is the printed short link. next-intl would prefix /en and that path 404s.
+  // /en/q/:code (and es, pt) is rewritten back so a scan still counts and redirects.
+  const localizedQr = pathname.match(new RegExp(`^/(${locales.join('|')})/q/([^/]+)/?$`));
+  let response: NextResponse;
+  if (localizedQr) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/q/${localizedQr[2]}`;
+    response = NextResponse.rewrite(url, { request: { headers: seoRequest.headers } });
+  } else if (pathname.startsWith('/admin') || pathname.startsWith('/q/')) {
+    response = NextResponse.next({ request: { headers: seoRequest.headers } });
+  } else {
+    response = intlMiddleware(seoRequest);
+  }
 
   // getUser() exists only to rotate an expiring session cookie. A still-valid
   // access token does not need a round trip to Supabase on every page view.

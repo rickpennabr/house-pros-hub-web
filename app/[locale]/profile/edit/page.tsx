@@ -5,15 +5,20 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useState, useMemo } from 'react';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
-import { ChevronDown, ChevronUp, User as UserIcon, X, UserPen, Settings } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2, User as UserIcon, X, UserPen, Settings } from 'lucide-react';
 import { resizeImageSquare, base64ToFile, validateFileSize } from '@/lib/utils/image';
 import { useRef } from 'react';
+import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import Image from 'next/image';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
+import Modal from '@/components/ui/Modal';
 import { createSignInUrl } from '@/lib/redirect';
+import { createClient } from '@/lib/supabase/client';
+import { accountDeleteUsesPassword } from '@/lib/auth/account-has-password';
+import { getCsrfToken } from '@/lib/utils/csrf';
 import type { Locale } from '@/i18n';
 import {
   REFERRAL_BY_FRIEND,
@@ -25,7 +30,7 @@ import {
 import { useReferralOptions } from '@/hooks/useReferralOptions';
 
 export default function EditProfilePage() {
-  const { user, isAuthenticated, isLoading, updateUser } = useAuth();
+  const { user, isAuthenticated, isLoading, updateUser, logout } = useAuth();
   const router = useRouter();
   const locale = useLocale() as Locale;
   const t = useTranslations('profileEdit');
@@ -61,6 +66,12 @@ export default function EditProfilePage() {
   const [personalAddressId, setPersonalAddressId] = useState<string | null>(null);
   const [initialFormData, setInitialFormData] = useState<typeof formData | null>(null);
   const [showCompanyFields, setShowCompanyFields] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<'warning' | 'verify'>('warning');
+  const [deleteHasPassword, setDeleteHasPassword] = useState(true);
+  const [deleteProof, setDeleteProof] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   // Redirect to signin if not authenticated
   useEffect(() => {
@@ -964,16 +975,20 @@ export default function EditProfilePage() {
                   {/* Street Address */}
                   <div className="md:col-span-2">
                     <FormField label={t('fields.streetAddress')}>
-                      <Input
-                        type="text"
+                      <AddressAutocomplete
                         id="streetAddress"
-                        name="streetAddress"
                         value={formData.streetAddress}
-                        onChange={handleChange}
-                        onClear={() => {
-                          setFormData(prev => ({ ...prev, streetAddress: '' }));
+                        onChange={(value) => setFormData((prev) => ({ ...prev, streetAddress: value }))}
+                        onAddressSelect={(address: AddressData) => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            streetAddress: address.streetAddress,
+                            apartment: address.apartment || prev.apartment,
+                            city: address.city || prev.city,
+                            state: address.state || prev.state,
+                            zipCode: address.zipCode || prev.zipCode,
+                          }));
                         }}
-                        showClear
                         placeholder={t('placeholders.streetAddress')}
                       />
                     </FormField>
@@ -1090,7 +1105,7 @@ export default function EditProfilePage() {
           </div>
 
           {/* Submit Button */}
-          <div className="flex gap-4 pt-4">
+          <div className="flex items-end gap-4 pt-4">
             <button
               type="button"
               onClick={() => router.push(`/${locale}/account-management`)}
@@ -1098,27 +1113,180 @@ export default function EditProfilePage() {
             >
               {t('cancel')}
             </button>
-            {hasChanges ? (
-              // Show "Save Changes" button when form is modified
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 px-6 py-3 border-2 border-black bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? t('saving') : t('saveChanges')}
-              </button>
-            ) : (
-              // Show "Go to Manage Account" button when form is unchanged
+            <div className="flex flex-1 flex-col gap-3">
               <button
                 type="button"
-                onClick={() => router.push(`/${locale}/account-management`)}
-                className="flex-1 px-6 py-3 border-2 border-black bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors cursor-pointer"
+                onClick={() => {
+                  setDeleteError('');
+                  setDeleteProof('');
+                  setDeleteStep('warning');
+                  setShowDeleteConfirm(true);
+                }}
+                className="w-full px-6 py-3 border-2 border-red-600 bg-white text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors cursor-pointer"
               >
-                {t('goToManageAccount')}
+                {t('deleteAccount')}
               </button>
-            )}
+              {hasChanges ? (
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full px-6 py-3 border-2 border-black bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? t('saving') : t('saveChanges')}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/${locale}/account-management`)}
+                  className="w-full px-6 py-3 border-2 border-black bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors cursor-pointer"
+                >
+                  {t('goToManageAccount')}
+                </button>
+              )}
+            </div>
           </div>
         </form>
+
+        <Modal
+          isOpen={showDeleteConfirm}
+          onClose={() => {
+            if (!isDeleting) setShowDeleteConfirm(false);
+          }}
+          showHeader={false}
+          showCloseButton={false}
+          maxWidth="md"
+          preventCloseOnOverlayClick={isDeleting}
+          contentClassName="p-6"
+        >
+          <div className="text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-red-300 bg-red-100">
+              <Trash2 className="h-8 w-8 text-red-600" />
+            </div>
+            {deleteStep === 'warning' ? (
+              <>
+                <h2 className="mb-3 text-xl font-semibold text-red-800">{t('deleteAccount')}</h2>
+                <p className="mb-4 text-sm leading-relaxed text-gray-600">{t('deleteAccountBody')}</p>
+                <p className="mb-2 text-sm font-semibold text-gray-800">{t('deleteConfirmTitle')}</p>
+                <ul className="mb-6 list-inside list-disc space-y-1 text-left text-sm text-gray-700">
+                  <li>{t('deleteItemProfile')}</li>
+                  <li>{t('deleteItemBusinesses')}</li>
+                  <li>{t('deleteItemSaved')}</li>
+                  <li>{t('deleteItemAccess')}</li>
+                </ul>
+              </>
+            ) : (
+              <>
+                <h2 className="mb-3 text-xl font-semibold text-black">{t('securityTitle')}</h2>
+                <p className="mb-4 text-sm leading-relaxed text-gray-600">
+                  {deleteHasPassword ? t('passwordMessage') : t('googleMessage')}
+                </p>
+                <label className="mb-6 block text-left text-sm">
+                  <span className="mb-1 block font-medium text-black">
+                    {deleteHasPassword ? t('passwordLabel') : t('emailLabel')}
+                  </span>
+                  <input
+                    type={deleteHasPassword ? 'password' : 'email'}
+                    value={deleteProof}
+                    autoComplete={deleteHasPassword ? 'current-password' : 'email'}
+                    placeholder={deleteHasPassword ? t('passwordPlaceholder') : t('emailPlaceholder')}
+                    onChange={(event) => {
+                      setDeleteProof(event.target.value);
+                      setDeleteError('');
+                    }}
+                    className="w-full rounded-lg border-2 border-black px-3 py-2 text-sm"
+                  />
+                </label>
+              </>
+            )}
+            {deleteError && <p className="mb-4 text-sm text-red-600">{deleteError}</p>}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="flex-1 cursor-pointer rounded-lg border-2 border-black bg-white px-4 py-3 font-medium text-black transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={async () => {
+                  setDeleteError('');
+                  if (deleteStep === 'warning') {
+                    const supabase = createClient();
+                    const [{ data: { user: authUser } }, { data: { session } }] = await Promise.all([
+                      supabase.auth.getUser(),
+                      supabase.auth.getSession(),
+                    ]);
+                    setDeleteHasPassword(accountDeleteUsesPassword(authUser, session?.access_token));
+                    setDeleteProof('');
+                    setDeleteStep('verify');
+                    return;
+                  }
+                  const proof = deleteProof.trim();
+                  if (!proof) {
+                    setDeleteError(deleteHasPassword ? t('passwordRequired') : t('emailRequired'));
+                    return;
+                  }
+                  setIsDeleting(true);
+                  try {
+                    const supabase = createClient();
+                    const [{ data: { user: authUser } }, { data: { session } }] = await Promise.all([
+                      supabase.auth.getUser(),
+                      supabase.auth.getSession(),
+                    ]);
+                    if (!authUser?.email) {
+                      setDeleteError(t('deleteError'));
+                      return;
+                    }
+                    const usesPassword = accountDeleteUsesPassword(authUser, session?.access_token);
+                    if (usesPassword) {
+                      const { error: passwordError } = await supabase.auth.signInWithPassword({
+                        email: authUser.email,
+                        password: proof,
+                      });
+                      if (passwordError) {
+                        setDeleteError(t('incorrectPassword'));
+                        return;
+                      }
+                    } else if (proof.toLowerCase() !== authUser.email.toLowerCase()) {
+                      setDeleteError(t('emailMismatch'));
+                      return;
+                    }
+                    const csrfToken = await getCsrfToken();
+                    const response = await fetch('/api/profile/delete', {
+                      method: 'DELETE',
+                      credentials: 'include',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken,
+                      },
+                      body: JSON.stringify({ csrfToken }),
+                    });
+                    if (response.ok) {
+                      localStorage.clear();
+                      sessionStorage.clear();
+                      await logout();
+                      router.push(`/${locale}`);
+                      return;
+                    }
+                    const data = await response.json();
+                    setDeleteError(data.error || t('deleteFailed'));
+                  } catch (error) {
+                    console.error('Error deleting account:', error);
+                    setDeleteError(t('deleteError'));
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                className="flex-1 cursor-pointer rounded-lg bg-red-600 px-4 py-3 font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isDeleting ? t('deleting') : deleteStep === 'warning' ? t('deleteConfirm') : t('continueDelete')}
+              </button>
+            </div>
+          </div>
+        </Modal>
     </div>
   );
 }

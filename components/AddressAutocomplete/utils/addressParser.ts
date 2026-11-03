@@ -1,4 +1,5 @@
 import { AddressData } from '../../AddressAutocomplete';
+import { splitUnit } from '@/lib/address/unit';
 
 // Address component type (compatible with both legacy and new API formats)
 export interface AddressComponent {
@@ -82,13 +83,15 @@ export function parseAddressData(result: GooglePlacesResult): AddressData {
     
     const state = getAddressComponent(result.address_components, 'administrative_area_level_1', true) || 'NV';
     const zipCode = getAddressComponent(result.address_components, 'postal_code') || '';
-    
+    const subpremise = getAddressComponent(result.address_components, 'subpremise');
+    const split = splitUnit(streetAddress);
+
     return {
-      streetAddress,
+      streetAddress: split.street || streetAddress,
       city,
       state,
       zipCode,
-      apartment: '',
+      apartment: subpremise || split.unit,
       fullAddress: result.formatted_address || formatAddress(result),
     };
   }
@@ -121,12 +124,13 @@ export function parseAddressData(result: GooglePlacesResult): AddressData {
     zipCode = zipPart;
   }
   
+  const split = splitUnit(streetAddress);
   return {
-    streetAddress,
+    streetAddress: split.street || streetAddress,
     city,
     state,
     zipCode,
-    apartment: '',
+    apartment: split.unit,
     fullAddress: description,
   };
 }
@@ -161,13 +165,13 @@ export function parseFreeformAddress(line: string): AddressData {
   } else if (parts.length >= 2) {
     city = parts[parts.length - 2];
   }
-  const streetAddress = parts[0] ?? trimmed;
+  const split = splitUnit(parts[0] ?? trimmed);
   return {
-    streetAddress,
+    streetAddress: split.street || (parts[0] ?? trimmed),
     city,
     state,
     zipCode,
-    apartment: '',
+    apartment: split.unit,
     fullAddress: trimmed,
   };
 }

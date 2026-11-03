@@ -13,6 +13,7 @@ import {
   BUSINESS_TIMEZONES,
   DAY_KEYS,
   SLOT_MINUTE_OPTIONS,
+  addDaysToDateKey,
   cloneSchedule,
   dateKeyInZone,
   dayKeyForDateKey,
@@ -22,6 +23,7 @@ import {
   type SlotMinutes,
   type WeekSchedule,
 } from '@/lib/booking/businessHours';
+import { canChangeAppointment, CHANGE_LEAD_MS } from '@/lib/booking/appointmentPolicy';
 
 type View = 'month' | 'week' | 'day' | 'agenda';
 
@@ -62,6 +64,9 @@ interface BookingItem {
   endAt: string;
   status: string;
   phone: string | null;
+  email: string | null;
+  address: string | null;
+  note: string | null;
 }
 
 const HOUR_PX = 52;
@@ -160,6 +165,8 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
   const [blockEnd, setBlockEnd] = useState('12:00');
   const [blockNote, setBlockNote] = useState('');
   const [selectedBooking, setSelectedBooking] = useState<BookingItem | null>(null);
+  const [cancelArmed, setCancelArmed] = useState(false);
+  const [moveDateKey, setMoveDateKey] = useState<string | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -296,15 +303,20 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
     ? slotsForDateKey({ dateKey: cursor, schedule, timeZone: timezone, slotMinutes })
     : [];
 
+  const moveDay = selectedBooking
+    ? moveDateKey ?? dateKeyInZone(new Date(selectedBooking.startAt), timezone)
+    : cursor;
   const moveChoices = selectedBooking && schedule
     ? slotsForDateKey({
-        dateKey: dateKeyInZone(new Date(selectedBooking.startAt), timezone),
+        dateKey: moveDay,
         schedule,
         timeZone: timezone,
         slotMinutes,
       }).filter((slot) => {
         const start = slot.start.toISOString();
         const end = slot.end.toISOString();
+        if (slot.start.getTime() < Date.now() + CHANGE_LEAD_MS) return false;
+        if (slot.start.getTime() === new Date(selectedBooking.startAt).getTime()) return false;
         const taken = bookings.some(
           (item) =>
             item.id !== selectedBooking.id &&
@@ -513,13 +525,13 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
     <div className="space-y-3 pb-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-black">{t('title')}</h1>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="secondary" onClick={() => setShowAddBlock(true)}>
-            <Plus className="mr-1 h-4 w-4" />
+        <div className="flex shrink-0 gap-2">
+          <Button type="button" size="sm" variant="secondary" onClick={() => setShowAddBlock(true)} className="inline-flex shrink-0 items-center whitespace-nowrap">
+            <Plus className="mr-1 h-4 w-4 shrink-0" />
             {t('addBlock')}
           </Button>
-          <Button type="button" size="sm" variant="primary" onClick={() => setShowAddTask(true)}>
-            <Plus className="mr-1 h-4 w-4" />
+          <Button type="button" size="sm" variant="primary" onClick={() => setShowAddTask(true)} className="inline-flex shrink-0 items-center whitespace-nowrap">
+            <Plus className="mr-1 h-4 w-4 shrink-0" />
             {t('addTask')}
           </Button>
         </div>
@@ -832,7 +844,11 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
 
       <Modal
         isOpen={!!selectedBooking}
-        onClose={() => setSelectedBooking(null)}
+        onClose={() => {
+          setCancelArmed(false);
+          setMoveDateKey(null);
+          setSelectedBooking(null);
+        }}
         title={selectedBooking?.name || t('legendBooking')}
         showHeader
         showCloseButton
@@ -840,16 +856,60 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
         {selectedBooking && (
           <div className="space-y-3 p-4 text-sm">
             <p>{formatWhen(selectedBooking.startAt, timezone, locale)}</p>
+            <p>
+              {t('status')}:{' '}
+              {selectedBooking.status === 'cancelled'
+                ? t('statusCancelled')
+                : selectedBooking.status === 'completed'
+                  ? t('statusCompleted')
+                  : t('statusConfirmed')}
+            </p>
             {selectedBooking.serviceName && (
               <p>
                 {t('service')}: {selectedBooking.serviceName}
               </p>
             )}
-            <p>
-              {t('status')}: {selectedBooking.status}
-            </p>
-            {selectedBooking.status === 'confirmed' && (
+            {selectedBooking.phone && (
+              <p>
+                {t('customerPhone')}: <a className="underline" href={`tel:${selectedBooking.phone}`}>{selectedBooking.phone}</a>
+              </p>
+            )}
+            {selectedBooking.email && (
+              <p>
+                {t('customerEmail')}: <a className="underline" href={`mailto:${selectedBooking.email}`}>{selectedBooking.email}</a>
+              </p>
+            )}
+            {selectedBooking.address && (
+              <p>
+                {t('address')}: {selectedBooking.address}
+              </p>
+            )}
+            {selectedBooking.note && (
+              <p>
+                {t('note')}: {selectedBooking.note}
+              </p>
+            )}
+            {selectedBooking.status === 'confirmed' && !canChangeAppointment(new Date(selectedBooking.startAt), new Date(), selectedBooking.status) && (
+              <p className="rounded-lg border-2 border-black bg-gray-50 p-3">{t('changeLocked')}</p>
+            )}
+            {selectedBooking.status === 'confirmed' && canChangeAppointment(new Date(selectedBooking.startAt), new Date(), selectedBooking.status) && (
               <>
+                <p className="text-gray-600">{t('changePolicy')}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={addDaysToDateKey(moveDay, -1) < dateKeyInZone(new Date(), timezone)}
+                    onClick={() => setMoveDateKey(addDaysToDateKey(moveDay, -1))}
+                  >
+                    {t('back')}
+                  </Button>
+                  <span className="text-sm font-medium">{fromKey(moveDay).toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setMoveDateKey(addDaysToDateKey(moveDay, 1))}>
+                    {t('next')}
+                  </Button>
+                </div>
                 <FormField label={t('moveTo')}>
                   <Select
                     value=""
@@ -866,15 +926,29 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
                     ))}
                   </Select>
                 </FormField>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="primary" onClick={() => void updateBooking({ status: 'completed' }).catch((err: unknown) => setError(err instanceof Error ? err.message : t('saveFailed')))}>
-                    {t('markComplete')}
-                  </Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => void updateBooking({ status: 'cancelled' }).catch((err: unknown) => setError(err instanceof Error ? err.message : t('saveFailed')))}>
+                {cancelArmed ? (
+                  <div className="space-y-2 rounded-lg border-2 border-black p-3">
+                    <p>{t('confirmCancel')}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="primary" onClick={() => void updateBooking({ status: 'cancelled' }).catch((err: unknown) => setError(err instanceof Error ? err.message : t('saveFailed')))}>
+                        {t('cancelBooking')}
+                      </Button>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => setCancelArmed(false)}>
+                        {t('keepBooking')}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setCancelArmed(true)}>
                     {t('cancelBooking')}
                   </Button>
-                </div>
+                )}
               </>
+            )}
+            {selectedBooking.status === 'confirmed' && (
+              <Button type="button" size="sm" variant="primary" onClick={() => void updateBooking({ status: 'completed' }).catch((err: unknown) => setError(err instanceof Error ? err.message : t('saveFailed')))}>
+                {t('markComplete')}
+              </Button>
             )}
           </div>
         )}

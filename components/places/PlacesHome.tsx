@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Building2, Home, Building } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
+import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -32,6 +33,7 @@ export function PlacesHome() {
   const [kind, setKind] = useState<PlaceKind>('house');
   const [name, setName] = useState('');
   const [street, setStreet] = useState('');
+  const [unit, setUnit] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zip, setZip] = useState('');
@@ -61,11 +63,11 @@ export function PlacesHome() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, name, street, city, state, zipCode: zip }),
+        body: JSON.stringify({ kind, name, street, unit, city, state, zipCode: zip }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('saveFailed'));
-      window.location.href = `/${locale}/places/${data.id}`;
+      window.location.href = `/${locale}/myplaces/${data.id}`;
     } catch (err) {
       setError(err instanceof Error ? err.message : t('saveFailed'));
       setSaving(false);
@@ -73,14 +75,13 @@ export function PlacesHome() {
   };
 
   if (isLoading || loading) {
-    return <div className="max-w-3xl mx-auto p-6 text-gray-500">{t('loading')}</div>;
+    return <div className="p-4 md:p-6 text-gray-500">{t('loading')}</div>;
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="max-w-3xl mx-auto p-6">
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <p className="mt-3">{t('signIn')}</p>
+      <div className="p-4 md:p-6">
+        <p>{t('signIn')}</p>
         <Link href={`/${locale}/signin`} className="inline-block mt-4 text-red-600 font-medium">
           {tAccount('signIn')}
         </Link>
@@ -89,39 +90,40 @@ export function PlacesHome() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6">
+    <div className="p-4 space-y-3">
       <div>
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <p className="mt-2 text-sm text-gray-700">{t('subtitle')}</p>
-        {!emailConfirmed ? <p className="mt-2 text-sm text-red-600">{t('confirmEmail')}</p> : null}
+        <p className="text-sm text-gray-700">{t('subtitle')}</p>
+        {!emailConfirmed ? <p className="mt-1 text-sm text-red-600">{t('confirmEmail')}</p> : null}
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-      {places.length === 0 ? <p className="text-sm text-gray-600">{t('empty')}</p> : null}
-
-      <div className="grid gap-3">
-        {places.map((place) => (
-          <Link
-            key={place.id}
-            href={`/${locale}/places/${place.id}`}
-            className="border-2 border-black rounded-lg p-4 flex items-start gap-3 hover:bg-gray-50"
-          >
-            <KindIcon kind={place.kind} />
-            <span>
-              <span className="block font-medium">{place.name}</span>
-              <span className="block text-xs text-gray-600">
-                {t(`kind.${place.kind}`)}
-                {place.city ? ` · ${place.city}` : ''}
-                {place.state ? `, ${place.state}` : ''}
+      {places.length === 0 ? (
+        <p className="text-sm text-gray-600">{t('empty')}</p>
+      ) : (
+        <div className="grid gap-2">
+          {places.map((place) => (
+            <Link
+              key={place.id}
+              href={`/${locale}/myplaces/${place.id}`}
+              className="border-2 border-black rounded-lg p-4 flex items-start gap-3 hover:bg-gray-50"
+            >
+              <KindIcon kind={place.kind} />
+              <span>
+                <span className="block font-medium">{place.name}</span>
+                <span className="block text-xs text-gray-600">
+                  {t(`kind.${place.kind}`)}
+                  {place.city ? ` · ${place.city}` : ''}
+                  {place.state ? `, ${place.state}` : ''}
+                </span>
+                <span className="block text-xs mt-1">
+                  {place.projectCount} {t('projects').toLowerCase()} · {place.maintenanceCount} {t('maintenance').toLowerCase()}
+                </span>
               </span>
-              <span className="block text-xs mt-1">
-                {place.projectCount} {t('projects').toLowerCase()} · {place.maintenanceCount} {t('maintenance').toLowerCase()}
-              </span>
-            </span>
-          </Link>
-        ))}
-      </div>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="border-2 border-black rounded-lg p-4 space-y-3">
         <h2 className="font-semibold">{t('add')}</h2>
@@ -138,7 +140,22 @@ export function PlacesHome() {
           <Input value={name} onChange={(event) => setName(event.target.value)} required />
         </FormField>
         <FormField label={t('street')}>
-          <Input value={street} onChange={(event) => setStreet(event.target.value)} />
+          <AddressAutocomplete
+            id="place-street"
+            value={street}
+            onChange={setStreet}
+            onAddressSelect={(address: AddressData) => {
+              setStreet(address.streetAddress);
+              if (address.apartment) setUnit(address.apartment);
+              if (address.city) setCity(address.city);
+              if (address.state) setState(address.state);
+              if (address.zipCode) setZip(address.zipCode);
+            }}
+            placeholder={t('streetPlaceholder')}
+          />
+        </FormField>
+        <FormField label={t('unit')}>
+          <Input value={unit} onChange={(event) => setUnit(event.target.value)} placeholder={t('unitPlaceholder')} />
         </FormField>
         <div className="grid grid-cols-3 gap-2">
           <FormField label={t('city')}>

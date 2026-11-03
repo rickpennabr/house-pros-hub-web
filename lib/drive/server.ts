@@ -71,6 +71,7 @@ function mapFolder(row: Database['public']['Tables']['pro_drive_folders']['Row']
     parentId: row.parent_id,
     name: row.name,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -85,6 +86,7 @@ function mapFile(row: Database['public']['Tables']['pro_drive_files']['Row'], pr
     sizeBytes: Number(row.size_bytes),
     storagePath: row.storage_path,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     previewUrl: previewUrl ?? null,
   };
 }

@@ -6,7 +6,8 @@ import type { FieldPath, FieldPathValue } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import { useAuth, type User } from '@/contexts/AuthContext';
-import { USER_TYPES, type UserType } from '@/lib/constants/auth';
+import { signupUserType, USER_TYPES, type UserType } from '@/lib/constants/auth';
+import { referralDetailRequired } from '@/lib/constants/referral';
 import { useAddressField } from '@/hooks/useAddressField';
 import { type PersonalData } from '@/lib/utils/personalData';
 import { signupSchema, type SignupSchema } from '@/lib/schemas/auth';
@@ -56,7 +57,7 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
   const methods = useForm<SignupSchema>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
-      userType: USER_TYPES.CUSTOMER,
+      userType: signupUserType(selectedRole),
       referral: '',
       referralOther: '',
       firstName: '',
@@ -98,20 +99,12 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
   const signedUpUserRef = useRef<User | null>(null);
 
   // Keep form userType in sync with selectedRole (invitation code is collected before step 1 for contractors/realtors)
+  const roleUserType = signupUserType(selectedRole);
   useEffect(() => {
-    if (selectedRole) {
-      setValue(
-        'userType',
-        selectedRole === 'customer'
-          ? USER_TYPES.CUSTOMER
-          : selectedRole === 'realtor'
-            ? USER_TYPES.REALTOR
-            : selectedRole === 'installer'
-              ? USER_TYPES.INSTALLER
-              : USER_TYPES.CONTRACTOR
-      );
+    if (selectedRole && userType !== roleUserType) {
+      setValue('userType', roleUserType);
     }
-  }, [selectedRole, setValue]);
+  }, [selectedRole, roleUserType, userType, setValue]);
 
   // Reset step when user type changes
   useEffect(() => {
@@ -155,7 +148,9 @@ export function useSignupForm({ selectedRole }: UseSignupFormProps = {}) {
     
     if (uiState.currentStep === 1) {
       fieldsToValidate = ['firstName', 'lastName', 'referral'];
-      if (referral === 'Other') fieldsToValidate.push('referralOther');
+      if (referralDetailRequired(referral, selectedRole ? roleUserType : userType)) {
+        fieldsToValidate.push('referralOther');
+      }
     } else if (uiState.currentStep === 2) {
       fieldsToValidate = ['streetAddress', 'city', 'state', 'zipCode'];
     }

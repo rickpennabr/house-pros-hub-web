@@ -71,6 +71,7 @@ export default function BusinessDetailsPage() {
   
   // Refs for tab content sections for auto-scrolling
   const contactRef = useRef<HTMLDivElement>(null);
+  const hoursRef = useRef<HTMLDivElement>(null);
   const servicesRef = useRef<HTMLDivElement>(null);
   const linksRef = useRef<HTMLDivElement>(null);
   const aboutRef = useRef<HTMLDivElement>(null);
@@ -118,6 +119,7 @@ export default function BusinessDetailsPage() {
 
   // Auto-scroll to active tab content
   useAutoScroll({ ref: contactRef, shouldScroll: activeTab === 'contact' });
+  useAutoScroll({ ref: hoursRef, shouldScroll: activeTab === 'hours' });
   useAutoScroll({ ref: servicesRef, shouldScroll: activeTab === 'services' });
   useAutoScroll({ ref: linksRef, shouldScroll: activeTab === 'links' });
   useAutoScroll({ ref: aboutRef, shouldScroll: activeTab === 'about' });
@@ -537,6 +539,15 @@ export default function BusinessDetailsPage() {
       <div className="w-full p-2 md:p-2">
         {activeTab === 'contact' && (
           <div ref={contactRef}>
+            <BusinessContactInfo
+              phone={phoneLink?.value}
+              email={emailLink?.value}
+            />
+          </div>
+        )}
+
+        {activeTab === 'hours' && (
+          <div ref={hoursRef}>
             {bookingSettings && (bookingSettings.hoursConfigured || bookingSettings.enabled) && (
               <BusinessHoursList
                 schedule={bookingSettings.schedule}
@@ -553,10 +564,9 @@ export default function BusinessDetailsPage() {
                 </Link>
               </p>
             )}
-            <BusinessContactInfo
-              phone={phoneLink?.value}
-              email={emailLink?.value}
-            />
+            {!isOwner && !(bookingSettings && (bookingSettings.hoursConfigured || bookingSettings.enabled)) && (
+              <p className="text-sm text-gray-700">{tHours('empty')}</p>
+            )}
           </div>
         )}
         

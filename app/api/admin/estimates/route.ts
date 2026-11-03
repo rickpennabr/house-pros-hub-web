@@ -8,6 +8,9 @@ export interface AdminEstimateRow {
   email: string;
   phone: string;
   location: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
   project_type: string;
   source: string;
   created_at: string;
@@ -29,7 +32,7 @@ export async function GET() {
     const service = createServiceRoleClient();
     const { data, error } = await service
       .from('estimates')
-      .select('id, first_name, last_name, email, phone, city, state, project_type, source, created_at')
+      .select('id, first_name, last_name, email, phone, street_address, apartment, city, state, zip_code, latitude, longitude, project_type, source, created_at')
       .order('created_at', { ascending: false })
       .limit(200);
 
@@ -43,6 +46,9 @@ export async function GET() {
       email: row.email,
       phone: row.phone,
       location: [row.city, row.state].filter(Boolean).join(', '),
+      address: [row.street_address, row.apartment, row.city, row.state, row.zip_code].filter(Boolean).join(', '),
+      latitude: row.latitude,
+      longitude: row.longitude,
       project_type: row.project_type.replaceAll('_', ' '),
       source: row.source,
       created_at: row.created_at,

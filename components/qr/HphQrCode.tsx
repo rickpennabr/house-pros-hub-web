@@ -57,7 +57,7 @@ export const HphQrCode = forwardRef<HphQrCodeHandle, HphQrCodeProps>(function Hp
       loadHphQrLogo().catch(() => null),
       logoSrc ? loadBusinessLogo(logoSrc) : Promise.resolve(null),
     ]).then(([mark, businessLogo]) => {
-      if (!cancelled) drawHphQr(canvas, value, mark, businessLogo)
+      if (!cancelled) drawHphQr(canvas, value, businessLogo ?? mark)
     })
 
     return () => {

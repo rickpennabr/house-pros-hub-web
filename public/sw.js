@@ -1,4 +1,24 @@
 /* ProBot Web Push service worker */
+self.addEventListener('install', function () {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', function (event) {
+  event.waitUntil(
+    (async function () {
+      // Any app served from this origin shares one /sw.js registration, so navigation
+      // preload can still be on from a worker that used it. This one answers the share
+      // target only, so a preloaded navigation would be fetched twice: once by the
+      // preload, once by the fall-through to the network. That double hit burns
+      // single-use URLs such as the OAuth callback code.
+      if (self.registration.navigationPreload) {
+        await self.registration.navigationPreload.disable();
+      }
+      await self.clients.claim();
+    })()
+  );
+});
+
 self.addEventListener('push', function (event) {
   if (!event.data) return;
   let payload;

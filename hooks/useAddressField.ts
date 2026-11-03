@@ -20,7 +20,9 @@ export function useAddressField<T extends Record<string, unknown>>(
       setValue('city' as Path<T>, addressData.city as PathValue<T, Path<T>>);
       setValue('state' as Path<T>, addressData.state as PathValue<T, Path<T>>);
       setValue('zipCode' as Path<T>, addressData.zipCode as PathValue<T, Path<T>>);
-      setValue('apartment' as Path<T>, '' as PathValue<T, Path<T>>);
+      if (addressData.apartment) {
+        setValue('apartment' as Path<T>, addressData.apartment as PathValue<T, Path<T>>);
+      }
       setValue('address' as Path<T>, addressData.streetAddress as PathValue<T, Path<T>>);
       trigger(['streetAddress', 'city', 'state', 'zipCode'] as Path<T>[]);
     },

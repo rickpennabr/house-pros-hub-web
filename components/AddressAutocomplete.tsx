@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useAddressSearch } from './AddressAutocomplete/hooks/useAddressSearch';
 import { formatAddress, parseAddressData, parseFreeformAddress, GooglePlacesResult } from './AddressAutocomplete/utils/addressParser';
+import { splitUnit } from '@/lib/address/unit';
 
 export interface AddressData {
   streetAddress: string;
@@ -25,6 +26,12 @@ interface AddressAutocompleteProps {
   disabled?: boolean;
   required?: boolean;
   id?: string;
+}
+
+function keepTypedUnit(address: AddressData, typed: string): AddressData {
+  if (address.apartment?.trim()) return address;
+  const unit = splitUnit(typed).unit;
+  return unit ? { ...address, apartment: unit } : address;
 }
 
 export default function AddressAutocomplete({
@@ -143,7 +150,7 @@ export default function AddressAutocomplete({
     
     // Use full details if available, otherwise use the suggestion
     const resultToParse = fullPlaceDetails || suggestion;
-    const addressData = parseAddressData(resultToParse);
+    const addressData = keepTypedUnit(parseAddressData(resultToParse), value);
     
     onChange(addressData.streetAddress);
 
@@ -164,7 +171,7 @@ export default function AddressAutocomplete({
     setShowSuggestions(false);
     setHighlightedIndex(-1);
     clearSuggestions();
-    const addressData = parseFreeformAddress(trimmed);
+    const addressData = keepTypedUnit(parseFreeformAddress(trimmed), trimmed);
     onChange(addressData.streetAddress);
     onAddressSelect(addressData);
     if (inputRef.current) {

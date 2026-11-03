@@ -1,6 +1,7 @@
 'use client';
 
 import { AuthProvider } from '@/contexts/AuthContext';
+import { AccountSwitchProvider } from '@/contexts/AccountSwitchContext';
 import LocaleRedirect from './LocaleRedirect';
 
 export default function AuthProviderWrapper({
@@ -10,8 +11,10 @@ export default function AuthProviderWrapper({
 }) {
   return (
     <AuthProvider>
-      <LocaleRedirect />
-      {children}
+      <AccountSwitchProvider>
+        <LocaleRedirect />
+        {children}
+      </AccountSwitchProvider>
     </AuthProvider>
   );
 }

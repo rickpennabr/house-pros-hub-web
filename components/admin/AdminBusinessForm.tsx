@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { ArrowLeft, Plus, Trash2, Building2, X } from 'lucide-react';
+import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -544,10 +545,18 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
       >
         <div className="space-y-4">
           <FormField label="Street address">
-            <Input
+            <AddressAutocomplete
+              id="admin-business-street"
               value={form.streetAddress}
-              onChange={(e) => update('streetAddress', e.target.value)}
-              placeholder="123 Main St"
+              onChange={(value) => update('streetAddress', value)}
+              onAddressSelect={(address: AddressData) => {
+                update('streetAddress', address.streetAddress);
+                if (address.apartment) update('apartment', address.apartment);
+                if (address.city) update('city', address.city);
+                if (address.state) update('state', address.state);
+                if (address.zipCode) update('zipCode', address.zipCode);
+              }}
+              placeholder="Start typing an address"
             />
           </FormField>
           <FormField label="Apartment / Unit">

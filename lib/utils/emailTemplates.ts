@@ -940,6 +940,14 @@ export interface ProEstimateBookingEmailData {
   slotEndAt: string;
   /** Catalog service chosen for this visit, when the customer picked one. */
   serviceName?: string | null;
+  /** Customer manage page. Shown on the customer email only. */
+  manageUrl?: string | null;
+  locationAddress?: string | null;
+  visitNote?: string | null;
+  /** When set, the email includes a calendar file for this visit. */
+  bookingId?: string | null;
+  calendarMethod?: 'PUBLISH' | 'CANCEL';
+  calendarSequence?: number;
 }
 
 /** Translations for ProEstimate booking emails */
@@ -954,6 +962,11 @@ export interface ProEstimateBookingEmailTranslations {
   dateTimeLabel: string;
   withLabel: string;
   serviceLabel?: string;
+  locationLabel?: string;
+  noteLabel?: string;
+  manageLabel?: string;
+  policyNote?: string;
+  lang?: string;
   footer: { companyName: string; contactInfo: string };
 }
 
@@ -973,7 +986,7 @@ export function generateProEstimateBookingEmail(
 
   return `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="${translations.lang ?? 'en'}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1003,12 +1016,20 @@ export function generateProEstimateBookingEmail(
                   <td style="padding: 12px 16px;">${translations.serviceLabel ?? 'Service'}: ${data.serviceName}</td>
                 </tr>` : ''}
                 <tr>
-                  <td style="padding: 12px 16px;">${translations.dateTimeLabel}: ${data.slotDisplay}</td>
+                  <td style="padding: 12px 16px;">${translations.dateTimeLabel}: ${escapeHtml(data.slotDisplay)}</td>
                 </tr>
+                ${data.locationAddress ? `<tr>
+                  <td style="padding: 12px 16px;">${escapeHtml(translations.locationLabel ?? 'Address')}: ${escapeHtml(data.locationAddress)}</td>
+                </tr>` : ''}
+                ${data.visitNote ? `<tr>
+                  <td style="padding: 12px 16px;">${escapeHtml(translations.noteLabel ?? 'Note')}: ${escapeHtml(data.visitNote)}</td>
+                </tr>` : ''}
                 <tr>
                   <td style="padding: 12px 16px;">${translations.withLabel}: ${withLabel}</td>
                 </tr>
               </table>
+              ${!isPro && data.manageUrl ? `<p style="margin: 20px 0 0 0;"><a href="${escapeHtml(data.manageUrl)}" style="display: inline-block; padding: 12px 24px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">${escapeHtml(translations.manageLabel ?? 'Manage appointment')}</a></p>` : ''}
+              ${!isPro && translations.policyNote ? `<p style="margin: 12px 0 0 0; font-size: 13px; color: #666;">${escapeHtml(translations.policyNote)}</p>` : ''}
             </td>
           </tr>
           <tr>

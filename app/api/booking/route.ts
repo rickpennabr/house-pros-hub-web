@@ -3,11 +3,14 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { sendProEstimateBookingEmails } from '@/lib/services/emailService';
 import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
-import type { ProEstimateBookingEmailData, ProEstimateBookingEmailTranslations } from '@/lib/utils/emailTemplates';
-import { COMPANY_INFO } from '@/lib/constants/company';
+import type { ProEstimateBookingEmailData } from '@/lib/utils/emailTemplates';
+import { readVisitAddress, formatVisitAddress } from '@/lib/booking/visitAddress';
+import { confirmationEmailCopy } from '@/lib/booking/bookingEmailCopy';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { loadBusinessBookingWindow } from '@/lib/booking/loadBookingWindow';
 import { slotIsOpen } from '@/lib/booking/openSlots';
+import { appointmentManageUrl, bookingLocale } from '@/lib/booking/appointmentPolicy';
+import { originFromRequest } from '@/lib/booking/appointmentNotice';
 
 /**
  * POST /api/booking
@@ -28,6 +31,7 @@ export async function POST(request: NextRequest) {
     const guestLastName = typeof body.guestLastName === 'string' ? body.guestLastName.trim() : '';
     const guestPhone = typeof body.guestPhone === 'string' ? body.guestPhone.trim() : '';
     const requestedServiceId = typeof body.serviceId === 'string' ? body.serviceId.trim() : '';
+    const customerLocale = bookingLocale(body.locale);
 
     if (!businessId || !slotStartAt || !slotEndAt) {
       return NextResponse.json({ error: 'businessId, slotStartAt, and slotEndAt are required' }, { status: 400 });
@@ -101,6 +105,10 @@ export async function POST(request: NextRequest) {
       serviceName = catalogService.name;
     }
 
+    const visit = readVisitAddress(body);
+    if (!visit.ok) return NextResponse.json({ error: visit.error }, { status: 400 });
+    const locationAddress = formatVisitAddress(visit.visit);
+
     const { data: booking, error: insertError } = await service
       .from('pro_estimate_bookings')
       .insert({
@@ -115,8 +123,14 @@ export async function POST(request: NextRequest) {
         slot_start_at: start.toISOString(),
         slot_end_at: end.toISOString(),
         status: 'confirmed',
+        customer_locale: customerLocale,
+        visit_street: visit.visit.street,
+        visit_city: visit.visit.city,
+        visit_state: visit.visit.state,
+        visit_zip: visit.visit.zip,
+        visit_note: visit.visit.note || null,
       })
-      .select('id, slot_start_at, slot_end_at, status, created_at')
+      .select('id, slot_start_at, slot_end_at, status, created_at, manage_token')
       .single();
 
     if (insertError) {
@@ -134,6 +148,7 @@ export async function POST(request: NextRequest) {
       timeZone: business.timezone,
     });
 
+    const manageUrl = appointmentManageUrl(originFromRequest(request), customerLocale, booking.manage_token);
     const emailData: ProEstimateBookingEmailData = {
       businessName: business.businessName || 'Pro',
       customerName,
@@ -143,24 +158,15 @@ export async function POST(request: NextRequest) {
       slotStartAt: start.toISOString(),
       slotEndAt: end.toISOString(),
       serviceName,
+      manageUrl,
+      locationAddress,
+      visitNote: visit.visit.note || null,
+      bookingId: booking.id,
+      calendarMethod: 'PUBLISH',
+      calendarSequence: 0,
     };
 
-    const translations: ProEstimateBookingEmailTranslations = {
-      subjectCustomer: 'Your ProEstimate appointment is confirmed',
-      subjectPro: 'New ProEstimate booking',
-      greetingCustomer: 'Your estimate appointment is confirmed.',
-      greetingPro: 'You have a new ProEstimate booking.',
-      bodyCustomer: `You're scheduled with ${business.businessName || 'your pro'}. We'll send a reminder before the appointment.`,
-      bodyPro: 'A customer has booked an estimate slot. Details below.',
-      detailsLabel: 'Appointment details',
-      dateTimeLabel: 'Date & time',
-      withLabel: 'With',
-      serviceLabel: 'Service',
-      footer: {
-        companyName: COMPANY_INFO.name,
-        contactInfo: COMPANY_INFO.email?.contact ?? '',
-      },
-    };
+    const translations = confirmationEmailCopy(customerLocale, emailData.businessName, customerName);
 
     const emailResult = await sendProEstimateBookingEmails(emailData, proEmail, translations);
     if (emailResult.errors.length > 0) {
@@ -175,7 +181,8 @@ export async function POST(request: NextRequest) {
       detail: [business.businessName, serviceName, slotDisplay].filter(Boolean).join(' · '),
     });
 
-    return NextResponse.json({ booking }, { status: 201 });
+    const managePath = manageUrl ? new URL(manageUrl).pathname : null;
+    return NextResponse.json({ booking, managePath }, { status: 201 });
   } catch (err) {
     console.error('POST /api/booking', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

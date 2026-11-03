@@ -40,8 +40,8 @@ export function MobileGridActionsModal({
         {items.map((item) => {
           const Icon = item.icon;
           const className = `
-            flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all font-medium cursor-pointer hover:scale-[1.02]
-            ${item.isActive ? 'bg-white border-black text-black' : 'border-gray-200 text-black hover:border-black'}
+            flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 border-black transition-all font-medium cursor-pointer hover:scale-[1.02]
+            ${item.isActive ? 'bg-black text-white' : 'bg-white text-black'}
           `;
 
           if (item.href) {
@@ -55,7 +55,7 @@ export function MobileGridActionsModal({
                   onClick={onClose}
                   className={className}
                 >
-                  <Icon className="w-6 h-6 text-red-600" />
+                  <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : 'text-red-600'}`} />
                   <span className="text-sm text-center">{item.label}</span>
                 </a>
               );
@@ -63,7 +63,7 @@ export function MobileGridActionsModal({
 
             return (
               <Link key={item.id} href={item.href} onClick={onClose} className={className}>
-                <Icon className="w-6 h-6 text-red-600" />
+                <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : 'text-red-600'}`} />
                 <span className="text-sm text-center">{item.label}</span>
               </Link>
             );
@@ -79,7 +79,7 @@ export function MobileGridActionsModal({
               }}
               className={className}
             >
-              <Icon className="w-6 h-6 text-red-600" />
+              <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : 'text-red-600'}`} />
               <span className="text-sm text-center">{item.label}</span>
             </button>
           );

@@ -20,7 +20,8 @@ export interface OpenSlot {
 async function loadBusy(
   service: ServiceClient,
   window: BusinessBookingWindow,
-  range: { start: Date; end: Date }
+  range: { start: Date; end: Date },
+  ignoreBookingId?: string
 ): Promise<{ unavailable: BusyRange[]; available: BusyRange[]; bookings: BusyRange[] }> {
   const [blocks, bookings] = await Promise.all([
     service
@@ -31,7 +32,7 @@ async function loadBusy(
       .gt('end_at', range.start.toISOString()),
     service
       .from('pro_estimate_bookings')
-      .select('slot_start_at, slot_end_at')
+      .select('id, slot_start_at, slot_end_at')
       .eq('business_id', window.id)
       .eq('status', 'confirmed')
       .lt('slot_start_at', range.end.toISOString())
@@ -48,7 +49,9 @@ async function loadBusy(
   return {
     unavailable,
     available,
-    bookings: (bookings.data ?? []).map((row) => ({ start: row.slot_start_at, end: row.slot_end_at })),
+    bookings: (bookings.data ?? [])
+      .filter((row) => row.id !== ignoreBookingId)
+      .map((row) => ({ start: row.slot_start_at, end: row.slot_end_at })),
   };
 }
 
@@ -56,7 +59,8 @@ export async function openSlotsForDay(
   service: ServiceClient,
   businessId: string,
   dateKey: string,
-  now = new Date()
+  now = new Date(),
+  ignoreBookingId?: string
 ): Promise<{ slots: OpenSlot[]; bookingEnabled: boolean; closed: boolean; timezone: string } | null> {
   const window = await loadBusinessBookingWindow(service, businessId);
   if (!window) return null;
@@ -65,7 +69,7 @@ export async function openSlotsForDay(
   }
   const closed = !window.schedule[dayKeyForDateKey(dateKey, window.timezone)]?.open;
   const range = zonedDayRange(dateKey, window.timezone);
-  const busy = await loadBusy(service, window, range);
+  const busy = await loadBusy(service, window, range, ignoreBookingId);
   const generated = slotsForDateKey({
     dateKey,
     schedule: window.schedule,
@@ -105,21 +109,7 @@ export async function slotIsOpen(
   if (start.getTime() < Date.now() - 60 * 1000) return 'taken';
 
   const range = zonedDayRange(dateKey, window.timezone);
-  const busy = await loadBusy(service, window, range);
-  if (ignoreBookingId) {
-    const { data } = await service
-      .from('pro_estimate_bookings')
-      .select('slot_start_at, slot_end_at')
-      .eq('id', ignoreBookingId)
-      .maybeSingle();
-    if (data) {
-      const ignoreStart = new Date(data.slot_start_at).getTime();
-      const ignoreEnd = new Date(data.slot_end_at).getTime();
-      busy.bookings = busy.bookings.filter(
-        (booking) => new Date(booking.start).getTime() !== ignoreStart || new Date(booking.end).getTime() !== ignoreEnd
-      );
-    }
-  }
+  const busy = await loadBusy(service, window, range, ignoreBookingId);
   const open = pruneSlots(generated, busy);
   const still = open.some((slot) => slot.start.getTime() === start.getTime() && slot.end.getTime() === end.getTime());
   return still ? 'ok' : 'taken';

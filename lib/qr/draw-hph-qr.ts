@@ -1,6 +1,6 @@
 import { create as createQrCode } from 'qrcode'
 
-/** Square HPH mark used in the three finder eyes and in the site QR center. */
+/** Square HPH mark drawn in the center when a code has no business logo. */
 export const HPH_QR_LOGO_SRC = '/hph-logo-simble-sq-white-bg-2.2.png'
 
 /** Same mark, drawn large in the middle of the House Pros Hub home QR. */
@@ -9,14 +9,7 @@ export const HPH_QR_CENTER_LOGO_SRC = HPH_QR_LOGO_SRC
 /** Public site encoded by the admin QR. */
 export const HPH_SITE_QR_URL = 'https://houseproshub.com/'
 
-const FINDER = 7
 const QUIET = 4
-/**
- * Padding inside each finder, in modules.
- * 2 keeps the black ring and the white separator. The mark sits in the inner
- * 3×3. Covering the whole finder stops phones from locking onto the code.
- */
-const LOGO_INSET_MODULES = 2
 /** Print resolution. The on-screen size is set separately with CSS. */
 const MODULE_PX = 18
 
@@ -91,12 +84,16 @@ function sourceSize(source: CanvasImageSource): { width: number; height: number 
   return { width: 1, height: 1 }
 }
 
-/** Draw a scannable QR with the HPH mark in the three corner eyes and the business logo in the center. */
+/**
+ * Draw a scannable QR. The three corner eyes stay solid black.
+ * A phone locks on by seeing black-white-black-white-black there (1:1:3:1:1).
+ * A logo in that square breaks the ratio, so the camera never starts a scan.
+ * The logo sits in the center instead, inside the error-correction budget.
+ */
 export function drawHphQr(
   canvas: HTMLCanvasElement,
   value: string,
-  logo: HTMLImageElement | null,
-  businessLogo: HTMLImageElement | null = null
+  centerLogo: HTMLImageElement | null
 ): void {
   const qr = createQrCode(value, { errorCorrectionLevel: 'H' })
   const count = qr.modules.size
@@ -118,12 +115,8 @@ export function drawHphQr(
     }
   }
 
-  if (logo && logo.naturalWidth >= 1) {
-    drawFinderMarks(ctx, count, logo)
-  }
-
-  if (businessLogo && businessLogo.naturalWidth > 0) {
-    drawCenterLogo(ctx, size, businessLogo)
+  if (centerLogo && centerLogo.naturalWidth > 0) {
+    drawCenterLogo(ctx, size, centerLogo)
   }
 }
 
@@ -143,54 +136,6 @@ function roundRect(
   ctx.arcTo(x, y + height, x, y, r)
   ctx.arcTo(x, y, x + width, y, r)
   ctx.closePath()
-}
-
-/** Full-color HPH mark in each eye. The outer ring stays; nothing is drawn over the artwork. */
-function drawFinderMarks(
-  ctx: CanvasRenderingContext2D,
-  count: number,
-  logo: HTMLImageElement
-): void {
-  const mark = trimLogo(logo)
-  const inset = LOGO_INSET_MODULES * MODULE_PX
-  const box = FINDER * MODULE_PX
-  const markSize = box - inset * 2
-  const origins: Array<[number, number]> = [
-    [0, 0],
-    [count - FINDER, 0],
-    [0, count - FINDER],
-  ]
-
-  for (const [col, row] of origins) {
-    const originX = (col + QUIET) * MODULE_PX
-    const originY = (row + QUIET) * MODULE_PX
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(originX + inset, originY + inset, markSize, markSize)
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(mark, originX + inset, originY + inset, markSize, markSize)
-    ctx.imageSmoothingEnabled = false
-    reinforceFinderFrame(ctx, originX, originY)
-  }
-}
-
-/** Repaint the outer ring and white separator so smoothing cannot eat the finder. */
-function reinforceFinderFrame(
-  ctx: CanvasRenderingContext2D,
-  originX: number,
-  originY: number
-): void {
-  const m = MODULE_PX
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(originX + m, originY + m, 5 * m, m)
-  ctx.fillRect(originX + m, originY + 5 * m, 5 * m, m)
-  ctx.fillRect(originX + m, originY + 2 * m, m, 3 * m)
-  ctx.fillRect(originX + 5 * m, originY + 2 * m, m, 3 * m)
-  ctx.fillStyle = '#111111'
-  ctx.fillRect(originX, originY, 7 * m, m)
-  ctx.fillRect(originX, originY + 6 * m, 7 * m, m)
-  ctx.fillRect(originX, originY + m, m, 5 * m)
-  ctx.fillRect(originX + 6 * m, originY + m, m, 5 * m)
 }
 
 /** White pad in the middle so the logo does not cover data modules, then the logo. */

@@ -4,7 +4,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { ChevronDown, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, FileCheck, FolderPlus, Search, Send, Loader2, Copy } from 'lucide-react';
+import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, FileCheck, FolderPlus, Search, Send, Loader2, Copy } from 'lucide-react';
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
+import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 import Pagination from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -29,6 +33,8 @@ interface EstimateRow {
   customer_id: string;
   customerFirstName: string | null;
   customerLastName: string | null;
+  customerPhone: string | null;
+  customerAddress: string;
   amount_cents: number;
   status: string;
   due_date: string | null;
@@ -50,39 +56,27 @@ function getDefaultEstimateValidityDate(days = 30) {
   return date.toISOString().slice(0, 10);
 }
 
-function SortHeader({
-  label,
-  sortKey,
-  onSort,
-}: {
-  label: string;
-  sortKey: SortKey;
-  onSort: (key: SortKey, dir: 'asc' | 'desc') => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-  return (
-    <div className="relative flex items-center justify-between gap-3 w-full min-w-0" ref={ref}>
-      <span className="font-semibold text-white whitespace-nowrap">{label}</span>
-      <button type="button" onClick={() => setOpen((o) => !o)} className="p-0.5 rounded hover:bg-white/20 text-white cursor-pointer" aria-label="Sort">
-        <ChevronDown className="w-4 h-4 shrink-0" />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 min-w-[140px] py-1 bg-white border border-gray-200 rounded-md shadow-lg text-black">
-          <button type="button" className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 cursor-pointer" onClick={() => { onSort(sortKey, 'asc'); setOpen(false); }}>Ascending</button>
-          <button type="button" className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 cursor-pointer" onClick={() => { onSort(sortKey, 'desc'); setOpen(false); }}>Descending</button>
-        </div>
-      )}
-    </div>
-  );
+const ESTIMATE_COLUMNS: AdminDataTableColumn<EstimateRow>[] = [
+  { id: 'customer', label: 'Customer', width: 200 },
+  { id: 'amount', label: 'Amount', sortKey: 'amount_cents', width: 130 },
+  { id: 'status', label: 'Status', sortKey: 'status', width: 130 },
+  { id: 'due', label: 'Valid until', sortKey: 'due_date', width: 150 },
+  { id: 'actions', label: 'Actions', resizable: false },
+];
+
+function estimateCellText(row: EstimateRow, columnId: string): string {
+  switch (columnId) {
+    case 'customer':
+      return [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ');
+    case 'amount':
+      return formatAmount(row.amount_cents);
+    case 'status':
+      return row.status;
+    case 'due':
+      return row.due_date ? formatDate(row.due_date) : '';
+    default:
+      return '';
+  }
 }
 
 interface CustomerOption {
@@ -118,6 +112,8 @@ export default function CRMEstimatesPage() {
   const [addItemPanelOpen, setAddItemPanelOpen] = useState(false);
   const [addItemPanelRowIndex, setAddItemPanelRowIndex] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [savedListView, setSavedListView] = useLocalStorage<string>('crmEstimatesView', 'list');
+  const listView: ViewType = savedListView === 'map' ? 'map' : 'list';
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<{
     customerId: string;
@@ -139,6 +135,7 @@ export default function CRMEstimatesPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const prefillsAppliedRef = useRef(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
   const [loadingDuplicateId, setLoadingDuplicateId] = useState<string | null>(null);
@@ -361,6 +358,24 @@ export default function CRMEstimatesPage() {
       fetchEstimates();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete estimate');
+    } finally {
+      setDeleting(false);
+    }
+  };
+  const handleBulkDeleteConfirm = async () => {
+    if (!bulkDeleteIds?.length) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      for (const id of bulkDeleteIds) {
+        const res = await fetch(`/api/crm/estimates/${id}`, { method: 'DELETE', credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Failed to delete');
+      }
+      setBulkDeleteIds(null);
+      fetchEstimates();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete estimates');
     } finally {
       setDeleting(false);
     }
@@ -744,6 +759,7 @@ export default function CRMEstimatesPage() {
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-4 pb-2">
+            {listView === 'map' && (
             <form onSubmit={handleSearchSubmit} className="flex gap-2 items-center flex-1 min-w-[260px] max-w-md">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -759,6 +775,7 @@ export default function CRMEstimatesPage() {
                 Search
               </button>
             </form>
+            )}
             <form className="flex gap-2 items-center" onSubmit={(e) => e.preventDefault()}>
               <label className="text-sm text-gray-600">Status</label>
               <select
@@ -773,78 +790,88 @@ export default function CRMEstimatesPage() {
               </select>
             </form>
           </div>
-          <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-            {isLoading && !hasLoadedOnce ? (
-              <div className="p-12 text-center text-gray-500 text-sm">Loading estimates…</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse" style={{ minWidth: 500 }}>
-                  <thead>
-                    <tr className="border-b-2 border-black bg-black text-white">
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Customer" sortKey="created_at" onSort={handleSort} />
-                      </th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Amount" sortKey="amount_cents" onSort={handleSort} />
-                      </th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Status" sortKey="status" onSort={handleSort} />
-                      </th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">
-                        <SortHeader label="Valid until" sortKey="due_date" onSort={handleSort} />
-                      </th>
-                      <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white w-[72px]">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {estimates.length === 0 ? (
-                      <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-500 text-sm">No estimates found.</td></tr>
-                    ) : (
-                      estimates.map((row) => (
-                        <tr
-                          key={row.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => { setEditingId(row.id); setViewMode('edit'); }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingId(row.id); setViewMode('edit'); } }}
-                          className="group border-b border-gray-100 hover:bg-gray-50/80 cursor-pointer"
-                        >
-                          <td className="px-4 py-1.5 font-medium text-gray-900">
-                            {[row.customerFirstName, row.customerLastName].filter(Boolean).join(' ') || '—'}
-                          </td>
-                          <td className="px-4 py-1.5 text-sm text-gray-600">{formatAmount(row.amount_cents)}</td>
-                          <td className="px-4 py-1.5 text-sm text-gray-600">{row.status}</td>
-                          <td className="px-4 py-1.5 text-sm text-gray-500">{formatDate(row.due_date)}</td>
-                          <td className="sticky right-0 z-10 py-1.5 text-center bg-white group-hover:bg-gray-50/80 border-l-2 border-gray-100" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              ref={openActionsId === row.id ? actionsButtonRef : undefined}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (openActionsId === row.id) { setOpenActionsId(null); setMenuPosition(null); return; }
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                actionsButtonRef.current = e.currentTarget;
-                                setMenuPosition({ top: rect.bottom + 4, left: Math.min(rect.right - 120, window.innerWidth - 130) });
-                                setOpenActionsId(row.id);
-                              }}
-                              className="p-1 rounded hover:bg-gray-200 text-gray-600 cursor-pointer"
-                              aria-label="Actions"
-                            >
-                              <MoreVertical className="w-5 h-5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-          {!isLoading && total > 0 && (
+          {listView === 'map' ? (
+            <AddressPinsMap
+              pins={estimates.map((row) => ({
+                id: row.id,
+                title: [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ') || 'Estimate',
+                detail: `${row.status} · ${formatAmount(row.amount_cents)}`,
+                address: row.customerAddress || '',
+              }))}
+              onOpen={(id) => {
+                setEditingId(id);
+                setViewMode('edit');
+              }}
+            />
+          ) : (
+            <AdminDataTable
+              columnOrderKey="crm-estimates"
+              exportName="estimates"
+              columns={ESTIMATE_COLUMNS}
+              data={estimates}
+              total={total}
+              page={page}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSort={(key, dir) => {
+                if (key === 'amount_cents' || key === 'status' || key === 'due_date' || key === 'created_at' || key === 'updated_at') {
+                  handleSort(key, dir);
+                }
+              }}
+              searchInput={searchInput}
+              onSearchInput={setSearchInput}
+              onSearchSubmit={handleSearchSubmit}
+              searchPlaceholder="Search customer..."
+              isLoading={isLoading}
+              isRefetching={false}
+              hasLoadedOnce={hasLoadedOnce}
+              error={null}
+              getRowId={(row) => row.id}
+              getCellText={estimateCellText}
+              renderCell={(row, columnId) => estimateCellText(row, columnId) || '—'}
+              onRowClick={(row) => { setEditingId(row.id); setViewMode('edit'); }}
+              renderActions={(row) => (
+                <button
+                  ref={openActionsId === row.id ? actionsButtonRef : undefined}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (openActionsId === row.id) { setOpenActionsId(null); setMenuPosition(null); return; }
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    actionsButtonRef.current = e.currentTarget;
+                    setMenuPosition({ top: rect.bottom + 4, left: Math.min(rect.right - 120, window.innerWidth - 130) });
+                    setOpenActionsId(row.id);
+                  }}
+                  className="p-1 rounded hover:bg-gray-200 text-gray-600 cursor-pointer"
+                  aria-label="Actions"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+              )}
+              bulkActions={{
+                onDelete: (ids) => setBulkDeleteIds(ids),
+                onCopyAsJson: (rows) => { void navigator.clipboard.writeText(JSON.stringify(rows, null, 2)); },
+                onEdit: (row) => { setEditingId(row.id); setViewMode('edit'); },
+              }}
+              emptyMessage="No estimates found."
+              itemLabel="estimates"
+              primaryColumnId="customer"
+            />
+          )}
+          {listView === 'map' && !isLoading && total > 0 && (
             <div className="mt-4">
               <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} totalItems={total} itemsPerPage={PAGE_SIZE} itemLabel="estimates" />
             </div>
+          )}
+          {!isLoading && estimates.length > 0 && (
+            <ViewToggle
+              currentView={listView}
+              onViewChange={setSavedListView}
+              views={['list', 'map']}
+              hideBackgroundToggle
+            />
           )}
         </>
       )}
@@ -933,6 +960,22 @@ export default function CRMEstimatesPage() {
             <div className="flex gap-3 justify-center">
               <Button variant="secondary" size="sm" onClick={() => setDeleteConfirm(null)} disabled={deleting}>Cancel</Button>
               <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleDelete(deleteConfirm.id)} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {bulkDeleteIds && bulkDeleteIds.length > 0 && (
+        <Modal isOpen onClose={() => !deleting && setBulkDeleteIds(null)} showHeader={false} showCloseButton maxWidth="sm" preventCloseOnOverlayClick={deleting}>
+          <div className="p-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-amber-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Delete estimates?</h2>
+            <p className="text-gray-600 mb-6">Delete {bulkDeleteIds.length} estimate{bulkDeleteIds.length === 1 ? '' : 's'}? This cannot be undone.</p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="secondary" size="sm" onClick={() => setBulkDeleteIds(null)} disabled={deleting}>Cancel</Button>
+              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => void handleBulkDeleteConfirm()} disabled={deleting}>{deleting ? 'Deleting…' : `Delete ${bulkDeleteIds.length}`}</Button>
             </div>
           </div>
         </Modal>

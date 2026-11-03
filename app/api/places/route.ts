@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { joinMailLine, splitUnit } from '@/lib/address/unit';
 import { claimPortalCustomers, listPortalPlaces, PLACE_KINDS, type PlaceKind } from '@/lib/places/portal';
 import { cleanText, deny, requirePortalUser } from '@/lib/places/session';
 
@@ -40,13 +41,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Choose a house, business, or building, and give it a name.' }, { status: 400 });
     }
 
+    const split = splitUnit(cleanText(body.street, 160));
+    const street = joinMailLine(split.street, cleanText(body.unit, 40) || split.unit).slice(0, 160);
+
     const { data, error: insertError } = await supabase
       .from('customer_places')
       .insert({
         user_id: user.id,
         kind,
         name,
-        street: cleanText(body.street, 160) || null,
+        street: street || null,
         city: cleanText(body.city, 80) || null,
         state: cleanText(body.state, 2).toUpperCase() || null,
         zip_code: cleanText(body.zipCode, 12) || null,

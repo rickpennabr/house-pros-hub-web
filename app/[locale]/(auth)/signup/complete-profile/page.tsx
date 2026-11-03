@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { USER_TYPES } from '@/lib/constants/auth';
+import { referralDetailRequired } from '@/lib/constants/referral';
 import { CustomerStep1 } from '../components/steps/CustomerStep1';
 import { CustomerStep2 } from '../components/steps/CustomerStep2';
 import { CustomerStep3 } from '../components/steps/CustomerStep3';
@@ -153,14 +154,14 @@ function CompleteProfileForm() {
     if (userType === USER_TYPES.CUSTOMER) {
       if (currentStep === 1) {
         fieldsToValidate = ['firstName', 'lastName', 'referral'];
-        if (referral === 'Other') fieldsToValidate.push('referralOther');
+        if (referralDetailRequired(referral, userType)) fieldsToValidate.push('referralOther');
       } else if (currentStep === 2) {
         fieldsToValidate = ['streetAddress', 'city', 'state', 'zipCode'];
       }
     } else {
       if (currentStep === 1) {
         fieldsToValidate = ['firstName', 'lastName', 'referral'];
-        if (referral === 'Other') fieldsToValidate.push('referralOther');
+        if (referralDetailRequired(referral, userType)) fieldsToValidate.push('referralOther');
       } else if (currentStep === 2) {
         // For OAuth users (authenticated), skip email/password validation
         if (isAuthenticated) {

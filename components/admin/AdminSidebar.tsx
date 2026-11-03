@@ -20,6 +20,7 @@ import {
   ClipboardList,
   BookOpen,
   Package,
+  QrCode,
   LucideIcon 
 } from 'lucide-react';
 import { useAdminSearch } from './AdminSearchContext';
@@ -34,6 +35,7 @@ interface NavItem {
 
 export const navItems: NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/qrcodes', label: 'QR code', icon: QrCode },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/estimates', label: 'Estimates', icon: ClipboardList },
   { href: '/admin/chat', label: 'ProBot Chat', icon: MessageCircle },

@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     const sortBy = (searchParams.get('sortBy') || 'expense_date') as (typeof VALID_SORT)[number];
     const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc';
     const projectId = searchParams.get('projectId') || '';
+    const search = (searchParams.get('search') || '').replace(/[%_,.()]/g, ' ').trim();
 
     const supabase = await createClient();
     const orderColumn = VALID_SORT.includes(sortBy) ? sortBy : 'expense_date';
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
       .order(orderColumn, { ascending: sortDir === 'asc' });
 
     if (projectId) query = query.eq('project_id', projectId);
+    if (search) query = query.or(`note.ilike.%${search}%,category.ilike.%${search}%`);
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;

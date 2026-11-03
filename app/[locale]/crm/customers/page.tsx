@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { ChevronDown, Search, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, User, MapPin, FileText, FileCheck, CreditCard, FolderOpen, PlusCircle, Mail, Globe } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, User, MapPin, FileText, FileCheck, CreditCard, FolderOpen, PlusCircle, Mail, Globe } from 'lucide-react';
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import Pagination from '@/components/ui/Pagination';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
@@ -17,6 +18,7 @@ import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { validateCustomerEmail, validateCustomerPhone } from '@/lib/schemas/crm';
 import type { Database } from '@/lib/types/supabase';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useScrollPosition } from '@/hooks/useScrollPosition';
 import { useWindowDimensions } from '@/hooks/useWindowDimensions';
@@ -80,6 +82,17 @@ const CUSTOMER_TABLE_COLUMNS: { key: keyof CRMCustomerRow; label: string; sortKe
   { key: 'updated_at', label: 'Updated', sortKey: 'updated_at' },
 ];
 
+const CUSTOMER_COLUMNS: AdminDataTableColumn<CRMCustomerRow>[] = [
+  ...CUSTOMER_TABLE_COLUMNS.map(({ key, label, sortKey }) => ({
+    id: key,
+    label,
+    sortKey,
+    width: key === 'notes' ? 240 : 150,
+    wrap: key === 'notes',
+  })),
+  { id: 'actions', label: 'Actions', resizable: false },
+];
+
 function formatDate(iso: string | null) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
@@ -95,68 +108,38 @@ function formatCellValue(row: CRMCustomerRow, key: keyof CRMCustomerRow): string
   return s || '—';
 }
 
+function joinAddress(parts: Array<string | null | undefined>): string {
+  return parts.map((part) => part?.trim() ?? '').filter(Boolean).join(', ');
+}
+
+function customerMapAddress(row: CRMCustomerRow): string {
+  return (
+    joinAddress([row.street_address, row.apartment, row.city, row.state, row.zip_code]) ||
+    joinAddress([
+      row.billing_address_street_1,
+      row.billing_address_street_2,
+      row.billing_address_city,
+      row.billing_address_state,
+      row.billing_address_zip_code,
+    ])
+  );
+}
+
+function customerSheetText(row: CRMCustomerRow, columnId: string): string {
+  if (columnId === 'created_at' || columnId === 'updated_at') {
+    return formatDate(row[columnId]);
+  }
+  if (!(columnId in row)) return '';
+  const formatted = formatCellValue(row, columnId as keyof CRMCustomerRow);
+  return formatted === '—' ? '' : formatted;
+}
+
 function customerDisplayName(row: CRMCustomerRow): string {
   if (row.display_name?.trim()) return row.display_name.trim();
   const fullName = [row.first_name?.trim(), row.last_name?.trim()].filter(Boolean).join(' ');
   if (fullName) return fullName;
   if (row.company_name?.trim()) return row.company_name.trim();
   return 'Customer';
-}
-
-function SortHeader({
-  label,
-  sortKey,
-  currentSort,
-  currentDir,
-  onSort,
-}: {
-  label: string;
-  sortKey: SortKey;
-  currentSort: string;
-  currentDir: 'asc' | 'desc';
-  onSort: (key: SortKey, dir: 'asc' | 'desc') => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-  return (
-    <div className="relative flex items-center justify-between gap-3 w-full min-w-0" ref={ref}>
-      <span className="font-semibold text-white whitespace-nowrap">{label}</span>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="p-0.5 rounded hover:bg-white/20 transition-colors text-white cursor-pointer"
-        aria-label="Sort options"
-      >
-        <ChevronDown className="w-4 h-4 shrink-0" />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 min-w-[140px] py-1 bg-white border border-gray-200 rounded-md shadow-lg text-black">
-          <button
-            type="button"
-            className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-            onClick={() => { onSort(sortKey, 'asc'); setOpen(false); }}
-          >
-            Ascending (A→Z)
-          </button>
-          <button
-            type="button"
-            className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-            onClick={() => { onSort(sortKey, 'desc'); setOpen(false); }}
-          >
-            Descending (Z→A)
-          </button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 export type CRMCustomerFormData = {
@@ -248,6 +231,7 @@ function CustomerForm({
   const [form, setForm] = useState<CRMCustomerFormData>({ ...emptyForm, ...initial });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shippingSearch, setShippingSearch] = useState('');
   const { isOpen, toggle: toggleAccordion } = useSingleOpenAccordion(CRM_ACCORDION_KEYS, 'nameAndContact');
   const firstInputRef = useRef<HTMLInputElement>(null);
   const tValidation = useTranslations('validation');
@@ -439,12 +423,12 @@ function CustomerForm({
                     ...prev,
                     addressSearch: addr.streetAddress || addr.fullAddress || '',
                     streetAddress: addr.streetAddress,
-                    apartment: addr.apartment ?? prev.apartment,
+                    apartment: addr.apartment || prev.apartment,
                     city: addr.city,
                     state: addr.state,
                     zipCode: addr.zipCode,
                     billingStreet1: addr.streetAddress,
-                    billingStreet2: addr.apartment ?? prev.billingStreet2,
+                    billingStreet2: addr.apartment || prev.billingStreet2,
                     billingCity: addr.city,
                     billingState: addr.state,
                     billingZipCode: addr.zipCode,
@@ -489,6 +473,32 @@ function CustomerForm({
               <label htmlFor="shippingSameAsBilling" className="text-sm font-medium text-gray-700 cursor-pointer">Same as billing address</label>
             </div>
             {!form.shippingSameAsBilling && (
+              <>
+              <FormField
+                label="Search address"
+                tip="Search to fill the shipping address. A unit number you type is kept."
+                className="mb-4"
+              >
+                <AddressAutocomplete
+                  id="shipping-address-search"
+                  value={shippingSearch}
+                  onChange={setShippingSearch}
+                  onAddressSelect={(addr: AddressData) => {
+                    setShippingSearch(addr.streetAddress || addr.fullAddress || '');
+                    setForm((prev) => ({
+                      ...prev,
+                      shippingStreet1: addr.streetAddress,
+                      shippingStreet2: addr.apartment || prev.shippingStreet2,
+                      shippingCity: addr.city,
+                      shippingState: addr.state,
+                      shippingZipCode: addr.zipCode,
+                      shippingCountry: prev.shippingCountry || 'United States',
+                    }));
+                    setError(null);
+                  }}
+                  placeholder="Enter your Nevada address"
+                />
+              </FormField>
               <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <FormField label="Street address 1" className="col-span-2 md:col-span-1">
                   <Input value={form.shippingStreet1} onChange={(e) => update('shippingStreet1', e.target.value)} placeholder="Street address 1" />
@@ -509,6 +519,7 @@ function CustomerForm({
                   <Input value={form.shippingCountry} onChange={(e) => update('shippingCountry', e.target.value)} placeholder="Country" />
                 </FormField>
               </div>
+              </>
             )}
           </div>
         </div>
@@ -628,12 +639,13 @@ export default function CRMCustomersPage() {
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; above: boolean } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; firstName: string | null; lastName: string | null } | null>(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [taskCustomerContext, setTaskCustomerContext] = useState<{ id: string; name: string } | null>(null);
 
   const [savedListView, setSavedListView] = useLocalStorage<string>('crmCustomersView', 'card');
-  const listView: ViewType = (savedListView === 'card' || savedListView === 'list') ? savedListView : 'card';
+  const listView: ViewType = savedListView === 'card' || savedListView === 'list' || savedListView === 'map' ? savedListView : 'card';
   const setListView = (v: ViewType) => setSavedListView(v);
   const { isAtBottom } = useScrollPosition({ threshold: 50 });
   const { isMobile } = useWindowDimensions();
@@ -770,6 +782,24 @@ export default function CRMCustomersPage() {
       setDeleting(false);
     }
   };
+  const handleBulkDeleteConfirm = async () => {
+    if (!bulkDeleteIds?.length) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      for (const id of bulkDeleteIds) {
+        const res = await fetch(`/api/crm/customers/${id}`, { method: 'DELETE', credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Failed to delete');
+      }
+      setBulkDeleteIds(null);
+      fetchCustomers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete customers');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const editingCustomerName = editingInitial
@@ -855,6 +885,7 @@ export default function CRMCustomersPage() {
 
       {viewMode === 'table' && (
         <>
+          {listView !== 'list' && (
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2">
             <form onSubmit={handleSearchSubmit} className="flex gap-2 flex-1 max-w-md">
               <div className="relative flex-1">
@@ -872,12 +903,23 @@ export default function CRMCustomersPage() {
               </button>
             </form>
           </div>
+          )}
 
-          {error && (
+          {listView !== 'list' && error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>
           )}
 
-          {listView === 'card' ? (
+          {listView === 'map' ? (
+            <AddressPinsMap
+              pins={customers.map((row) => ({
+                id: row.id,
+                title: customerDisplayName(row),
+                detail: row.phone || row.email || undefined,
+                address: customerMapAddress(row),
+              }))}
+              onOpen={(id) => { setEditingId(id); setViewMode('edit'); }}
+            />
+          ) : listView === 'card' ? (
             <div>
               {isLoading && !hasLoadedOnce ? (
                 <div className="p-12 text-center text-gray-500 text-sm">Loading customers…</div>
@@ -917,107 +959,79 @@ export default function CRMCustomersPage() {
               )}
             </div>
           ) : (
-            <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-              {isLoading && !hasLoadedOnce ? (
-                <div className="p-12 text-center text-gray-500 text-sm">Loading customers…</div>
-              ) : (
-                <div className="overflow-x-auto relative">
-                  {isRefetching && (
-                    <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center rounded-lg" aria-hidden>
-                      <span className="text-sm text-gray-500">Updating…</span>
-                    </div>
-                  )}
-                  <table className="w-full border-collapse whitespace-nowrap" style={{ minWidth: 'max-content' }}>
-                    <thead>
-                      <tr className="border-b-2 border-black bg-black text-white">
-                        {CUSTOMER_TABLE_COLUMNS.map(({ key, label, sortKey }) => (
-                          <th key={key} className="px-3 py-1.5 text-left border-r border-white/30 min-w-[100px]">
-                            {sortKey && SORT_OPTIONS.some((o) => o.value === sortKey) ? (
-                              <SortHeader label={label} sortKey={sortKey} currentSort={sortBy} currentDir={sortDir} onSort={handleSort} />
-                            ) : (
-                              <span className="font-semibold text-white">{label}</span>
-                            )}
-                          </th>
-                        ))}
-                        <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white w-[72px] min-w-[72px]">
-                          <span className="font-semibold text-white">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {customers.length === 0 ? (
-                        <tr>
-                          <td colSpan={CUSTOMER_TABLE_COLUMNS.length + 1} className="px-4 py-12 text-center text-gray-500 text-sm">
-                            No customers found.
-                          </td>
-                        </tr>
-                      ) : (
-                        customers.map((row) => (
-                          <tr
-                            key={row.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => { setEditingId(row.id); setViewMode('edit'); }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                setEditingId(row.id);
-                                setViewMode('edit');
-                              }
-                            }}
-                            className="group border-b border-gray-100 hover:bg-gray-50/80 transition-colors cursor-pointer"
-                          >
-                            {CUSTOMER_TABLE_COLUMNS.map(({ key }) => (
-                              <td key={key} className="px-3 py-1.5 text-sm text-gray-700 max-w-[200px] overflow-hidden truncate" title={formatCellValue(row, key)}>
-                                {key === 'created_at' || key === 'updated_at' ? formatDate(row[key] as string | null) : formatCellValue(row, key)}
-                              </td>
-                            ))}
-                            <td
-                              className="sticky right-0 z-10 py-1.5 text-center bg-white group-hover:bg-gray-50/80 border-l-2 border-gray-100"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="relative flex justify-center items-center w-full">
-                                <button
-                                  ref={openActionsId === row.id ? actionsButtonRef : undefined}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (openActionsId === row.id) {
-                                      setOpenActionsId(null);
-                                      setMenuPosition(null);
-                                      return;
-                                    }
-                                    const el = e.currentTarget;
-                                    const rect = el.getBoundingClientRect();
-                                    actionsButtonRef.current = el;
-                                    const menuWidth = 220;
-                                    const left = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8);
-                                    const spaceBelow = window.innerHeight - rect.bottom - 8;
-                                    setMenuPosition({
-                                      top: spaceBelow >= 320 ? rect.bottom + 4 : rect.top - 4,
-                                      left,
-                                      above: spaceBelow < 320,
-                                    });
-                                    setOpenActionsId(row.id);
-                                  }}
-                                  className="p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer text-gray-600 hover:text-black"
-                                  aria-label="Actions"
-                                >
-                                  <MoreVertical className="w-5 h-5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+            <AdminDataTable
+              columnOrderKey="crm-customers"
+              exportName="customers"
+              columns={CUSTOMER_COLUMNS}
+              data={customers}
+              total={total}
+              page={page}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSort={(key, dir) => {
+                if ((SORT_OPTIONS as readonly { value: string }[]).some((option) => option.value === key)) {
+                  handleSort(key as SortKey, dir);
+                }
+              }}
+              searchInput={searchInput}
+              onSearchInput={setSearchInput}
+              onSearchSubmit={handleSearchSubmit}
+              searchPlaceholder="Search by name, city, state…"
+              isLoading={isLoading}
+              isRefetching={isRefetching}
+              hasLoadedOnce={hasLoadedOnce}
+              error={error}
+              getRowId={(row) => row.id}
+              getCellText={customerSheetText}
+              renderCell={(row, columnId) => customerSheetText(row, columnId) || '—'}
+              onRowClick={(row) => { setEditingId(row.id); setViewMode('edit'); }}
+              renderActions={(row) => (
+                <button
+                  ref={openActionsId === row.id ? actionsButtonRef : undefined}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (openActionsId === row.id) {
+                      setOpenActionsId(null);
+                      setMenuPosition(null);
+                      return;
+                    }
+                    const el = e.currentTarget;
+                    const rect = el.getBoundingClientRect();
+                    actionsButtonRef.current = el;
+                    const menuWidth = 220;
+                    const left = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8);
+                    const spaceBelow = window.innerHeight - rect.bottom - 8;
+                    setMenuPosition({
+                      top: spaceBelow >= 320 ? rect.bottom + 4 : rect.top - 4,
+                      left,
+                      above: spaceBelow < 320,
+                    });
+                    setOpenActionsId(row.id);
+                  }}
+                  className="p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer text-gray-600 hover:text-black"
+                  aria-label="Actions"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
               )}
-            </div>
+              bulkActions={{
+                onDelete: (ids) => setBulkDeleteIds(ids),
+                onCopyAsJson: (rows) => {
+                  void navigator.clipboard.writeText(JSON.stringify(rows, null, 2));
+                },
+                onEdit: (row) => { setEditingId(row.id); setViewMode('edit'); },
+              }}
+              emptyMessage="No customers found."
+              itemLabel="customers"
+              primaryColumnId="display_name"
+              tableLayoutMinWidth={960}
+            />
           )}
 
-          {!isLoading && total > 0 && (
+          {listView !== 'list' && !isLoading && total > 0 && (
             <div className="mt-4">
               <Pagination
                 currentPage={page}
@@ -1065,6 +1079,41 @@ export default function CRMCustomersPage() {
                 disabled={deleting}
               >
                 {deleting ? 'Deleting…' : 'Delete customer'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {bulkDeleteIds && bulkDeleteIds.length > 0 && (
+        <Modal
+          isOpen
+          onClose={() => !deleting && setBulkDeleteIds(null)}
+          showHeader={false}
+          showCloseButton
+          maxWidth="sm"
+          preventCloseOnOverlayClick={deleting}
+        >
+          <div className="p-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-amber-600" aria-hidden />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Delete customers?</h2>
+            <p className="text-gray-600 mb-6">
+              Delete {bulkDeleteIds.length} customer{bulkDeleteIds.length === 1 ? '' : 's'}? This cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button type="button" variant="secondary" size="sm" onClick={() => setBulkDeleteIds(null)} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 border-red-600 text-white"
+                onClick={() => void handleBulkDeleteConfirm()}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting…' : `Delete ${bulkDeleteIds.length}`}
               </Button>
             </div>
           </div>
@@ -1241,6 +1290,7 @@ export default function CRMCustomersPage() {
         <ViewToggle
           currentView={listView}
           onViewChange={setListView}
+          views={['card', 'list', 'map']}
           hideBackgroundToggle
         />
       )}

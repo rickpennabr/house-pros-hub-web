@@ -79,6 +79,12 @@ export const RATE_LIMIT_CONFIGS = {
     message: 'Too many booking attempts. Please try again later.',
   } as RateLimitConfig,
 
+  appointmentManage: {
+    windowMs: 60 * 60 * 1000,
+    maxRequests: 60,
+    message: 'Too many appointment updates. Please try again later.',
+  } as RateLimitConfig,
+
   // Live agent apps searching or reading. Keyed by app id.
   agent: {
     windowMs: 60 * 1000,

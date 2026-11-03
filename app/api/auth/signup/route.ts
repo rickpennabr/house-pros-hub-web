@@ -204,6 +204,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // This signup signs the person in immediately, so the email is confirmed.
+    // Supabase only keeps the password when that address is confirmed. Otherwise
+    // a later Google sign-in with the same email deletes the password identity.
+    if (!authData.user.email_confirmed_at) {
+      const { error: confirmError } = await serviceRoleClient.auth.admin.updateUserById(
+        authData.user.id,
+        { email_confirm: true }
+      );
+      if (confirmError) {
+        logger.warn('[Signup API] could not confirm email for Google linking', {
+          userId: authData.user.id,
+          error: confirmError.message,
+        });
+      }
+    }
+
     // Use service role client to bypass RLS for profile and role creation
     // (serviceRoleClient already created above for contractor invitation code check)
 

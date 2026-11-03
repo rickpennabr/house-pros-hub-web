@@ -2430,6 +2430,15 @@ export interface Database {
           slot_start_at: string;
           slot_end_at: string;
           status: 'confirmed' | 'cancelled' | 'completed';
+          day_of_reminder_sent_at: string | null;
+          manage_token: string;
+          customer_locale: string;
+          visit_street: string | null;
+          visit_city: string | null;
+          visit_state: string | null;
+          visit_zip: string | null;
+          visit_note: string | null;
+          ics_sequence: number;
           created_at: string;
           updated_at: string;
         };
@@ -2446,6 +2455,15 @@ export interface Database {
           slot_start_at: string;
           slot_end_at: string;
           status?: 'confirmed' | 'cancelled' | 'completed';
+          day_of_reminder_sent_at?: string | null;
+          manage_token?: string;
+          customer_locale?: string;
+          visit_street?: string | null;
+          visit_city?: string | null;
+          visit_state?: string | null;
+          visit_zip?: string | null;
+          visit_note?: string | null;
+          ics_sequence?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -2462,6 +2480,15 @@ export interface Database {
           slot_start_at?: string;
           slot_end_at?: string;
           status?: 'confirmed' | 'cancelled' | 'completed';
+          day_of_reminder_sent_at?: string | null;
+          manage_token?: string;
+          customer_locale?: string;
+          visit_street?: string | null;
+          visit_city?: string | null;
+          visit_state?: string | null;
+          visit_zip?: string | null;
+          visit_note?: string | null;
+          ics_sequence?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -2758,6 +2785,69 @@ export interface Database {
         };
         Relationships: [];
       };
+      qr_codes: {
+        Row: {
+          id: string;
+          code: string;
+          owner_id: string | null;
+          kind: 'site' | 'card' | 'extra';
+          label: string;
+          destination: string;
+          scan_count: number;
+          last_scanned_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          owner_id?: string | null;
+          kind: 'site' | 'card' | 'extra';
+          label: string;
+          destination: string;
+          scan_count?: number;
+          last_scanned_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          owner_id?: string | null;
+          kind?: 'site' | 'card' | 'extra';
+          label?: string;
+          destination?: string;
+          scan_count?: number;
+          last_scanned_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      qr_scans: {
+        Row: {
+          id: string;
+          qr_code_id: string;
+          scanned_at: string;
+          device: 'phone' | 'tablet' | 'computer';
+          visitor_hash: string;
+        };
+        Insert: {
+          id?: string;
+          qr_code_id: string;
+          scanned_at?: string;
+          device: 'phone' | 'tablet' | 'computer';
+          visitor_hash: string;
+        };
+        Update: {
+          id?: string;
+          qr_code_id?: string;
+          scanned_at?: string;
+          device?: 'phone' | 'tablet' | 'computer';
+          visitor_hash?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -2776,6 +2866,14 @@ export interface Database {
           off: number;
         };
         Returns: { id: string | null; total_count: number }[];
+      };
+      record_qr_scan: {
+        Args: {
+          p_code: string;
+          p_device: string;
+          p_visitor: string;
+        };
+        Returns: string;
       };
       consume_rate_limit: {
         Args: {

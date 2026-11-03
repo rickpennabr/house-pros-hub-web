@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useMemo, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useTranslations, useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
 import { businessStorage } from '@/lib/storage/businessStorage';
-import { ProCardData } from '@/components/proscard/ProCard';
 import LoadingFallback from '@/components/ui/LoadingFallback';
 import { 
   Building2, 
@@ -16,11 +16,11 @@ import {
   ChevronRight,
   Bookmark,
   Edit,
-  Trash2,
   LayoutDashboard,
   FileText,
   HardDrive,
-  CreditCard
+  CreditCard,
+  QrCode
 } from 'lucide-react';
 
 interface Account {
@@ -51,48 +51,10 @@ function AccountManagementContent() {
   const locale = useLocale();
   const searchParams = useSearchParams();
   const t = useTranslations('accountManagement');
-  const { user, roles, logout, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, roles, isAdmin, isLoading: authLoading } = useAuth();
+  const { businesses, activeAccountId, setActiveAccountId, refreshBusinesses } = useAccountSwitch();
   const userId = user?.id ?? '';
-  const [accountSelection, setAccountSelection] = useState<{
-    userId: string;
-    accountId: string;
-  }>(() => ({
-    userId,
-    accountId: '',
-  }));
-  const [businessesRefreshKey, setBusinessesRefreshKey] = useState(0);
-  const [apiBusinesses, setApiBusinesses] = useState<(ProCardData & { userId?: string })[] | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const selectedAccountId = accountSelection.userId === userId ? accountSelection.accountId : '';
-  const effectiveSelectedAccountId = selectedAccountId || userId;
-
-  // Drop the previous account's businesses as soon as the session is gone.
-  useEffect(() => {
-    if (!userId) setApiBusinesses(null);
-  }, [userId]);
-
-  // Load current user's businesses from API so they always appear in Select Account (not only from localStorage)
-  useEffect(() => {
-    if (!userId) return;
-    fetch('/api/me/businesses/list', { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : { businesses: [] }))
-      .then((data) => {
-        const list = (data.businesses ?? []) as (ProCardData & { userId?: string })[];
-        const withUserId = list.map((b) => ({ ...b, userId }));
-        setApiBusinesses(withUserId);
-        const existing = businessStorage.getBusinessesByUserId(userId);
-        withUserId.forEach((b) => {
-          if (!existing.some((eb) => eb.id === b.id)) {
-            businessStorage.addBusiness({ ...b, userId });
-          } else {
-            businessStorage.updateBusiness(b.id, b);
-          }
-        });
-        setBusinessesRefreshKey((k) => k + 1);
-      })
-      .catch(() => setApiBusinesses([]));
-  }, [userId]);
+  const effectiveSelectedAccountId = activeAccountId || userId;
 
   // Check for businessId query parameter and select it if present
   // Also refresh business data from API to ensure we have latest logo/background
@@ -124,7 +86,8 @@ function AccountManagementContent() {
             // Continue anyway - use existing data
           })
           .finally(() => {
-            setAccountSelection({ userId, accountId: businessIdParam });
+            setActiveAccountId(businessIdParam);
+            refreshBusinesses();
             // Remove the query parameter from URL after selecting
             const newUrl = new URL(window.location.href);
             newUrl.searchParams.delete('businessId');
@@ -142,8 +105,8 @@ function AccountManagementContent() {
             if (data.business && data.business.userId === userId) {
               // Add to localStorage so it appears in the account list
               businessStorage.addBusiness({ ...data.business, userId });
-              setBusinessesRefreshKey((k) => k + 1);
-              setAccountSelection({ userId, accountId: businessIdParam });
+              refreshBusinesses();
+              setActiveAccountId(businessIdParam);
               // Remove the query parameter from URL
               const newUrl = new URL(window.location.href);
               newUrl.searchParams.delete('businessId');
@@ -155,7 +118,7 @@ function AccountManagementContent() {
           });
       }
     }
-  }, [searchParams, userId, router]);
+  }, [searchParams, userId, router, setActiveAccountId, refreshBusinesses]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -163,12 +126,7 @@ function AccountManagementContent() {
     }
   }, [authLoading, user, router, locale]);
 
-  const userBusinesses = useMemo<ProCardData[]>(() => {
-    if (!userId) return [];
-    return businessStorage.getBusinessesByUserId(userId);
-  }, [userId, businessesRefreshKey]);
-
-  // Personal account actions - using translations. ProsCRM only for contractors.
+  // Personal account: profile and creating a business only.
   const personalActions: QuickAction[] = useMemo(() => [
     {
       id: 'personal-1',
@@ -181,16 +139,6 @@ function AccountManagementContent() {
       path: `/${locale}/profile/edit`,
     },
     {
-      id: 'personal-2',
-      title: t('actions.personal.savedBusiness.title'),
-      description: t('actions.personal.savedBusiness.description'),
-      icon: Bookmark,
-      iconBg: 'bg-black',
-      iconColor: 'text-white',
-      borderColor: 'border-black',
-      path: `/${locale}/saved-businesses`,
-    },
-    {
       id: 'personal-3',
       title: t('actions.personal.addBusiness.title'),
       description: t('actions.personal.addBusiness.description'),
@@ -199,6 +147,50 @@ function AccountManagementContent() {
       iconColor: 'text-white',
       borderColor: 'border-black',
       path: `/${locale}/business/add`,
+    },
+  ], [t, locale]);
+
+  // Pro profile: business tools plus the rest of the hub shortcuts.
+  const businessActions: QuickAction[] = useMemo(() => [
+    {
+      id: '1',
+      title: t('actions.business.editBusiness.title'),
+      description: t('actions.business.editBusiness.description'),
+      icon: Building2,
+      iconBg: 'bg-black',
+      iconColor: 'text-white',
+      borderColor: 'border-black',
+      path: `/${locale}/businesslist`,
+    },
+    {
+      id: '2',
+      title: t('actions.business.addBusiness.title'),
+      description: t('actions.business.addBusiness.description'),
+      icon: Plus,
+      iconBg: 'bg-black',
+      iconColor: 'text-white',
+      borderColor: 'border-black',
+      path: `/${locale}/businesslist?action=add`,
+    },
+    {
+      id: '5',
+      title: t('actions.business.managePartners.title'),
+      description: t('actions.business.managePartners.description'),
+      icon: UserCheck,
+      iconBg: 'bg-black',
+      iconColor: 'text-white',
+      borderColor: 'border-black',
+      path: `/${locale}/partners/manage`,
+    },
+    {
+      id: 'personal-2',
+      title: t('actions.personal.savedBusiness.title'),
+      description: t('actions.personal.savedBusiness.description'),
+      icon: Bookmark,
+      iconBg: 'bg-black',
+      iconColor: 'text-white',
+      borderColor: 'border-black',
+      path: `/${locale}/saved-businesses`,
     },
     {
       id: 'personal-proscrm',
@@ -240,44 +232,20 @@ function AccountManagementContent() {
       borderColor: 'border-black',
       path: `/${locale}/proresume`,
     },
-  ], [t, locale]);
-
-  // Business account actions (for contractors) - using translations
-  const businessActions: QuickAction[] = useMemo(() => [
     {
-      id: '1',
-      title: t('actions.business.editBusiness.title'),
-      description: t('actions.business.editBusiness.description'),
-      icon: Building2,
+      id: 'personal-qrcode',
+      title: t('actions.personal.qrcode.title'),
+      description: t('actions.personal.qrcode.description'),
+      icon: QrCode,
       iconBg: 'bg-black',
       iconColor: 'text-white',
       borderColor: 'border-black',
-      path: `/${locale}/businesslist`,
-    },
-    {
-      id: '2',
-      title: t('actions.business.addBusiness.title'),
-      description: t('actions.business.addBusiness.description'),
-      icon: Plus,
-      iconBg: 'bg-black',
-      iconColor: 'text-white',
-      borderColor: 'border-black',
-      path: `/${locale}/businesslist?action=add`,
-    },
-    {
-      id: '5',
-      title: t('actions.business.managePartners.title'),
-      description: t('actions.business.managePartners.description'),
-      icon: UserCheck,
-      iconBg: 'bg-black',
-      iconColor: 'text-white',
-      borderColor: 'border-black',
-      path: `/${locale}/partners/manage`,
+      path: `/${locale}/qrcode`,
     },
   ], [t, locale]);
 
-  // Generate accounts: personal account first, then business accounts (from API when available, else localStorage)
-  const businessList = apiBusinesses ?? userBusinesses;
+  // Generate accounts: personal account first, then business accounts
+  const businessList = businesses;
   const visibleAccounts = useMemo(() => {
     const accounts: Account[] = [];
     
@@ -310,30 +278,32 @@ function AccountManagementContent() {
     return accounts;
   }, [user, businessList, effectiveSelectedAccountId, t]);
 
-  // Filter quick actions based on account type. ProsCRM for contractors and realtors.
+  // Personal shows Edit Profile and Add Business. Everything else is on a pro profile.
   const selectedAccount = visibleAccounts.find(acc => acc.id === effectiveSelectedAccountId);
   const isPro = roles.includes('contractor') || (roles as string[]).includes('realtor');
   const isInstaller = (roles as string[]).includes('installer');
   const visibleActions =
     selectedAccount?.type === 'personal'
-      ? personalActions.filter((action) => {
-          if (action.id === 'personal-proscrm') return isPro && !isAdmin;
-          if (action.id === 'personal-proresume') return isInstaller;
-          return true;
-        })
-      : businessActions.map((action) => {
-          if (action.id === '1') {
-            // Edit Business
-            return {
-              ...action,
-              path: `/${locale}/business/edit/${selectedAccount?.slug || effectiveSelectedAccountId}`,
-            };
-          }
-          return action;
-        });
+      ? personalActions
+      : businessActions
+          .filter((action) => {
+            if (action.id === 'personal-proscrm') return isPro && !isAdmin;
+            if (action.id === 'personal-proresume') return isInstaller;
+            if (action.id === 'personal-qrcode') return isInstaller && !isPro && !isAdmin;
+            return true;
+          })
+          .map((action) => {
+            if (action.id === '1') {
+              return {
+                ...action,
+                path: `/${locale}/business/edit/${selectedAccount?.slug || effectiveSelectedAccountId}`,
+              };
+            }
+            return action;
+          });
 
   const handleAccountSelect = (accountId: string) => {
-    setAccountSelection({ userId, accountId });
+    setActiveAccountId(accountId);
   };
 
   const handleQuickAction = (path: string) => {
@@ -516,89 +486,6 @@ function AccountManagementContent() {
           </div>
         </div>
 
-        {/* Dangerous Actions Section */}
-        <div className="mt-8 md:mt-12 pt-6 md:pt-8 border-t-2 border-gray-300">
-          <h2 className="text-lg md:text-xl font-bold text-black mb-4">Dangerous Actions</h2>
-          <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 md:p-6">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Trash2 className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-red-900 mb-1">
-                  Delete Account
-                </h3>
-                <p className="text-sm text-red-800 mb-4">
-                  Permanently delete your account and all associated data. This action cannot be undone. Some data may be retained for legal compliance purposes as stated in our Privacy Policy.
-                </p>
-                {!showDeleteConfirm ? (
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    disabled={isDeleting}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Delete My Account
-                  </button>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-sm font-semibold text-red-900">
-                      Are you absolutely sure? This will permanently delete:
-                    </p>
-                    <ul className="text-sm text-red-800 list-disc list-inside space-y-1">
-                      <li>Your profile and personal information</li>
-                      <li>All your businesses</li>
-                      <li>All your saved businesses</li>
-                      <li>Your account access</li>
-                    </ul>
-                    <div className="flex gap-3 mt-4">
-                      <button
-                        onClick={async () => {
-                          setIsDeleting(true);
-                          try {
-                            const response = await fetch('/api/profile/delete', {
-                              method: 'DELETE',
-                              credentials: 'include',
-                            });
-                            
-                            if (response.ok) {
-                              // Clear local storage
-                              localStorage.clear();
-                              sessionStorage.clear();
-                              // Logout and redirect
-                              await logout();
-                              router.push(`/${locale}`);
-                            } else {
-                              const data = await response.json();
-                              alert(data.error || 'Failed to delete account. Please contact support.');
-                              setShowDeleteConfirm(false);
-                            }
-                          } catch (error) {
-                            console.error('Error deleting account:', error);
-                            alert('An error occurred. Please try again or contact support.');
-                            setShowDeleteConfirm(false);
-                          } finally {
-                            setIsDeleting(false);
-                          }
-                        }}
-                        disabled={isDeleting}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isDeleting ? 'Deleting...' : 'Yes, Delete My Account'}
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(false)}
-                        disabled={isDeleting}
-                        className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

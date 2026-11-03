@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
-import { ChevronDown, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle } from 'lucide-react';
-import Pagination from '@/components/ui/Pagination';
+import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -42,29 +42,30 @@ function formatDate(iso: string | null) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function SortHeader({ label, sortKey, currentSort, currentDir, onSort }: { label: string; sortKey: SortKey; currentSort: string; currentDir: 'asc' | 'desc'; onSort: (k: SortKey, d: 'asc' | 'desc') => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-  return (
-    <div className="relative flex items-center justify-between gap-3 w-full min-w-0" ref={ref}>
-      <span className="font-semibold text-white whitespace-nowrap">{label}</span>
-      <button type="button" onClick={() => setOpen((o) => !o)} className="p-0.5 rounded hover:bg-white/20 text-white cursor-pointer" aria-label="Sort">
-        <ChevronDown className="w-4 h-4 shrink-0" />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 min-w-[140px] py-1 bg-white border border-gray-200 rounded-md shadow-lg text-black">
-          <button type="button" className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 cursor-pointer" onClick={() => { onSort(sortKey, 'asc'); setOpen(false); }}>Ascending</button>
-          <button type="button" className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 cursor-pointer" onClick={() => { onSort(sortKey, 'desc'); setOpen(false); }}>Descending</button>
-        </div>
-      )}
-    </div>
-  );
+const PROJECT_COLUMNS: AdminDataTableColumn<ProjectRow>[] = [
+  { id: 'name', label: 'Project', sortKey: 'name', width: 200 },
+  { id: 'customer', label: 'Customer', width: 180 },
+  { id: 'status', label: 'Status', sortKey: 'status', width: 130 },
+  { id: 'start_date', label: 'Start', sortKey: 'start_date', width: 130 },
+  { id: 'end_date', label: 'End', sortKey: 'end_date', width: 130 },
+  { id: 'actions', label: 'Actions', resizable: false },
+];
+
+function projectCellText(row: ProjectRow, columnId: string): string {
+  switch (columnId) {
+    case 'name':
+      return row.name;
+    case 'customer':
+      return [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ');
+    case 'status':
+      return row.status;
+    case 'start_date':
+      return row.start_date ? formatDate(row.start_date) : '';
+    case 'end_date':
+      return row.end_date ? formatDate(row.end_date) : '';
+    default:
+      return '';
+  }
 }
 
 type ViewMode = 'table' | 'add' | 'edit';
@@ -78,6 +79,8 @@ export default function CRMProjectsPage() {
   const [sortBy, setSortBy] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -97,6 +100,7 @@ export default function CRMProjectsPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string } | null>(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -110,6 +114,7 @@ export default function CRMProjectsPage() {
       if (isFirst) setIsLoading(true);
       setError(null);
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sortBy, sortDir });
+      if (search) params.set('search', search);
       if (statusFilter) params.set('status', statusFilter);
       const res = await fetch(`/api/crm/projects?${params}`, { credentials: 'include' });
       if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || `HTTP ${res.status}`); }
@@ -124,7 +129,7 @@ export default function CRMProjectsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, sortBy, sortDir, statusFilter]);
+  }, [page, sortBy, sortDir, statusFilter, search]);
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
@@ -187,6 +192,11 @@ export default function CRMProjectsPage() {
   }, [openActionsId]);
 
   const handleSort = (key: SortKey, dir: 'asc' | 'desc') => { setSortBy(key); setSortDir(dir); setPage(1); };
+  const handleSearchSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    setSearch(searchInput.trim());
+    setPage(1);
+  };
   const handleDelete = async (id: string) => {
     setDeleting(true);
     setError(null);
@@ -198,6 +208,24 @@ export default function CRMProjectsPage() {
       fetchProjects();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete project');
+    } finally {
+      setDeleting(false);
+    }
+  };
+  const handleBulkDeleteConfirm = async () => {
+    if (!bulkDeleteIds?.length) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      for (const id of bulkDeleteIds) {
+        const res = await fetch(`/api/crm/projects/${id}`, { method: 'DELETE', credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Failed to delete');
+      }
+      setBulkDeleteIds(null);
+      fetchProjects();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete projects');
     } finally {
       setDeleting(false);
     }
@@ -268,7 +296,6 @@ export default function CRMProjectsPage() {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const estimatesForCustomer = formCustomerId ? estimates.filter((e) => e.customer_id === formCustomerId) : [];
 
   return (
@@ -292,61 +319,53 @@ export default function CRMProjectsPage() {
               {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
-          {error && <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>}
-          <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-            {isLoading && !hasLoadedOnce ? (
-              <div className="p-12 text-center text-gray-500 text-sm">Loading projects…</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse" style={{ minWidth: 500 }}>
-                  <thead>
-                    <tr className="border-b-2 border-black bg-black text-white">
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap"><SortHeader label="Project" sortKey="name" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} /></th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap"><SortHeader label="Customer" sortKey="created_at" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} /></th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap"><SortHeader label="Status" sortKey="status" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} /></th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap"><SortHeader label="Start" sortKey="start_date" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} /></th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap"><SortHeader label="End" sortKey="end_date" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} /></th>
-                      <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white w-[72px]">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {projects.length === 0 ? (
-                      <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-500 text-sm">No projects found.</td></tr>
-                    ) : (
-                      projects.map((row) => (
-                        <tr
-                          key={row.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => { setEditingId(row.id); setViewMode('edit'); }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingId(row.id); setViewMode('edit'); } }}
-                          className="group border-b border-gray-100 hover:bg-gray-50/80 cursor-pointer"
-                        >
-                          <td className="px-4 py-1.5 font-medium text-gray-900">{row.name}</td>
-                          <td className="px-4 py-1.5 text-sm text-gray-600">{[row.customerFirstName, row.customerLastName].filter(Boolean).join(' ') || '—'}</td>
-                          <td className="px-4 py-1.5 text-sm text-gray-600">{row.status}</td>
-                          <td className="px-4 py-1.5 text-sm text-gray-500">{formatDate(row.start_date)}</td>
-                          <td className="px-4 py-1.5 text-sm text-gray-500">{formatDate(row.end_date)}</td>
-                          <td className="sticky right-0 z-10 py-1.5 text-center bg-white group-hover:bg-gray-50/80 border-l-2 border-gray-100" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              ref={openActionsId === row.id ? actionsButtonRef : undefined}
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); if (openActionsId === row.id) { setOpenActionsId(null); setMenuPosition(null); return; } const rect = e.currentTarget.getBoundingClientRect(); actionsButtonRef.current = e.currentTarget; setMenuPosition({ top: rect.bottom + 4, left: Math.min(rect.right - 120, window.innerWidth - 130) }); setOpenActionsId(row.id); }}
-                              className="p-1 rounded hover:bg-gray-200 text-gray-600 cursor-pointer"
-                              aria-label="Actions"
-                            >
-                              <MoreVertical className="w-5 h-5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+          <AdminDataTable
+            columnOrderKey="crm-projects"
+            exportName="projects"
+            columns={PROJECT_COLUMNS}
+            data={projects}
+            total={total}
+            page={page}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSort={(key, dir) => {
+              if ((SORT_OPTIONS as readonly { value: string }[]).some((option) => option.value === key)) {
+                handleSort(key as SortKey, dir);
+              }
+            }}
+            searchInput={searchInput}
+            onSearchInput={setSearchInput}
+            onSearchSubmit={handleSearchSubmit}
+            searchPlaceholder="Search project or customer…"
+            isLoading={isLoading}
+            hasLoadedOnce={hasLoadedOnce}
+            error={error}
+            getRowId={(row) => row.id}
+            getCellText={projectCellText}
+            renderCell={(row, columnId) => projectCellText(row, columnId) || '—'}
+            onRowClick={(row) => { setEditingId(row.id); setViewMode('edit'); }}
+            renderActions={(row) => (
+              <button
+                ref={openActionsId === row.id ? actionsButtonRef : undefined}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); if (openActionsId === row.id) { setOpenActionsId(null); setMenuPosition(null); return; } const rect = e.currentTarget.getBoundingClientRect(); actionsButtonRef.current = e.currentTarget; setMenuPosition({ top: rect.bottom + 4, left: Math.min(rect.right - 120, window.innerWidth - 130) }); setOpenActionsId(row.id); }}
+                className="p-1 rounded hover:bg-gray-200 text-gray-600 cursor-pointer"
+                aria-label="Actions"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
             )}
-          </div>
-          {!isLoading && total > 0 && <div className="mt-4"><Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} totalItems={total} itemsPerPage={PAGE_SIZE} itemLabel="projects" /></div>}
+            bulkActions={{
+              onDelete: (ids) => setBulkDeleteIds(ids),
+              onCopyAsJson: (rows) => { void navigator.clipboard.writeText(JSON.stringify(rows, null, 2)); },
+              onEdit: (row) => { setEditingId(row.id); setViewMode('edit'); },
+            }}
+            emptyMessage="No projects found."
+            itemLabel="projects"
+            primaryColumnId="name"
+          />
         </>
       )}
 
@@ -406,6 +425,20 @@ export default function CRMProjectsPage() {
             <div className="flex gap-3 justify-center">
               <Button variant="secondary" size="sm" onClick={() => setDeleteConfirm(null)} disabled={deleting}>Cancel</Button>
               <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleDelete(deleteConfirm.id)} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {bulkDeleteIds && bulkDeleteIds.length > 0 && (
+        <Modal isOpen onClose={() => !deleting && setBulkDeleteIds(null)} showHeader={false} showCloseButton maxWidth="sm" preventCloseOnOverlayClick={deleting}>
+          <div className="p-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"><AlertTriangle className="w-8 h-8 text-amber-600" /></div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Delete projects?</h2>
+            <p className="text-gray-600 mb-6">Delete {bulkDeleteIds.length} project{bulkDeleteIds.length === 1 ? '' : 's'}? This cannot be undone.</p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="secondary" size="sm" onClick={() => setBulkDeleteIds(null)} disabled={deleting}>Cancel</Button>
+              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => void handleBulkDeleteConfirm()} disabled={deleting}>{deleting ? 'Deleting…' : `Delete ${bulkDeleteIds.length}`}</Button>
             </div>
           </div>
         </Modal>

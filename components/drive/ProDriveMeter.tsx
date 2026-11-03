@@ -12,9 +12,11 @@ const DOTS = 28;
 
 interface ProDriveMeterProps {
   usage: DriveUsage | null;
+  /** Card is the standalone meter. Sidebar sits at the bottom of the full-screen drive. */
+  layout?: 'card' | 'sidebar';
 }
 
-export function ProDriveMeter({ usage }: ProDriveMeterProps) {
+export function ProDriveMeter({ usage, layout = 'card' }: ProDriveMeterProps) {
   const t = useTranslations('prodrive');
   const planLabel = useTranslations('subscription');
   const locale = useLocale();
@@ -53,7 +55,7 @@ export function ProDriveMeter({ usage }: ProDriveMeterProps) {
   };
 
   return (
-    <div className="w-full max-w-xs rounded-2xl border-2 border-black bg-white p-3">
+    <div className={layout === 'sidebar' ? 'w-full' : 'w-full max-w-xs rounded-2xl border-2 border-black bg-white p-3'}>
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="flex items-center gap-1 font-medium">
           {t('usage')}
@@ -90,19 +92,21 @@ export function ProDriveMeter({ usage }: ProDriveMeterProps) {
         </div>
       )}
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-      <div className="mt-3 flex items-center gap-2 border-t-2 border-black pt-3">
-        <Image
-          src="/house-pros-hub-logo-simble-bot.png"
-          alt=""
-          width={32}
-          height={32}
-          className="h-8 w-8 rounded-full border-2 border-black object-contain"
-        />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{t('title')}</p>
-          <p className="text-xs text-gray-600">{usage.plan === 'pro' ? planLabel('pro') : planLabel('free')}</p>
+      {layout === 'card' && (
+        <div className="mt-3 flex items-center gap-2 border-t-2 border-black pt-3">
+          <Image
+            src="/house-pros-hub-logo-simble-bot.png"
+            alt=""
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-full border-2 border-black object-contain"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{t('title')}</p>
+            <p className="text-xs text-gray-600">{usage.plan === 'pro' ? planLabel('pro') : planLabel('free')}</p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

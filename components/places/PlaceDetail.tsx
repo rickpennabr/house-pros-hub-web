@@ -36,21 +36,21 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
       .catch(() => setError(t('loadFailed')));
   }, [placeId, t]);
 
-  if (error) return <div className="max-w-3xl mx-auto p-6 text-red-600">{error}</div>;
-  if (!bundle) return <div className="max-w-3xl mx-auto p-6 text-gray-500">{t('loading')}</div>;
+  if (error) return <div className="p-4 md:p-6 text-red-600">{error}</div>;
+  if (!bundle) return <div className="p-4 md:p-6 text-gray-500">{t('loading')}</div>;
 
   const address = [bundle.place.street, bundle.place.city, bundle.place.state, bundle.place.zipCode]
     .filter(Boolean)
     .join(', ');
 
   return (
-    <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6">
-      <Link href={`/${locale}/places`} className="text-sm text-red-600 font-medium">
+    <div className="p-4 md:p-6 space-y-6">
+      <Link href={`/${locale}/myplaces`} className="text-sm text-red-600 font-medium">
         {t('back')}
       </Link>
       <div>
         <p className="text-xs uppercase tracking-wide text-gray-500">{t(`kind.${bundle.place.kind}`)}</p>
-        <h1 className="text-2xl font-semibold">{bundle.place.name}</h1>
+        <h2 className="text-2xl font-semibold">{bundle.place.name}</h2>
         {address ? <p className="text-sm text-gray-700 mt-1">{address}</p> : null}
       </div>
 

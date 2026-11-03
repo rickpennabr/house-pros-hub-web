@@ -12,6 +12,7 @@ import ProReactions from './ProReactions';
 import ShareBusinessModal from '@/components/businessdetails/ShareBusinessModal';
 import SignInRequiredModal from '@/components/auth/SignInRequiredModal';
 import { HphQrCodeModal } from '@/components/qr/HphQrCodeModal';
+import { publicPageUrl } from '@/lib/qr/public-origin';
 
 import { LinkItem } from './ProLinks';
 import type { Locale } from '@/i18n';
@@ -72,7 +73,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
   const profileHref = createLocalePath(locale as Locale, `/business/${data.slug || data.id}`);
   const [shareBusinessUrl, setShareBusinessUrl] = useState('');
   const qrFileName = `hph-${(data.slug || data.id).replace(/[^a-zA-Z0-9-_]+/g, '-')}-qr.png`;
-  const qrUrl = shareBusinessUrl || `https://houseproshub.com${profileHref}`;
+  const qrUrl = publicPageUrl(profileHref);
 
   const openQrCode = () => setIsQrModalOpen(true);
 

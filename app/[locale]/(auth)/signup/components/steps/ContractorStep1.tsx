@@ -12,16 +12,17 @@ import { SignupSchema } from '@/lib/schemas/auth';
 import {
   REFERRAL_BY_FRIEND,
   REFERRAL_BY_PREVIOUS_CUSTOMER,
-  REFERRAL_PREVIOUS_CUSTOMER,
+  REFERRAL_MY_FRIEND,
   referralNeedsDetail,
   referralNeedsName,
 } from '@/lib/constants/referral';
 import { resizeImage, resizeImageSquare, validateFileSize } from '@/lib/utils/image';
-import { useReferralOptions } from '@/hooks/useReferralOptions';
+import { useProInviters } from '@/hooks/useProInviters';
+import { ProInviteOptions } from '@/components/auth/pro-invite-options';
 
 export function ContractorStep1() {
   const tFields = useTranslations('auth.signup.fields');
-  const extraReferrals = useReferralOptions();
+  const { inviters, loading: invitersLoading } = useProInviters(true);
   const { register, setValue, watch, formState: { errors, isSubmitting } } = useFormContext<SignupSchema>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -131,7 +132,7 @@ export function ContractorStep1() {
         />
       </div>
 
-      <FormField label={tFields('referralLabel')} required error={errors.referral?.message}>
+      <FormField label={tFields('invitedByLabel')} required error={errors.referral?.message} tip={tFields('invitedByTip')}>
         <Select
           {...referralRegistration}
           id="referral"
@@ -145,29 +146,27 @@ export function ContractorStep1() {
             }
           }}
         >
-          <option value="">{tFields('referralSelectPlaceholder')}</option>
-          <option value="Google">Google</option>
-          <option value="Instagram">Instagram</option>
-          <option value="Facebook">Facebook</option>
-          <option value={REFERRAL_PREVIOUS_CUSTOMER}>{tFields('referralPreviousCustomerOption')}</option>
-          <option value={REFERRAL_BY_PREVIOUS_CUSTOMER}>{tFields('referralByPreviousCustomerOption')}</option>
-          <option value={REFERRAL_BY_FRIEND}>{tFields('referralByFriendOption')}</option>
-          {extraReferrals.map((option) => (
-            <option key={option.id} value={option.label}>{option.label}</option>
-          ))}
-          <option value="Other">{tFields('referralOtherOption')}</option>
+          <option value="">{tFields('invitedByPlaceholder')}</option>
+          <ProInviteOptions
+            inviters={inviters}
+            loading={invitersLoading}
+            loadingLabel={tFields('invitedByLoading')}
+            friendLabel={tFields('invitedByFriendOption')}
+            otherLabel={tFields('referralOtherOption')}
+          />
         </Select>
       </FormField>
 
       {referralNeedsName(referral) && (
         <FormField
           label={
-            referral === REFERRAL_BY_FRIEND
+            referral === REFERRAL_BY_FRIEND || referral === REFERRAL_MY_FRIEND
               ? tFields('referralFriendNameLabel')
               : referral === REFERRAL_BY_PREVIOUS_CUSTOMER
                 ? tFields('referralPreviousCustomerNameLabel')
                 : tFields('referralNamePlaceholder')
           }
+          required={referral === REFERRAL_MY_FRIEND}
           error={errors.referralOther?.message}
         >
           <Input
@@ -177,6 +176,7 @@ export function ContractorStep1() {
             value={referralOther || ''}
             onClear={() => setValue('referralOther', '')}
             showClear
+            required={referral === REFERRAL_MY_FRIEND}
             placeholder={tFields('referralNamePlaceholder')}
             disabled={isSubmitting}
             error={errors.referralOther?.message}
@@ -194,7 +194,7 @@ export function ContractorStep1() {
             onClear={() => setValue('referralOther', '')}
             showClear
             required
-            placeholder={tFields('referralOtherPlaceholder')}
+            placeholder={tFields('invitedByOtherPlaceholder')}
             disabled={isSubmitting}
             error={errors.referralOther?.message}
           />

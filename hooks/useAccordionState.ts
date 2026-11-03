@@ -106,6 +106,31 @@ export function useAccordionState(initialState?: Partial<AccordionState>) {
     });
   }, []);
 
+  const openAccordion = useCallback((accordionName: AccordionName) => {
+    setState((prev) => {
+      if (prev[accordionName]) return prev;
+      const isNested = NESTED_ACCORDIONS.includes(accordionName);
+      if (isNested) {
+        return {
+          ...prev,
+          projectType: accordionName === 'projectType',
+          trades: accordionName === 'trades',
+          description: accordionName === 'description',
+          budgetTimeline: accordionName === 'budgetTimeline',
+          contactMethod: accordionName === 'contactMethod',
+          notes: accordionName === 'notes',
+          projectInfo: true,
+          customerInfo: false,
+        };
+      }
+      return {
+        ...initialAccordionState,
+        [accordionName]: true,
+        projectInfo: accordionName === 'projectInfo',
+      };
+    });
+  }, []);
+
   const closeAll = useCallback(() => {
     setState({
       customerInfo: false,
@@ -122,6 +147,7 @@ export function useAccordionState(initialState?: Partial<AccordionState>) {
   return {
     state,
     toggleAccordion,
+    openAccordion,
     isOpen: (name: AccordionName) => state[name],
     closeAll,
   };

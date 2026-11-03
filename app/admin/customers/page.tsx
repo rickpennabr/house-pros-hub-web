@@ -454,7 +454,7 @@ function CustomerForm({
                   ...prev,
                   addressSearch: addr.streetAddress || addr.fullAddress || '',
                   streetAddress: addr.streetAddress || prev.streetAddress,
-                  apartment: addr.apartment ?? prev.apartment,
+                  apartment: addr.apartment || prev.apartment,
                   city: addr.city || prev.city,
                   state: addr.state || prev.state,
                   zipCode: addr.zipCode || prev.zipCode,

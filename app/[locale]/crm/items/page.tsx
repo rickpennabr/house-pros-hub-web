@@ -1,23 +1,61 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Plus, Search } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { AlertTriangle, MoreVertical, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { AddProductServicePanel, type ProCrmItem } from '@/components/invoices/AddProductServicePanel';
+
+const ITEM_COLUMNS: AdminDataTableColumn<ProCrmItem>[] = [
+  { id: 'name', label: 'Name', width: 180 },
+  { id: 'item_type', label: 'Type', width: 110 },
+  { id: 'description', label: 'Description', width: 260, wrap: true },
+  { id: 'unit', label: 'Unit', width: 90 },
+  { id: 'price_cents', label: 'Rate', width: 110 },
+  { id: 'sku', label: 'SKU', width: 120 },
+  { id: 'category', label: 'Category', width: 140 },
+  { id: 'actions', label: 'Actions', resizable: false },
+];
+
+function formatCurrency(cents: number) {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format((cents || 0) / 100);
+}
+
+function itemCellText(item: ProCrmItem, columnId: string): string {
+  switch (columnId) {
+    case 'name':
+      return item.name;
+    case 'item_type':
+      return item.item_type;
+    case 'description':
+      return item.description ?? '';
+    case 'unit':
+      return item.unit || '';
+    case 'price_cents':
+      return formatCurrency(item.price_cents);
+    case 'sku':
+      return item.sku ?? '';
+    case 'category':
+      return item.category ?? '';
+    default:
+      return '';
+  }
+}
 
 export default function CRMItemsPage() {
   const [items, setItems] = useState<ProCrmItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ProCrmItem | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<ProCrmItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
-  const [openMobileActionsId, setOpenMobileActionsId] = useState<string | null>(null);
+  const [openActionsId, setOpenActionsId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -39,40 +77,6 @@ export default function CRMItemsPage() {
     fetchItems();
   }, [fetchItems]);
 
-  useEffect(() => {
-    if (!openMobileActionsId) return;
-    const onMouseDown = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target?.closest('[data-mobile-actions-root="true"]')) {
-        setOpenMobileActionsId(null);
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpenMobileActionsId(null);
-    };
-    document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [openMobileActionsId]);
-
-  const filteredItems = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return items;
-    return items.filter((item) => {
-      return (
-        item.name.toLowerCase().includes(normalizedQuery) ||
-        (item.description ?? '').toLowerCase().includes(normalizedQuery) ||
-        (item.sku ?? '').toLowerCase().includes(normalizedQuery) ||
-        (item.category ?? '').toLowerCase().includes(normalizedQuery) ||
-        item.item_type.toLowerCase().includes(normalizedQuery) ||
-        item.unit.toLowerCase().includes(normalizedQuery)
-      );
-    });
-  }, [items, query]);
-
   const handleDelete = async (item: ProCrmItem) => {
     setDeleting(true);
     setError(null);
@@ -87,6 +91,24 @@ export default function CRMItemsPage() {
       setDeleteConfirm(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete item');
+    } finally {
+      setDeleting(false);
+    }
+  };
+  const handleBulkDeleteConfirm = async () => {
+    if (!bulkDeleteIds?.length) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      for (const id of bulkDeleteIds) {
+        const res = await fetch(`/api/crm/items/${id}`, { method: 'DELETE', credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Failed to delete item');
+      }
+      setItems((prev) => prev.filter((item) => !bulkDeleteIds.includes(item.id)));
+      setBulkDeleteIds(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete items');
     } finally {
       setDeleting(false);
     }
@@ -134,9 +156,6 @@ export default function CRMItemsPage() {
     }
   };
 
-  const formatCurrency = (cents: number) =>
-    new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format((cents || 0) / 100);
-
   return (
     <div className="w-full">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
@@ -158,159 +177,57 @@ export default function CRMItemsPage() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-2 pb-2">
-        <div className="relative w-full max-w-md">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by name, description, type, SKU, category..."
-            className="pl-9 h-9"
-          />
-        </div>
+      <div className="flex justify-end pb-2">
         <Button type="button" variant="secondary" size="sm" onClick={fetchItems}>
           Refresh
         </Button>
       </div>
 
-      {error && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-
-      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px]">
-            <thead className="bg-gray-900 text-white text-xs uppercase tracking-wide">
-              <tr>
-                <th className="px-3 py-2 text-left">Name</th>
-                <th className="px-3 py-2 text-left">Type</th>
-                <th className="px-3 py-2 text-left">Description</th>
-                <th className="px-3 py-2 text-left">Unit</th>
-                <th className="px-3 py-2 text-right">Rate</th>
-                <th className="px-3 py-2 text-left">SKU</th>
-                <th className="px-3 py-2 text-left">Category</th>
-                <th className="px-3 py-2 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={8} className="px-3 py-8 text-center text-gray-500">Loading items...</td>
-                </tr>
-              ) : filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-3 py-8 text-center text-gray-500">
-                    {query.trim() ? 'No matching items.' : 'No products/services yet. Add your first reusable item.'}
-                  </td>
-                </tr>
-              ) : (
-                filteredItems.map((item) => (
-                  <tr key={item.id} className="border-t border-gray-100 text-sm">
-                    <td className="px-3 py-2 font-medium text-gray-900">{item.name}</td>
-                    <td className="px-3 py-2 capitalize">{item.item_type}</td>
-                    <td className="px-3 py-2 text-gray-600 max-w-[260px] truncate" title={item.description ?? ''}>
-                      {(item.description ?? '').trim() || '—'}
-                    </td>
-                    <td className="px-3 py-2">{item.unit || '—'}</td>
-                    <td className="px-3 py-2 text-right">{formatCurrency(item.price_cents)}</td>
-                    <td className="px-3 py-2">{(item.sku ?? '').trim() || '—'}</td>
-                    <td className="px-3 py-2">{(item.category ?? '').trim() || '—'}</td>
-                    <td className="px-3 py-2">
-                      <div className="hidden md:flex justify-end gap-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="h-9 w-9 p-0 rounded-md inline-flex items-center justify-center"
-                          onClick={() => {
-                            setEditingItem(item);
-                            setPanelOpen(true);
-                            setOpenMobileActionsId(null);
-                          }}
-                          title="Edit item"
-                        >
-                          <span className="text-base leading-none" aria-hidden="true">✎</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="h-9 w-9 p-0 rounded-md inline-flex items-center justify-center"
-                          onClick={() => handleDuplicate(item)}
-                          disabled={duplicatingId === item.id}
-                          title="Duplicate item"
-                        >
-                          <span className="text-base leading-none" aria-hidden="true">⧉</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="h-9 w-9 p-0 rounded-md inline-flex items-center justify-center bg-red-600 hover:bg-red-700 text-white"
-                          onClick={() => setDeleteConfirm(item)}
-                          title="Delete item"
-                        >
-                          <span className="text-base leading-none" aria-hidden="true">🗑</span>
-                        </Button>
-                      </div>
-                      <div className="md:hidden flex justify-end">
-                        <div className="relative" data-mobile-actions-root="true">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="h-9 w-9 p-0 rounded-md inline-flex items-center justify-center"
-                            onClick={() => setOpenMobileActionsId((prev) => (prev === item.id ? null : item.id))}
-                            title="Actions"
-                          >
-                            <span className="text-lg leading-none" aria-hidden="true">⋮</span>
-                          </Button>
-                          {openMobileActionsId === item.id && (
-                            <div className="absolute right-0 top-full mt-1 z-30 min-w-[140px] py-1 bg-white border border-gray-200 rounded-md shadow-lg">
-                              <button
-                                type="button"
-                                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
-                                onClick={() => {
-                                  setEditingItem(item);
-                                  setPanelOpen(true);
-                                  setOpenMobileActionsId(null);
-                                }}
-                              >
-                                <span className="text-sm leading-none" aria-hidden="true">✎</span>
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
-                                disabled={duplicatingId === item.id}
-                                onClick={() => {
-                                  handleDuplicate(item);
-                                  setOpenMobileActionsId(null);
-                                }}
-                              >
-                                <span className="text-sm leading-none" aria-hidden="true">⧉</span>
-                                Duplicate
-                              </button>
-                              <button
-                                type="button"
-                                className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2"
-                                onClick={() => {
-                                  setDeleteConfirm(item);
-                                  setOpenMobileActionsId(null);
-                                }}
-                              >
-                                <span className="text-sm leading-none" aria-hidden="true">🗑</span>
-                                Delete
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <AdminDataTable
+        clientSide
+        columnOrderKey="crm-items"
+        exportName="products-services"
+        columns={ITEM_COLUMNS}
+        data={items}
+        total={items.length}
+        pageSize={25}
+        isLoading={loading}
+        hasLoadedOnce={!loading}
+        error={error}
+        getRowId={(row) => row.id}
+        getCellText={itemCellText}
+        renderCell={(row, columnId) => itemCellText(row, columnId) || '—'}
+        onRowClick={(row) => { setEditingItem(row); setPanelOpen(true); }}
+        searchPlaceholder="Search by name, description, type, SKU, category..."
+        renderActions={(row) => (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (openActionsId === row.id) {
+                setOpenActionsId(null);
+                setMenuPosition(null);
+                return;
+              }
+              const rect = event.currentTarget.getBoundingClientRect();
+              setMenuPosition({ top: rect.bottom + 4, left: Math.min(rect.right - 140, window.innerWidth - 150) });
+              setOpenActionsId(row.id);
+            }}
+            className="p-1 rounded hover:bg-gray-200 text-gray-600 cursor-pointer"
+            aria-label="Actions"
+          >
+            <MoreVertical className="w-5 h-5" />
+          </button>
+        )}
+        bulkActions={{
+          onDelete: (ids) => setBulkDeleteIds(ids),
+          onCopyAsJson: (rows) => { void navigator.clipboard.writeText(JSON.stringify(rows, null, 2)); },
+          onEdit: (row) => { setEditingItem(row); setPanelOpen(true); },
+        }}
+        emptyMessage="No products/services yet. Add your first reusable item."
+        itemLabel="items"
+        primaryColumnId="name"
+      />
 
       <AddProductServicePanel
         isOpen={panelOpen}
@@ -330,6 +247,31 @@ export default function CRMItemsPage() {
           });
         }}
       />
+
+      {openActionsId && menuPosition && typeof document !== 'undefined' && createPortal(
+        <div className="fixed z-[100] min-w-[140px] rounded-md border border-gray-200 bg-white py-1 text-left shadow-lg" style={{ top: menuPosition.top, left: menuPosition.left }}>
+          <button type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100" onClick={() => { const row = items.find((item) => item.id === openActionsId); if (row) { setEditingItem(row); setPanelOpen(true); } setOpenActionsId(null); }}>Edit</button>
+          <button type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100" disabled={duplicatingId === openActionsId} onClick={() => { const row = items.find((item) => item.id === openActionsId); if (row) void handleDuplicate(row); setOpenActionsId(null); }}>Duplicate</button>
+          <button type="button" className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100" onClick={() => { const row = items.find((item) => item.id === openActionsId); if (row) setDeleteConfirm(row); setOpenActionsId(null); }}>Delete</button>
+        </div>,
+        document.body
+      )}
+
+      {bulkDeleteIds && bulkDeleteIds.length > 0 && (
+        <Modal isOpen onClose={() => !deleting && setBulkDeleteIds(null)} showHeader={false} showCloseButton maxWidth="sm" preventCloseOnOverlayClick={deleting}>
+          <div className="p-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-amber-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Delete items?</h2>
+            <p className="text-gray-600 mb-6">Delete {bulkDeleteIds.length} item{bulkDeleteIds.length === 1 ? '' : 's'}? This cannot be undone.</p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="secondary" size="sm" onClick={() => setBulkDeleteIds(null)} disabled={deleting}>Cancel</Button>
+              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => void handleBulkDeleteConfirm()} disabled={deleting}>{deleting ? 'Deleting…' : `Delete ${bulkDeleteIds.length}`}</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {deleteConfirm && (
         <Modal

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { LINK_TYPES } from '@/lib/constants/linkTypes';
+import { isProSignup } from '@/lib/constants/auth';
+import { REFERRAL_MY_FRIEND } from '@/lib/constants/referral';
 
 /** US phone: 10 digits, optional formatting; area code must not start with 0 or 1 (NANP). */
 export const US_PHONE_REGEX = /^\(?([2-9][0-9]{2})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
@@ -21,7 +23,7 @@ const signupSchemaBaseObject = z.object({
   email: z.string().trim().lowercase().email('Invalid email format').optional(),
   password: passwordSchema.optional(),
   confirmPassword: z.string().min(1, 'Please confirm your password').optional(),
-  referral: z.string().min(1, 'Please select how you heard about us'),
+  referral: z.string().min(1, 'Please select an option'),
   referralOther: z.string().trim().optional(),
   phone: z.string()
     .trim()
@@ -78,14 +80,23 @@ export const signupSchema = signupSchemaBaseObject.refine((data) => {
 }, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
-}).refine((data) => {
-  if (data.referral === 'Other') {
-    return !!data.referralOther?.trim();
+}).superRefine((data, ctx) => {
+  if (data.referral === 'Other' && !data.referralOther?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: isProSignup(data.userType)
+        ? 'Please enter who invited you'
+        : 'Please enter how you heard about us',
+      path: ['referralOther'],
+    });
   }
-  return true;
-}, {
-  message: "Please enter how you heard about us",
-  path: ["referralOther"],
+  if (data.referral === REFERRAL_MY_FRIEND && isProSignup(data.userType) && !data.referralOther?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Please enter your friend's name",
+      path: ['referralOther'],
+    });
+  }
 }).refine((data) => {
   if ((data.userType === 'customer' || data.userType === 'installer') && !data.phone?.trim()) {
     return false;

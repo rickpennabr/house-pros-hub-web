@@ -13,9 +13,11 @@ import { VerticalSlider } from '@/components/ui/VerticalSlider';
 import { HorizontalSlider } from '@/components/ui/HorizontalSlider';
 import { User, X, Pencil, Check } from 'lucide-react';
 import { SignupSchema } from '@/lib/schemas/auth';
+import { isProSignup } from '@/lib/constants/auth';
 import {
   REFERRAL_BY_FRIEND,
   REFERRAL_BY_PREVIOUS_CUSTOMER,
+  REFERRAL_MY_FRIEND,
   REFERRAL_PREVIOUS_CUSTOMER,
   referralNeedsDetail,
   referralNeedsName,
@@ -23,14 +25,24 @@ import {
 import { resizeImage, resizeImageSquare, validateFileSize } from '@/lib/utils/image';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 import { useReferralOptions } from '@/hooks/useReferralOptions';
+import { useProInviters } from '@/hooks/useProInviters';
+import { ProInviteOptions } from '@/components/auth/pro-invite-options';
 
-export function CustomerStep1() {
+interface CustomerStep1Props {
+  /** Role from the signup screen. The form field defaults to customer until it syncs. */
+  proSignup?: boolean;
+}
+
+export function CustomerStep1({ proSignup }: CustomerStep1Props = {}) {
   const tFields = useTranslations('auth.signup.fields');
   const extraReferrals = useReferralOptions();
   const { register, setValue, watch, formState: { errors, isSubmitting } } = useFormContext<SignupSchema>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const userPicture = watch('userPicture');
+  const userType = watch('userType');
+  const isPro = proSignup ?? isProSignup(userType);
+  const { inviters, loading: invitersLoading } = useProInviters(isPro);
   const referral = watch('referral');
   const referralOther = watch('referralOther');
   const referralRegistration = register('referral');
@@ -310,12 +322,12 @@ export function CustomerStep1() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
               </span>
-              <span>{tFields('referralLabel')}</span>
+              <span>{isPro ? tFields('invitedByLabel') : tFields('referralLabel')}</span>
             </span>
           } 
           required 
           error={errors.referral?.message}
-          tip="Help us understand how you found our platform"
+          tip={isPro ? tFields('invitedByTip') : 'Help us understand how you found our platform'}
         >
           <Select
             {...referralRegistration}
@@ -330,17 +342,29 @@ export function CustomerStep1() {
               }
             }}
           >
-            <option value="">{tFields('referralSelectPlaceholder')}</option>
-            <option value="Google">Google</option>
-            <option value="Instagram">Instagram</option>
-            <option value="Facebook">Facebook</option>
-            <option value={REFERRAL_PREVIOUS_CUSTOMER}>{tFields('referralPreviousCustomerOption')}</option>
-            <option value={REFERRAL_BY_PREVIOUS_CUSTOMER}>{tFields('referralByPreviousCustomerOption')}</option>
-            <option value={REFERRAL_BY_FRIEND}>{tFields('referralByFriendOption')}</option>
-            {extraReferrals.map((option) => (
-              <option key={option.id} value={option.label}>{option.label}</option>
-            ))}
-            <option value="Other">{tFields('referralOtherOption')}</option>
+            <option value="">{isPro ? tFields('invitedByPlaceholder') : tFields('referralSelectPlaceholder')}</option>
+            {isPro ? (
+              <ProInviteOptions
+                inviters={inviters}
+                loading={invitersLoading}
+                loadingLabel={tFields('invitedByLoading')}
+                friendLabel={tFields('invitedByFriendOption')}
+                otherLabel={tFields('referralOtherOption')}
+              />
+            ) : (
+              <>
+                <option value="Google">Google</option>
+                <option value="Instagram">Instagram</option>
+                <option value="Facebook">Facebook</option>
+                <option value={REFERRAL_PREVIOUS_CUSTOMER}>{tFields('referralPreviousCustomerOption')}</option>
+                <option value={REFERRAL_BY_PREVIOUS_CUSTOMER}>{tFields('referralByPreviousCustomerOption')}</option>
+                <option value={REFERRAL_BY_FRIEND}>{tFields('referralByFriendOption')}</option>
+                {extraReferrals.map((option) => (
+                  <option key={option.id} value={option.label}>{option.label}</option>
+                ))}
+                <option value="Other">{tFields('referralOtherOption')}</option>
+              </>
+            )}
           </Select>
         </FormField>
       </section>
@@ -349,12 +373,13 @@ export function CustomerStep1() {
         <section className="flex flex-col">
           <FormField
             label={
-              referral === REFERRAL_BY_FRIEND
+              referral === REFERRAL_BY_FRIEND || referral === REFERRAL_MY_FRIEND
                 ? tFields('referralFriendNameLabel')
                 : referral === REFERRAL_BY_PREVIOUS_CUSTOMER
                   ? tFields('referralPreviousCustomerNameLabel')
                   : tFields('referralNamePlaceholder')
             }
+            required={referral === REFERRAL_MY_FRIEND}
             error={errors.referralOther?.message}
           >
             <Input
@@ -364,6 +389,7 @@ export function CustomerStep1() {
               value={referralOther || ''}
               onClear={() => setValue('referralOther', '')}
               showClear
+              required={referral === REFERRAL_MY_FRIEND}
               placeholder={tFields('referralNamePlaceholder')}
               disabled={isSubmitting}
               error={errors.referralOther?.message}
@@ -384,7 +410,7 @@ export function CustomerStep1() {
               onClear={() => setValue('referralOther', '')}
               showClear
               required
-              placeholder={tFields('referralOtherPlaceholder')}
+              placeholder={isPro ? tFields('invitedByOtherPlaceholder') : tFields('referralOtherPlaceholder')}
               disabled={isSubmitting}
               error={errors.referralOther?.message}
             />

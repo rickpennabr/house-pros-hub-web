@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { List } from 'lucide-react';
+import { List, Map } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LuIdCard } from 'react-icons/lu';
 import { useBackgroundMode } from '@/contexts/BackgroundModeContext';
 
-export type ViewType = 'card' | 'list';
+export type ViewType = 'card' | 'list' | 'map';
 
 interface ViewToggleProps {
   currentView: ViewType;
   onViewChange: (view: ViewType) => void;
+  /** Defaults to card and list. Pass map on pages whose rows have an address. */
+  views?: ViewType[];
   /** When true, render only the toggle content (no fixed position, no portal). For use inside a bottom bar. */
   embedded?: boolean;
   /** When true, hide the background (sky/dynamic) toggle button. Useful for CRM and other non-home pages. */
@@ -24,24 +26,25 @@ interface ViewOption {
   labelKey: string;
 }
 
-export default function ViewToggle({ currentView, onViewChange, embedded = false, hideBackgroundToggle = false }: ViewToggleProps) {
+const VIEW_OPTIONS: ViewOption[] = [
+  { type: 'card', icon: LuIdCard, labelKey: 'view.card' },
+  { type: 'list', icon: List, labelKey: 'view.list' },
+  { type: 'map', icon: Map, labelKey: 'view.map' },
+];
+
+export default function ViewToggle({
+  currentView,
+  onViewChange,
+  views: enabledViews = ['card', 'list'],
+  embedded = false,
+  hideBackgroundToggle = false,
+}: ViewToggleProps) {
   const t = useTranslations('common');
   const { mode, setMode } = useBackgroundMode();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const views: ViewOption[] = [
-    {
-      type: 'card',
-      icon: LuIdCard,
-      labelKey: 'view.card',
-    },
-    {
-      type: 'list',
-      icon: List,
-      labelKey: 'view.list',
-    },
-  ];
+  const views = VIEW_OPTIONS.filter((view) => enabledViews.includes(view.type));
 
   const isDynamic = mode === 'dynamic';
   const isHidden = false;

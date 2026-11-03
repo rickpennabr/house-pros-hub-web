@@ -1,13 +1,16 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
 import { createLocalePath, createSignInUrl } from '@/lib/redirect';
 import SettingsModal from '@/components/settings/SettingsModal';
+import { AccountAvatar } from '@/components/pageslayout/AccountAvatar';
+import { AccountSwitchModal, AccountSwitchRows } from '@/components/pageslayout/AccountSwitcher';
 import type { Locale } from '@/i18n';
 import { 
   Settings, 
@@ -19,7 +22,8 @@ import {
   MessageCircle,
   Briefcase,
   HardDrive,
-  Home
+  Home,
+  Calendar
 } from 'lucide-react';
 
 interface ProfileIconProps {
@@ -31,39 +35,56 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
   const pathname = usePathname();
   const locale = useLocale() as Locale;
   const t = useTranslations('common.account');
-  const { isAuthenticated, isAdmin, logout, user } = useAuth();
+  const { isAuthenticated, isAdmin, logout, user, roles } = useAuth();
+  const { activeAccount, activeAccountId, accounts } = useAccountSwitch();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const pictureUrl = user?.userPicture;
-  const [imageErrorState, setImageErrorState] = useState<{ url?: string; hasError: boolean }>(() => ({
-    url: pictureUrl,
-    hasError: false,
-  }));
-  const [dropdownImageErrorState, setDropdownImageErrorState] = useState<{ url?: string; hasError: boolean }>(() => ({
-    url: pictureUrl,
-    hasError: false,
-  }));
-  const [logoButtonError, setLogoButtonError] = useState(false);
-  const [logoDropdownError, setLogoDropdownError] = useState(false);
-  const imageError = imageErrorState.url === pictureUrl ? imageErrorState.hasError : false;
-  const dropdownImageError =
-    dropdownImageErrorState.url === pictureUrl ? dropdownImageErrorState.hasError : false;
-  
+  const [isAccountListOpen, setIsAccountListOpen] = useState(false);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const [menuBox, setMenuBox] = useState<{ top: number; right: number } | null>(null);
 
-  const userInitials = user 
-    ? (user.firstName.charAt(0) + user.lastName.charAt(0)).toUpperCase()
-    : '';
+  // The page card uses a transform, so a menu inside it cannot stack above the
+  // body-portaled ProBot. Pin the menu to the viewport instead.
+  useLayoutEffect(() => {
+    if (!isDropdownOpen) return;
+
+    const update = () => {
+      const button = buttonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      setMenuBox({
+        top: rect.bottom + 8,
+        right: Math.max(8, window.innerWidth - rect.right),
+      });
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [isDropdownOpen]);
+
+  const personalName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
+  const displayName = activeAccount?.name || personalName || 'User';
+  const displayPicture = activeAccount ? activeAccount.avatar : user?.userPicture;
+  const displaySubtitle =
+    activeAccount?.type === 'business' ? t('businessAccount') : user?.email;
   const isContractor = !!user?.businessId;
-  const showLogoInButton = isContractor && !!user?.businessLogo && !logoButtonError;
-  const showLogoInDropdown = isContractor && !!user?.businessLogo && !logoDropdownError;
-
-  // Reset logo error state when business logo URL changes
-  useEffect(() => {
-    setLogoButtonError(false);
-    setLogoDropdownError(false);
-  }, [user?.businessLogo]);
+  const activeIsBusiness =
+    activeAccount?.type === 'business' ||
+    (!!user?.id && !!activeAccountId && activeAccountId !== user.id);
+  const isPro =
+    isContractor ||
+    activeIsBusiness ||
+    roles.includes('contractor') ||
+    accounts.some((account) => account.type === 'business');
+  const showMyPlaces = !activeIsBusiness;
+  const showProbot = !isPro;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -115,58 +136,14 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
         className={`w-10 h-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden relative text-black ${className}`}
         aria-label={t('account')}
       >
-        {isAuthenticated && showLogoInButton && user?.businessLogo ? (
-          user.businessLogo.startsWith('data:') ? (
-            <Image
-              src={user.businessLogo}
-              alt={user.companyName || 'Business'}
-              fill
-              className="object-cover"
-              sizes="40px"
-              unoptimized
-              onError={() => setLogoButtonError(true)}
-            />
-          ) : (
-            <Image
-              src={user.businessLogo}
-              alt={user.companyName || 'Business'}
-              fill
-              className="object-cover"
-              sizes="40px"
-              quality={90}
-              priority={false}
-              onError={() => setLogoButtonError(true)}
-            />
-          )
-        ) : isAuthenticated && user?.userPicture && !imageError ? (
-          user.userPicture.startsWith('data:') ? (
-            <Image
-              src={user.userPicture}
-              alt={`${user.firstName} ${user.lastName}`}
-              fill
-              className="object-cover"
-              sizes="40px"
-              unoptimized
-              onError={() => setImageErrorState({ url: pictureUrl, hasError: true })}
-            />
-          ) : (
-            <Image
-              src={user.userPicture}
-              alt={`${user.firstName} ${user.lastName}`}
-              fill
-              className="object-cover"
-              sizes="40px"
-              quality={90}
-              priority={false}
-              onError={() => setImageErrorState({ url: pictureUrl, hasError: true })}
-            />
-          )
-        ) : isAuthenticated ? (
-          <div className="w-full h-full bg-black flex items-center justify-center">
-            <span className="text-xs font-bold text-white leading-none">
-              {userInitials}
-            </span>
-          </div>
+        {isAuthenticated ? (
+          <AccountAvatar
+            src={displayPicture}
+            name={displayName}
+            className="w-full h-full"
+            framed={false}
+            textClassName="text-xs"
+          />
         ) : (
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -186,77 +163,38 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
         )}
       </button>
 
-      {isDropdownOpen && (
+      {isDropdownOpen && menuBox && createPortal(
         <div
           ref={dropdownRef}
-          className="absolute right-0 mt-2 w-64 bg-white rounded-lg border-2 border-black shadow-lg z-[200] overflow-hidden"
+          className="fixed w-64 bg-white rounded-lg border-2 border-black shadow-lg z-[300] overflow-hidden"
+          style={{ top: menuBox.top, right: menuBox.right }}
         >
           {/* Account Section */}
           {isAuthenticated ? (
             <>
               <div className="px-4 py-3 flex items-center gap-3 border-b-2 border-black bg-gray-50 h-[60px]">
-                <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
-                  {showLogoInDropdown && user?.businessLogo ? (
-                    user.businessLogo.startsWith('data:') ? (
-                      <Image
-                        src={user.businessLogo}
-                        alt={user.companyName || 'Business'}
-                        fill
-                        className="object-cover"
-                        sizes="40px"
-                        unoptimized
-                        onError={() => setLogoDropdownError(true)}
-                      />
-                    ) : (
-                      <Image
-                        src={user.businessLogo}
-                        alt={user.companyName || 'Business'}
-                        fill
-                        className="object-cover"
-                        sizes="40px"
-                        quality={90}
-                        priority={false}
-                        onError={() => setLogoDropdownError(true)}
-                      />
-                    )
-                  ) : user?.userPicture && !dropdownImageError ? (
-                    user.userPicture.startsWith('data:') ? (
-                      <Image
-                        src={user.userPicture}
-                        alt={`${user.firstName} ${user.lastName}`}
-                        fill
-                        className="object-cover"
-                        sizes="40px"
-                        unoptimized
-                        onError={() => setDropdownImageErrorState({ url: pictureUrl, hasError: true })}
-                      />
-                    ) : (
-                      <Image
-                        src={user.userPicture}
-                        alt={`${user.firstName} ${user.lastName}`}
-                        fill
-                        className="object-cover"
-                        sizes="40px"
-                        quality={90}
-                        priority={false}
-                        onError={() => setDropdownImageErrorState({ url: pictureUrl, hasError: true })}
-                      />
-                    )
-                  ) : (
-                    <span className="text-sm font-bold text-white">
-                      {userInitials}
-                    </span>
-                  )}
-                </div>
+                <AccountAvatar
+                  src={displayPicture}
+                  name={displayName}
+                  className="w-10 h-10"
+                  textClassName="text-sm"
+                />
                 <div className="flex flex-col min-w-0">
                   <span className="text-sm font-bold text-black truncate">
-                    {user ? `${user.firstName} ${user.lastName}` : 'User'}
+                    {displayName}
                   </span>
                   <span className="text-[10px] text-gray-600 truncate">
-                    {user?.email}
+                    {displaySubtitle}
                   </span>
                 </div>
               </div>
+              <AccountSwitchRows
+                onOpenList={() => {
+                  setIsDropdownOpen(false);
+                  setIsAccountListOpen(true);
+                }}
+                onSwitched={() => setIsDropdownOpen(false)}
+              />
               {/* Account / Admin section - same style as Settings and Help */}
               <div className="border-t-2 border-black"></div>
               <div className="p-2">
@@ -270,19 +208,21 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                     <span>Admin Dash</span>
                   </Link>
                 )}
+                {showMyPlaces && (
+                  <button
+                    onClick={() => handleMenuItemClick('/myplaces')}
+                    className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                  >
+                    <Home className="w-4 h-4" />
+                    <span>{t('myPlaces')}</span>
+                  </button>
+                )}
                 <button
-                  onClick={() => handleMenuItemClick('/places')}
+                  onClick={() => handleMenuItemClick('/appointments')}
                   className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
                 >
-                  <Home className="w-4 h-4" />
-                  <span>{t('myPlaces')}</span>
-                </button>
-                <button
-                  onClick={() => handleMenuItemClick('/prodrive')}
-                  className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
-                >
-                  <HardDrive className="w-4 h-4" />
-                  <span>ProDrive</span>
+                  <Calendar className="w-4 h-4" />
+                  <span>{t('appointments')}</span>
                 </button>
                 <button
                   onClick={() => handleMenuItemClick('/account-management')}
@@ -291,7 +231,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   <Users className="w-4 h-4" />
                   <span>{t('accountManagement')}</span>
                 </button>
-                {isContractor && !isAdmin && (
+                {activeIsBusiness && !isAdmin && (
                   <button
                     onClick={() => handleMenuItemClick('/crm')}
                     className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
@@ -300,13 +240,24 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                     <span>{t('proscrm')}</span>
                   </button>
                 )}
-                <button
-                  onClick={() => handleMenuItemClick('/probot')}
-                  className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>{t('probot')}</span>
-                </button>
+                {activeIsBusiness && (
+                  <button
+                    onClick={() => handleMenuItemClick('/prodrive')}
+                    className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                  >
+                    <HardDrive className="w-4 h-4" />
+                    <span>ProDrive</span>
+                  </button>
+                )}
+                {showProbot && (
+                  <button
+                    onClick={() => handleMenuItemClick('/probot')}
+                    className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>{t('probot')}</span>
+                  </button>
+                )}
               </div>
             </>
           ) : (
@@ -366,7 +317,8 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
               </div>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Settings Modal */}
@@ -374,6 +326,12 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
         isOpen={isSettingsModalOpen} 
         onClose={() => setIsSettingsModalOpen(false)} 
       />
+      {isAccountListOpen && (
+        <AccountSwitchModal
+          isOpen
+          onClose={() => setIsAccountListOpen(false)}
+        />
+      )}
     </div>
   );
 }

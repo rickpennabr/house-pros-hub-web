@@ -1,6 +1,7 @@
 import { getResendClient, getResendFromEmail } from '@/lib/utils/resend';
 import { generateEstimateConfirmationEmail, type EmailTranslations, type EstimateEmailData, generateWelcomeEmail, type WelcomeEmailTranslations, type WelcomeEmailData, generateSetPasswordEmail, type SetPasswordEmailTranslations, generatePasswordResetEmail, type PasswordResetEmailData, generatePasswordChangedEmail, generateIncomingEmailNotification, type IncomingEmailNotificationData, generateNewSignupAdminNotification, type NewSignupAdminNotificationData, generateProEstimateBookingEmail, type ProEstimateBookingEmailData, type ProEstimateBookingEmailTranslations, generateInvoiceEmail, type InvoiceEmailData, generateEstimateReviewEmail, type EstimateReviewEmailData, generateEstimateApprovedCustomerEmail, generateEstimateApprovedContractorEmail, generateEstimateApprovedAdminEmail, type EstimateApprovedEmailCommon } from '@/lib/utils/emailTemplates';
 import { logger } from '@/lib/utils/logger';
+import { buildVisitIcs } from '@/lib/booking/visitIcs';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { COMPANY_INFO } from '@/lib/constants/company';
 import type { ParsedEmail } from '@/lib/utils/emailParser';
@@ -469,6 +470,33 @@ export async function sendIncomingEmailNotification(
   }
 }
 
+function calendarAttachment(data: ProEstimateBookingEmailData, recipient: 'customer' | 'pro') {
+  if (!data.bookingId) return undefined;
+  const summary = data.serviceName ? `${data.businessName}: ${data.serviceName}` : `${data.businessName} visit`;
+  const description = [recipient === 'pro' ? data.customerName : data.businessName, data.visitNote, data.manageUrl]
+    .filter((part): part is string => Boolean(part))
+    .join('\n');
+  const method = data.calendarMethod ?? 'PUBLISH';
+  return [
+    {
+      filename: 'visit.ics',
+      content: Buffer.from(
+        buildVisitIcs({
+          bookingId: data.bookingId,
+          summary,
+          description,
+          location: data.locationAddress ?? '',
+          startAt: data.slotStartAt,
+          endAt: data.slotEndAt,
+          method,
+          sequence: data.calendarSequence ?? 0,
+        })
+      ).toString('base64'),
+      contentType: `text/calendar; charset=utf-8; method=${method}`,
+    },
+  ];
+}
+
 /**
  * Send ProEstimate booking confirmation to customer.
  */
@@ -485,6 +513,7 @@ export async function sendProEstimateBookingCustomerEmail(
       to: data.customerEmail,
       subject: translations.subjectCustomer,
       html,
+      attachments: calendarAttachment(data, 'customer'),
     });
     if (error) {
       logger.error('ProEstimate customer email failed', { customerEmail: data.customerEmail, error: error.message }, error as Error);
@@ -514,6 +543,7 @@ export async function sendProEstimateBookingProEmail(
       to: proEmail,
       subject: translations.subjectPro,
       html,
+      attachments: calendarAttachment(data, 'pro'),
     });
     if (error) {
       logger.error('ProEstimate pro email failed', { proEmail, error: error.message }, error as Error);

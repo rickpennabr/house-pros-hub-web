@@ -14,6 +14,7 @@ import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { FormField } from '@/components/ui/FormField';
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout';
 import { AuthNavigationButtons } from '@/components/auth/AuthNavigationButtons';
+import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 import { createClient } from '@/lib/supabase/client';
@@ -22,6 +23,7 @@ function SignInForm() {
   const locale = useLocale();
   const searchParams = useSearchParams();
   const t = useTranslations('auth.signin');
+  const tHandoff = useTranslations('auth.googleHandoff');
   const { login } = useAuth();
   const { redirectAfterAuth } = useAuthRedirect();
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +54,9 @@ function SignInForm() {
 
   useEffect(() => {
     const oauthError = searchParams.get('error');
-    if (oauthError) setError(oauthError);
-  }, [searchParams]);
+    if (!oauthError) return;
+    setError(oauthError === 'existing_account' ? t('errors.existingAccount') : oauthError);
+  }, [searchParams, t]);
 
   const validateField = (field: 'email' | 'password', value: string): string | undefined => {
     if (field === 'email') {
@@ -179,7 +182,20 @@ function SignInForm() {
     }
   };
 
+  // Coming back from Google through the back button restores this page from the
+  // bfcache with the handoff still on screen.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setIsGoogleLoading(false);
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
   const handleGoogleSignIn = async () => {
+    // A second OAuth start overwrites the PKCE verifier of the first one, so the
+    // callback for the earlier code can no longer be exchanged.
+    if (busy) return;
     setError(null);
     setIsGoogleLoading(true);
     const returnUrl = searchParams.get('returnUrl');
@@ -206,6 +222,11 @@ function SignInForm() {
 
   return (
     <AuthPageLayout>
+      <GoogleHandoffOverlay
+        open={isGoogleLoading}
+        title={tHandoff('title')}
+        subtitle={tHandoff('subtitle')}
+      />
       <div className="w-full max-w-md mx-auto flex flex-col text-black">
         {/* Header with Logo and Navigation */}
         <div className="md:sticky md:top-0 md:z-20 md:bg-white">

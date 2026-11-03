@@ -1,9 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import { formatCatalogPrice, type CatalogService, type ServiceUnit } from '@/lib/booking/catalogService';
 
 export interface GuestContactData {
@@ -44,6 +47,7 @@ export default function ProEstimateBookingFlow({
   const tServices = useTranslations('businessServices');
   const locale = useLocale();
   const [step, setStep] = useState<Step>('calendar');
+  const [managePath, setManagePath] = useState<string | null>(null);
   const [services, setServices] = useState<CatalogService[]>([]);
   const [servicesReady, setServicesReady] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(initialServiceId ?? null);
@@ -55,6 +59,13 @@ export default function ProEstimateBookingFlow({
   const [slotsNote, setSlotsNote] = useState<string | null>(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: string; end: string } | null>(null);
+  const [visit, setVisit] = useState({
+    streetAddress: guestContact?.streetAddress ?? '',
+    city: guestContact?.city ?? '',
+    state: guestContact?.state ?? '',
+    zipCode: guestContact?.zipCode ?? '',
+    note: '',
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,6 +165,10 @@ export default function ProEstimateBookingFlow({
 
   const handleConfirm = async () => {
     if (!selectedSlot || !selectedDate) return;
+    if (!visit.streetAddress.trim() || !visit.city.trim() || !visit.state.trim() || !visit.zipCode.trim()) {
+      setError(t('addressRequired'));
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -183,6 +198,12 @@ export default function ProEstimateBookingFlow({
         slotEndAt: selectedSlot.end,
       };
       if (selectedServiceId) body.serviceId = selectedServiceId;
+      body.locale = locale;
+      body.visitStreet = visit.streetAddress.trim();
+      body.visitCity = visit.city.trim();
+      body.visitState = visit.state.trim();
+      body.visitZip = visit.zipCode.trim();
+      if (visit.note.trim()) body.visitNote = visit.note.trim();
       if (!isAuthenticated && guestContact) {
         body.guestEmail = guestContact.email;
         body.guestFirstName = guestContact.firstName;
@@ -197,6 +218,7 @@ export default function ProEstimateBookingFlow({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Booking failed');
+      setManagePath(typeof data.managePath === 'string' ? data.managePath : null);
       setStep('done');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Booking failed');
@@ -255,15 +277,22 @@ export default function ProEstimateBookingFlow({
           </div>
           <h2 className="text-xl font-semibold mb-2 text-black">{t('successTitle')}</h2>
           <p className="text-gray-700 text-sm">{t('successMessage')}</p>
+          <p className="mt-2 text-sm text-gray-600">{t('manageHint')}</p>
+          <div className="mt-4 flex flex-col items-center gap-2">
+            {managePath && (
+              <Link href={managePath} className="inline-flex rounded-lg border-2 border-black bg-black px-3 py-1.5 text-sm font-medium text-white">
+                {t('manageAppointment')}
+              </Link>
+            )}
             <Button
               type="button"
-              variant="primary"
+              variant="secondary"
               size="sm"
-              className="mt-4"
               onClick={onSuccess}
             >
               {t('goHome')}
             </Button>
+          </div>
         </div>
       </div>
     );
@@ -412,7 +441,8 @@ export default function ProEstimateBookingFlow({
           >
             <ChevronLeft className="w-4 h-4" /> {t('back')}
           </button>
-          <p className="text-base font-medium text-gray-900 mb-3">{t('pickTime')}</p>
+          <p className="text-base font-medium text-gray-900 mb-1">{t('pickTime')}</p>
+          <p className="mb-3 text-sm text-gray-600">{t('timesIn', { zone: timeZoneLabel(slotTimeZone, locale) })}</p>
           {slotsLoading ? (
             <p className="text-sm text-gray-500">{t('loadingSlots')}</p>
           ) : slots.length === 0 ? (
@@ -456,6 +486,31 @@ export default function ProEstimateBookingFlow({
             <p className="text-sm text-gray-700">
               <span className="font-medium">{t('confirmWith', { name: businessName })}</span>
             </p>
+            <p className="text-sm text-gray-600">{t('timesIn', { zone: timeZoneLabel(slotTimeZone, locale) })}</p>
+          </div>
+          <div className="mt-4 space-y-3">
+            <p className="text-base font-medium text-gray-900">{t('visitAddress')}</p>
+            <AddressAutocomplete
+              id="visit-address"
+              value={visit.streetAddress}
+              placeholder={t('addressPlaceholder')}
+              onChange={(streetAddress) => setVisit((current) => ({ ...current, streetAddress }))}
+              onAddressSelect={(address: AddressData) =>
+                setVisit((current) => ({
+                  ...current,
+                  streetAddress: address.streetAddress,
+                  city: address.city,
+                  state: address.state,
+                  zipCode: address.zipCode,
+                }))
+              }
+            />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <Input value={visit.city} placeholder={t('city')} onChange={(event) => setVisit((current) => ({ ...current, city: event.target.value }))} />
+              <Input value={visit.state} placeholder={t('state')} onChange={(event) => setVisit((current) => ({ ...current, state: event.target.value }))} />
+              <Input value={visit.zipCode} placeholder={t('zip')} onChange={(event) => setVisit((current) => ({ ...current, zipCode: event.target.value }))} />
+            </div>
+            <Input value={visit.note} placeholder={t('notePlaceholder')} onChange={(event) => setVisit((current) => ({ ...current, note: event.target.value }))} />
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setStep('slots')}>
@@ -475,4 +530,15 @@ export default function ProEstimateBookingFlow({
       )}
     </div>
   );
+}
+
+function timeZoneLabel(timeZone: string, locale: string): string {
+  try {
+    const part = new Intl.DateTimeFormat(locale, { timeZone, timeZoneName: 'longGeneric' })
+      .formatToParts(new Date())
+      .find((item) => item.type === 'timeZoneName');
+    return part?.value || timeZone;
+  } catch {
+    return timeZone;
+  }
 }

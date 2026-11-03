@@ -48,6 +48,8 @@ export default function EstimatePage() {
   const [addressPrefilledFromProfile, setAddressPrefilledFromProfile] = useState(false);
   const hasTriggeredAuthRefresh = useRef(false);
   const didPostSignupRefresh = useRef(false);
+  const openedMissingCustomerInfo = useRef(false);
+  const [addressChecked, setAddressChecked] = useState(false);
 
   // Refs for accordion sections for auto-scrolling
   const successMessageRef = useRef<HTMLDivElement>(null);
@@ -61,7 +63,7 @@ export default function EstimatePage() {
   const notesRef = useRef<HTMLDivElement>(null);
 
   // Get accordion state from hook
-  const { state: accordionState, toggleAccordion, isOpen, closeAll } = useAccordionState();
+  const { state: accordionState, toggleAccordion, openAccordion, isOpen, closeAll } = useAccordionState();
 
   // Create translated arrays
   const PROJECT_TYPES = useMemo(() => [
@@ -215,11 +217,22 @@ export default function EstimatePage() {
     populateUserData();
   }, [populateUserData]);
 
+  // After a signup, name and email (and address, when the form collected one) are
+  // already filled. Open the customer section when something required is still blank
+  // so the person can finish it before the project questions.
+  useEffect(() => {
+    if (!addressChecked || openedMissingCustomerInfo.current) return;
+    if (validation.isCustomerInfoComplete) return;
+    openedMissingCustomerInfo.current = true;
+    openAccordion('customerInfo');
+  }, [addressChecked, validation.isCustomerInfoComplete, openAccordion]);
+
   // Fetch and populate address from addresses table (source of truth)
   useEffect(() => {
     if (!isAuthenticated || isLoading || !user?.id) return;
 
     let cancelled = false;
+    setAddressChecked(false);
 
     (async () => {
       try {
@@ -228,30 +241,35 @@ export default function EstimatePage() {
           credentials: 'include',
         });
 
-        if (!res.ok || cancelled) return;
-        
-        const data = await res.json();
-        const addr = Array.isArray(data.addresses) ? data.addresses[0] : null;
-        
-        if (!addr || cancelled) return;
+        if (cancelled) return;
 
-        // Populate address fields from addresses table
-        setValue('streetAddress', addr.streetAddress || '', { shouldValidate: false });
-        setValue('city', addr.city || '', { shouldValidate: false });
-        setValue('state', addr.state || 'NV', { shouldValidate: false });
-        setValue('zipCode', addr.zipCode || '', { shouldValidate: false });
-        setValue('apartment', addr.apartment || '', { shouldValidate: false });
-        if (!cancelled) setAddressPrefilledFromProfile(true);
+        const data = res.ok ? await res.json() : null;
+        const addr = Array.isArray(data?.addresses) ? data.addresses[0] : null;
+        const street = addr?.streetAddress || user.streetAddress || '';
+        const city = addr?.city || user.city || '';
+        const state = addr?.state || user.state || 'NV';
+        const zipCode = addr?.zipCode || user.zipCode || '';
+        const apartment = addr?.apartment || user.apartment || '';
+
+        if (street || city || zipCode) {
+          setValue('streetAddress', street, { shouldValidate: false });
+          setValue('city', city, { shouldValidate: false });
+          setValue('state', state, { shouldValidate: false });
+          setValue('zipCode', zipCode, { shouldValidate: false });
+          setValue('apartment', apartment, { shouldValidate: false });
+          setAddressPrefilledFromProfile(true);
+        }
       } catch (error) {
         console.error('Error fetching address from addresses table:', error);
-        // Non-fatal: form can still be filled manually
+      } finally {
+        if (!cancelled) setAddressChecked(true);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, isLoading, user?.id, setValue]);
+  }, [isAuthenticated, isLoading, user, setValue]);
 
   // Handle address selection
   const handleAddressSelect = useCallback((addressData: AddressData) => {
@@ -259,6 +277,7 @@ export default function EstimatePage() {
     setValue('city', addressData.city);
     setValue('state', addressData.state);
     setValue('zipCode', addressData.zipCode);
+    if (addressData.apartment) setValue('apartment', addressData.apartment);
   }, [setValue]);
 
   // Handle project type selection

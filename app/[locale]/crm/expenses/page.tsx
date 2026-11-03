@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle } from 'lucide-react';
-import Pagination from '@/components/ui/Pagination';
+import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -40,29 +40,27 @@ function formatAmount(cents: number) {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(cents / 100);
 }
 
-function SortHeader({ label, sortKey, currentSort, currentDir, onSort }: { label: string; sortKey: SortKey; currentSort: string; currentDir: 'asc' | 'desc'; onSort: (k: SortKey, d: 'asc' | 'desc') => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-  return (
-    <div className="relative flex items-center justify-between gap-3 w-full min-w-0" ref={ref}>
-      <span className="font-semibold text-white whitespace-nowrap">{label}</span>
-      <button type="button" onClick={() => setOpen((o) => !o)} className="p-0.5 rounded hover:bg-white/20 text-white cursor-pointer" aria-label="Sort">
-        <ChevronDown className="w-4 h-4 shrink-0" />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 min-w-[140px] py-1 bg-white border border-gray-200 rounded-md shadow-lg text-black">
-          <button type="button" className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 cursor-pointer" onClick={() => { onSort(sortKey, 'asc'); setOpen(false); }}>Ascending</button>
-          <button type="button" className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 cursor-pointer" onClick={() => { onSort(sortKey, 'desc'); setOpen(false); }}>Descending</button>
-        </div>
-      )}
-    </div>
-  );
+const EXPENSE_COLUMNS: AdminDataTableColumn<ExpenseRow>[] = [
+  { id: 'expense_date', label: 'Date', sortKey: 'expense_date', width: 140 },
+  { id: 'amount', label: 'Amount', sortKey: 'amount_cents', width: 120 },
+  { id: 'category', label: 'Category', sortKey: 'category', width: 150 },
+  { id: 'note', label: 'Note', width: 240, wrap: true },
+  { id: 'actions', label: 'Actions', resizable: false },
+];
+
+function expenseCellText(row: ExpenseRow, columnId: string): string {
+  switch (columnId) {
+    case 'expense_date':
+      return formatDate(row.expense_date);
+    case 'amount':
+      return formatAmount(row.amount_cents);
+    case 'category':
+      return row.category;
+    case 'note':
+      return row.note ?? '';
+    default:
+      return '';
+  }
 }
 
 type ViewMode = 'table' | 'add' | 'edit';
@@ -73,6 +71,8 @@ export default function CRMExpensesPage() {
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortKey>('expense_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -89,6 +89,7 @@ export default function CRMExpensesPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string } | null>(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -101,6 +102,7 @@ export default function CRMExpensesPage() {
       if (isFirst) setIsLoading(true);
       setError(null);
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sortBy, sortDir });
+      if (search) params.set('search', search);
       const res = await fetch(`/api/crm/expenses?${params}`, { credentials: 'include' });
       if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || `HTTP ${res.status}`); }
       const data = await res.json();
@@ -114,7 +116,7 @@ export default function CRMExpensesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, sortBy, sortDir]);
+  }, [page, sortBy, sortDir, search]);
 
   useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
 
@@ -155,6 +157,11 @@ export default function CRMExpensesPage() {
   }, [openActionsId]);
 
   const handleSort = (key: SortKey, dir: 'asc' | 'desc') => { setSortBy(key); setSortDir(dir); setPage(1); };
+  const handleSearchSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    setSearch(searchInput.trim());
+    setPage(1);
+  };
   const handleDelete = async (id: string) => {
     setDeleting(true);
     setError(null);
@@ -166,6 +173,24 @@ export default function CRMExpensesPage() {
       fetchExpenses();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete expense');
+    } finally {
+      setDeleting(false);
+    }
+  };
+  const handleBulkDeleteConfirm = async () => {
+    if (!bulkDeleteIds?.length) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      for (const id of bulkDeleteIds) {
+        const res = await fetch(`/api/crm/expenses/${id}`, { method: 'DELETE', credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Failed to delete');
+      }
+      setBulkDeleteIds(null);
+      fetchExpenses();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete expenses');
     } finally {
       setDeleting(false);
     }
@@ -232,7 +257,6 @@ export default function CRMExpensesPage() {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const defaultDate = formDate || new Date().toISOString().slice(0, 10);
 
   return (
@@ -249,59 +273,53 @@ export default function CRMExpensesPage() {
               New Expense
             </Button>
           </div>
-          {error && <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>}
-          <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-            {isLoading && !hasLoadedOnce ? (
-              <div className="p-12 text-center text-gray-500 text-sm">Loading expenses…</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse" style={{ minWidth: 450 }}>
-                  <thead>
-                    <tr className="border-b-2 border-black bg-black text-white">
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap"><SortHeader label="Date" sortKey="expense_date" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} /></th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap"><SortHeader label="Amount" sortKey="amount_cents" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} /></th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap"><SortHeader label="Category" sortKey="category" currentSort={sortBy} currentDir={sortDir} onSort={handleSort} /></th>
-                      <th className="px-4 py-1.5 text-left border-r border-white whitespace-nowrap">Note</th>
-                      <th className="sticky right-0 z-10 py-1.5 text-center bg-black border-l-2 border-white w-[72px]">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {expenses.length === 0 ? (
-                      <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-500 text-sm">No expenses found.</td></tr>
-                    ) : (
-                      expenses.map((row) => (
-                        <tr
-                          key={row.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => { setEditingId(row.id); setViewMode('edit'); }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingId(row.id); setViewMode('edit'); } }}
-                          className="group border-b border-gray-100 hover:bg-gray-50/80 cursor-pointer"
-                        >
-                          <td className="px-4 py-1.5 text-sm text-gray-600">{formatDate(row.expense_date)}</td>
-                          <td className="px-4 py-1.5 text-sm text-gray-900 font-medium">{formatAmount(row.amount_cents)}</td>
-                          <td className="px-4 py-1.5 text-sm text-gray-600">{row.category}</td>
-                          <td className="px-4 py-1.5 text-sm text-gray-500 max-w-[200px] truncate">{row.note || '—'}</td>
-                          <td className="sticky right-0 z-10 py-1.5 text-center bg-white group-hover:bg-gray-50/80 border-l-2 border-gray-100" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              ref={openActionsId === row.id ? actionsButtonRef : undefined}
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); if (openActionsId === row.id) { setOpenActionsId(null); setMenuPosition(null); return; } const rect = e.currentTarget.getBoundingClientRect(); actionsButtonRef.current = e.currentTarget; setMenuPosition({ top: rect.bottom + 4, left: Math.min(rect.right - 120, window.innerWidth - 130) }); setOpenActionsId(row.id); }}
-                              className="p-1 rounded hover:bg-gray-200 text-gray-600 cursor-pointer"
-                              aria-label="Actions"
-                            >
-                              <MoreVertical className="w-5 h-5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+          <AdminDataTable
+            columnOrderKey="crm-expenses"
+            exportName="expenses"
+            columns={EXPENSE_COLUMNS}
+            data={expenses}
+            total={total}
+            page={page}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSort={(key, dir) => {
+              if ((SORT_OPTIONS as readonly { value: string }[]).some((option) => option.value === key)) {
+                handleSort(key as SortKey, dir);
+              }
+            }}
+            searchInput={searchInput}
+            onSearchInput={setSearchInput}
+            onSearchSubmit={handleSearchSubmit}
+            searchPlaceholder="Search category or note…"
+            isLoading={isLoading}
+            hasLoadedOnce={hasLoadedOnce}
+            error={error}
+            getRowId={(row) => row.id}
+            getCellText={expenseCellText}
+            renderCell={(row, columnId) => expenseCellText(row, columnId) || '—'}
+            onRowClick={(row) => { setEditingId(row.id); setViewMode('edit'); }}
+            renderActions={(row) => (
+              <button
+                ref={openActionsId === row.id ? actionsButtonRef : undefined}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); if (openActionsId === row.id) { setOpenActionsId(null); setMenuPosition(null); return; } const rect = e.currentTarget.getBoundingClientRect(); actionsButtonRef.current = e.currentTarget; setMenuPosition({ top: rect.bottom + 4, left: Math.min(rect.right - 120, window.innerWidth - 130) }); setOpenActionsId(row.id); }}
+                className="p-1 rounded hover:bg-gray-200 text-gray-600 cursor-pointer"
+                aria-label="Actions"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
             )}
-          </div>
-          {!isLoading && total > 0 && <div className="mt-4"><Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} totalItems={total} itemsPerPage={PAGE_SIZE} itemLabel="expenses" /></div>}
+            bulkActions={{
+              onDelete: (ids) => setBulkDeleteIds(ids),
+              onCopyAsJson: (rows) => { void navigator.clipboard.writeText(JSON.stringify(rows, null, 2)); },
+              onEdit: (row) => { setEditingId(row.id); setViewMode('edit'); },
+            }}
+            emptyMessage="No expenses found."
+            itemLabel="expenses"
+            primaryColumnId="amount"
+          />
         </>
       )}
 
@@ -352,6 +370,20 @@ export default function CRMExpensesPage() {
             <div className="flex gap-3 justify-center">
               <Button variant="secondary" size="sm" onClick={() => setDeleteConfirm(null)} disabled={deleting}>Cancel</Button>
               <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => handleDelete(deleteConfirm.id)} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {bulkDeleteIds && bulkDeleteIds.length > 0 && (
+        <Modal isOpen onClose={() => !deleting && setBulkDeleteIds(null)} showHeader={false} showCloseButton maxWidth="sm" preventCloseOnOverlayClick={deleting}>
+          <div className="p-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"><AlertTriangle className="w-8 h-8 text-amber-600" /></div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Delete expenses?</h2>
+            <p className="text-gray-600 mb-6">Delete {bulkDeleteIds.length} expense{bulkDeleteIds.length === 1 ? '' : 's'}? This cannot be undone.</p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="secondary" size="sm" onClick={() => setBulkDeleteIds(null)} disabled={deleting}>Cancel</Button>
+              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => void handleBulkDeleteConfirm()} disabled={deleting}>{deleting ? 'Deleting…' : `Delete ${bulkDeleteIds.length}`}</Button>
             </div>
           </div>
         </Modal>

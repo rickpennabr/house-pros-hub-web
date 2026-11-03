@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, Suspense, useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout';
-import { USER_TYPES } from '@/lib/constants/auth';
+import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
+import { isProSignup, signupUserType } from '@/lib/constants/auth';
 import { useSignupForm } from './hooks/useSignupForm';
 import { SignupHeader } from './components/SignupHeader';
 import { SignupStepsIndicator } from './components/SignupStepsIndicator';
@@ -32,21 +33,21 @@ import type { BusinessFormValues } from '@/lib/schemas/business';
 type SignupStep = 'role-selection' | 'customer-signup-choice' | 'invitation-code' | 'form' | 'success' | 'business-form';
 
 function SignUpForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const locale = useLocale();
   const t = useTranslations('auth.signup');
+  const tHandoff = useTranslations('auth.googleHandoff');
   const { user, checkAuth } = useAuth();
   
   // Get role from URL if coming from Free Estimate button
   const urlRole = searchParams.get('role') as 'customer' | 'contractor' | 'realtor' | 'installer' | null;
   const skipRoleSelection = searchParams.get('skipRoleSelection') === 'true';
   
-  // If skipRoleSelection is true, go directly to form step (skip role selection). Otherwise,
-  // show role selection unless role is in URL. For contractor or realtor from URL, show invitation-code first.
+  // Customers pick form or Google before the form. Pros with a role in the URL enter an invitation code first.
   const [currentStep, setCurrentStep] = useState<SignupStep>(() => {
-    if (skipRoleSelection) return 'form';
+    if (skipRoleSelection || urlRole === 'customer') return 'customer-signup-choice';
     if (urlRole === 'contractor' || urlRole === 'realtor' || urlRole === 'installer') return 'invitation-code';
-    if (urlRole === 'customer') return 'form';
     return 'role-selection';
   });
   const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | 'realtor' | 'installer' | null>(
@@ -77,16 +78,9 @@ function SignUpForm() {
   } = useSignupForm({ selectedRole });
 
   // Set user type when role is selected (for form display)
-  if (selectedRole && formState.userType !== selectedRole) {
-    setUserType(
-      selectedRole === 'customer'
-        ? USER_TYPES.CUSTOMER
-        : selectedRole === 'realtor'
-          ? USER_TYPES.REALTOR
-          : selectedRole === 'installer'
-            ? USER_TYPES.INSTALLER
-            : USER_TYPES.CONTRACTOR
-    );
+  const roleUserType = signupUserType(selectedRole);
+  if (selectedRole && formState.userType !== roleUserType) {
+    setUserType(roleUserType);
   }
 
   // Show warning when user tries to leave on steps 2, 3, or 4
@@ -100,6 +94,17 @@ function SignUpForm() {
     await handleNext();
   };
 
+  const returnUrl = searchParams.get('returnUrl');
+  const continueToEstimate = Boolean(returnUrl?.includes('/estimate'));
+
+  // The header Free Estimate button is the only signup that should skip the thanks
+  // screen. Profile sign-up has no estimate return path, so it keeps that screen.
+  useEffect(() => {
+    if (!formState.successMessage || !continueToEstimate || !returnUrl) return;
+    sessionStorage.setItem('estimate_post_signup', '1');
+    router.replace(returnUrl);
+  }, [formState.successMessage, continueToEstimate, returnUrl, router]);
+
   const appliedOauthError = useRef(false);
   useEffect(() => {
     const oauthError = searchParams.get('error');
@@ -110,6 +115,9 @@ function SignUpForm() {
   }, [searchParams, selectedRole, setError]);
 
   const handleGoogleSignUp = async () => {
+    // A second OAuth start overwrites the PKCE verifier of the first one, so the
+    // callback for the earlier code can no longer be exchanged.
+    if (isGoogleLoading) return;
     setError(null);
     setIsGoogleLoading(true);
     const returnUrl = searchParams.get('returnUrl');
@@ -156,6 +164,7 @@ function SignUpForm() {
 
   const handleInvitationCodeValid = (code: string) => {
     updateField('invitationCode', code);
+    if (selectedRole) setUserType(signupUserType(selectedRole));
     setCurrentStep('form');
   };
 
@@ -263,7 +272,7 @@ function SignUpForm() {
     // Both customers and contractors now use the same steps
     switch (formState.currentStep) {
       case 1:
-        return <CustomerStep1 />;
+        return <CustomerStep1 proSignup={isProSignup(selectedRole)} />;
       case 2:
         return (
           <CustomerStep2
@@ -280,6 +289,11 @@ function SignUpForm() {
 
   return (
     <AuthPageLayout>
+      <GoogleHandoffOverlay
+        open={isGoogleLoading}
+        title={tHandoff('title')}
+        subtitle={tHandoff('subtitle')}
+      />
       <div className="w-full max-w-md mx-auto flex flex-col text-black pt-3 md:pt-0">
         {/* Leave Page Warning Modal */}
         <LeavePageWarningModal
@@ -342,13 +356,18 @@ function SignUpForm() {
                 <SignupHeader isLoading={false} />
                 <BusinessSuccessMessage onAllowNavigation={allowNavigation} />
               </>
+            ) : formState.successMessage && continueToEstimate ? (
+              <div className="flex-1 flex flex-col items-center justify-center min-h-[320px] py-6 gap-6">
+                <p className="text-lg font-semibold text-black">{t('navigation.estimatePreparingJustASecond')}</p>
+                <p className="text-base text-gray-700">{t('navigation.estimatePreparingMessage')}</p>
+              </div>
             ) : formState.successMessage ? (
               <>
                 <SignupHeader isLoading={false} />
                 <SignupSuccessMessage
                   userType={formState.userType}
                   onAddBusiness={handleAddBusiness}
-                  returnUrl={searchParams.get('returnUrl')}
+                  returnUrl={returnUrl}
                 />
               </>
             ) : (

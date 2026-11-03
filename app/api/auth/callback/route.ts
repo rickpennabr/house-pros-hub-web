@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { Database } from '@/lib/types/supabase';
 import { logger } from '@/lib/utils/logger';
 import { locales, type Locale } from '@/i18n';
 import { provisionGoogleCustomer } from '@/lib/auth/googleCustomer';
+import { isGoogleAccountConflict } from '@/lib/auth/googleAccount';
 
 function safeLocale(value: string | null): Locale {
   return locales.includes(value as Locale) ? (value as Locale) : 'en';
@@ -22,6 +23,24 @@ function safeAppPath(value: string | null, locale: string): string {
     return `/${locale}`;
   }
   return decoded;
+}
+
+/**
+ * The header Free Estimate button stores the estimate page as the return path.
+ * A signup started from the profile icon has no return path, so a brand-new
+ * account lands on the thanks screen instead.
+ */
+function customerDestination(
+  nextPath: string,
+  locale: string,
+  flow: string,
+  kind: 'new' | 'existing'
+): string {
+  if (nextPath.includes('/estimate')) return nextPath;
+  if (flow === 'customer' && kind === 'new' && nextPath === `/${locale}`) {
+    return `/${locale}/signup/success?role=customer`;
+  }
+  return nextPath;
 }
 
 function clearOauthCookies(response: NextResponse) {
@@ -67,30 +86,53 @@ export async function GET(request: NextRequest) {
   }
   const normalizedBaseUrl = new URL(baseUrl);
 
+  // Supabase writes the new session while we exchange the code. Those cookies have to
+  // ride on whatever response we return: dropping them on a failure path leaves the
+  // person holding a session the Auth server already issued but the browser never saw.
+  const sessionCookies: { name: string; value: string; options: CookieOptions }[] = [];
+
+  function redirect(path: string, keepSession = true): NextResponse {
+    const response = NextResponse.redirect(new URL(path, normalizedBaseUrl));
+    if (keepSession) {
+      for (const cookie of sessionCookies) {
+        response.cookies.set(cookie.name, cookie.value, { ...cookie.options, path: '/' });
+      }
+    }
+    if (isCustomerGoogle) clearOauthCookies(response);
+    return response;
+  }
+
   // Handle Supabase error query params (e.g. link expired)
   const errorParam = requestUrl.searchParams.get('error');
   const errorCode = requestUrl.searchParams.get('error_code');
   const errorDescription = requestUrl.searchParams.get('error_description');
   if (errorParam || errorCode) {
     const message = errorDescription || errorParam || 'Link expired or invalid';
-    const errorPath = isSignInGoogle
-      ? `/${locale}/signin?error=${encodeURIComponent('Could not sign in with Google')}`
-      : isCustomerGoogle
-        ? `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`
-        : `/${locale}/reset-password?error=${encodeURIComponent(message)}`;
+    // Closing the Google window is a choice, not a failure. Send them back to a clean form.
+    if (isCustomerGoogle && errorParam === 'access_denied') {
+      logger.info('[Auth Callback] Google sign-in cancelled by the person');
+      return redirect(isSignInGoogle ? `/${locale}/signin` : `/${locale}/signup?role=customer`);
+    }
+    const accountConflict = isCustomerGoogle && isGoogleAccountConflict(errorCode, errorDescription);
+    const errorPath = accountConflict
+      ? `/${locale}/signin?error=existing_account`
+      : isSignInGoogle
+        ? `/${locale}/signin?error=${encodeURIComponent('Could not sign in with Google')}`
+        : isCustomerGoogle
+          ? `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`
+          : `/${locale}/reset-password?error=${encodeURIComponent(message)}`;
     logger.info('[Auth Callback] redirecting with error', { message, isCustomerGoogle });
-    const errorResponse = NextResponse.redirect(new URL(errorPath, normalizedBaseUrl));
-    if (isCustomerGoogle) clearOauthCookies(errorResponse);
-    return errorResponse;
+    return redirect(errorPath);
   }
 
   if (code) {
     const nextPath = safeAppPath(request.cookies.get('hph_oauth_next')?.value ?? null, locale);
-    const successRedirectUrl = new URL(
-      isCustomerGoogle ? nextPath : `/${locale}/reset-password`,
-      normalizedBaseUrl
-    );
-    const redirectResponse = NextResponse.redirect(successRedirectUrl);
+    const successPath = isCustomerGoogle ? nextPath : `/${locale}/reset-password`;
+    const failPath = isSignInGoogle
+      ? `/${locale}/signin?error=${encodeURIComponent('Could not sign in with Google')}`
+      : isCustomerGoogle
+        ? `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`
+        : `/${locale}/reset-password?error=${encodeURIComponent('Link expired or invalid')}`;
 
     const cookieStore = await cookies();
     const supabase = createServerClient<Database>(
@@ -102,9 +144,7 @@ export async function GET(request: NextRequest) {
             return cookieStore.getAll();
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              redirectResponse.cookies.set(name, value, { ...options, path: '/' })
-            );
+            sessionCookies.push(...cookiesToSet);
           },
         },
       }
@@ -113,57 +153,57 @@ export async function GET(request: NextRequest) {
     const { data: exchangeData, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (error) {
+      // The code is single use. A second callback request for the same code — a double
+      // click on the Google button, a browser retry, the back button — lands here after
+      // the first request already signed the person in. Finish on the session they have
+      // instead of showing an error they cannot act on.
+      const { data: current } = await supabase.auth.getUser();
+      if (current.user) {
+        logger.info('[Auth Callback] code already used, session from the first request is valid', {
+          userId: current.user.id,
+        });
+        return redirect(successPath);
+      }
+
       logger.error('[Auth Callback] exchangeCodeForSession failed', { error: error.message });
       if (error.message?.toLowerCase().includes('verifier') || error.message?.toLowerCase().includes('code_verifier')) {
         logger.info('[Auth Callback] PKCE hint: open the reset link in the SAME browser where you requested the reset.');
       }
       const message = error.message || 'Link expired or invalid';
-      const failPath = isSignInGoogle
-        ? `/${locale}/signin?error=${encodeURIComponent('Could not sign in with Google')}`
-        : isCustomerGoogle
-          ? `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`
-          : `/${locale}/reset-password?error=${encodeURIComponent(message)}`;
-      const failResponse = NextResponse.redirect(new URL(failPath, normalizedBaseUrl));
-      if (isCustomerGoogle) clearOauthCookies(failResponse);
-      return failResponse;
+      return redirect(
+        isCustomerGoogle ? failPath : `/${locale}/reset-password?error=${encodeURIComponent(message)}`
+      );
     }
 
     if (exchangeData?.user ?? exchangeData?.session) {
+      let accountKind: 'new' | 'existing' = 'existing';
       if (isCustomerGoogle && exchangeData.user) {
         try {
-          await provisionGoogleCustomer(exchangeData.user);
+          accountKind = await provisionGoogleCustomer(exchangeData.user);
         } catch (provisionError) {
           logger.error('[Auth Callback] Google customer provisioning failed', {
             error: provisionError instanceof Error ? provisionError.message : 'unknown',
           });
-          const failResponse = NextResponse.redirect(
-            new URL(
-              isSignInGoogle
-                ? `/${locale}/signin?error=${encodeURIComponent('Could not sign in with Google')}`
-                : `/${locale}/signup?role=customer&error=${encodeURIComponent('Could not sign up with Google')}`,
-              normalizedBaseUrl
-            )
-          );
-          clearOauthCookies(failResponse);
-          return failResponse;
+          // Do not hand out a session for an account we could not finish setting up,
+          // otherwise the error page redirects itself away a moment later.
+          return redirect(failPath, false);
         }
       }
+      const landing = isCustomerGoogle
+        ? customerDestination(nextPath, locale, flow, accountKind)
+        : successPath;
       logger.info('[Auth Callback] exchangeCodeForSession ok', {
-        redirectPath: successRedirectUrl.pathname,
+        redirectPath: landing,
         isCustomerGoogle,
+        accountKind,
       });
-      if (isCustomerGoogle) clearOauthCookies(redirectResponse);
-      return redirectResponse;
+      return redirect(landing);
     }
 
     logger.info('[Auth Callback] exchange ok but no user/session, redirecting to signin');
-    return NextResponse.redirect(
-      new URL(`/${locale}/signin?error=${encodeURIComponent('Authentication failed')}`, normalizedBaseUrl)
-    );
+    return redirect(`/${locale}/signin?error=${encodeURIComponent('Authentication failed')}`);
   }
 
   logger.info('[Auth Callback] no code param, redirecting to signin');
-  return NextResponse.redirect(
-    new URL(`/${locale}/signin?error=${encodeURIComponent('No authentication code provided')}`, normalizedBaseUrl)
-  );
+  return redirect(`/${locale}/signin?error=${encodeURIComponent('No authentication code provided')}`);
 }

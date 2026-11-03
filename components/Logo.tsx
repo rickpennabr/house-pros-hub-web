@@ -14,18 +14,32 @@ interface LogoProps {
   desktopDarkSrc?: string;
 }
 
+/**
+ * Real pixel size of each logo file. next/image reads width and height as the aspect
+ * ratio, not as the rendered size — CSS does the sizing. The wide header logo and the
+ * square mobile mark differ enough that one shared pair makes next/image warn that the
+ * image was stretched.
+ */
+const INTRINSIC_SIZES: Record<string, { width: number; height: number }> = {
+  '/thepros/hph-logo-with-pro-bot.png': { width: 3132, height: 791 },
+  '/hph-logo-with-pro-bot-mobile.png': { width: 3132, height: 581 },
+  '/hph-logo-with-pro-bot-wt.png': { width: 3132, height: 581 },
+  '/hph-logo-simble-bot-v1.png': { width: 760, height: 674 },
+  '/houseproshub_logo.png': { width: 848, height: 839 },
+};
+
 export default function Logo({ className = '', width = 200, height = 50, src: unifiedSrc, mobileSrc, mobileDarkSrc, desktopDarkSrc }: LogoProps) {
   const defaultSrc = '/thepros/hph-logo-with-pro-bot.png';
   const defaultMobileSrc = '/hph-logo-simble-bot-v1.png';
   const effectiveMobileSrc = mobileSrc ?? defaultMobileSrc;
+  const sizeOf = (src: string) => INTRINSIC_SIZES[src] ?? { width, height };
 
   if (unifiedSrc) {
     return (
       <Image
         src={unifiedSrc}
         alt="House Pros Hub Logo"
-        width={width}
-        height={height}
+        {...sizeOf(unifiedSrc)}
         className={className}
         priority
       />
@@ -43,8 +57,7 @@ export default function Logo({ className = '', width = 200, height = 50, src: un
           <Image
             src={effectiveMobileSrc}
             alt="House Pros Hub Logo"
-            width={width}
-            height={height}
+            {...sizeOf(effectiveMobileSrc)}
             className={`${className} logo-mobile-default h-full w-auto object-contain object-left relative`}
             priority
           />
@@ -52,8 +65,7 @@ export default function Logo({ className = '', width = 200, height = 50, src: un
             <Image
               src={mobileDarkSrc}
               alt="House Pros Hub Logo"
-              width={width}
-              height={height}
+              {...sizeOf(mobileDarkSrc)}
               className={`${className} logo-mobile-dark relative h-full w-auto object-contain object-left`}
               priority
             />
@@ -68,16 +80,14 @@ export default function Logo({ className = '', width = 200, height = 50, src: un
             <Image
               src={defaultSrc}
               alt="House Pros Hub Logo"
-              width={width}
-              height={height}
+              {...sizeOf(defaultSrc)}
               className={`${className} logo-desktop-default absolute inset-0 h-full w-auto object-contain object-left`}
               priority
             />
             <Image
               src={desktopDarkSrc}
               alt="House Pros Hub Logo"
-              width={width}
-              height={height}
+              {...sizeOf(desktopDarkSrc)}
               className={`${className} logo-desktop-dark absolute inset-0 h-full w-auto object-contain object-left`}
               priority
             />
@@ -86,8 +96,7 @@ export default function Logo({ className = '', width = 200, height = 50, src: un
           <Image
             src={defaultSrc}
             alt="House Pros Hub Logo"
-            width={width}
-            height={height}
+            {...sizeOf(defaultSrc)}
             className={`${className} hidden md:block`}
             priority
           />
@@ -99,8 +108,7 @@ export default function Logo({ className = '', width = 200, height = 50, src: un
     <Image
       src={defaultSrc}
       alt="House Pros Hub Logo"
-      width={width}
-      height={height}
+      {...sizeOf(defaultSrc)}
       className={className}
       priority
     />

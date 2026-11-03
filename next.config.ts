@@ -49,6 +49,12 @@ const nextConfig: NextConfig = {
     // Configure supported image qualities
     qualities: [75, 90],
   },
+  async redirects() {
+    return [
+      { source: '/:locale(en|es|pt)/places', destination: '/:locale/myplaces', permanent: false },
+      { source: '/:locale(en|es|pt)/places/:id', destination: '/:locale/myplaces/:id', permanent: false },
+    ];
+  },
   async rewrites() {
     return [
       { source: '/llms.txt', destination: '/api/agent/discovery/llms' },
