@@ -72,8 +72,17 @@ export function useEstimateFormValidation({
 
     const isContactMethodComplete = Boolean(selectedContactMethod);
 
+    const isProjectInfoComplete = Boolean(
+      isProjectTypeComplete &&
+      isTradesComplete &&
+      isDescriptionComplete &&
+      isBudgetTimelineComplete &&
+      isContactMethodComplete
+    );
+
     return {
       isCustomerInfoComplete,
+      isProjectInfoComplete,
       isProjectTypeComplete,
       isTradesComplete,
       isDescriptionComplete,

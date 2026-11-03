@@ -508,8 +508,14 @@ export default function EstimatePage() {
               title={tAccordion('projectInfo')}
               isOpen={isOpen('projectInfo')}
               onToggle={() => toggleAccordion('projectInfo')}
-              isComplete={false}
+              isComplete={validation.isProjectInfoComplete}
               icon={<TbHomeEdit className="w-5 h-5" />}
+              required
+              missingInfoMessage={
+                !isOpen('projectInfo') && !validation.isProjectInfoComplete
+                  ? tAccordion('missingRequiredInfo')
+                  : undefined
+              }
             >
               {/* Project Type Accordion */}
               <div ref={projectTypeRef}>

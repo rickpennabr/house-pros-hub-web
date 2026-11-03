@@ -41,6 +41,7 @@ export default function TradesSelector({
       error={errors.trades ? tHelp('tradesRequiredHint') : undefined}
       required
       tip={tTips('trades')}
+      missingInfoMessage={!isOpen && !isComplete ? tAccordion('missingRequiredInfo') : undefined}
     >
       <FormField label="" error={undefined}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
