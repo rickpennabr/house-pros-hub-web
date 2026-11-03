@@ -120,6 +120,7 @@ export default function ProjectDescriptionAccordion({
       error={errors.projectDescription ? tHelp('requiredFieldsHint') : undefined}
       required
       tip={tTips('description')}
+      missingInfoMessage={!isOpen && !isComplete ? tAccordion('missingRequiredInfo') : undefined}
     >
       <div className="space-y-4">
         <FormField label="" error={undefined}>

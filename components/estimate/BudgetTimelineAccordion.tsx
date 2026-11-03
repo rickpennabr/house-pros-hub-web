@@ -46,6 +46,7 @@ export default function BudgetTimelineAccordion({
       error={(errors.budgetRange || errors.timeline) ? tHelp('requiredFieldsHint') : undefined}
       required
       tip={tTips('budgetTimeline')}
+      missingInfoMessage={!isOpen && !isComplete ? tAccordion('missingRequiredInfo') : undefined}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField

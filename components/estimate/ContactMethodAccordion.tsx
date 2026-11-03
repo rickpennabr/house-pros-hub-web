@@ -42,6 +42,7 @@ export default function ContactMethodAccordion({
       error={errors.preferredContactMethod ? tHelp('requiredFieldsHint') : undefined}
       required
       tip={tTips('preferredContact')}
+      missingInfoMessage={!isOpen && !isComplete ? tAccordion('missingRequiredInfo') : undefined}
     >
       <FormField label="" error={undefined}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
