@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { sendProEstimateBookingEmails } from '@/lib/services/emailService';
+import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import type { ProEstimateBookingEmailData, ProEstimateBookingEmailTranslations } from '@/lib/utils/emailTemplates';
 import { COMPANY_INFO } from '@/lib/constants/company';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
@@ -165,6 +166,14 @@ export async function POST(request: NextRequest) {
     if (emailResult.errors.length > 0) {
       console.warn('ProEstimate booking emails had errors:', emailResult.errors);
     }
+
+    await recordAdminBellEvent({
+      eventType: 'booking',
+      entityType: 'booking',
+      entityId: booking.id,
+      displayName: customerName,
+      detail: [business.businessName, serviceName, slotDisplay].filter(Boolean).join(' · '),
+    });
 
     return NextResponse.json({ booking }, { status: 201 });
   } catch (err) {

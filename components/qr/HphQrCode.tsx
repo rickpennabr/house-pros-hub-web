@@ -7,9 +7,10 @@ import { drawHphQr, loadHphQrLogo, loadQrImage } from '@/lib/qr/draw-hph-qr'
 function loadBusinessLogo(src: string): Promise<HTMLImageElement | null> {
   const optimized =
     src.startsWith('/') || src.startsWith('http://') || src.startsWith('https://')
-      ? `/_next/image?url=${encodeURIComponent(src)}&w=256&q=75`
+      ? `/_next/image?url=${encodeURIComponent(src)}&w=640&q=90`
       : null
-  const attempts = optimized ? [optimized, src] : [src]
+  // Local files are already sharp. Remote files go through the image proxy first so the canvas stays downloadable.
+  const attempts = optimized ? (src.startsWith('/') ? [src, optimized] : [optimized, src]) : [src]
   return attempts.reduce<Promise<HTMLImageElement | null>>(
     (pending, url) => pending.catch(() => loadQrImage(url)),
     Promise.reject(new Error('start'))

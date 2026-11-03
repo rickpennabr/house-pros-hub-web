@@ -1,12 +1,14 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, X } from 'lucide-react';
+import { QrCode, Search, X } from 'lucide-react';
 import { AdminAccountButton } from './AdminAccountButton';
 import { NotificationBellDropdown } from './NotificationBellDropdown';
 import { useAdminSearch } from './AdminSearchContext';
+import { HphQrCodeModal } from '@/components/qr/HphQrCodeModal';
+import { HPH_QR_CENTER_LOGO_SRC, HPH_SITE_QR_URL } from '@/lib/qr/draw-hph-qr';
 
 interface AdminHeaderProps {
   userEmail: string;
@@ -19,6 +21,7 @@ interface AdminHeaderProps {
 export function AdminHeader({ userEmail, notificationCount = 0, onMarkAllRead }: AdminHeaderProps) {
   const { searchQuery, setSearchQuery } = useAdminSearch();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [qrOpen, setQrOpen] = useState(false);
 
   const handleClear = () => {
     setSearchQuery('');
@@ -73,8 +76,16 @@ export function AdminHeader({ userEmail, notificationCount = 0, onMarkAllRead }:
           </div>
         </div>
 
-        {/* Right: Notification Bell and Admin Account Button */}
+        {/* Right: site QR, notifications, account */}
         <div className="flex items-center flex-shrink-0 gap-2 ml-auto md:ml-0">
+          <button
+            type="button"
+            onClick={() => setQrOpen(true)}
+            className="w-10 h-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+            aria-label="HPH QRcode"
+          >
+            <QrCode className="w-5 h-5 text-black" />
+          </button>
           <NotificationBellDropdown
             notificationCount={notificationCount}
             onMarkAllRead={onMarkAllRead}
@@ -82,6 +93,14 @@ export function AdminHeader({ userEmail, notificationCount = 0, onMarkAllRead }:
           <AdminAccountButton userEmail={userEmail} />
         </div>
       </div>
+      <HphQrCodeModal
+        isOpen={qrOpen}
+        onClose={() => setQrOpen(false)}
+        url={HPH_SITE_QR_URL}
+        label="House Pros Hub"
+        logoSrc={HPH_QR_CENTER_LOGO_SRC}
+        fileName="houseproshub-qr.png"
+      />
     </header>
   );
 }

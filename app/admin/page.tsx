@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
-import { AdminSiteQr } from '@/components/admin/AdminSiteQr';
 
 export default function AdminDashboardPage() {
   return (
@@ -14,10 +13,6 @@ export default function AdminDashboardPage() {
           Welcome to the admin portal. Use the sidebar to navigate to different
           admin functions.
         </p>
-      </div>
-
-      <div className="mb-4">
-        <AdminSiteQr />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

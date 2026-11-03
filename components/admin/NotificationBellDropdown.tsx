@@ -2,18 +2,65 @@
 
 import { useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Bell, User, Briefcase, MessageCircle } from 'lucide-react';
+import { Bell, User, Briefcase, MessageCircle, ClipboardList, Calendar, Mail } from 'lucide-react';
+import type { AdminNotificationEntityType, AdminNotificationEventType } from '@/lib/types/adminNotification';
 import { useOptionalChat } from '@/contexts/ChatContext';
 import { useOptionalAuth } from '@/contexts/AuthContext';
 
 export type NewSignupItem = {
   id: string;
-  type: 'customer' | 'contractor';
+  type: AdminNotificationEntityType | 'customer' | 'contractor';
   name: string;
   createdAt: string;
   href: string;
-  eventType?: 'signup' | 'deletion';
+  eventType?: AdminNotificationEventType;
+  detail?: string | null;
 };
+
+function entityLabel(type: NewSignupItem['type']): string {
+  switch (type) {
+    case 'customer':
+      return 'Customer';
+    case 'contractor':
+      return 'Contractor';
+    case 'realtor':
+      return 'Realtor';
+    case 'installer':
+      return 'Installer';
+    case 'business':
+      return 'Business';
+    default:
+      return '';
+  }
+}
+
+function eventSummary(item: NewSignupItem): string {
+  const who = entityLabel(item.type);
+  switch (item.eventType) {
+    case 'deletion':
+      return `${who || 'Account'} was deleted`;
+    case 'estimate':
+      return 'requested an estimate';
+    case 'estimate_accepted':
+      return 'accepted an estimate';
+    case 'booking':
+      return 'booked an appointment';
+    case 'incoming_email':
+      return 'emailed the platform';
+    default:
+      return who === 'Business' ? 'was added' : `${who || 'Account'} signed up`;
+  }
+}
+
+function EventIcon({ item }: { item: NewSignupItem }) {
+  if (item.eventType === 'estimate' || item.eventType === 'estimate_accepted') {
+    return <ClipboardList className="w-4 h-4 text-black" />;
+  }
+  if (item.eventType === 'booking') return <Calendar className="w-4 h-4 text-black" />;
+  if (item.eventType === 'incoming_email') return <Mail className="w-4 h-4 text-black" />;
+  if (item.type === 'customer') return <User className="w-4 h-4 text-black" />;
+  return <Briefcase className="w-4 h-4 text-black" />;
+}
 
 type ChatUnreadBellItem = {
   id: string;
@@ -188,7 +235,7 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
                   <div>
                     <h3 className="text-sm font-bold text-black">Notifications</h3>
                     <p className="text-[10px] text-gray-600 mt-0.5">
-                      New signups in the last 24 hours
+                      Platform activity in the last 24 hours
                     </p>
                   </div>
                   {notificationCount > 0 && (
@@ -210,38 +257,34 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
                   </div>
                 ) : notificationItems.length === 0 ? (
                   <div className="py-6 text-center text-sm text-gray-500">
-                    No new signups
+                    No new activity
                   </div>
                 ) : (
                   <ul className="space-y-0.5">
-                    {notificationItems.map((item) => {
-                      const actionLabel = item.eventType === 'deletion' ? 'was deleted' : 'signed up';
-                      return (
-                        <li key={`${item.type}-${item.id}`}>
-                          <Link
-                            href={item.href}
-                            onClick={() => setNotificationOpen(false)}
-                            className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                          >
-                            <span className="flex-shrink-0 w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center bg-white">
-                              {item.type === 'customer' ? (
-                                <User className="w-4 h-4 text-black" />
-                              ) : (
-                                <Briefcase className="w-4 h-4 text-black" />
-                              )}
+                    {notificationItems.map((item) => (
+                      <li key={item.id}>
+                        <Link
+                          href={item.href}
+                          onClick={() => setNotificationOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                        >
+                          <span className="flex-shrink-0 w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center bg-white">
+                            <EventIcon item={item} />
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-medium truncate text-black">
+                              {item.name}
                             </span>
-                            <span className="flex-1 min-w-0">
-                              <span className="block text-sm font-medium truncate text-black">
-                                {item.name}
-                              </span>
-                              <span className="block text-[10px] text-gray-500">
-                                {item.type === 'customer' ? 'Customer' : 'Contractor'} {actionLabel} · {formatRelativeTime(item.createdAt)}
-                              </span>
+                            <span className="block text-[10px] text-gray-500">
+                              {eventSummary(item)} · {formatRelativeTime(item.createdAt)}
                             </span>
-                          </Link>
-                        </li>
-                      );
-                    })}
+                            {item.detail ? (
+                              <span className="block text-[10px] text-gray-400 truncate">{item.detail}</span>
+                            ) : null}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </div>

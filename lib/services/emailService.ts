@@ -527,21 +527,35 @@ export async function sendProEstimateBookingProEmail(
 }
 
 /**
- * Send both customer and pro ProEstimate booking emails.
+ * Send customer, pro, and platform-admin ProEstimate booking emails.
  */
 export async function sendProEstimateBookingEmails(
   data: ProEstimateBookingEmailData,
   proEmail: string,
   translations: ProEstimateBookingEmailTranslations
-): Promise<{ customerSuccess: boolean; proSuccess: boolean; errors: string[] }> {
+): Promise<{ customerSuccess: boolean; proSuccess: boolean; adminSuccess: boolean; errors: string[] }> {
   const errors: string[] = [];
   const customerResult = await sendProEstimateBookingCustomerEmail(data, translations);
   if (!customerResult.success) errors.push(`Customer: ${customerResult.error ?? 'Unknown'}`);
   const proResult = await sendProEstimateBookingProEmail(data, proEmail, translations);
   if (!proResult.success) errors.push(`Pro: ${proResult.error ?? 'Unknown'}`);
+
+  let adminSuccess = false;
+  const adminTo = ADMIN_EMAIL?.trim().toLowerCase();
+  const proTo = proEmail.trim().toLowerCase();
+  if (adminTo && adminTo !== '__client_side_placeholder__' && adminTo !== proTo) {
+    const adminResult = await sendProEstimateBookingProEmail(data, ADMIN_EMAIL, {
+      ...translations,
+      subjectPro: `New booking – ${data.businessName} – House Pros Hub`,
+    });
+    if (!adminResult.success) errors.push(`Admin: ${adminResult.error ?? 'Unknown'}`);
+    else adminSuccess = true;
+  }
+
   return {
     customerSuccess: customerResult.success,
     proSuccess: proResult.success,
+    adminSuccess,
     errors,
   };
 }

@@ -100,6 +100,8 @@ export interface AdminDataTableProps<T> {
   renderCell: (row: T, columnId: string) => React.ReactNode;
   /** Second click, double-click, or Enter on a selected cell. */
   onRowClick?: (row: T) => void;
+  /** Open the row on the first click. Shift and Ctrl still select. */
+  openOnFirstClick?: boolean;
   renderActions?: (row: T) => React.ReactNode;
   bulkActions?: AdminDataTableBulkActions<T>;
   emptyMessage?: string;
@@ -145,6 +147,7 @@ export function AdminDataTable<T>({
   getRowId,
   renderCell,
   onRowClick,
+  openOnFirstClick = false,
   renderActions,
   bulkActions,
   emptyMessage = 'No items found.',
@@ -1115,6 +1118,8 @@ export function AdminDataTable<T>({
                               data-hub-cell={hubActiveCellKey({ rowIndex, columnId: col.id })}
                               aria-selected={isActive || undefined}
                               className={`px-3 py-2 max-w-0 overflow-hidden border-r border-gray-200 outline-none ${
+                                openOnFirstClick ? 'cursor-pointer' : ''
+                              } ${
                                 col.id === primaryId ? 'font-medium text-gray-900' : 'text-sm text-gray-700'
                               } ${isActive ? 'shadow-[inset_0_0_0_2px_#000]' : ''}`}
                               style={{
@@ -1137,12 +1142,13 @@ export function AdminDataTable<T>({
                                   selectCell(rowIndex, col.id, event.shiftKey);
                                   return;
                                 }
-                                if (isActive) {
+                                if (isActive && !openOnFirstClick) {
                                   onRowClick?.(row);
                                   return;
                                 }
                                 selectCell(rowIndex, col.id, false);
                                 if (bulkActions) rowAnchorRef.current = rowId;
+                                if (openOnFirstClick || isActive) onRowClick?.(row);
                               }}
                               onDoubleClick={(event) => {
                                 if (isHubInteractiveClickTarget(event.target)) return;

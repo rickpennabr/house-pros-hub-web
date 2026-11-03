@@ -2113,26 +2113,29 @@ export interface Database {
       admin_notification_events: {
         Row: {
           id: string;
-          event_type: 'signup' | 'deletion';
-          entity_type: 'customer' | 'contractor';
+          event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email';
+          entity_type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id: string;
           display_name: string;
+          detail: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
-          event_type: 'signup' | 'deletion';
-          entity_type: 'customer' | 'contractor';
+          event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email';
+          entity_type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id: string;
           display_name: string;
+          detail?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
-          event_type?: 'signup' | 'deletion';
-          entity_type?: 'customer' | 'contractor';
+          event_type?: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email';
+          entity_type?: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id?: string;
           display_name?: string;
+          detail?: string | null;
           created_at?: string;
         };
         Relationships: [];

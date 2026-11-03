@@ -9,6 +9,7 @@ import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { requireRole } from '@/lib/middleware/requireRole';
 import { sendNewSignupAdminNotification } from '@/lib/services/emailService';
+import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
 
 /**
@@ -536,14 +537,12 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       }, adminNotifyErr as Error);
     }
 
-    // Log signup event for admin notifications (persists even if business is later deleted)
-    await serviceRoleClient.from('admin_notification_events').insert({
-      event_type: 'signup',
-      entity_type: 'contractor',
-      entity_id: businessData.id,
-      display_name: businessData.business_name ?? 'Business',
-    }).then(({ error: evErr }) => {
-      if (evErr) logger.warn('Failed to log admin notification event', { endpoint: '/api/business/create', error: evErr.message });
+    await recordAdminBellEvent({
+      eventType: 'signup',
+      entityType: 'business',
+      entityId: businessData.id,
+      displayName: businessData.business_name ?? 'Business',
+      detail: businessData.email ?? null,
     });
 
     const businessForCard = transformBusinessToProCardData({

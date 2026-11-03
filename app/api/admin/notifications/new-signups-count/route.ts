@@ -31,7 +31,7 @@ async function requireAdmin() {
 
 /**
  * GET /api/admin/notifications/new-signups-count
- * Returns count of new customer and contractor signups since the admin last marked as read (or last 24h if never). Admin only.
+ * Returns count of platform events since the admin last marked as read (or last 24h if never). Admin only.
  * Used to show the notification badge on the admin header bell.
  */
 export async function GET() {

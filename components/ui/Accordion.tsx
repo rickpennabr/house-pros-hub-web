@@ -44,52 +44,61 @@ export default function Accordion({
   // Show when accordion is collapsed, required, and incomplete (has errors or missing info)
   const showErrorState = !isOpen && required && !isComplete;
   const useCompleteStyle = showCompleteStyle && isComplete;
+  const showRequiredMark = required && !isComplete && !error;
 
   return (
     <div className={`border-2 rounded-lg bg-white overflow-hidden ${
       showErrorState ? 'border-red-600' : 'border-black'
     } ${className}`}>
-      <button
-        type="button"
-        onClick={onToggle}
-        className={`w-full flex items-center justify-between p-2 md:p-4 text-left cursor-pointer transition-colors ${
+      <div
+        className={`relative w-full transition-colors ${
           isOpen ? 'rounded-t-lg' : 'rounded-lg'
         } ${useCompleteStyle ? 'bg-black' : 'bg-white'}`}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {icon && (
-            <div className={useCompleteStyle ? 'text-white' : 'text-red-600'}>
-              {icon}
-            </div>
-          )}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+          className="absolute inset-0 z-0 cursor-pointer"
+        >
+          <span className="sr-only">{isOpen ? `Collapse ${title}` : `Expand ${title}`}</span>
+        </button>
+        <div className="relative z-10 flex items-center justify-between p-2 md:p-4 pointer-events-none">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <h2 className={`text-base md:text-lg font-bold overflow-hidden text-ellipsis whitespace-nowrap md:whitespace-normal md:overflow-visible ${useCompleteStyle ? 'text-white' : 'text-black'}`}>
-              {title}
-              {required && !isComplete && !error && (
-                <>
-                  <span className="text-red-500 ml-1">*</span>
-                  {tip && <span className="ml-1"><TipModal message={tip} hoverOnly /></span>}
-                </>
+            {icon && (
+              <div className={useCompleteStyle ? 'text-white' : 'text-red-600'}>
+                {icon}
+              </div>
+            )}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <h2 className={`text-base md:text-lg font-bold overflow-hidden text-ellipsis whitespace-nowrap md:whitespace-normal md:overflow-visible ${useCompleteStyle ? 'text-white' : 'text-black'}`}>
+                {title}
+                {showRequiredMark && <span className="text-red-500 ml-1">*</span>}
+              </h2>
+              {showRequiredMark && tip && (
+                <span className="pointer-events-auto shrink-0">
+                  <TipModal message={tip} hoverOnly />
+                </span>
               )}
-            </h2>
-            {showErrorState && missingInfoMessage && (
-              <span className="ml-2 font-normal text-sm text-red-600 whitespace-nowrap flex-shrink-0">
-                {missingInfoMessage}
-              </span>
-            )}
-            {error && (
-              <span className={`ml-2 font-normal text-xs ${useCompleteStyle ? 'text-white' : 'text-red-600'}`}>
-                {error}
-              </span>
-            )}
+              {showErrorState && missingInfoMessage && (
+                <span className="ml-2 font-normal text-sm text-red-600 whitespace-nowrap flex-shrink-0">
+                  {missingInfoMessage}
+                </span>
+              )}
+              {error && (
+                <span className={`ml-2 font-normal text-xs ${useCompleteStyle ? 'text-white' : 'text-red-600'}`}>
+                  {error}
+                </span>
+              )}
+            </div>
           </div>
+          {isOpen ? (
+            <ChevronUp className={`w-5 h-5 shrink-0 ml-4 ${useCompleteStyle ? 'text-white' : 'text-black'}`} />
+          ) : (
+            <ChevronDown className={`w-5 h-5 shrink-0 ml-4 ${useCompleteStyle ? 'text-white' : (showErrorState ? 'text-red-600' : 'text-black')}`} />
+          )}
         </div>
-        {isOpen ? (
-          <ChevronUp className={`w-5 h-5 shrink-0 ml-4 ${useCompleteStyle ? 'text-white' : 'text-black'}`} />
-        ) : (
-          <ChevronDown className={`w-5 h-5 shrink-0 ml-4 ${useCompleteStyle ? 'text-white' : (showErrorState ? 'text-red-600' : 'text-black')}`} />
-        )}
-      </button>
+      </div>
 
       {isOpen && (
         <div className="px-2 md:px-4 pb-2 md:pb-4 border-t-2 border-black space-y-4 pt-2 md:pt-4 rounded-b-lg">

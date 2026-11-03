@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { sendEstimateApprovalNotificationEmails } from '@/lib/services/emailService';
+import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 
 /**
  * POST /api/estimates/public/approve
@@ -88,6 +89,18 @@ export async function POST(request: NextRequest) {
       customerEmail,
       contractorEmail,
     }).catch((e) => console.error('[POST /api/estimates/public/approve] approval emails failed', e));
+
+    const amount = ((estimate.amount_cents ?? 0) / 100).toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    });
+    await recordAdminBellEvent({
+      eventType: 'estimate_accepted',
+      entityType: 'estimate',
+      entityId: estimate.id,
+      displayName: customerName,
+      detail: [`Estimate #${estimateNumber}`, businessName, amount].filter(Boolean).join(' · '),
+    });
 
     return NextResponse.json({ ok: true, status: 'approved' });
   } catch (err) {

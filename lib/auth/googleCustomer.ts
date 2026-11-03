@@ -2,6 +2,8 @@ import type { User } from '@supabase/supabase-js';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { logger } from '@/lib/utils/logger';
+import { sendNewSignupAdminNotification } from '@/lib/services/emailService';
+import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 
 function textMeta(meta: Record<string, unknown>, key: string): string {
   const value = meta[key];
@@ -84,14 +86,25 @@ export async function provisionGoogleCustomer(user: User): Promise<void> {
 
   if (isNewAccount) {
     const displayName = `${firstName} ${lastName}`.trim() || email || 'Customer';
-    const { error: eventError } = await service.from('admin_notification_events').insert({
-      event_type: 'signup',
-      entity_type: 'customer',
-      entity_id: user.id,
-      display_name: displayName,
+    await recordAdminBellEvent({
+      eventType: 'signup',
+      entityType: 'customer',
+      entityId: user.id,
+      displayName,
+      detail: email || null,
     });
-    if (eventError) {
-      logger.warn('[Google customer] failed to log signup event', { userId: user.id, error: eventError.message });
+    if (email) {
+      const adminNotify = await sendNewSignupAdminNotification({
+        type: 'customer',
+        name: displayName,
+        email,
+      });
+      if (!adminNotify.success) {
+        logger.warn('[Google customer] failed to email admin about signup', {
+          userId: user.id,
+          error: adminNotify.error,
+        });
+      }
     }
   }
 }

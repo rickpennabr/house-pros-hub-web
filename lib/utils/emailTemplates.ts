@@ -153,7 +153,9 @@ export function generateNewSignupAdminNotification(data: NewSignupAdminNotificat
         ? 'Contractor'
         : data.type === 'realtor'
           ? 'Realtor'
-          : 'Business';
+          : data.type === 'installer'
+            ? 'Installer'
+            : 'Business';
 
   return `
 <!DOCTYPE html>

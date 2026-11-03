@@ -5,6 +5,7 @@ import { AdminSearchProvider } from './AdminSearchContext';
 import { AdminHeader } from './AdminHeader';
 import { AdminSidebar } from './AdminSidebar';
 import { InAppChatNotificationBanner } from './InAppChatNotificationBanner';
+import { AdminRepairPushButton } from '@/components/notifications/AdminRepairPushButton';
 
 const NEW_SIGNUPS_POLL_MS = 60 * 1000;
 const BADGE_POLL_MS = 15_000;
@@ -73,6 +74,7 @@ export function AdminLayout({ children, userEmail, onSearchChange }: AdminLayout
       {/* Mobile: whole page scrolls (overflow-y-auto). Desktop: only main scrolls (overflow-hidden). */}
       <div className="w-full min-h-screen flex flex-col bg-white overflow-y-auto md:overflow-hidden md:h-screen">
         <InAppChatNotificationBanner />
+        <AdminRepairPushButton />
         <AdminHeader
           userEmail={userEmail}
           notificationCount={notificationCount}

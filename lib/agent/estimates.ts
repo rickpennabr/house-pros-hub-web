@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 import { estimateSchema } from '@/lib/schemas/estimate';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { sendEstimateEmails } from '@/lib/services/emailService';
+import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import type { EmailTranslations, EstimateEmailData } from '@/lib/utils/emailTemplates';
 import { logger } from '@/lib/utils/logger';
 import type { AgentApp } from '@/lib/agent/auth';
@@ -206,6 +207,15 @@ export async function createAgentEstimate(input: {
   };
 
   const emailResult = await sendEstimateEmails(emailData, estimate.email, translations);
+  const who = [estimate.firstName, estimate.lastName].filter(Boolean).join(' ').trim() || 'Someone';
+  const place = [estimate.city, estimate.state].filter(Boolean).join(', ');
+  await recordAdminBellEvent({
+    eventType: 'estimate',
+    entityType: 'estimate',
+    entityId: saved.id,
+    displayName: who,
+    detail: [input.app.name, estimate.projectType, place].filter(Boolean).join(' · '),
+  });
   if (emailResult.errors.length > 0) {
     logger.warn('Agent estimate emails failed', {
       estimateId: saved.id,

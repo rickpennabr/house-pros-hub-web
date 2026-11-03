@@ -1,8 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { AlertTriangle, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import type { ProProduct } from '@/lib/products/types';
 
 interface ProductFormState {
@@ -46,6 +50,33 @@ const emptyVariant: VariantFormState = {
 };
 
 const fieldClass = 'mt-1 w-full rounded-lg border-2 border-black px-3 py-2 text-sm';
+const MENU_HEIGHT = 80;
+
+const PRODUCT_COLUMNS: AdminDataTableColumn<ProProduct>[] = [
+  { id: 'photo', label: 'Photo', width: 80, resizable: false, wrap: true },
+  { id: 'name', label: 'Name', width: 220 },
+  { id: 'brand', label: 'Brand', width: 160 },
+  { id: 'product_type', label: 'Type', width: 180 },
+  { id: 'variations', label: 'Variations', width: 120 },
+  { id: 'actions', label: 'Actions', resizable: false },
+];
+
+function productCellText(row: ProProduct, columnId: string): string {
+  switch (columnId) {
+    case 'photo':
+      return row.image_url ?? '';
+    case 'name':
+      return row.name;
+    case 'brand':
+      return row.brand;
+    case 'product_type':
+      return row.product_type;
+    case 'variations':
+      return String(row.variants.length);
+    default:
+      return '';
+  }
+}
 
 function productToForm(product: ProProduct): ProductFormState {
   return {
@@ -72,7 +103,11 @@ export default function AdminProductsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductFormState>(emptyForm);
   const [variantForm, setVariantForm] = useState<VariantFormState>(emptyVariant);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ ids: string[]; label: string } | null>(null);
+  const [openActionsId, setOpenActionsId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +130,19 @@ export default function AdminProductsPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (!openActionsId) return;
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!actionsMenuRef.current?.contains(target) && !actionsButtonRef.current?.contains(target)) {
+        setOpenActionsId(null);
+        setMenuPosition(null);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [openActionsId]);
 
   const editing = products.find((product) => product.id === editingId) ?? null;
 
@@ -198,14 +246,26 @@ export default function AdminProductsPage() {
     }
   };
 
-  const remove = async (id: string) => {
+  const requestDelete = (ids: string[]) => {
+    const label =
+      ids.length === 1
+        ? (products.find((product) => product.id === ids[0])?.name ?? 'this product')
+        : `${ids.length} products`;
+    setDeleteConfirm({ ids, label });
+  };
+
+  const remove = async () => {
+    if (!deleteConfirm) return;
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE', credentials: 'include' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? 'Failed to delete product');
-      setConfirmDeleteId(null);
+      for (const id of deleteConfirm.ids) {
+        const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE', credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? 'Failed to delete product');
+      }
+      if (editingId && deleteConfirm.ids.includes(editingId)) setEditorOpen(false);
+      setDeleteConfirm(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete product');
@@ -233,54 +293,85 @@ export default function AdminProductsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-black">Products</h1>
-          <p className="mt-1 text-sm text-gray-700">House Pros catalog, including colors, sizes, and thicknesses.</p>
+    <div className="w-full">
+      <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Products</h1>
+          <p className="mt-0.5 text-sm text-gray-500">House Pros catalog, including colors, sizes, and thicknesses.</p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="hidden rounded-lg border-2 border-black bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 md:inline-flex"
-        >
+        <Button variant="primary" size="sm" className="hidden md:flex items-center gap-2 shrink-0" onClick={openCreate}>
+          <Plus className="w-4 h-4" />
           Add product
-        </button>
+        </Button>
       </div>
-
-      {error && !editorOpen ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-      {loading ? <p className="text-sm text-gray-700">Loading products...</p> : null}
-      {!loading && products.length === 0 ? <p className="text-sm text-gray-700">No products yet.</p> : null}
-
-      <ul className="space-y-2">
-        {products.map((product) => (
-          <li key={product.id} className="flex items-center justify-between gap-3 rounded-lg border-2 border-black bg-white p-3">
-            <div className="flex min-w-0 items-center gap-3">
-              {product.image_url ? (
-                <img src={product.image_url} alt="" className="h-12 w-12 rounded object-cover" />
-              ) : (
-                <span className="inline-block h-12 w-12 rounded bg-neutral-100" />
-              )}
-              <div className="min-w-0">
-                <p className="truncate font-bold text-black">{product.name}</p>
-                <p className="truncate text-sm text-gray-600">
-                  {[product.brand, product.product_type, `${product.variants.length} variations`].filter(Boolean).join(' · ')}
-                </p>
-              </div>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <button type="button" onClick={() => openEdit(product)} className="text-sm font-bold text-black hover:text-red-600">
-                Edit
-              </button>
-              <button type="button" onClick={() => setConfirmDeleteId(product.id)} className="text-sm font-bold text-red-600">
-                Delete
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-
       <AdminFloatingAddButton onClick={openCreate} ariaLabel="Add product" />
+
+      <AdminDataTable
+        clientSide
+        columnOrderKey="admin-products"
+        exportName="products"
+        columns={PRODUCT_COLUMNS}
+        data={products}
+        total={products.length}
+        pageSize={25}
+        isLoading={loading}
+        hasLoadedOnce={!loading}
+        error={editorOpen ? null : error}
+        getRowId={(row) => row.id}
+        getCellText={productCellText}
+        searchPlaceholder="Search products..."
+        emptyMessage="No products yet."
+        itemLabel="products"
+        primaryColumnId="name"
+        onRowClick={(row) => openEdit(row)}
+        renderCell={(row, columnId) => {
+          if (columnId === 'photo') {
+            return row.image_url ? (
+              <img src={row.image_url} alt="" className="h-10 w-10 rounded object-cover" />
+            ) : (
+              <span className="inline-block h-10 w-10 rounded bg-neutral-100" />
+            );
+          }
+          if (columnId === 'name') return <span className="font-medium text-black">{row.name}</span>;
+          if (columnId === 'variations') {
+            const count = row.variants.length;
+            return `${count} variation${count === 1 ? '' : 's'}`;
+          }
+          return productCellText(row, columnId) || '—';
+        }}
+        renderActions={(row) => (
+          <button
+            ref={openActionsId === row.id ? actionsButtonRef : undefined}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (openActionsId === row.id) {
+                setOpenActionsId(null);
+                setMenuPosition(null);
+                return;
+              }
+              const rect = event.currentTarget.getBoundingClientRect();
+              actionsButtonRef.current = event.currentTarget;
+              const left = Math.min(rect.right - 120, window.innerWidth - 130);
+              const spaceBelow = window.innerHeight - rect.bottom - 4;
+              const top = spaceBelow >= MENU_HEIGHT ? rect.bottom + 4 : rect.top - MENU_HEIGHT - 4;
+              setMenuPosition({ top, left });
+              setOpenActionsId(row.id);
+            }}
+            className="p-1 rounded hover:bg-gray-200 transition-colors cursor-pointer text-gray-600 hover:text-black"
+            aria-label="Actions"
+          >
+            <MoreVertical className="w-5 h-5" />
+          </button>
+        )}
+        bulkActions={{
+          onDelete: requestDelete,
+          onEdit: (row) => openEdit(row),
+          onCopyAsJson: (rows) => {
+            void navigator.clipboard.writeText(JSON.stringify(rows, null, 2));
+          },
+        }}
+      />
 
       <Modal isOpen={editorOpen} onClose={() => setEditorOpen(false)} title={editingId ? 'Edit product' : 'Add product'} maxWidth="2xl">
         <div className="space-y-3">
@@ -384,22 +475,80 @@ export default function AdminProductsPage() {
         </div>
       </Modal>
 
-      <Modal isOpen={confirmDeleteId !== null} onClose={() => setConfirmDeleteId(null)} title="Delete product?">
-        <p className="text-sm text-gray-700">This removes the product and every variation from the House Pros catalog.</p>
-        <div className="mt-4 flex justify-end gap-2">
-          <button type="button" onClick={() => setConfirmDeleteId(null)} className="rounded-lg border-2 border-black px-4 py-2 text-sm font-bold">
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={saving || !confirmDeleteId}
-            onClick={() => confirmDeleteId && void remove(confirmDeleteId)}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
-          >
-            {saving ? 'Deleting...' : 'Delete'}
-          </button>
-        </div>
-      </Modal>
+      {deleteConfirm ? (
+        <Modal
+          isOpen
+          onClose={() => !saving && setDeleteConfirm(null)}
+          showHeader={false}
+          showCloseButton
+          maxWidth="sm"
+          preventCloseOnOverlayClick={saving}
+        >
+          <div className="p-6 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+              <AlertTriangle className="h-8 w-8 text-amber-600" aria-hidden />
+            </div>
+            <h2 className="mb-2 text-xl font-bold text-gray-900">Delete product?</h2>
+            <p className="mb-6 text-gray-600">
+              This removes <strong className="text-gray-900">{deleteConfirm.label}</strong> and every variation from the House Pros catalog.
+            </p>
+            <div className="flex justify-center gap-3">
+              <Button type="button" variant="secondary" size="sm" onClick={() => setDeleteConfirm(null)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="border-red-600 bg-red-600 text-white hover:bg-red-700"
+                onClick={() => void remove()}
+                disabled={saving}
+              >
+                {saving ? 'Deleting…' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {openActionsId && menuPosition && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={actionsMenuRef}
+              className="fixed z-[100] min-w-[120px] rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+              style={{ top: menuPosition.top, left: menuPosition.left }}
+            >
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-100"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  const row = products.find((product) => product.id === openActionsId);
+                  setOpenActionsId(null);
+                  setMenuPosition(null);
+                  if (row) openEdit(row);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 hover:text-red-700"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  const row = products.find((product) => product.id === openActionsId);
+                  setOpenActionsId(null);
+                  setMenuPosition(null);
+                  if (row) requestDelete([row.id]);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

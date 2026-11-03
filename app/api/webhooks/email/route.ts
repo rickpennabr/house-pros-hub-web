@@ -16,6 +16,7 @@ import { authorizeInboundEmailWebhook } from '@/lib/utils/webhookAuth';
 import { parseResendWebhook } from '@/lib/utils/emailParser';
 import { storeIncomingEmail, updateEmailStatus } from '@/lib/services/incomingEmailService';
 import { sendIncomingEmailNotification } from '@/lib/services/emailService';
+import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import { logger } from '@/lib/utils/logger';
 import { handleError } from '@/lib/utils/errorHandler';
 import { COMPANY_INFO } from '@/lib/constants/company';
@@ -114,6 +115,16 @@ export async function POST(request: NextRequest) {
         endpoint: '/api/webhooks/email',
         emailId: storeResult.emailId,
         error: notificationResult.error,
+      });
+    }
+
+    if (storeResult.emailId) {
+      await recordAdminBellEvent({
+        eventType: 'incoming_email',
+        entityType: 'email',
+        entityId: storeResult.emailId,
+        displayName: parsedEmail.fromName?.trim() || parsedEmail.fromEmail,
+        detail: parsedEmail.subject?.trim() || parsedEmail.toEmail,
       });
     }
 

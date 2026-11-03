@@ -6,6 +6,7 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { sendEstimateEmails } from '@/lib/services/emailService';
+import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import { sendAdminPushNotification } from '@/lib/services/pushNotificationService';
 import { signDriveFilesForStaff } from '@/lib/drive/server';
 import { getTranslations } from 'next-intl/server';
@@ -243,8 +244,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const who = [estimateData.firstName, estimateData.lastName].filter(Boolean).join(' ').trim() || 'Someone';
+    const place = [estimateData.city, estimateData.state].filter(Boolean).join(', ');
+    await recordAdminBellEvent({
+      eventType: 'estimate',
+      entityType: 'estimate',
+      entityId: savedEstimate.id,
+      displayName: who,
+      detail: isQuickRepair ? ['Quick Repair', place].filter(Boolean).join(' · ') : [estimateData.projectType, place].filter(Boolean).join(' · '),
+    });
+
     if (isQuickRepair) {
-      const who = [estimateData.firstName, estimateData.lastName].filter(Boolean).join(' ').trim() || 'Someone';
       try {
         await sendAdminPushNotification(
           'New Quick Repair',

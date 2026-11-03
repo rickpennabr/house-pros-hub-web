@@ -4,6 +4,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { validateBase64Image, getExtensionFromMimeType } from '@/lib/utils/fileValidation';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { sendWelcomeEmail, sendNewSignupAdminNotification } from '@/lib/services/emailService';
+import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import { getMessages } from 'next-intl/server';
 import { logger } from '@/lib/utils/logger';
 import { findInvitationCode, invitationCodeBlockReason, type InvitationRole } from '@/lib/auth/invitationCodes';
@@ -513,19 +514,23 @@ export async function POST(request: NextRequest) {
       }, adminNotifyErr as Error);
     }
 
-    // Log signup event for admin notifications (persists even if user is later deleted)
-    const isCustomer = userType === 'customer' || userType === 'both';
-    if (isCustomer) {
-      const displayName = `${firstName.trim()} ${lastName.trim()}`.trim() || normalizedEmail || 'Customer';
-      await serviceRoleClient.from('admin_notification_events').insert({
-        event_type: 'signup',
-        entity_type: 'customer',
-        entity_id: authData.user.id,
-        display_name: displayName,
-      }).then(({ error: evErr }) => {
-        if (evErr) logger.warn('Failed to log admin notification event', { endpoint: '/api/auth/signup', error: evErr.message });
-      });
-    }
+    // Bell item for every signup. Persists even if the account is later deleted.
+    const displayName = `${firstName.trim()} ${lastName.trim()}`.trim() || normalizedEmail || 'New account';
+    const entityType =
+      userType === 'contractor'
+        ? 'contractor'
+        : userType === 'realtor'
+          ? 'realtor'
+          : userType === 'installer'
+            ? 'installer'
+            : 'customer';
+    await recordAdminBellEvent({
+      eventType: 'signup',
+      entityType,
+      entityId: authData.user.id,
+      displayName,
+      detail: normalizedEmail,
+    });
 
     return NextResponse.json(
       { user },
