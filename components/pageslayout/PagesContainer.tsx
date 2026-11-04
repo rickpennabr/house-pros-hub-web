@@ -10,9 +10,11 @@ interface PageContainerProps {
   children: ReactNode;
   /** When true, card background is transparent so sky animation shows through (test / chatbot-style). */
   transparentBg?: boolean;
+  /** Grow with the content so a long form scrolls with the page instead of being clipped. */
+  grow?: boolean;
 }
 
-export default function PageContainer({ children, transparentBg = false }: PageContainerProps) {
+export default function PageContainer({ children, transparentBg = false, grow = false }: PageContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [emerging, setEmerging] = useState(false);
   const [emerged, setEmerged] = useState(false);
@@ -88,7 +90,9 @@ export default function PageContainer({ children, transparentBg = false }: PageC
       className={`w-full max-w-[960px] mx-auto flex flex-col md:min-h-0
       border-2 rounded-lg
       max-md:h-auto max-md:min-h-[calc(100dvh-1rem)] max-md:overflow-visible
-      md:my-2 md:h-[calc(100vh-1rem)] md:overflow-y-auto md:overflow-x-hidden
+      ${grow
+        ? 'md:my-2 md:h-auto md:min-h-[calc(100dvh-1rem)] md:overflow-visible'
+        : 'md:my-2 md:h-[calc(100vh-1rem)] md:overflow-y-auto md:overflow-x-hidden'}
       transition-transform duration-[500ms] ease-out origin-center ${scaleClass}
       ${transparentBg ? 'main-layout-card-transparent' : 'bg-white border-black'}`}>
       {children}

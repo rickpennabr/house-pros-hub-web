@@ -41,7 +41,9 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
   return (
     <>
       <div
-        className={`relative w-full flex justify-center p-2 md:p-0 max-md:min-h-dvh max-md:items-start md:min-h-screen md:items-center ${
+        className={`relative w-full flex justify-center p-2 md:p-0 max-md:min-h-dvh max-md:items-start md:min-h-screen ${
+          isQuickRepair ? 'md:items-start' : 'md:items-center'
+        } ${
           showSkyBg ? 'probot-sky-bg main-layout-sky-mobile-only' : 'bg-white'
         }`}
       >
@@ -50,7 +52,7 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
             <ProBotNevadaMountains />
           </div>
         )}
-        <PageContainer transparentBg={showSkyBg}>
+        <PageContainer transparentBg={showSkyBg} grow={isQuickRepair}>
           {isBlogArticle ? (
             <div className="flex min-h-full flex-col">
               {children}
@@ -71,7 +73,7 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
               <Suspense fallback={<div className="h-[60px] w-full shrink-0 border-b-2 border-black" />}>
                 <PageCategories />
               </Suspense>
-              <PageContent scroll={isBlog || isQuickRepair} flushTop={isProJobs}>{children}</PageContent>
+              <PageContent scroll={isBlog} grow={isQuickRepair} flushTop={isProJobs}>{children}</PageContent>
               <Footer />
             </>
           )}
