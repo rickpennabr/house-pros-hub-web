@@ -17,6 +17,50 @@
   --font-mono: var(--font-geist-mono);
 }
 
+@property --repair-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes quick-repair-border-spin {
+  to {
+    --repair-angle: 360deg;
+  }
+}
+
+/* Two bright points travel the Quick Repair pill border, opposite each other. */
+.quick-repair-border {
+  --repair-fill: #ef4444;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--repair-fill), var(--repair-fill)) padding-box,
+    conic-gradient(
+      from var(--repair-angle),
+      #000 0deg,
+      #fff 28deg,
+      #fde68a 46deg,
+      #000 78deg,
+      #000 180deg,
+      #fff 208deg,
+      #fde68a 226deg,
+      #000 258deg,
+      #000 360deg
+    ) border-box;
+  animation: quick-repair-border-spin 5s linear infinite;
+  transition: transform 300ms;
+}
+
+.quick-repair-border:hover {
+  --repair-fill: var(--repair-fill-hover, #dc2626);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-repair-border {
+    animation: none;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -956,17 +1000,27 @@ textarea::placeholder {
   background: var(--probot-input-bg);
 }
 
-/* Mobile header logo: size and fit so it doesn't sit behind the language switcher; show white in dark */
+/* Mobile header logo: wide wordmark scaled into the space between the side buttons; white in dark */
 @media (max-width: 767px) {
   .logo-header.logo-mobile-wrap {
     height: 40px !important;
-    display: inline-flex;
-    align-items: center;
+    width: 100% !important;
+    min-width: 0 !important;
     max-width: 100%;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
   }
   .logo-header.logo-mobile-default,
   .logo-header.logo-mobile-dark {
-    object-position: left center;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 40px !important;
+    max-height: 40px !important;
+    object-fit: contain;
+    object-position: center;
   }
   .logo-mobile-dark {
     display: none !important;

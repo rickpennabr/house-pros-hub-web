@@ -1507,6 +1507,10 @@
         "subscription": {
           "title": "Hub plan",
           "description": "Free storage, then Hub Pro"
+        },
+        "quickRepair": {
+          "title": "Quick Repair",
+          "description": "Send a repair request with photos"
         }
       },
       "business": {
@@ -2085,6 +2089,7 @@
     "maxPhotos": "Up to 5 photos",
     "noLocation": "Location was not shared. Enter the address.",
     "whatBroke": "What needs repair?",
+    "describeRepair": "Describe repair in few words",
     "trade": "Trade",
     "selectTrade": "Select a trade",
     "submit": "Request repair",

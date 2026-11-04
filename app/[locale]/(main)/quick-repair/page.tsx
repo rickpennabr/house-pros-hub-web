@@ -12,7 +12,6 @@ import { ProDriveQuotaModal } from '@/components/drive/ProDriveQuotaModal';
 import { Button } from '@/components/ui/Button';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import { Input } from '@/components/ui/Input';
-import { SERVICE_CATEGORIES } from '@/lib/constants/categories';
 import { createSignInUrl, createSignUpUrl } from '@/lib/redirect';
 import { reverseGeocode, requestCurrentLocation, type CaptureLocation } from '@/lib/media/capture-location';
 import {
@@ -29,6 +28,7 @@ import type { DriveFile, DriveUsage } from '@/lib/drive/types';
 import type { Locale } from '@/i18n';
 
 const MAX_PHOTOS = 5;
+const DEFAULT_TRADE = 'Handyman';
 const STEPS = ['upload', 'details', 'submit'] as const;
 type Step = (typeof STEPS)[number];
 
@@ -52,7 +52,6 @@ export default function QuickRepairPage() {
   const [step, setStep] = useState<Step>('upload');
   const [photos, setPhotos] = useState<LocalPhoto[]>([]);
   const [location, setLocation] = useState<CaptureLocation | null>(null);
-  const [locationMissing, setLocationMissing] = useState(false);
   const [quota, setQuota] = useState<DriveUsage | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,7 +128,7 @@ export default function QuickRepairPage() {
             setPhotos((current) => current.map((item) => (item.key === photo.key ? { ...item, previewUrl: url } : item)));
           });
         }
-        const readyToSend = Boolean(draft.trade && draft.firstName && draft.lastName && draft.email && draft.phone && draft.streetAddress && draft.city && draft.state && draft.zipCode);
+        const readyToSend = Boolean(draft.firstName && draft.lastName && draft.email && draft.phone && draft.streetAddress && draft.city && draft.state && draft.zipCode);
         if (isAuthenticated && readyToSend) setStep('submit');
         else if (draft.trade || draft.description) setStep('details');
         else setStep('upload');
@@ -219,7 +218,7 @@ export default function QuickRepairPage() {
     projectType: 'repair',
     requiresHoaApproval: false,
     wants3D: false,
-    trades: trade ? [trade] : [],
+    trades: [trade || DEFAULT_TRADE],
     projectDescription: description,
     budgetRange: 'not_sure',
     timeline: 'asap',
@@ -231,10 +230,7 @@ export default function QuickRepairPage() {
     if (located.current) return;
     located.current = true;
     const shot = await requestCurrentLocation();
-    if (!shot) {
-      setLocationMissing(true);
-      return;
-    }
+    if (!shot) return;
     setLocation(shot);
     const found = await reverseGeocode(shot.latitude, shot.longitude);
     if (!found) return;
@@ -403,7 +399,7 @@ export default function QuickRepairPage() {
           projectType: 'repair',
           requiresHoaApproval: false,
           wants3D: false,
-          trades: [trade],
+          trades: [trade || DEFAULT_TRADE],
           projectDescription: description,
           projectImages: [],
           budgetRange: 'not_sure',
@@ -434,7 +430,7 @@ export default function QuickRepairPage() {
   const progress = done ? 100 : ((Math.max(stepIndex, 0) + 1) / STEPS.length) * 100;
 
   return (
-    <div className="w-full">
+    <div className="w-full md:shrink-0">
       <GoogleHandoffOverlay
         open={googleLoading}
         title={tHandoff('title')}
@@ -459,10 +455,12 @@ export default function QuickRepairPage() {
       {isLoading || !ready ? null : done ? (
         <p>{t('success')}</p>
       ) : (
-        <div className="space-y-4 max-w-xl">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-600">
-            {t('stepOf', { current: stepIndex + 1, total: STEPS.length })}
-          </p>
+        <div className="mx-auto w-full max-w-xl space-y-4">
+          {step !== 'details' && (
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-600">
+              {t('stepOf', { current: stepIndex + 1, total: STEPS.length })}
+            </p>
+          )}
           {sharedPhoto && <p className="text-sm font-medium">{t('sharedPhoto')}</p>}
 
           {step === 'upload' && (
@@ -506,11 +504,8 @@ export default function QuickRepairPage() {
 
           {step === 'details' && (
             <section className="space-y-3">
-              <h2 className="text-lg font-bold">{t('whatBroke')}</h2>
               {!isAuthenticated && <p className="text-sm">{t('detailsHint')}</p>}
-              {locationMissing && <p className="text-sm">{t('noLocation')}</p>}
               <DetailsForm
-                trade={trade}
                 description={description}
                 firstName={firstName}
                 lastName={lastName}
@@ -521,9 +516,7 @@ export default function QuickRepairPage() {
                 city={city}
                 state={state}
                 zipCode={zipCode}
-                tradeLabel={t('trade')}
-                selectTrade={t('selectTrade')}
-                whatBroke={t('whatBroke')}
+                describeRepair={t('describeRepair')}
                 firstNameLabel={labels('firstName')}
                 lastNameLabel={labels('lastName')}
                 emailLabel={labels('email')}
@@ -533,7 +526,6 @@ export default function QuickRepairPage() {
                 cityLabel={address('city')}
                 stateLabel={address('state')}
                 zipLabel={address('zipCode')}
-                onTrade={setTrade}
                 onDescription={setDescription}
                 onFirstName={setFirstName}
                 onLastName={setLastName}
@@ -546,7 +538,7 @@ export default function QuickRepairPage() {
                 onZip={setZipCode}
               />
               {isAuthenticated ? (
-                <div className="flex gap-2">
+                <div className="sticky bottom-0 z-10 flex gap-2 bg-white py-2">
                   <Button type="button" variant="ghost" onClick={() => setStep('upload')}>{t('back')}</Button>
                   <Button type="button" onClick={() => {
                     if (!detailsAreValid()) {
@@ -587,8 +579,8 @@ export default function QuickRepairPage() {
               <p className="text-sm">{t('reviewBody')}</p>
               <PhotoGrid photos={photos} onRemove={removePhoto} removeLabel={t('remove')} />
               <p className="text-sm">
-                <span className="font-medium">{trade}</span>
-                {description ? ` — ${description}` : ''}
+                {trade ? <span className="font-medium">{trade}</span> : null}
+                {description ? `${trade ? ' — ' : ''}${description}` : ''}
               </p>
               <p className="text-sm">
                 {[firstName, lastName].filter(Boolean).join(' ')}
@@ -670,7 +662,6 @@ function PhotoGrid({ photos, onRemove, removeLabel }: { photos: LocalPhoto[]; on
 }
 
 interface DetailsFormProps {
-  trade: string;
   description: string;
   firstName: string;
   lastName: string;
@@ -681,9 +672,7 @@ interface DetailsFormProps {
   city: string;
   state: string;
   zipCode: string;
-  tradeLabel: string;
-  selectTrade: string;
-  whatBroke: string;
+  describeRepair: string;
   firstNameLabel: string;
   lastNameLabel: string;
   emailLabel: string;
@@ -693,7 +682,6 @@ interface DetailsFormProps {
   cityLabel: string;
   stateLabel: string;
   zipLabel: string;
-  onTrade: (value: string) => void;
   onDescription: (value: string) => void;
   onFirstName: (value: string) => void;
   onLastName: (value: string) => void;
@@ -709,14 +697,7 @@ interface DetailsFormProps {
 function DetailsForm(props: DetailsFormProps) {
   return (
     <>
-      <label className="block text-sm font-medium">{props.tradeLabel}</label>
-      <select className="w-full border-2 border-black rounded-lg px-3 py-2" value={props.trade} onChange={(event) => props.onTrade(event.target.value)}>
-        <option value="">{props.selectTrade}</option>
-        {SERVICE_CATEGORIES.map((category) => (
-          <option key={category.label} value={category.label}>{category.label}</option>
-        ))}
-      </select>
-      <label className="block text-sm font-medium">{props.whatBroke}</label>
+      <label className="block text-sm font-medium">{props.describeRepair}</label>
       <textarea
         className="w-full border-2 border-black rounded-lg px-3 py-2 min-h-24"
         value={props.description}

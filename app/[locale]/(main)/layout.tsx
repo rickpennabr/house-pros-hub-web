@@ -28,6 +28,7 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
   const isBlog = pathname?.includes('/blog') ?? false;
   const isBlogArticle = /\/blog\/[^/]+\/?$/.test(pathname ?? '');
   const isProJobs = pathname?.includes('/projobs') ?? false;
+  const isQuickRepair = pathname?.includes('/quick-repair') ?? false;
   const keepsMenuVisible =
     isProJobs ||
     (pathname?.includes('/prosuppliers') ?? false) ||
@@ -70,7 +71,7 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
               <Suspense fallback={<div className="h-[60px] w-full shrink-0 border-b-2 border-black" />}>
                 <PageCategories />
               </Suspense>
-              <PageContent scroll={isBlog} flushTop={isProJobs}>{children}</PageContent>
+              <PageContent scroll={isBlog || isQuickRepair} flushTop={isProJobs}>{children}</PageContent>
               <Footer />
             </>
           )}

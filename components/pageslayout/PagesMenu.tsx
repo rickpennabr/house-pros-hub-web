@@ -74,10 +74,7 @@ export default function PagesMenu({ children }: PagesMenuProps) {
     const pathWithLocale = `/${locale}${path}`;
     const isActive = pathname === pathWithLocale || pathname.startsWith(`${pathWithLocale}/`);
     if (labelKey === 'quickRepair') {
-      const repairClasses = isActive
-        ? 'bg-red-500 border-black text-white rounded-lg'
-        : 'bg-red-500 border-red-500 text-white rounded-lg hover:bg-red-600';
-      return `${baseClasses} gap-2 px-2 ${repairClasses}`;
+      return `${baseClasses} quick-repair-border gap-2 px-2 text-white rounded-lg`;
     }
     return isActive
       ? `${baseClasses} ${itemGap} ${itemPadding} ${activeClasses}`

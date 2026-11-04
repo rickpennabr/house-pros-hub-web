@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
 import { invoiceStatusLabel } from '@/lib/crm/invoice-books';
+import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 
 const PAGE_SIZE = 25;
 const SORT_OPTIONS = [
@@ -87,8 +88,10 @@ export default function CRMInvoicesPage() {
   const [sortBy, setSortBy] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [statusFilter, setStatusFilter] = useState('');
+  const crmChrome = useCRMChrome();
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const searchDebounceRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -143,11 +146,23 @@ export default function CRMInvoicesPage() {
   }, [openActionsId]);
 
   const handleSort = (key: SortKey, dir: 'asc' | 'desc') => { setSortBy(key); setSortDir(dir); setPage(1); };
+  const handleSearchInput = (value: string) => {
+    setSearchInput(value);
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = window.setTimeout(() => {
+      setSearch(value.trim());
+      setPage(1);
+    }, 200);
+  };
   const handleSearchSubmit = (event: FormEvent) => {
     event.preventDefault();
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
     setSearch(searchInput.trim());
     setPage(1);
   };
+  useEffect(() => () => {
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+  }, []);
 
   const handleDelete = async (id: string) => {
     setDeleting(true);
@@ -211,7 +226,7 @@ export default function CRMInvoicesPage() {
           </Link>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-4 pb-2">
+      <div className={`flex flex-wrap items-center gap-4 pb-2 ${crmChrome?.searchOpen ? 'max-md:hidden' : ''}`}>
         <form className="flex gap-2 items-center" onSubmit={(e) => e.preventDefault()}>
           <label className="text-sm text-gray-600">Status</label>
           <select
@@ -243,7 +258,7 @@ export default function CRMInvoicesPage() {
           }
         }}
         searchInput={searchInput}
-        onSearchInput={setSearchInput}
+        onSearchInput={handleSearchInput}
         onSearchSubmit={handleSearchSubmit}
         searchPlaceholder="Search invoice or customer…"
         isLoading={isLoading}

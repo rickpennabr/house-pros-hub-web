@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslations } from 'next-intl';
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { BsGrid3X3Gap } from 'react-icons/bs';
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
+import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 
 interface NavItem {
   href: string;
@@ -31,15 +32,20 @@ interface NavItem {
 
 interface CRMSidebarProps {
   locale: string;
+  /** Hide the horizontal menu on phones while search is open. */
+  mobileCollapsed?: boolean;
 }
 
-export function CRMSidebar({ locale }: CRMSidebarProps) {
+export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps) {
   const pathname = usePathname();
   const { roles } = useAuth();
+  const crmChrome = useCRMChrome();
   const t = useTranslations('bot');
   const base = `/${locale}/crm`;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const mobileNavRef = useRef<HTMLElement>(null);
+  const didScrollNav = useRef(false);
 
   const realtorCalendarOnly = (roles as string[]).includes('realtor') && !roles.includes('contractor');
   const navItems: NavItem[] = [
@@ -59,11 +65,66 @@ export function CRMSidebar({ locale }: CRMSidebarProps) {
 
   useEffect(() => setMounted(true), []);
 
+  const setCustomerCount = crmChrome?.setCustomerCount;
+  const [sectionCounts, setSectionCounts] = useState<Partial<Record<'estimates' | 'invoices' | 'projects' | 'expenses', number>>>({});
+  useEffect(() => {
+    let cancelled = false;
+    const loadTotal = async (url: string) => {
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return typeof data.total === 'number' ? data.total : null;
+    };
+    Promise.all([
+      loadTotal('/api/crm/customers?page=1&pageSize=1'),
+      loadTotal('/api/crm/estimates?page=1&pageSize=1'),
+      loadTotal('/api/crm/invoices?page=1&pageSize=1'),
+      loadTotal('/api/crm/projects?page=1&pageSize=1'),
+      loadTotal('/api/crm/expenses?page=1&pageSize=1'),
+    ])
+      .then(([customers, estimates, invoices, projects, expenses]) => {
+        if (cancelled) return;
+        if (customers != null) setCustomerCount?.(customers);
+        setSectionCounts({
+          ...(estimates != null ? { estimates } : {}),
+          ...(invoices != null ? { invoices } : {}),
+          ...(projects != null ? { projects } : {}),
+          ...(expenses != null ? { expenses } : {}),
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, setCustomerCount]);
+
+  useLayoutEffect(() => {
+    if (!mounted) return;
+    const nav = mobileNavRef.current;
+    if (!nav || window.matchMedia('(min-width: 768px)').matches) return;
+    nav.scrollTo({ left: 0, behavior: didScrollNav.current ? 'smooth' : 'auto' });
+    didScrollNav.current = true;
+  }, [pathname, mounted]);
+
   const isActiveRoute = (itemHref: string) => {
     if (!mounted) return false;
     if (pathname === itemHref) return true;
     if (itemHref === base) return false;
     return pathname.startsWith(itemHref + '/') || pathname === itemHref;
+  };
+  const mobileNavItems = [...navItems].sort((a, b) => {
+    const aActive = isActiveRoute(a.href);
+    const bActive = isActiveRoute(b.href);
+    if (aActive === bActive) return 0;
+    return aActive ? -1 : 1;
+  });
+  const activeCount = (href: string): number | null => {
+    if (href.endsWith('/customers')) return crmChrome?.customerCount ?? null;
+    if (href.endsWith('/estimates')) return sectionCounts.estimates ?? null;
+    if (href.endsWith('/invoices')) return sectionCounts.invoices ?? null;
+    if (href.endsWith('/projects')) return sectionCounts.projects ?? null;
+    if (href.endsWith('/expenses')) return sectionCounts.expenses ?? null;
+    return null;
   };
   const mobileMenuItems: MobileGridActionItem[] = navItems.map((item) => ({
     id: item.href,
@@ -76,10 +137,10 @@ export function CRMSidebar({ locale }: CRMSidebarProps) {
   return (
     <>
       {/* Mobile: horizontal nav */}
-      <div className="no-print md:hidden w-full border-b-2 border-black bg-white shrink-0 z-40">
+      <div className={`no-print md:hidden w-full border-b-2 border-black bg-white shrink-0 z-40 ${mobileCollapsed ? 'pointer-events-none invisible h-0 min-h-0 max-h-0 overflow-hidden border-0 opacity-0' : ''}`}>
         <div className="relative flex items-center h-[60px] px-2 py-2">
-          <nav className="flex items-center gap-3 overflow-x-auto scrollbar-custom flex-1 min-w-0 pr-12">
-            {navItems.map((item) => {
+          <nav ref={mobileNavRef} className="flex items-center gap-3 overflow-x-auto scrollbar-custom flex-1 min-w-0 pr-12">
+            {mobileNavItems.map((item) => {
               const isActive = isActiveRoute(item.href);
               const Icon = item.icon;
               return (
@@ -90,13 +151,18 @@ export function CRMSidebar({ locale }: CRMSidebarProps) {
                     group h-10 border-2 transition-all duration-300 font-medium flex items-center justify-center px-3 gap-2 whitespace-nowrap shrink-0 cursor-pointer hover:scale-[1.02] rounded-lg
                     ${
                       isActive
-                        ? 'bg-white border-black text-black'
+                        ? 'bg-black border-black text-white'
                         : 'bg-transparent border-transparent text-black hover:border-gray-400'
                     }
                   `}
                 >
-                  <Icon className="w-4 h-4 text-red-600 transition-transform duration-300 group-hover:scale-110" />
+                  <Icon className={`w-4 h-4 transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-white' : 'text-red-600'}`} />
                   {t(item.labelKey)}
+                  {isActive && activeCount(item.href) != null && (
+                    <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border-2 border-black bg-white px-1 text-xs font-semibold text-black">
+                      {activeCount(item.href)}
+                    </span>
+                  )}
                 </Link>
               );
             })}

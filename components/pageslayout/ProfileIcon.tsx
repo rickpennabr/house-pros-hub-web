@@ -23,7 +23,8 @@ import {
   Briefcase,
   HardDrive,
   Home,
-  Calendar
+  Calendar,
+  Zap
 } from 'lucide-react';
 
 interface ProfileIconProps {
@@ -35,6 +36,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
   const pathname = usePathname();
   const locale = useLocale() as Locale;
   const t = useTranslations('common.account');
+  const tNav = useTranslations('navigation');
   const { isAuthenticated, isAdmin, logout, user, roles } = useAuth();
   const { activeAccount, activeAccountId, accounts } = useAccountSwitch();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -317,6 +319,18 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
               </div>
             </>
           )}
+
+          <div className="border-t-2 border-black"></div>
+          <div className="p-2">
+            <button
+              type="button"
+              onClick={() => handleMenuItemClick('/quick-repair')}
+              className="quick-repair-border w-full text-left px-4 py-2.5 rounded-lg flex items-center gap-3 font-medium text-black cursor-pointer [--repair-fill:#fff] [--repair-fill-hover:#f9fafb]"
+            >
+              <Zap className="w-4 h-4" />
+              <span>{tNav('quickRepair')}</span>
+            </button>
+          </div>
         </div>,
         document.body
       )}

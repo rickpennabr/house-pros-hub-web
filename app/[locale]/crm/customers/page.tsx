@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Search, Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, User, MapPin, FileText, FileCheck, CreditCard, FolderOpen, PlusCircle, Mail, Globe } from 'lucide-react';
+import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, User, MapPin, FileText, FileCheck, CreditCard, FolderOpen, PlusCircle, Mail, Globe } from 'lucide-react';
+import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import Pagination from '@/components/ui/Pagination';
 import { FormField } from '@/components/ui/FormField';
@@ -18,6 +19,7 @@ import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { validateCustomerEmail, validateCustomerPhone } from '@/lib/schemas/crm';
 import type { Database } from '@/lib/types/supabase';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useScrollPosition } from '@/hooks/useScrollPosition';
@@ -620,6 +622,9 @@ export default function CRMCustomersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const locale = useLocale();
+  const crmChrome = useCRMChrome();
+  const setCustomerCount = crmChrome?.setCustomerCount;
+  const cardSearchRef = useRef<HTMLFormElement | null>(null);
   const [customers, setCustomers] = useState<CRMCustomerRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -632,6 +637,11 @@ export default function CRMCustomersPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const hasLoadedOnceRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasLoadedOnce) return;
+    setCustomerCount?.(total);
+  }, [hasLoadedOnce, total, setCustomerCount]);
 
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -659,7 +669,7 @@ export default function CRMCustomersPage() {
     }
   }, [searchParams]);
   const isMobileSafe = mounted && isMobile;
-  const showViewToggle = viewMode === 'table' && !isLoading && customers.length > 0;
+  const showViewToggle = viewMode === 'table' && !isLoading;
   const bottomPadding = showViewToggle && isAtBottom ? (isMobileSafe ? 'pb-[72px]' : 'pb-[140px]') : '';
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -762,11 +772,33 @@ export default function CRMCustomersPage() {
     setSortDir(dir);
     setPage(1);
   };
+  const searchDebounceRef = useRef<number | null>(null);
+  const handleSearchInput = (value: string) => {
+    setSearchInput(value);
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = window.setTimeout(() => {
+      setSearch(value.trim());
+      setPage(1);
+    }, 200);
+  };
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
     setSearch(searchInput.trim());
     setPage(1);
   };
+  useEffect(() => () => {
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+  }, []);
+  useEffect(() => {
+    if (listView === 'list' || !crmChrome?.searchOpen) return;
+    const close = (event: PointerEvent) => {
+      if (cardSearchRef.current?.contains(event.target as Node)) return;
+      crmChrome.setSearchOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [crmChrome, listView]);
   const handleDeleteCustomer = async (id: string) => {
     setDeleting(true);
     setError(null);
@@ -814,7 +846,7 @@ export default function CRMCustomersPage() {
     <div className={`w-full ${bottomPadding}`}>
       {viewMode === 'table' && (
         <>
-          <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
+          <div className="max-md:hidden! md:flex md:flex-row md:items-center md:justify-between md:gap-4">
             <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-semibold text-gray-900 inline-flex items-center gap-2">
                 Customers
@@ -886,23 +918,20 @@ export default function CRMCustomersPage() {
       {viewMode === 'table' && (
         <>
           {listView !== 'list' && (
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2">
-            <form onSubmit={handleSearchSubmit} className="flex gap-2 flex-1 max-w-md">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="Search by name, city, state…"
-                  className="w-full h-9 pl-9 pr-3 border border-gray-300 rounded-md text-sm bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <button type="submit" className="h-9 px-4 rounded-md bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer">
-                Search
-              </button>
-            </form>
-          </div>
+          <CRMSearchField
+            formRef={cardSearchRef}
+            value={searchInput}
+            onChange={handleSearchInput}
+            placeholder="Search by name, city, state…"
+            onFocus={() => crmChrome?.setSearchOpen(true)}
+            onSubmit={handleSearchSubmit}
+            showClose={Boolean(crmChrome?.searchOpen)}
+            onClose={() => {
+              crmChrome?.setSearchOpen(false);
+              (document.activeElement as HTMLElement | null)?.blur();
+            }}
+            className="pt-2 pb-2 md:pt-0 max-w-md"
+          />
           )}
 
           {listView !== 'list' && error && (
@@ -960,6 +989,7 @@ export default function CRMCustomersPage() {
             </div>
           ) : (
             <AdminDataTable
+              searchRowClassName="pt-2 md:pt-0"
               columnOrderKey="crm-customers"
               exportName="customers"
               columns={CUSTOMER_COLUMNS}
@@ -976,7 +1006,7 @@ export default function CRMCustomersPage() {
                 }
               }}
               searchInput={searchInput}
-              onSearchInput={setSearchInput}
+              onSearchInput={handleSearchInput}
               onSearchSubmit={handleSearchSubmit}
               searchPlaceholder="Search by name, city, state…"
               isLoading={isLoading}
@@ -1273,25 +1303,15 @@ export default function CRMCustomersPage() {
           document.body
         )}
 
-      {/* Mobile-only: fixed FAB to create a new customer (same style as nine-dot menu button) */}
-      {viewMode === 'table' && (
-        <button
-          type="button"
-          onClick={() => setViewMode('add')}
-          className="md:hidden fixed bottom-[100px] right-[50px] z-50 h-12 w-12 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all shadow-lg"
-          aria-label="New customer"
-        >
-          <Plus className="w-6 h-6 text-white" />
-        </button>
-      )}
-
-      {/* View toggle at page bottom (Card / List) - same as business list */}
-      {showViewToggle && (
+      {/* View toggle at page bottom (Card / List / Map) with New on the right */}
+      {viewMode === 'table' && !isLoading && (
         <ViewToggle
           currentView={listView}
           onViewChange={setListView}
           views={['card', 'list', 'map']}
           hideBackgroundToggle
+          onAdd={() => setViewMode('add')}
+          addLabel="New customer"
         />
       )}
 

@@ -73,6 +73,7 @@ export default function CRMExpensesPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const searchDebounceRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -157,11 +158,23 @@ export default function CRMExpensesPage() {
   }, [openActionsId]);
 
   const handleSort = (key: SortKey, dir: 'asc' | 'desc') => { setSortBy(key); setSortDir(dir); setPage(1); };
+  const handleSearchInput = (value: string) => {
+    setSearchInput(value);
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = window.setTimeout(() => {
+      setSearch(value.trim());
+      setPage(1);
+    }, 200);
+  };
   const handleSearchSubmit = (event: FormEvent) => {
     event.preventDefault();
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
     setSearch(searchInput.trim());
     setPage(1);
   };
+  useEffect(() => () => {
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+  }, []);
   const handleDelete = async (id: string) => {
     setDeleting(true);
     setError(null);
@@ -290,7 +303,7 @@ export default function CRMExpensesPage() {
               }
             }}
             searchInput={searchInput}
-            onSearchInput={setSearchInput}
+            onSearchInput={handleSearchInput}
             onSearchSubmit={handleSearchSubmit}
             searchPlaceholder="Search category or note…"
             isLoading={isLoading}

@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, FileCheck, FolderPlus, Search, Send, Loader2, Copy } from 'lucide-react';
+import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, FileCheck, FolderPlus, Send, Loader2, Copy, ChevronDown } from 'lucide-react';
+import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import Pagination from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -27,6 +29,69 @@ const PAGE_SIZE = 25;
 type SortKey = 'created_at' | 'updated_at' | 'status' | 'due_date' | 'amount_cents';
 
 const STATUS_OPTIONS = ['draft', 'sent', 'accepted', 'declined'] as const;
+
+function statusOptionLabel(value: string) {
+  if (!value) return 'All';
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function EstimateStatusFilter({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-11 items-center gap-1 rounded-lg border-2 border-black bg-white px-3 text-base text-black cursor-pointer"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Filter by status"
+      >
+        <span>{value ? statusOptionLabel(value) : 'Status'}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-30 mt-1 min-w-full overflow-hidden rounded-lg border-2 border-black bg-white shadow-sm" role="listbox">
+          {['', ...STATUS_OPTIONS].map((option) => {
+            const selected = option === value;
+            return (
+              <button
+                key={option || 'all'}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                className={`block w-full px-3 py-2 text-left text-sm cursor-pointer hover:bg-gray-50 ${selected ? 'font-semibold text-black' : 'text-gray-800'}`}
+              >
+                {statusOptionLabel(option)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface EstimateRow {
   id: string;
@@ -93,6 +158,7 @@ export default function CRMEstimatesPage() {
   const router = useRouter();
   const locale = useLocale();
   const searchParams = useSearchParams();
+  const crmChrome = useCRMChrome();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
@@ -142,6 +208,7 @@ export default function CRMEstimatesPage() {
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const searchRowRef = useRef<HTMLDivElement | null>(null);
   const [sendDialogEstimateId, setSendDialogEstimateId] = useState<string | null>(null);
   const [sendDialogStep, setSendDialogStep] = useState<'preview' | 'compose' | 'confirm'>('preview');
   const [sendPreviewData, setSendPreviewData] = useState<CustomerEstimatePreviewData | null>(null);
@@ -253,6 +320,16 @@ export default function CRMEstimatesPage() {
   }, [viewMode, editingId]);
 
   useEffect(() => {
+    if (!crmChrome?.searchOpen) return;
+    const close = (event: PointerEvent) => {
+      if (searchRowRef.current?.contains(event.target as Node)) return;
+      crmChrome.setSearchOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [crmChrome]);
+
+  useEffect(() => {
     if (!openActionsId) return;
     const close = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -266,8 +343,21 @@ export default function CRMEstimatesPage() {
   }, [openActionsId]);
 
   const handleSort = (key: SortKey, dir: 'asc' | 'desc') => { setSortBy(key); setSortDir(dir); setPage(1); };
+  const searchDebounceRef = useRef<number | null>(null);
+  const handleSearchInput = (value: string) => {
+    setSearchInput(value);
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = window.setTimeout(() => {
+      setSearch(value.trim());
+      setPage(1);
+    }, 200);
+  };
+  useEffect(() => () => {
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+  }, []);
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
     setSearch(searchInput.trim());
     setPage(1);
   };
@@ -748,47 +838,36 @@ export default function CRMEstimatesPage() {
       )}
       {viewMode === 'table' && (
         <>
-          <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
+          <div className="hidden md:flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
             <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Estimates</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Create and track quotes for customers.</p>
+              <p className="hidden md:block text-sm text-gray-500 mt-0.5">Create and track quotes for customers.</p>
             </div>
-            <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0" onClick={() => setViewMode('add')}>
+            <Button variant="primary" size="sm" className="hidden md:flex items-center gap-2 shrink-0" onClick={() => setViewMode('add')}>
               <Plus className="w-4 h-4" />
               New Estimate
             </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-4 pb-2">
-            {listView === 'map' && (
-            <form onSubmit={handleSearchSubmit} className="flex gap-2 items-center flex-1 min-w-[260px] max-w-md">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="Search customer..."
-                  className="w-full h-9 pl-9 pr-3 border border-gray-300 rounded-md text-sm bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <button type="submit" className="h-9 px-4 rounded-md bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer">
-                Search
-              </button>
-            </form>
-            )}
-            <form className="flex gap-2 items-center" onSubmit={(e) => e.preventDefault()}>
-              <label className="text-sm text-gray-600">Status</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                className="h-9 px-3 border border-gray-300 rounded-md text-sm bg-white text-black"
-              >
-                <option value="">All</option>
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </form>
+          <div
+            ref={searchRowRef}
+            className="flex items-center gap-2 pt-2 pb-2 md:pt-0"
+          >
+            <CRMSearchField
+              className="min-w-0 flex-1 md:order-2 md:max-w-md"
+              value={searchInput}
+              onChange={handleSearchInput}
+              placeholder="Search customer..."
+              onFocus={() => crmChrome?.setSearchOpen(true)}
+              onSubmit={handleSearchSubmit}
+              showClose={Boolean(crmChrome?.searchOpen)}
+              onClose={() => {
+                crmChrome?.setSearchOpen(false);
+                (document.activeElement as HTMLElement | null)?.blur();
+              }}
+            />
+            <div className={`${crmChrome?.searchOpen ? 'max-md:hidden' : ''} md:order-1`}>
+              <EstimateStatusFilter value={statusFilter} onChange={(value) => { setStatusFilter(value); setPage(1); }} />
+            </div>
           </div>
           {listView === 'map' ? (
             <AddressPinsMap
@@ -821,9 +900,10 @@ export default function CRMEstimatesPage() {
                 }
               }}
               searchInput={searchInput}
-              onSearchInput={setSearchInput}
+              onSearchInput={handleSearchInput}
               onSearchSubmit={handleSearchSubmit}
               searchPlaceholder="Search customer..."
+              hideSearch
               isLoading={isLoading}
               isRefetching={false}
               hasLoadedOnce={hasLoadedOnce}
@@ -865,12 +945,14 @@ export default function CRMEstimatesPage() {
               <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} totalItems={total} itemsPerPage={PAGE_SIZE} itemLabel="estimates" />
             </div>
           )}
-          {!isLoading && estimates.length > 0 && (
+          {!isLoading && (
             <ViewToggle
               currentView={listView}
               onViewChange={setSavedListView}
               views={['list', 'map']}
               hideBackgroundToggle
+              onAdd={() => setViewMode('add')}
+              addLabel="New estimate"
             />
           )}
         </>

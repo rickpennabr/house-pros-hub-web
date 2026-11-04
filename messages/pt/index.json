@@ -1507,6 +1507,10 @@
         "subscription": {
           "title": "Plano Hub",
           "description": "Armazenamento grátis e depois Hub Pro"
+        },
+        "quickRepair": {
+          "title": "Quick Repair",
+          "description": "Envie um pedido de reparo com fotos"
         }
       },
       "business": {
@@ -2085,6 +2089,7 @@
     "maxPhotos": "Até 5 fotos",
     "noLocation": "A localização não foi compartilhada. Digite o endereço.",
     "whatBroke": "O que precisa de reparo?",
+    "describeRepair": "Descreva o reparo em poucas palavras",
     "trade": "Ofício",
     "selectTrade": "Escolha um ofício",
     "submit": "Pedir reparo",

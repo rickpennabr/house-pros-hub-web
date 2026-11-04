@@ -51,14 +51,15 @@ export default function Logo({ className = '', width = 200, height = 50, src: un
       <>
         {/* Mobile: height fixed (e.g. 40px from header); width from image so no fixed width */}
         <span
-          className={`logo-mobile-wrap md:hidden inline-flex items-center justify-center relative ${className}`}
-          style={{ height: '40px' }}
+          className={`logo-mobile-wrap md:hidden relative inline-flex min-w-0 max-w-full items-center justify-center ${className}`}
+          style={{ height: '40px', width: '100%', minWidth: 0 }}
         >
           <Image
             src={effectiveMobileSrc}
             alt="House Pros Hub Logo"
             {...sizeOf(effectiveMobileSrc)}
-            className={`${className} logo-mobile-default h-full w-auto object-contain object-left relative`}
+            className={`${className} logo-mobile-default relative h-full w-full max-w-full object-contain object-center`}
+            style={{ width: '100%', height: '40px', objectFit: 'contain' }}
             priority
           />
           {mobileDarkSrc && (
@@ -66,7 +67,7 @@ export default function Logo({ className = '', width = 200, height = 50, src: un
               src={mobileDarkSrc}
               alt="House Pros Hub Logo"
               {...sizeOf(mobileDarkSrc)}
-              className={`${className} logo-mobile-dark relative h-full w-auto object-contain object-left`}
+              className={`${className} logo-mobile-dark absolute inset-0 h-full w-full max-w-full object-contain object-center`}
               priority
             />
           )}

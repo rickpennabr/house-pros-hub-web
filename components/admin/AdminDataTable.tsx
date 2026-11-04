@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
+import { useCRMChrome } from '@/components/crm/CRMChromeContext';
+import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import { createPortal } from 'react-dom';
 import {
   ArrowDownAZ,
@@ -81,6 +83,10 @@ export interface AdminDataTableProps<T> {
   onSearchInput?: (value: string) => void;
   onSearchSubmit?: (e: React.FormEvent) => void;
   searchPlaceholder?: string;
+  /** Skip the built-in search row when the page renders its own. */
+  hideSearch?: boolean;
+  /** Extra classes on the search row, such as mobile top spacing. */
+  searchRowClassName?: string;
   /**
    * Search, sort, column filters, and pagination run on `data` in the browser.
    * Use this for lists that are already fully loaded.
@@ -136,6 +142,8 @@ export function AdminDataTable<T>({
   onSearchInput,
   onSearchSubmit,
   searchPlaceholder = 'Search…',
+  hideSearch = false,
+  searchRowClassName = '',
   clientSide = false,
   getCellText,
   columnOrderKey,
@@ -158,6 +166,19 @@ export function AdminDataTable<T>({
   tableLayoutMinWidth = 600,
 }: AdminDataTableProps<T>) {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const searchFormRef = useRef<HTMLFormElement>(null);
+  const searchOwnsChrome = useRef(false);
+  const crmChrome = useCRMChrome();
+  useEffect(() => {
+    if (!crmChrome?.searchOpen || !searchOwnsChrome.current) return;
+    const close = (event: PointerEvent) => {
+      if (searchFormRef.current?.contains(event.target as Node)) return;
+      searchOwnsChrome.current = false;
+      crmChrome.setSearchOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [crmChrome]);
   const findInputRef = useRef<HTMLInputElement>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const rowAnchorRef = useRef<string | null>(null);
@@ -749,48 +770,77 @@ export function AdminDataTable<T>({
 
   return (
     <div ref={wrapperRef} className="flex flex-col">
-      <form
-        onSubmit={(event) => {
-          if (clientSide) {
-            event.preventDefault();
-            setInternalPage(1);
-            return;
-          }
-          onSearchSubmit?.(event);
-        }}
-        className="flex gap-2 pb-2 max-w-md"
-      >
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          <input
-            type="text"
-            value={clientSide ? internalSearch : searchInput}
-            onChange={(event) => handleSearchChange(event.target.value)}
-            placeholder={searchPlaceholder}
-            className={`w-full h-10 pl-10 border-2 border-black rounded-lg text-sm bg-white text-black placeholder:text-gray-500 focus:outline-none ${
-              clientSide && internalSearch ? 'pr-10' : 'pr-3'
-            }`}
-          />
-          {clientSide && internalSearch ? (
+      {crmChrome ? (
+        <CRMSearchField
+          formRef={searchFormRef}
+          value={clientSide ? internalSearch : searchInput}
+          onChange={handleSearchChange}
+          placeholder={searchPlaceholder}
+          onFocus={() => {
+            searchOwnsChrome.current = true;
+            crmChrome.setSearchOpen(true);
+          }}
+          onSubmit={(event) => {
+            if (clientSide) {
+              event.preventDefault();
+              setInternalPage(1);
+              return;
+            }
+            onSearchSubmit?.(event);
+          }}
+          showClose={crmChrome.searchOpen}
+          onClose={() => {
+            searchOwnsChrome.current = false;
+            crmChrome.setSearchOpen(false);
+            (document.activeElement as HTMLElement | null)?.blur();
+          }}
+          className={`pb-2 max-w-md ${searchRowClassName} ${hideSearch ? 'hidden' : ''}`}
+        />
+      ) : (
+        <form
+          ref={searchFormRef}
+          onSubmit={(event) => {
+            if (clientSide) {
+              event.preventDefault();
+              setInternalPage(1);
+              return;
+            }
+            onSearchSubmit?.(event);
+          }}
+          className={`flex gap-2 pb-2 max-w-md ${searchRowClassName} ${hideSearch ? 'hidden' : ''}`}
+        >
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={clientSide ? internalSearch : searchInput}
+              onChange={(event) => handleSearchChange(event.target.value)}
+              placeholder={searchPlaceholder}
+              className={`w-full h-10 pl-10 border-2 border-black rounded-lg text-sm bg-white text-black placeholder:text-gray-500 focus:outline-none ${
+                (clientSide ? internalSearch : searchInput) ? 'pr-10' : 'pr-3'
+              }`}
+            />
+            {(clientSide ? internalSearch : searchInput) ? (
+              <button
+                type="button"
+                onClick={() => handleSearchChange('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black cursor-pointer"
+                aria-label="Clear search"
+              >
+                <X size={16} />
+              </button>
+            ) : null}
+          </div>
+          {clientSide ? null : (
             <button
-              type="button"
-              onClick={() => handleSearchChange('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black cursor-pointer"
-              aria-label="Clear search"
+              type="submit"
+              className="h-10 px-4 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
             >
-              <X size={16} />
+              Search
             </button>
-          ) : null}
-        </div>
-        {clientSide ? null : (
-          <button
-            type="submit"
-            className="h-10 px-4 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
-          >
-            Search
-          </button>
-        )}
-      </form>
+          )}
+        </form>
+      )}
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>

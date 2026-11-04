@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { List, Map } from 'lucide-react';
+import { List, Map, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LuIdCard } from 'react-icons/lu';
 import { useBackgroundMode } from '@/contexts/BackgroundModeContext';
@@ -18,6 +18,9 @@ interface ViewToggleProps {
   embedded?: boolean;
   /** When true, hide the background (sky/dynamic) toggle button. Useful for CRM and other non-home pages. */
   hideBackgroundToggle?: boolean;
+  /** Rightmost button in the bar, used for create actions. */
+  onAdd?: () => void;
+  addLabel?: string;
 }
 
 interface ViewOption {
@@ -38,6 +41,8 @@ export default function ViewToggle({
   views: enabledViews = ['card', 'list'],
   embedded = false,
   hideBackgroundToggle = false,
+  onAdd,
+  addLabel = 'Add',
 }: ViewToggleProps) {
   const t = useTranslations('common');
   const { mode, setMode } = useBackgroundMode();
@@ -48,6 +53,11 @@ export default function ViewToggle({
 
   const isDynamic = mode === 'dynamic';
   const isHidden = false;
+  /** Same box for every control. Labels only widen the desktop buttons. */
+  const controlSize = embedded
+    ? 'h-11 w-11 min-h-[2.75rem] min-w-[2.75rem]'
+    : 'h-9 w-9 min-h-9 min-w-9 p-0 md:h-10 md:min-h-10';
+  const iconSize = embedded ? 'h-5 w-5' : 'h-4 w-4 md:h-5 md:w-5';
 
   const toggleContent = (
     <div className={`
@@ -69,17 +79,13 @@ export default function ViewToggle({
             onClick={() => onViewChange(view.type)}
             className={`
               flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 shrink-0
-              ${embedded
-                ? `w-11 h-11 min-w-[2.75rem] min-h-[2.75rem] rounded-lg border-2 ${isActive ? 'border-black' : 'border-white'}`
-                : `px-2 md:px-3 py-1.5 rounded-lg border-2 ${isActive ? 'border-black' : 'border-white'}`}
-              ${isActive
-                ? 'bg-white text-black'
-                : 'hover:bg-gray-800 text-white'
-              }
+              rounded-lg border-2 box-border ${controlSize}
+              ${isActive ? 'border-black bg-white text-black' : 'border-white text-white hover:bg-gray-800'}
+              ${embedded ? '' : 'md:w-auto md:min-w-10 md:px-3'}
             `}
             aria-label={t(view.labelKey)}
           >
-            <Icon className={embedded ? 'w-5 h-5' : `${view.type === 'card' ? 'w-5 h-5 md:w-6 md:h-6' : 'w-4 h-4 md:w-5 md:h-5'}`} />
+            <Icon className={iconSize} />
             <span className="hidden md:inline whitespace-nowrap tracking-wider">
               {t(view.labelKey)}
             </span>
@@ -92,9 +98,10 @@ export default function ViewToggle({
           onClick={() => setMode(isDynamic ? 'regular' : 'dynamic')}
           data-bg-toggle={isDynamic ? 'dynamic' : 'sky'}
           className={`
-            flex items-center justify-center rounded-lg border-2 border-white
+            flex items-center justify-center rounded-lg border-2 border-white box-border
             transition-[transform] duration-200 cursor-pointer active:scale-95 shrink-0
-            ${embedded ? 'w-11 h-11 min-w-[2.75rem] min-h-[2.75rem]' : 'w-8 h-8 md:w-9 md:h-9'}
+            ${controlSize}
+            ${embedded ? '' : 'md:w-10 md:min-w-10'}
             ${isDynamic
               ? 'bg-white'
               : 'bg-toggle-sky-preview'
@@ -103,6 +110,21 @@ export default function ViewToggle({
           aria-label={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
           title={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
         />
+      )}
+      {onAdd && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className={`
+            md:hidden flex items-center justify-center transition-all duration-200 cursor-pointer active:scale-95 shrink-0
+            rounded-lg border-2 border-white box-border text-white hover:bg-gray-800
+            ${controlSize}
+            ${embedded ? '' : 'md:w-10 md:min-w-10'}
+          `}
+          aria-label={addLabel}
+        >
+          <Plus className={iconSize} />
+        </button>
       )}
     </div>
   );

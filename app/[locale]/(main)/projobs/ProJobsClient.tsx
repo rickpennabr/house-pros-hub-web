@@ -154,19 +154,6 @@ export default function ProJobsClient() {
     updateJobQuery(null);
   };
 
-  const postBar = canPost ? (
-    <div className="flex shrink-0 justify-end p-1 md:p-2">
-      <button
-        type="button"
-        onClick={() => setPostOpen(true)}
-        className="flex h-10 shrink-0 cursor-pointer items-center gap-1 rounded-md border-2 border-black bg-black px-3 text-sm font-medium text-white hover:bg-gray-800"
-      >
-        <Plus className="h-4 w-4" />
-        <span className="hidden sm:inline">{t('postJob')}</span>
-      </button>
-    </div>
-  ) : null;
-
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1">
@@ -176,7 +163,6 @@ export default function ProJobsClient() {
               showDetailPane ? 'border-black pr-1 md:w-[30%] md:flex-none md:border-r-2 md:pr-2' : ''
             }`}
           >
-            {postBar}
             <div className="min-h-0 flex-1 overflow-y-auto p-1">
             {!loaded ? (
               <div className="flex h-full items-center justify-center py-12">

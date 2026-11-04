@@ -1,19 +1,18 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Search, MapPin, AlertCircle, List, X } from 'lucide-react';
+import { Search, AlertCircle, X } from 'lucide-react';
 import SupplierCard, { type Supplier } from './SupplierCard';
 import SuppliersMap from './SuppliersMap';
 import { loadSuppliers } from '@/lib/data/suppliers';
 import { Button } from '@/components/ui/Button';
-
-type SupplierViewType = 'list' | 'map';
+import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 
 export default function SuppliersList() {
   const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null);
   const [hoveredSupplier, setHoveredSupplier] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [view, setView] = useState<SupplierViewType>('list');
+  const [view, setView] = useState<ViewType>('list');
   const [isMobile, setIsMobile] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [suppliersLoading, setSuppliersLoading] = useState(true);
@@ -176,28 +175,9 @@ export default function SuppliersList() {
                 </button>
               ) : null}
             </div>
-            {isMobile ? (
-              <button
-                type="button"
-                className="flex h-10 items-center gap-0.5 rounded-md border-2 border-red-500 bg-black px-3 text-white"
-                onClick={() => setView(view === 'list' ? 'map' : 'list')}
-              >
-                {view === 'list' ? (
-                  <>
-                    <MapPin className="h-5 w-5" />
-                    <span className="text-sm font-medium">Map</span>
-                  </>
-                ) : (
-                  <>
-                    <List className="h-5 w-5" />
-                    <span className="text-sm font-medium">List</span>
-                  </>
-                )}
-              </button>
-            ) : null}
           </div>
         </div>
-        <div className={`min-h-0 flex-1 space-y-3 overflow-y-auto px-1 ${isMobile && view === 'map' ? 'hidden' : ''}`}>
+        <div className={`min-h-0 flex-1 space-y-3 overflow-y-auto px-1 ${isMobile && view === 'map' ? 'hidden' : ''} ${isMobile ? 'pb-28' : ''}`}>
           {suppliersLoading ? (
             <div className="flex w-full items-center justify-center py-12 text-center">
               <p className="text-lg text-gray-600">Loading suppliers...</p>
@@ -254,6 +234,14 @@ export default function SuppliersList() {
           />
         ) : null}
       </div>
+      {isMobile ? (
+        <ViewToggle
+          currentView={view === 'map' ? 'map' : 'list'}
+          onViewChange={setView}
+          views={['list', 'map']}
+          hideBackgroundToggle
+        />
+      ) : null}
     </div>
   );
 }

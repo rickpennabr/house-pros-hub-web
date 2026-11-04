@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useLocale } from 'next-intl';
 import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
+import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -79,8 +80,10 @@ export default function CRMProjectsPage() {
   const [sortBy, setSortBy] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [statusFilter, setStatusFilter] = useState('');
+  const crmChrome = useCRMChrome();
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const searchDebounceRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -192,11 +195,23 @@ export default function CRMProjectsPage() {
   }, [openActionsId]);
 
   const handleSort = (key: SortKey, dir: 'asc' | 'desc') => { setSortBy(key); setSortDir(dir); setPage(1); };
+  const handleSearchInput = (value: string) => {
+    setSearchInput(value);
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = window.setTimeout(() => {
+      setSearch(value.trim());
+      setPage(1);
+    }, 200);
+  };
   const handleSearchSubmit = (event: FormEvent) => {
     event.preventDefault();
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
     setSearch(searchInput.trim());
     setPage(1);
   };
+  useEffect(() => () => {
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
+  }, []);
   const handleDelete = async (id: string) => {
     setDeleting(true);
     setError(null);
@@ -312,7 +327,7 @@ export default function CRMProjectsPage() {
               New Project
             </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-4 pb-2">
+          <div className={`flex flex-wrap items-center gap-4 pb-2 ${crmChrome?.searchOpen ? 'max-md:hidden' : ''}`}>
             <label className="text-sm text-gray-600">Status</label>
             <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="h-9 px-3 border border-gray-300 rounded-md text-sm bg-white text-black">
               <option value="">All</option>
@@ -336,7 +351,7 @@ export default function CRMProjectsPage() {
               }
             }}
             searchInput={searchInput}
-            onSearchInput={setSearchInput}
+            onSearchInput={handleSearchInput}
             onSearchSubmit={handleSearchSubmit}
             searchPlaceholder="Search project or customer…"
             isLoading={isLoading}

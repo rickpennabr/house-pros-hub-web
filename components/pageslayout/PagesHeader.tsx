@@ -103,9 +103,9 @@ export default function PageHeader({ children }: PageHeaderProps) {
   const isSuppliersPage = pathname?.includes('/prosuppliers');
   const isContractor = roles.includes('contractor');
   const showFreeEstimate = (isHomePage || isSuppliersPage) && !isAdmin && !isContractor;
-  /** Mobile header logo: compact house mark (light and dark) */
-  const mobileLogoSrc = '/houseproshub_logo.png';
-  const mobileDarkLogoSrc = '/houseproshub_logo.png';
+  /** Mobile header: wide wordmark. Dark sky uses the white wordmark so the type stays visible. */
+  const mobileLogoSrc = '/hph-logo-with-pro-bot-mobile.png';
+  const mobileDarkLogoSrc = '/hph-logo-with-pro-bot-wt.png';
   /** PC desktop dark (dynamic sky or system dark): white logo */
   const desktopDarkLogoSrc = '/hph-logo-with-pro-bot-wt.png';
 
@@ -152,7 +152,7 @@ export default function PageHeader({ children }: PageHeaderProps) {
 
   return (
     <header ref={headerRef} className="relative z-[200] w-full h-[60px] border-b-2 border-black p-1 md:px-2 flex-shrink-0 flex items-center">
-      <div className="relative w-full h-10 flex items-center justify-between gap-2">
+      <div className="relative grid h-10 w-full items-center gap-2" style={{ gridTemplateColumns: 'auto minmax(0, 1fr) auto' }}>
         {/* Left: Logo button for legal pages, Language Switcher for others */}
         <div className="flex items-center flex-shrink-0 z-10 h-10">
           {isLegalPage ? (
@@ -182,8 +182,8 @@ export default function PageHeader({ children }: PageHeaderProps) {
             </h1>
           </div>
         ) : (
-          <div className="flex flex-1 items-center justify-center overflow-hidden h-10 min-w-0 shrink-0">
-            <Link href={`/${locale}/businesslist`} className="cursor-pointer flex items-center justify-center min-w-0 max-w-full h-10 shrink-0">
+          <div className="flex h-10 min-w-0 items-center justify-center overflow-hidden">
+            <Link href={`/${locale}/businesslist`} className="flex h-10 w-full min-w-0 max-w-full cursor-pointer items-center justify-center">
               <Logo width={160} height={40} className="h-[40px] md:h-[40px] w-auto object-contain logo-header" mobileSrc={mobileLogoSrc} mobileDarkSrc={mobileDarkLogoSrc} desktopDarkSrc={desktopDarkLogoSrc} />
             </Link>
           </div>

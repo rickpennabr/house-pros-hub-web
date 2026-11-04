@@ -20,7 +20,8 @@ import {
   FileText,
   HardDrive,
   CreditCard,
-  QrCode
+  QrCode,
+  Zap
 } from 'lucide-react';
 
 interface Account {
@@ -282,8 +283,18 @@ function AccountManagementContent() {
   const selectedAccount = visibleAccounts.find(acc => acc.id === effectiveSelectedAccountId);
   const isPro = roles.includes('contractor') || (roles as string[]).includes('realtor');
   const isInstaller = (roles as string[]).includes('installer');
-  const visibleActions =
-    selectedAccount?.type === 'personal'
+  const quickRepairAction: QuickAction = {
+    id: 'quick-repair',
+    title: t('actions.personal.quickRepair.title'),
+    description: t('actions.personal.quickRepair.description'),
+    icon: Zap,
+    iconBg: 'bg-black',
+    iconColor: 'text-white',
+    borderColor: 'border-black',
+    path: `/${locale}/quick-repair`,
+  };
+  const visibleActions = [
+    ...(selectedAccount?.type === 'personal'
       ? personalActions
       : businessActions
           .filter((action) => {
@@ -300,7 +311,9 @@ function AccountManagementContent() {
               };
             }
             return action;
-          });
+          })),
+    quickRepairAction,
+  ];
 
   const handleAccountSelect = (accountId: string) => {
     setActiveAccountId(accountId);
@@ -434,7 +447,9 @@ function AccountManagementContent() {
                 <button
                   key={action.id}
                   onClick={() => handleQuickAction(action.path)}
-                  className="bg-white border-2 border-black rounded-lg px-2 py-2 flex items-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors"
+                  className={action.id === 'quick-repair'
+                    ? 'quick-repair-border rounded-lg px-2 py-2 flex items-center gap-2 cursor-pointer [--repair-fill:#fff] [--repair-fill-hover:#f9fafb]'
+                    : 'bg-white border-2 border-black rounded-lg px-2 py-2 flex items-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors'}
                 >
                   {/* Icon */}
                   <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
@@ -455,7 +470,9 @@ function AccountManagementContent() {
               return (
                 <div
                   key={action.id}
-                  className="bg-white border-2 border-black rounded-lg p-4 md:p-6 cursor-pointer hover:shadow-lg transition-shadow"
+                  className={action.id === 'quick-repair'
+                    ? 'quick-repair-border rounded-lg p-4 md:p-6 cursor-pointer [--repair-fill:#fff] [--repair-fill-hover:#f9fafb]'
+                    : 'bg-white border-2 border-black rounded-lg p-4 md:p-6 cursor-pointer hover:shadow-lg transition-shadow'}
                   onClick={() => handleQuickAction(action.path)}
                 >
                   {/* Icon and Text Section */}

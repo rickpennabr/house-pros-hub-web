@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { CalendarDays, FileCheck, FilePlus2, FileText, FolderKanban, Loader2, Plus, Users } from 'lucide-react';
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
+import { CRMSearchField } from '@/components/crm/CRMSearchField';
+import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 
 interface CRMEstimate {
   id: string;
@@ -40,6 +42,41 @@ interface CRMTask {
   start_at: string;
   task_type: 'estimate_appointment' | 'business_meeting' | 'follow_up' | 'other';
   meeting_with: string | null;
+  note?: string | null;
+  other_label?: string | null;
+}
+
+interface DashHit {
+  id: string;
+  title: string;
+  detail: string;
+  href: string;
+}
+
+interface DashSearchHits {
+  customers: DashHit[];
+  estimates: DashHit[];
+  invoices: DashHit[];
+  projects: DashHit[];
+  expenses: DashHit[];
+}
+
+function includesText(text: string, needle: string) {
+  return text.toLowerCase().includes(needle);
+}
+
+function customerTitle(row: {
+  display_name?: string | null;
+  company_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  display_id?: string | null;
+}) {
+  return row.display_name?.trim()
+    || row.company_name?.trim()
+    || [row.first_name, row.last_name].filter(Boolean).join(' ')
+    || row.display_id
+    || 'Customer';
 }
 
 interface DashboardData {
@@ -90,6 +127,11 @@ export default function CRMPage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const crmChrome = useCRMChrome();
+  const searchRowRef = useRef<HTMLFormElement | null>(null);
+  const [dashQuery, setDashQuery] = useState('');
+  const [dashHits, setDashHits] = useState<DashSearchHits | null>(null);
+  const [dashResultQuery, setDashResultQuery] = useState('');
 
   useEffect(() => {
     if (realtorOnly) {
@@ -203,6 +245,79 @@ export default function CRMPage() {
       .slice(0, 10);
   }, [data, locale]);
 
+  useEffect(() => {
+    if (!crmChrome?.searchOpen) return;
+    const close = (event: PointerEvent) => {
+      if (searchRowRef.current?.contains(event.target as Node)) return;
+      crmChrome.setSearchOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [crmChrome]);
+
+  useEffect(() => {
+    const query = dashQuery.trim();
+    if (!query) {
+      setDashHits(null);
+      setDashResultQuery('');
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      const enc = encodeURIComponent(query);
+      Promise.all([
+        fetchJson<{ customers: Array<{ id: string; display_name?: string | null; company_name?: string | null; first_name?: string | null; last_name?: string | null; display_id?: string | null; city?: string | null; state?: string | null; email?: string | null; phone?: string | null }> }>(`/api/crm/customers?page=1&pageSize=20&search=${enc}`),
+        fetchJson<{ estimates: Array<{ id: string; display_id?: string | null; status?: string | null; customerFirstName?: string | null; customerLastName?: string | null }> }>(`/api/crm/estimates?page=1&pageSize=20&search=${enc}`),
+        fetchJson<{ invoices: Array<{ id: string; invoice_number?: string | null; display_id?: string | null; status?: string | null; customerFirstName?: string | null; customerLastName?: string | null }> }>(`/api/crm/invoices?page=1&pageSize=20&search=${enc}`),
+        fetchJson<{ projects: Array<{ id: string; name?: string | null; display_id?: string | null; status?: string | null; customerFirstName?: string | null; customerLastName?: string | null }> }>(`/api/crm/projects?page=1&pageSize=20&search=${enc}`),
+        fetchJson<{ expenses: Array<{ id: string; category?: string | null; note?: string | null; amount_cents?: number | null }> }>(`/api/crm/expenses?page=1&pageSize=20&search=${enc}`),
+      ]).then(([customers, estimates, invoices, projects, expenses]) => {
+        if (cancelled) return;
+        setDashHits({
+          customers: (customers.customers || []).map((row) => ({
+            id: row.id,
+            title: customerTitle(row),
+            detail: [row.city, row.state, row.email, row.phone].filter(Boolean).join(' · '),
+            href: `/${locale}/crm/customers`,
+          })),
+          estimates: (estimates.estimates || []).map((row) => ({
+            id: row.id,
+            title: [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ') || (row.display_id ? `Estimate ${row.display_id}` : 'Estimate'),
+            detail: row.status ? `Status: ${row.status}` : '',
+            href: `/${locale}/crm/estimates`,
+          })),
+          invoices: (invoices.invoices || []).map((row) => ({
+            id: row.id,
+            title: [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ') || (row.invoice_number ? `Invoice ${row.invoice_number}` : 'Invoice'),
+            detail: [row.invoice_number, row.status].filter(Boolean).join(' · '),
+            href: `/${locale}/crm/invoices`,
+          })),
+          projects: (projects.projects || []).map((row) => ({
+            id: row.id,
+            title: row.name || (row.display_id ? `Project ${row.display_id}` : 'Project'),
+            detail: [[row.customerFirstName, row.customerLastName].filter(Boolean).join(' '), row.status].filter(Boolean).join(' · '),
+            href: `/${locale}/crm/projects`,
+          })),
+          expenses: (expenses.expenses || []).map((row) => ({
+            id: row.id,
+            title: row.category || 'Expense',
+            detail: [row.note, typeof row.amount_cents === 'number' ? money(row.amount_cents) : ''].filter(Boolean).join(' · '),
+            href: `/${locale}/crm/expenses`,
+          })),
+        });
+        setDashResultQuery(query.toLowerCase());
+      }).catch(() => {
+        if (cancelled) return;
+        setDashHits({ customers: [], estimates: [], invoices: [], projects: [], expenses: [] });
+        setDashResultQuery(query.toLowerCase());
+      });
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [dashQuery, locale]);
+
   const addActionItems: MobileGridActionItem[] = [
     {
       id: 'add-customer',
@@ -259,9 +374,46 @@ export default function CRMPage() {
     );
   }
 
+  const needle = dashQuery.trim().toLowerCase();
+  const filtering = Boolean(needle) && dashResultQuery === needle && dashHits !== null;
+  const sectionMatches = (text: string, hits?: DashHit[]) => {
+    if (!filtering || !needle) return true;
+    if (includesText(text, needle)) return true;
+    return (hits ?? []).length > 0;
+  };
+  const taskBlob = data.tasksUpcoming7d
+    .map((task) => `${task.task_type} ${task.other_label ?? ''} ${task.meeting_with ?? ''} ${task.note ?? ''}`)
+    .join(' ');
+  const showCustomers = sectionMatches(`Customers ${data.customersTotal}`, dashHits?.customers);
+  const showEstimates = sectionMatches(`Estimates ${data.estimatesTotal} ${data.estimatesAccepted} accepted`, dashHits?.estimates);
+  const showInvoices = sectionMatches(`Invoices ${data.invoicesTotal} ${data.invoicesPaid} paid`, dashHits?.invoices);
+  const showProjects = sectionMatches(`Projects ${data.projectsTotal} ${data.projectsActive} in progress`, dashHits?.projects);
+  const showTasks = sectionMatches(`Upcoming tasks ${data.tasksUpcoming7d.length} next 7 days ${taskBlob}`);
+  const financialText = `Financial Snapshot Estimate value ${money(totals.estimateAmount)} Invoice value ${money(totals.invoiceAmount)} Outstanding ${money(totals.invoiceOutstanding)}`;
+  const showFinancial = sectionMatches(financialText);
+  const visibleActivity = filtering
+    ? recentActivity.filter((item) => includesText(`${item.title} ${item.subtitle}`, needle))
+    : recentActivity;
+  const showActivity = !filtering || includesText('Recent Activity', needle) || visibleActivity.length > 0;
+  const visibleTasks = filtering
+    ? data.tasksUpcoming7d.filter((task) => includesText(`${task.task_type} ${task.other_label ?? ''} ${task.meeting_with ?? ''} ${task.note ?? ''}`, needle) || includesText('Upcoming tasks', needle))
+    : data.tasksUpcoming7d;
+  const hitGroups = filtering && dashHits
+    ? [
+        { title: 'Customers', items: dashHits.customers },
+        { title: 'Estimates', items: dashHits.estimates },
+        { title: 'Invoices', items: dashHits.invoices },
+        { title: 'Projects', items: dashHits.projects },
+        { title: 'Expenses', items: dashHits.expenses },
+      ].filter((group) => group.items.length > 0)
+    : [];
+  const nothingMatched = filtering
+    && !showCustomers && !showEstimates && !showInvoices && !showProjects && !showTasks
+    && !showFinancial && !showActivity && hitGroups.length === 0;
+
   return (
     <div className="w-full space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="max-md:hidden! md:flex md:items-center md:justify-between md:gap-3">
         <div>
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-0.5">Track your CRM performance at a glance.</p>
@@ -269,41 +421,87 @@ export default function CRMPage() {
         <button
           type="button"
           onClick={() => setShowAddModal(true)}
-          className="hidden md:inline-flex h-9 items-center gap-1 rounded-lg border-2 border-black bg-white px-3 text-sm font-medium text-black hover:bg-gray-50 cursor-pointer"
+          className="hidden md:inline-flex h-9 items-center gap-1 rounded-lg border-2 border-black bg-black px-3 text-sm font-medium text-white hover:bg-gray-800 cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           Add
         </button>
       </div>
 
+      <CRMSearchField
+        formRef={searchRowRef}
+        value={dashQuery}
+        onChange={setDashQuery}
+        placeholder="Search customers, estimates, invoices..."
+        onFocus={() => crmChrome?.setSearchOpen(true)}
+        showClose={Boolean(crmChrome?.searchOpen)}
+        onClose={() => {
+          crmChrome?.setSearchOpen(false);
+          (document.activeElement as HTMLElement | null)?.blur();
+        }}
+        className="pt-2 md:pt-0"
+      />
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {showCustomers && (
         <div className="rounded-lg border-2 border-black bg-white p-4">
           <div className="flex items-center gap-2 text-gray-600"><Users className="h-4 w-4 text-red-600" /> Customers</div>
           <p className="mt-2 text-2xl font-semibold text-black">{data.customersTotal}</p>
         </div>
+        )}
+        {showEstimates && (
         <div className="rounded-lg border-2 border-black bg-white p-4">
           <div className="flex items-center gap-2 text-gray-600"><FileText className="h-4 w-4 text-red-600" /> Estimates</div>
           <p className="mt-2 text-2xl font-semibold text-black">{data.estimatesTotal}</p>
           <p className="text-xs text-gray-500 mt-1">{data.estimatesAccepted} accepted</p>
         </div>
+        )}
+        {showInvoices && (
         <div className="rounded-lg border-2 border-black bg-white p-4">
           <div className="flex items-center gap-2 text-gray-600"><FileCheck className="h-4 w-4 text-red-600" /> Invoices</div>
           <p className="mt-2 text-2xl font-semibold text-black">{data.invoicesTotal}</p>
           <p className="text-xs text-gray-500 mt-1">{data.invoicesPaid} paid</p>
         </div>
+        )}
+        {showProjects && (
         <div className="rounded-lg border-2 border-black bg-white p-4">
           <div className="flex items-center gap-2 text-gray-600"><FolderKanban className="h-4 w-4 text-red-600" /> Projects</div>
           <p className="mt-2 text-2xl font-semibold text-black">{data.projectsTotal}</p>
           <p className="text-xs text-gray-500 mt-1">{data.projectsActive} in progress</p>
         </div>
+        )}
+        {showTasks && (
         <div className="rounded-lg border-2 border-black bg-white p-4">
           <div className="flex items-center gap-2 text-gray-600"><CalendarDays className="h-4 w-4 text-red-600" /> Upcoming tasks</div>
           <p className="mt-2 text-2xl font-semibold text-black">{data.tasksUpcoming7d.length}</p>
           <p className="text-xs text-gray-500 mt-1">next 7 days</p>
         </div>
+        )}
       </div>
 
+      {hitGroups.length > 0 && (
+        <div className="space-y-3">
+          {hitGroups.map((group) => (
+            <div key={group.title} className="rounded-lg border-2 border-black bg-white p-4">
+              <h2 className="text-base font-semibold text-gray-900">{group.title}</h2>
+              <div className="mt-2 divide-y divide-gray-100">
+                {group.items.map((item) => (
+                  <Link key={`${group.title}-${item.id}`} href={item.href} className="block py-2 hover:bg-gray-50 rounded-md px-1">
+                    <p className="truncate text-sm font-medium text-gray-900">{item.title}</p>
+                    {item.detail ? <p className="truncate text-xs text-gray-500">{item.detail}</p> : null}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {nothingMatched && (
+        <p className="text-sm text-gray-500">No matches.</p>
+      )}
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {showFinancial && (
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -329,14 +527,16 @@ export default function CRMPage() {
             </div>
           </div>
         </div>
+        )}
 
+        {showTasks && (
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <h2 className="text-base font-semibold text-gray-900">Upcoming Tasks (7 Days)</h2>
-          {data.tasksUpcoming7d.length === 0 ? (
+          {visibleTasks.length === 0 ? (
             <p className="mt-3 text-sm text-gray-500">No upcoming tasks this week.</p>
           ) : (
             <div className="mt-3 space-y-2">
-              {data.tasksUpcoming7d.slice(0, 6).map((task) => (
+              {visibleTasks.slice(0, 6).map((task) => (
                 <div key={task.id} className="rounded-md border border-gray-200 p-2.5">
                   <p className="text-sm font-medium text-gray-900">
                     {(task.task_type || 'task').replaceAll('_', ' ')}
@@ -349,15 +549,17 @@ export default function CRMPage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
+      {showActivity && (
       <div className="rounded-lg border border-gray-200 bg-white p-4">
         <h2 className="text-base font-semibold text-gray-900">Recent Activity</h2>
-        {recentActivity.length === 0 ? (
+        {visibleActivity.length === 0 ? (
           <p className="mt-3 text-sm text-gray-500">No recent activity yet.</p>
         ) : (
           <div className="mt-3 divide-y divide-gray-100">
-            {recentActivity.map((item) => (
+            {visibleActivity.map((item) => (
               <Link
                 key={item.id}
                 href={item.href}
@@ -373,6 +575,7 @@ export default function CRMPage() {
           </div>
         )}
       </div>
+      )}
 
       <MobileGridActionsModal
         isOpen={showAddModal}
