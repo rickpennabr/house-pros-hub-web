@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Camera, ImagePlus, HardDrive } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -26,6 +26,31 @@ import { estimateSchema } from '@/lib/schemas/estimate';
 import { createClient } from '@/lib/supabase/client';
 import type { DriveFile, DriveUsage } from '@/lib/drive/types';
 import type { Locale } from '@/i18n';
+
+/** Scroll parent for the progress bar, or the window when the page itself scrolls. */
+function scrollParent(node: HTMLElement): HTMLElement | Window {
+  let parent = node.parentElement;
+  while (parent) {
+    const overflow = getComputedStyle(parent).overflowY;
+    if ((overflow === 'auto' || overflow === 'scroll') && parent.scrollHeight > parent.clientHeight) return parent;
+    parent = parent.parentElement;
+  }
+  return window;
+}
+
+/** Move the bar to the top of the screen, and no farther than the page allows. */
+function scrollBarToScreenTop(bar: HTMLElement) {
+  const scroller = scrollParent(bar);
+  const barTop = bar.getBoundingClientRect().top;
+  if (scroller === window) {
+    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    window.scrollTo({ top: Math.min(Math.max(0, window.scrollY + barTop), max), behavior: 'auto' });
+    return;
+  }
+  const topInScroller = barTop - scroller.getBoundingClientRect().top;
+  const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+  scroller.scrollTo({ top: Math.min(Math.max(0, scroller.scrollTop + topInScroller), max), behavior: 'auto' });
+}
 
 const MAX_PHOTOS = 5;
 const DEFAULT_TRADE = 'Handyman';
@@ -305,10 +330,6 @@ export default function QuickRepairPage() {
     // A second OAuth start overwrites the PKCE verifier of the first one, so the
     // callback for the earlier code can no longer be exchanged.
     if (googleLoading) return;
-    if (!detailsAreValid()) {
-      setError(t('checkDetails'));
-      return;
-    }
     setGoogleLoading(true);
     setError(null);
     try {
@@ -334,10 +355,6 @@ export default function QuickRepairPage() {
   };
 
   const leaveForAccount = async (href: string) => {
-    if (!detailsAreValid()) {
-      setError(t('checkDetails'));
-      return;
-    }
     setError(null);
     try {
       await persistNow();
@@ -355,7 +372,6 @@ export default function QuickRepairPage() {
     }
     if (!detailsAreValid()) {
       setError(t('checkDetails'));
-      setStep('details');
       return;
     }
     setSaving(true);
@@ -425,6 +441,16 @@ export default function QuickRepairPage() {
     }
   };
 
+  const progressRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (step !== 'details' || !ready) return;
+    if (window.matchMedia('(min-width: 768px)').matches) return;
+    const bar = progressRef.current;
+    if (!bar) return;
+    scrollBarToScreenTop(bar);
+  }, [step, ready]);
+
   const stepIndex = STEPS.indexOf(step);
   const returnPath = `/${locale}/quick-repair`;
   const progress = done ? 100 : ((Math.max(stepIndex, 0) + 1) / STEPS.length) * 100;
@@ -437,7 +463,12 @@ export default function QuickRepairPage() {
         subtitle={tHandoff('subtitle')}
       />
       {ready && !isLoading && (
-        <div className="-mx-1 -mt-1 md:-mx-2 md:-mt-2">
+        <div
+          ref={progressRef}
+          className={`-mx-1 -mt-1 md:-mx-2 md:-mt-2 ${
+            step === 'details' ? 'max-md:sticky max-md:top-0 max-md:z-30 max-md:bg-white' : ''
+          }`}
+        >
           <div
             className="h-2 w-full bg-neutral-200"
             role="progressbar"
@@ -450,17 +481,15 @@ export default function QuickRepairPage() {
           </div>
         </div>
       )}
-      <div className="w-full px-2 py-3 md:px-4 md:py-4">
+      <div className="w-full px-2 py-2 md:px-4 md:py-4">
       <InstallAppButton />
       {isLoading || !ready ? null : done ? (
         <p>{t('success')}</p>
       ) : (
-        <div className="mx-auto w-full max-w-xl space-y-4">
-          {step !== 'details' && (
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-600">
-              {t('stepOf', { current: stepIndex + 1, total: STEPS.length })}
-            </p>
-          )}
+        <div className="mx-auto w-full max-w-xl space-y-[0.2rem] md:space-y-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-600">
+            {t('stepOf', { current: stepIndex + 1, total: STEPS.length })}
+          </p>
           {sharedPhoto && <p className="text-sm font-medium">{t('sharedPhoto')}</p>}
 
           {step === 'upload' && (
@@ -504,47 +533,17 @@ export default function QuickRepairPage() {
 
           {step === 'details' && (
             <section className="space-y-3">
-              {!isAuthenticated && <p className="text-sm">{t('detailsHint')}</p>}
-              <DetailsForm
-                description={description}
-                firstName={firstName}
-                lastName={lastName}
-                email={email}
-                phone={phone}
-                streetAddress={streetAddress}
-                apartment={apartment}
-                city={city}
-                state={state}
-                zipCode={zipCode}
-                describeRepair={t('describeRepair')}
-                firstNameLabel={labels('firstName')}
-                lastNameLabel={labels('lastName')}
-                emailLabel={labels('email')}
-                phoneLabel={labels('phone')}
-                streetLabel={address('streetAddress')}
-                unitLabel={address('apartment')}
-                cityLabel={address('city')}
-                stateLabel={address('state')}
-                zipLabel={address('zipCode')}
-                onDescription={setDescription}
-                onFirstName={setFirstName}
-                onLastName={setLastName}
-                onEmail={setEmail}
-                onPhone={setPhone}
-                onStreet={setStreetAddress}
-                onApartment={setApartment}
-                onCity={setCity}
-                onState={setState}
-                onZip={setZipCode}
+              <h2 className="text-lg font-bold">{t('whatBroke')}</h2>
+              <p className="text-sm">{t('describeRepair')}</p>
+              <textarea
+                className="w-full border-2 border-black rounded-lg px-3 py-2 min-h-24"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
               />
               {isAuthenticated ? (
-                <div className="sticky bottom-0 z-10 flex gap-2 bg-white py-2">
+                <div className="flex gap-2">
                   <Button type="button" variant="ghost" onClick={() => setStep('upload')}>{t('back')}</Button>
                   <Button type="button" onClick={() => {
-                    if (!detailsAreValid()) {
-                      setError(t('checkDetails'));
-                      return;
-                    }
                     setError(null);
                     setStep('submit');
                   }}
@@ -582,11 +581,35 @@ export default function QuickRepairPage() {
                 {trade ? <span className="font-medium">{trade}</span> : null}
                 {description ? `${trade ? ' — ' : ''}${description}` : ''}
               </p>
-              <p className="text-sm">
-                {[firstName, lastName].filter(Boolean).join(' ')}
-                {phone ? ` · ${phone}` : ''}
-              </p>
-              <p className="text-sm">{[streetAddress, apartment, city, state, zipCode].filter(Boolean).join(', ')}</p>
+              <ContactFields
+                firstName={firstName}
+                lastName={lastName}
+                email={email}
+                phone={phone}
+                streetAddress={streetAddress}
+                apartment={apartment}
+                city={city}
+                state={state}
+                zipCode={zipCode}
+                firstNameLabel={labels('firstName')}
+                lastNameLabel={labels('lastName')}
+                emailLabel={labels('email')}
+                phoneLabel={labels('phone')}
+                streetLabel={address('streetAddress')}
+                unitLabel={address('apartment')}
+                cityLabel={address('city')}
+                stateLabel={address('state')}
+                zipLabel={address('zipCode')}
+                onFirstName={setFirstName}
+                onLastName={setLastName}
+                onEmail={setEmail}
+                onPhone={setPhone}
+                onStreet={setStreetAddress}
+                onApartment={setApartment}
+                onCity={setCity}
+                onState={setState}
+                onZip={setZipCode}
+              />
               <div className="flex gap-2">
                 <Button type="button" variant="ghost" onClick={() => setStep('details')}>{t('back')}</Button>
                 <Button type="button" disabled={saving} onClick={() => void submit()}>
@@ -661,8 +684,7 @@ function PhotoGrid({ photos, onRemove, removeLabel }: { photos: LocalPhoto[]; on
   );
 }
 
-interface DetailsFormProps {
-  description: string;
+interface ContactFieldsProps {
   firstName: string;
   lastName: string;
   email: string;
@@ -672,7 +694,6 @@ interface DetailsFormProps {
   city: string;
   state: string;
   zipCode: string;
-  describeRepair: string;
   firstNameLabel: string;
   lastNameLabel: string;
   emailLabel: string;
@@ -682,7 +703,6 @@ interface DetailsFormProps {
   cityLabel: string;
   stateLabel: string;
   zipLabel: string;
-  onDescription: (value: string) => void;
   onFirstName: (value: string) => void;
   onLastName: (value: string) => void;
   onEmail: (value: string) => void;
@@ -694,15 +714,8 @@ interface DetailsFormProps {
   onZip: (value: string) => void;
 }
 
-function DetailsForm(props: DetailsFormProps) {
+function ContactFields(props: ContactFieldsProps) {
   return (
-    <>
-      <label className="block text-sm font-medium">{props.describeRepair}</label>
-      <textarea
-        className="w-full border-2 border-black rounded-lg px-3 py-2 min-h-24"
-        value={props.description}
-        onChange={(event) => props.onDescription(event.target.value)}
-      />
       <div className="grid grid-cols-2 gap-2">
         <Input value={props.firstName} onChange={(event) => props.onFirstName(event.target.value)} placeholder={props.firstNameLabel} />
         <Input value={props.lastName} onChange={(event) => props.onLastName(event.target.value)} placeholder={props.lastNameLabel} />
@@ -728,6 +741,5 @@ function DetailsForm(props: DetailsFormProps) {
         <Input value={props.state} onChange={(event) => props.onState(event.target.value)} placeholder={props.stateLabel} maxLength={2} />
         <Input value={props.zipCode} onChange={(event) => props.onZip(event.target.value)} placeholder={props.zipLabel} />
       </div>
-    </>
   );
 }

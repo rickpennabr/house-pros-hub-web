@@ -74,7 +74,7 @@ export default function PagesMenu({ children }: PagesMenuProps) {
     const pathWithLocale = `/${locale}${path}`;
     const isActive = pathname === pathWithLocale || pathname.startsWith(`${pathWithLocale}/`);
     if (labelKey === 'quickRepair') {
-      return `${baseClasses} quick-repair-border gap-2 px-2 text-white rounded-lg`;
+      return `${baseClasses} quick-repair-border gap-1 px-1 text-white rounded-lg md:gap-2 md:px-2`;
     }
     return isActive
       ? `${baseClasses} ${itemGap} ${itemPadding} ${activeClasses}`
