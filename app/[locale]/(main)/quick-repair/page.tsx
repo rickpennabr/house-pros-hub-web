@@ -27,22 +27,22 @@ import { createClient } from '@/lib/supabase/client';
 import type { DriveFile, DriveUsage } from '@/lib/drive/types';
 import type { Locale } from '@/i18n';
 
-/** Scroll parent for the progress bar, or the window when the page itself scrolls. */
-function scrollParent(node: HTMLElement): HTMLElement | Window {
+/** Scroll parent for the progress bar. Null means the page itself scrolls. */
+function scrollParent(node: HTMLElement): HTMLElement | null {
   let parent = node.parentElement;
   while (parent) {
     const overflow = getComputedStyle(parent).overflowY;
     if ((overflow === 'auto' || overflow === 'scroll') && parent.scrollHeight > parent.clientHeight) return parent;
     parent = parent.parentElement;
   }
-  return window;
+  return null;
 }
 
 /** Move the bar to the top of the screen, and no farther than the page allows. */
 function scrollBarToScreenTop(bar: HTMLElement) {
   const scroller = scrollParent(bar);
   const barTop = bar.getBoundingClientRect().top;
-  if (scroller === window) {
+  if (!scroller) {
     const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
     window.scrollTo({ top: Math.min(Math.max(0, window.scrollY + barTop), max), behavior: 'auto' });
     return;
