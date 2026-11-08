@@ -137,7 +137,7 @@ function customerMapAddress(row: CRMCustomerRow): string {
 
 function customerSheetText(row: CRMCustomerRow, columnId: string): string {
   if (columnId === 'roles') {
-    return (row.roles ?? []).map((role) => role.name).join(', ');
+    return (row.roles ?? []).filter((role) => role.slug !== 'installer').map((role) => role.name).join(', ');
   }
   if (columnId === 'created_at' || columnId === 'updated_at') {
     return formatDate(row[columnId]);
@@ -959,7 +959,7 @@ export default function CRMCustomersPage() {
               >
                 All
               </button>
-              {roleCatalog.map((role) => (
+              {roleCatalog.filter((role) => role.slug !== 'installer').map((role) => (
                 <button
                   key={role.id}
                   type="button"

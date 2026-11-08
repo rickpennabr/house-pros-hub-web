@@ -130,7 +130,7 @@ export default function CustomerCard({
             <p className="mt-0.5 text-xs text-gray-500 truncate">{customer.display_id ?? 'Pending ID'}</p>
             {(customer.roles ?? []).length > 0 && (
               <div className="mt-1 flex flex-wrap gap-1">
-                {customer.roles!.map((role) => (
+                {customer.roles!.filter((role) => role.slug !== 'installer').map((role) => (
                   <span key={role.id} className="rounded-full border border-black px-2 py-0.5 text-[11px] font-medium text-black">
                     {role.name}
                   </span>

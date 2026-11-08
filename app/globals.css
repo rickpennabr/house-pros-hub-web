@@ -17,46 +17,62 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@property --repair-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
+/* 3.7s loop: three yellow flashes with FIX, then 2s white and still. */
+@keyframes repair-cam-flash {
+  0%, 10% { opacity: 1; }
+  12%, 17% { opacity: 0; }
+  19%, 28% { opacity: 1; }
+  30%, 35% { opacity: 0; }
+  37%, 46% { opacity: 1; }
+  48%, 100% { opacity: 0; }
 }
 
-@keyframes quick-repair-border-spin {
-  to {
-    --repair-angle: 360deg;
-  }
+.repair-cam-flash {
+  opacity: 0;
+  animation: repair-cam-flash 3.7s linear infinite;
 }
 
-/* Two bright points travel the Quick Repair pill border, opposite each other. */
-.quick-repair-border {
-  --repair-fill: #ef4444;
-  border: 2px solid transparent;
-  background:
-    linear-gradient(var(--repair-fill), var(--repair-fill)) padding-box,
-    conic-gradient(
-      from var(--repair-angle),
-      #000 0deg,
-      #fff 28deg,
-      #fde68a 46deg,
-      #000 78deg,
-      #000 180deg,
-      #fff 208deg,
-      #fde68a 226deg,
-      #000 258deg,
-      #000 360deg
-    ) border-box;
-  animation: quick-repair-border-spin 5s linear infinite;
-  transition: transform 300ms;
+@keyframes repair-fix-pulse {
+  0%, 10% { opacity: 1; }
+  12%, 17% { opacity: 0; }
+  19%, 28% { opacity: 1; }
+  30%, 35% { opacity: 0; }
+  37%, 46% { opacity: 1; }
+  48%, 100% { opacity: 1; }
 }
 
-.quick-repair-border:hover {
-  --repair-fill: var(--repair-fill-hover, #dc2626);
+.repair-fix-pulse {
+  opacity: 0;
+  animation: repair-fix-pulse 3.7s linear infinite;
+}
+
+@keyframes repair-cam-lights-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Oversized so the spin still covers the outline. Mask keeps it on the border. */
+.repair-cam-lights {
+  width: 160px;
+  height: 160px;
+  margin-left: -40px;
+  margin-top: -49px;
+  background: conic-gradient(
+    #000 0deg,
+    #fff 28deg,
+    #ffe14a 46deg,
+    #000 78deg,
+    #000 180deg,
+    #fff 208deg,
+    #ffe14a 226deg,
+    #000 258deg,
+    #000 360deg
+  );
+  transform-origin: center;
+  animation: repair-cam-lights-spin 6s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .quick-repair-border {
+  .repair-cam-lights {
     animation: none;
   }
 }

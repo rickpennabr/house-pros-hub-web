@@ -1,10 +1,10 @@
 'use client';
 
-import { ReactNode, useLayoutEffect, useRef } from 'react';
+import { ReactNode, useId, useLayoutEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { BookOpen, Briefcase, HardHat, Package, Truck, Zap } from 'lucide-react';
+import { BookOpen, Briefcase, HardHat, Package, Truck } from 'lucide-react';
 
 interface PagesMenuProps {
   children?: ReactNode;
@@ -13,7 +13,7 @@ interface PagesMenuProps {
 type MenuItem = {
   labelKey: string;
   path: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon?: React.ComponentType<{ className?: string }>;
 };
 
 const menuItems: MenuItem[] = [
@@ -22,7 +22,7 @@ const menuItems: MenuItem[] = [
   { labelKey: 'proProducts', path: '/proproducts', icon: Package },
   { labelKey: 'prosBlog', path: '/blog', icon: BookOpen },
   { labelKey: 'housePros', path: '/businesslist', icon: HardHat },
-  { labelKey: 'quickRepair', path: '/quick-repair', icon: Zap },
+  { labelKey: 'quickRepair', path: '/quick-repair' },
 ];
 
 /** Scroll so Quick Repair, the last pill, sits flush on the right. Same idea as BrazaLink's home menu. */
@@ -32,6 +32,67 @@ function scrollMenuToEnd(container: HTMLDivElement | null) {
   if (Math.abs(container.scrollLeft - maxScroll) > 1) {
     container.scrollTo({ left: maxScroll, behavior: 'auto' });
   }
+}
+
+const cameraOutline =
+  'M27 13 V9 C27 7 28.4 5.8 30.6 5.8 H49.4 C51.6 5.8 53 7 53 9 V13 H69.5 A8 8 0 0 1 77.5 21 V53.5 A8 8 0 0 1 69.5 61.5 H10.5 A8 8 0 0 1 2.5 53.5 V21 A8 8 0 0 1 10.5 13 Z';
+
+/** Camera mark for Quick Repair. FIX sits inside the lens. */
+function RepairCameraMark() {
+  const maskId = useId().replace(/:/g, '');
+  return (
+    <span className="relative block h-full w-full text-black">
+      <svg viewBox="0 3 80 61" className="h-full w-full" aria-hidden>
+        <defs>
+          <mask id={maskId} maskUnits="userSpaceOnUse">
+            <rect x="0" y="0" width="80" height="64" fill="black" />
+            <path d={cameraOutline} fill="none" stroke="white" strokeWidth="3.6" strokeLinejoin="round" />
+          </mask>
+        </defs>
+        <rect x="2.5" y="13" width="75" height="48.5" rx="8" fill="none" stroke="currentColor" strokeWidth="3" />
+        <path d="M27 13v-4c0-2 1.4-3.2 3.6-3.2h18.8c2.2 0 3.6 1.2 3.6 3.2V13" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
+        <foreignObject x="0" y="3" width="80" height="61" mask={`url(#${maskId})`}>
+          <div xmlns="http://www.w3.org/1999/xhtml" className="repair-cam-lights" />
+        </foreignObject>
+        <circle cx="40" cy="38" r="20" fill="none" stroke="currentColor" strokeWidth="2.8" />
+        <circle cx="40" cy="38" r="15.4" fill="none" stroke="#ef4444" strokeWidth="2.3" />
+        <text
+          x="40"
+          y="38.6"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="currentColor"
+          fontSize="12"
+          fontWeight="900"
+          fontFamily="inherit"
+          letterSpacing="-0.35"
+          className="repair-fix-pulse"
+        >
+          FIX
+        </text>
+        <rect x="7.9" y="17.9" width="6.2" height="6.2" fill="#ffffff" stroke="none" />
+        <rect x="7.9" y="17.9" width="6.2" height="6.2" fill="#ffe14a" stroke="none" className="repair-cam-flash" />
+        <rect x="7" y="17" width="8" height="8" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      </svg>
+    </span>
+  );
+}
+
+export function QuickRepairCameraLink({ className }: { className?: string }) {
+  const locale = useLocale();
+  const t = useTranslations('navigation');
+  return (
+    <Link
+      href={`/${locale}/quick-repair`}
+      aria-label={t('quickRepair')}
+      onMouseDown={(event) => {
+        if (event.button === 0) event.preventDefault();
+      }}
+      className={className ?? 'relative flex h-10 w-[52px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0'}
+    >
+      <RepairCameraMark />
+    </Link>
+  );
 }
 
 /** Mobile labels drop the Pro/Pros brand prefix so the row can scroll full words. HousePros keeps Pros. */
@@ -74,7 +135,7 @@ export default function PagesMenu({ children }: PagesMenuProps) {
     const pathWithLocale = `/${locale}${path}`;
     const isActive = pathname === pathWithLocale || pathname.startsWith(`${pathWithLocale}/`);
     if (labelKey === 'quickRepair') {
-      return `${baseClasses} quick-repair-border gap-1 px-1 text-white rounded-lg md:gap-2 md:px-2`;
+      return 'relative flex h-10 w-[52px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 md:hidden';
     }
     return isActive
       ? `${baseClasses} ${itemGap} ${itemPadding} ${activeClasses}`
@@ -84,7 +145,7 @@ export default function PagesMenu({ children }: PagesMenuProps) {
   return (
     <div className="flex h-[60px] w-full min-w-0 flex-shrink-0 border-b-2 border-black px-1 pt-1 pb-0 md:h-[69px] md:px-[6px] md:pt-[6px]">
       <div ref={scrollRef} className="scrollbar-category h-[52px] min-w-0 flex-1 overflow-x-auto overflow-y-hidden md:h-[63px]">
-        <div className="flex h-full w-max items-center gap-2">
+        <div className="flex h-full w-max items-center gap-2 md:w-full md:justify-between">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isHousePros = item.labelKey === 'housePros';
@@ -92,7 +153,6 @@ export default function PagesMenu({ children }: PagesMenuProps) {
             const iconSizeClass = isHousePros
               ? 'w-[1.35rem] h-[1.35rem] md:w-[1.62rem] md:h-[1.62rem] lg:w-[1.89rem] lg:h-[1.89rem]'
               : 'w-[1.125rem] h-[1.125rem] md:w-[1.35rem] md:h-[1.35rem] lg:w-[1.575rem] lg:h-[1.575rem]';
-            const iconColorClass = isQuickRepair ? 'text-black' : 'text-red-500';
             return (
               <Link
                 key={item.path}
@@ -100,11 +160,20 @@ export default function PagesMenu({ children }: PagesMenuProps) {
                 onMouseDown={(event) => {
                   if (event.button === 0) event.preventDefault();
                 }}
+                aria-label={isQuickRepair ? t(item.labelKey) : undefined}
                 className={menuItemClasses(item.path, item.labelKey)}
               >
-                <Icon className={`${iconSizeClass} ${iconColorClass} transition-transform duration-300 group-hover:scale-110`} />
-                <span className="whitespace-nowrap text-sm md:hidden">{mobileMenuLabel(t(item.labelKey), item.labelKey)}</span>
-                <span className="hidden whitespace-nowrap text-base lg:text-lg md:inline">{t(item.labelKey)}</span>
+                {isQuickRepair ? (
+                  <RepairCameraMark />
+                ) : Icon ? (
+                  <Icon className={`${iconSizeClass} text-red-500 transition-transform duration-300 group-hover:scale-110`} />
+                ) : null}
+                {isQuickRepair ? null : (
+                  <>
+                    <span className="whitespace-nowrap text-sm md:hidden">{mobileMenuLabel(t(item.labelKey), item.labelKey)}</span>
+                    <span className="hidden whitespace-nowrap text-base lg:text-lg md:inline">{t(item.labelKey)}</span>
+                  </>
+                )}
               </Link>
             );
           })}

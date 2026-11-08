@@ -9,6 +9,7 @@ import Logo from '../Logo';
 import ProfileIcon from './ProfileIcon';
 import LanguageSwitcher from './LanguageSwitcher';
 import FreeEstimateButton from './FreeEstimateButton';
+import { QuickRepairCameraLink } from './PagesMenu';
 import PhoneButton from './PhoneButton';
 import { NotificationBellDropdown } from '@/components/admin/NotificationBellDropdown';
 import { Phone } from 'lucide-react';
@@ -197,6 +198,11 @@ export default function PageHeader({ children }: PageHeaderProps) {
               <span className="hidden md:flex items-center h-10 shrink-0"><PhoneButton /></span>
               <span className="hidden md:flex items-center h-10 shrink-0"><WhatsAppButton /></span>
             </>
+          )}
+          {!isLegalPage && (
+            <span className="hidden md:flex items-center h-10 shrink-0">
+              <QuickRepairCameraLink />
+            </span>
           )}
           {isAuthenticated && !isLegalPage && (
             <span className="flex items-center h-10 shrink-0">
