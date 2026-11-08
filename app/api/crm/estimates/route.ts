@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { crmEstimateCreateSchema, normalizeEstimateAmountCents } from '@/lib/schemas/crmEstimate';
+import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -175,6 +176,9 @@ export async function POST(request: NextRequest) {
       .single();
     if (!customer) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    }
+    if (!(await contactCanBeInvoiced(supabase, customerId))) {
+      return NextResponse.json({ error: 'This contact cannot be invoiced. Add a role that can be invoiced.' }, { status: 400 });
     }
 
     const lineItems = body.lineItems ?? null;

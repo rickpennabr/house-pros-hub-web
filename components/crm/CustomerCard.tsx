@@ -4,8 +4,11 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Building2, Mail, Phone, MapPin, Globe, MoreVertical, FileText, FileCheck, FolderOpen, PlusCircle, Pencil, Trash2 } from 'lucide-react';
 import type { Database } from '@/lib/types/supabase';
+import type { CrmContactRole } from '@/lib/crm/contact-role';
 
-type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'];
+type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'] & {
+  roles?: CrmContactRole[];
+};
 
 export interface CustomerCardMenuActions {
   onCreateInvoice?: (customerId: string) => void;
@@ -125,6 +128,15 @@ export default function CustomerCard({
           <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-gray-900 truncate">{name}</h3>
             <p className="mt-0.5 text-xs text-gray-500 truncate">{customer.display_id ?? 'Pending ID'}</p>
+            {(customer.roles ?? []).length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {customer.roles!.map((role) => (
+                  <span key={role.id} className="rounded-full border border-black px-2 py-0.5 text-[11px] font-medium text-black">
+                    {role.name}
+                  </span>
+                ))}
+              </div>
+            )}
             {customer.company_name?.trim() && (
               <div className="flex items-center gap-1.5 mt-0.5 text-sm text-gray-600 truncate">
                 <Building2 className="w-3.5 h-3.5 shrink-0 text-gray-500" />

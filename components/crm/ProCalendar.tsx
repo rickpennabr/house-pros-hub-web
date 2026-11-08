@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, Copy, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -158,6 +159,7 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
   const [showTasks, setShowTasks] = useState(true);
   const [showBookings, setShowBookings] = useState(true);
   const [showBlocks, setShowBlocks] = useState(true);
+  const searchParams = useSearchParams();
   const [showAddTask, setShowAddTask] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState(false);
   const [blockType, setBlockType] = useState<Block['type']>('unavailable');
@@ -169,6 +171,10 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
   const [moveDateKey, setMoveDateKey] = useState<string | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('new') === 'task') setShowAddTask(true);
+  }, [searchParams]);
 
   const business = businesses.find((item) => item.id === businessId) ?? null;
 

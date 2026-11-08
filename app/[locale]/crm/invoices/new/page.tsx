@@ -79,7 +79,7 @@ export default function CRMNewInvoicePage() {
   useEffect(() => {
     Promise.all([
       fetch('/api/crm/invoices/new-context', { credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/crm/customers?pageSize=500', { credentials: 'include' }).then((r) => r.json()),
+      fetch('/api/crm/customers?pageSize=500&billable=1', { credentials: 'include' }).then((r) => r.json()),
       fetch('/api/crm/items', { credentials: 'include' }).then((r) => r.json()),
     ])
       .then(([ctx, cust, itemsRes]) => {

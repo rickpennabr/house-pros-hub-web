@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
@@ -66,6 +67,7 @@ function expenseCellText(row: ExpenseRow, columnId: string): string {
 type ViewMode = 'table' | 'add' | 'edit';
 
 export default function CRMExpensesPage() {
+  const searchParams = useSearchParams();
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -120,6 +122,10 @@ export default function CRMExpensesPage() {
   }, [page, sortBy, sortDir, search]);
 
   useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') setViewMode('add');
+  }, [searchParams]);
 
   useEffect(() => {
     if (viewMode === 'add' || viewMode === 'edit') {

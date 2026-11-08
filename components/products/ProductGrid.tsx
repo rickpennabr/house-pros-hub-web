@@ -47,7 +47,7 @@ export function ProductGrid({ products }: ProductGridProps) {
     return products.filter((product) => {
       if (type && product.product_type !== type) return false;
       if (!query) return true;
-      return [product.name, product.brand, product.product_type, product.description, ...product.variants.flatMap((variant) => [variant.color, variant.size])]
+      return [product.name, product.brand, product.product_type, product.description, ...product.specs.flatMap((spec) => [spec.name, spec.value]), ...product.variants.flatMap((variant) => [variant.color, variant.size])]
         .join(' ')
         .toLowerCase()
         .includes(query);

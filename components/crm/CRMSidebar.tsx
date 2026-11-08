@@ -14,6 +14,7 @@ import {
   Receipt,
   Calendar,
   Package,
+  Wrench,
   BarChart3,
   Camera,
   Home,
@@ -58,7 +59,8 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     { href: `${base}/jobsite`, labelKey: 'crmJobsite', icon: Camera },
     { href: `${base}/expenses`, labelKey: 'crmExpenses', icon: Receipt },
     { href: `${base}/reports`, labelKey: 'crmReports', icon: BarChart3 },
-    { href: `${base}/items`, labelKey: 'crmItems', icon: Package },
+    { href: `${base}/services`, labelKey: 'crmServices', icon: Wrench },
+    { href: `${base}/products`, labelKey: 'crmProducts', icon: Package },
     { href: `${base}/calendar`, labelKey: 'crmCalendar', icon: Calendar },
     { href: `${base}/qrcode`, labelKey: 'crmQrcode', icon: QrCode },
   ].filter((item) => !realtorCalendarOnly || item.href.endsWith('/calendar') || item.href.endsWith('/qrcode'));

@@ -1312,6 +1312,62 @@ export interface Database {
           }
         ];
       };
+      pro_crm_roles: {
+        Row: {
+          id: string;
+          owner_id: string | null;
+          slug: string;
+          name: string;
+          can_invoice: boolean;
+          is_system: boolean;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id?: string | null;
+          slug: string;
+          name: string;
+          can_invoice?: boolean;
+          is_system?: boolean;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string | null;
+          slug?: string;
+          name?: string;
+          can_invoice?: boolean;
+          is_system?: boolean;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "pro_crm_roles_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "users"; referencedColumns: ["id"] }
+        ];
+      };
+      pro_crm_contact_roles: {
+        Row: {
+          contact_id: string;
+          role_id: string;
+          created_at: string;
+        };
+        Insert: {
+          contact_id: string;
+          role_id: string;
+          created_at?: string;
+        };
+        Update: {
+          contact_id?: string;
+          role_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "pro_crm_contact_roles_contact_id_fkey"; columns: ["contact_id"]; referencedRelation: "pro_crm_customers"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_contact_roles_role_id_fkey"; columns: ["role_id"]; referencedRelation: "pro_crm_roles"; referencedColumns: ["id"] }
+        ];
+      };
       customer_places: {
         Row: {
           id: string;
@@ -2596,6 +2652,235 @@ export interface Database {
         };
         Relationships: [];
       };
+      pro_crm_services: {
+        Row: {
+          id: string;
+          owner_id: string;
+          display_id: string;
+          name: string;
+          category: string | null;
+          description: string | null;
+          unit: string;
+          price_type: string;
+          price_mode: 'flat' | 'unit' | 'range';
+          price_cents: number;
+          price_min_cents: number | null;
+          price_max_cents: number | null;
+          display_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          display_id?: string;
+          name: string;
+          category?: string | null;
+          description?: string | null;
+          unit?: string;
+          price_type?: string;
+          price_mode?: 'flat' | 'unit' | 'range';
+          price_cents?: number;
+          price_min_cents?: number | null;
+          price_max_cents?: number | null;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          display_id?: string;
+          name?: string;
+          category?: string | null;
+          description?: string | null;
+          unit?: string;
+          price_type?: string;
+          price_mode?: 'flat' | 'unit' | 'range';
+          price_cents?: number;
+          price_min_cents?: number | null;
+          price_max_cents?: number | null;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      pro_crm_service_images: {
+        Row: {
+          id: string;
+          service_id: string;
+          owner_id: string;
+          image_url: string;
+          storage_path: string | null;
+          sort_order: number;
+          is_thumbnail: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          service_id: string;
+          owner_id: string;
+          image_url: string;
+          storage_path?: string | null;
+          sort_order?: number;
+          is_thumbnail?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          service_id?: string;
+          owner_id?: string;
+          image_url?: string;
+          storage_path?: string | null;
+          sort_order?: number;
+          is_thumbnail?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      pro_crm_products: {
+        Row: {
+          id: string;
+          owner_id: string;
+          display_id: string;
+          name: string;
+          brand: string;
+          sku: string | null;
+          upc: string | null;
+          category: string | null;
+          description: string | null;
+          unit: string;
+          price_cents: number;
+          status: 'active' | 'draft';
+          display_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          display_id?: string;
+          name: string;
+          brand?: string;
+          sku?: string | null;
+          upc?: string | null;
+          category?: string | null;
+          description?: string | null;
+          unit?: string;
+          price_cents?: number;
+          status?: 'active' | 'draft';
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          display_id?: string;
+          name?: string;
+          brand?: string;
+          sku?: string | null;
+          upc?: string | null;
+          category?: string | null;
+          description?: string | null;
+          unit?: string;
+          price_cents?: number;
+          status?: 'active' | 'draft';
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      pro_crm_product_images: {
+        Row: {
+          id: string;
+          product_id: string;
+          owner_id: string;
+          image_url: string;
+          storage_path: string | null;
+          sort_order: number;
+          is_thumbnail: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          product_id: string;
+          owner_id: string;
+          image_url: string;
+          storage_path?: string | null;
+          sort_order?: number;
+          is_thumbnail?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          product_id?: string;
+          owner_id?: string;
+          image_url?: string;
+          storage_path?: string | null;
+          sort_order?: number;
+          is_thumbnail?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      pro_crm_product_specs: {
+        Row: {
+          id: string;
+          product_id: string;
+          owner_id: string;
+          name: string;
+          value: string;
+          sort_order: number;
+        };
+        Insert: {
+          id?: string;
+          product_id: string;
+          owner_id: string;
+          name: string;
+          value: string;
+          sort_order?: number;
+        };
+        Update: {
+          id?: string;
+          product_id?: string;
+          owner_id?: string;
+          name?: string;
+          value?: string;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
+      pro_crm_catalog_terms: {
+        Row: {
+          id: string;
+          owner_id: string;
+          kind: 'service_category' | 'product_category' | 'unit' | 'price_type' | 'spec_name';
+          label: string;
+          label_key: string;
+          price_mode: 'flat' | 'unit' | 'range' | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          kind: 'service_category' | 'product_category' | 'unit' | 'price_type' | 'spec_name';
+          label: string;
+          price_mode?: 'flat' | 'unit' | 'range' | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          kind?: 'service_category' | 'product_category' | 'unit' | 'price_type' | 'spec_name';
+          label?: string;
+          price_mode?: 'flat' | 'unit' | 'range' | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       pro_crm_tasks: {
         Row: {
           id: string;
@@ -2782,6 +3067,30 @@ export interface Database {
           image_id?: number;
           variant_id?: number;
           image_path?: string;
+        };
+        Relationships: [];
+      };
+      product_specs: {
+        Row: {
+          spec_id: number;
+          base_product_id: number;
+          spec_name: string;
+          spec_value: string;
+          sort_order: number;
+        };
+        Insert: {
+          spec_id?: number;
+          base_product_id: number;
+          spec_name: string;
+          spec_value: string;
+          sort_order?: number;
+        };
+        Update: {
+          spec_id?: number;
+          base_product_id?: number;
+          spec_name?: string;
+          spec_value?: string;
+          sort_order?: number;
         };
         Relationships: [];
       };

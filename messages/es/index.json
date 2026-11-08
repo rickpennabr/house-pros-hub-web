@@ -37,7 +37,8 @@
       "map": "Mapa",
       "bgToggle": "BG",
       "bgToggleRegular": "Fondo: normal",
-      "bgToggleDynamic": "Fondo: dinámico"
+      "bgToggleDynamic": "Fondo: dinámico",
+      "add": "Agregar"
     },
     "search": {
       "categories": "Buscar categorías...",
@@ -155,6 +156,7 @@
       "generalEstimate": "Estimado general",
       "service": "Servicio",
       "notAccepting": "Este profesional aún no acepta citas.",
+      "ownService": "No puedes reservar una cita con tu propio negocio.",
       "freeEstimateLink": "Pedir un estimado gratis",
       "appointmentNote": "Esto reserva un horario con este profesional. El estimado gratis de House Pros es otra solicitud.",
       "closedDay": "Cerrado este día.",
@@ -518,13 +520,15 @@
     "addCustomer": "Agregar un cliente",
     "crmDashboard": "Panel",
     "crmCalendar": "Calendario",
-    "crmCustomers": "Clientes",
+    "crmCustomers": "Contactos",
     "crmEstimates": "Presupuestos",
     "crmInvoices": "Facturas",
     "crmProjects": "Proyectos",
     "crmExpenses": "Gastos",
     "crmReports": "Informes",
     "crmItems": "Productos y servicios",
+    "crmServices": "Servicios",
+    "crmProducts": "Productos",
     "crmInvoiceSettings": "Configuración de facturas",
     "convertToInvoice": "Convertir a factura",
     "invoiceNumber": "Factura #",
@@ -597,7 +601,19 @@
     "messagingPro": "Mensaje a {name}",
     "crmJobsite": "Obra",
     "crmPortal": "Portal del cliente",
-    "crmQrcode": "Código QR"
+    "crmQrcode": "Código QR",
+    "proAdd": {
+      "title": "Agregar",
+      "crm": "CRM",
+      "customer": "Nuevo contacto",
+      "estimate": "Nuevo presupuesto",
+      "invoice": "Nueva factura",
+      "project": "Nuevo proyecto",
+      "expense": "Nuevo gasto",
+      "task": "Nueva tarea",
+      "service": "Nuevo servicio",
+      "product": "Nuevo producto"
+    }
   },
   "validation": {
     "firstName": {

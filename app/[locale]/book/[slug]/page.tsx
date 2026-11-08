@@ -20,7 +20,7 @@ export default function BookBySlugPage() {
   const slug = typeof params.slug === 'string' ? params.slug : '';
   const searchParams = useSearchParams();
   const initialServiceId = searchParams.get('service');
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const t = useTranslations('probot.booking');
   const [business, setBusiness] = useState<{
     id: string;
@@ -31,6 +31,8 @@ export default function BookBySlugPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bookingEnabled, setBookingEnabled] = useState(false);
+  const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
+  const [businessEmail, setBusinessEmail] = useState<string | null>(null);
   /** For guests: collect name/email before showing calendar */
   const [guestContact, setGuestContact] = useState<GuestContactData | null>(null);
   const [showBookingFlow, setShowBookingFlow] = useState(false);
@@ -59,6 +61,8 @@ export default function BookBySlugPage() {
             businessName?: string;
             logo?: string;
             contractorType?: string;
+            userId?: string;
+            email?: string;
           };
           bookingSettings?: { enabled?: boolean };
         };
@@ -69,6 +73,8 @@ export default function BookBySlugPage() {
           return;
         }
         setBookingEnabled(payload.bookingSettings?.enabled === true);
+        setOwnerUserId(b.userId ?? null);
+        setBusinessEmail(b.email?.trim().toLowerCase() || null);
         setBusiness({
           id: b.id,
           businessName: b.businessName,
@@ -94,6 +100,10 @@ export default function BookBySlugPage() {
     const email = guestForm.email.trim().toLowerCase();
     if (!firstName || !lastName || !email) {
       setError('Please enter your first name, last name, and email.');
+      return;
+    }
+    if (businessEmail && email === businessEmail) {
+      setError(t('ownService'));
       return;
     }
     setGuestContact({
@@ -158,6 +168,20 @@ export default function BookBySlugPage() {
       </div>
     </div>
   );
+
+  const signedInEmail = user?.email?.trim().toLowerCase() || '';
+  const ownsThisBusiness =
+    !!user &&
+    ((ownerUserId !== null && user.id === ownerUserId) ||
+      (businessEmail !== null && signedInEmail === businessEmail));
+
+  if (ownsThisBusiness) {
+    return (
+      <BookPageLayout>
+        <p className="text-sm text-gray-800">{t('ownService')}</p>
+      </BookPageLayout>
+    );
+  }
 
   if (!isAuthenticated && !showBookingFlow) {
     return (

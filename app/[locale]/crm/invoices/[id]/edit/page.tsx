@@ -85,7 +85,7 @@ export default function CRMEditInvoicePage() {
     if (!id) return;
     Promise.all([
       fetch(`/api/crm/invoices/${id}`, { credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/crm/customers?pageSize=500', { credentials: 'include' }).then((r) => r.json()),
+      fetch('/api/crm/customers?pageSize=500&billable=1', { credentials: 'include' }).then((r) => r.json()),
       fetch('/api/crm/items', { credentials: 'include' }).then((r) => r.json()),
     ])
       .then(([inv, cust, itemsRes]) => {

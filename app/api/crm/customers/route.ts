@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/types/supabase';
 import { hasRole } from '@/lib/utils/roles';
+import {
+  assignDefaultCustomerRole,
+  billableContactIds,
+  contactIdsForRole,
+  parseRoleIds,
+  replaceContactRoles,
+  rolesByContactId,
+} from '@/lib/crm/contact-role';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -23,7 +31,9 @@ const VALID_SORT = ['created_at', 'updated_at', 'display_id', 'last_name', 'firs
 
 /**
  * GET /api/crm/customers
- * List CRM customers for the authenticated contractor. Paginated, sortable, searchable.
+ * List contacts for the authenticated contractor. Paginated, sortable, searchable.
+ * `billable=1` keeps contacts that can receive an estimate or invoice.
+ * `role` keeps contacts that have that role slug.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -32,10 +42,12 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '25', 10)));
+    const pageSize = Math.min(500, Math.max(1, parseInt(searchParams.get('pageSize') || '25', 10)));
     const sortBy = (searchParams.get('sortBy') || 'created_at') as (typeof VALID_SORT)[number];
     const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc';
     const search = (searchParams.get('search') || '').trim();
+    const roleSlug = (searchParams.get('role') || '').trim().toLowerCase();
+    const billableOnly = searchParams.get('billable') === '1';
 
     const supabase = await createClient();
     const orderColumn = VALID_SORT.includes(sortBy) ? sortBy : 'created_at';
@@ -45,6 +57,20 @@ export async function GET(request: NextRequest) {
       .select('*', { count: 'exact' })
       .eq('owner_id', user.id)
       .order(orderColumn, { ascending: sortDir === 'asc' });
+
+    if (billableOnly || roleSlug) {
+      const billableIds = billableOnly ? await billableContactIds(supabase) : null;
+      const roleIds = roleSlug ? await contactIdsForRole(supabase, roleSlug) : null;
+      const filtered = (billableIds ?? roleIds ?? []).filter((id) => {
+        if (billableIds && !billableIds.includes(id)) return false;
+        if (roleIds && !roleIds.includes(id)) return false;
+        return true;
+      });
+      if (filtered.length === 0) {
+        return NextResponse.json({ customers: [], total: 0, page, pageSize });
+      }
+      query = query.in('id', filtered);
+    }
 
     if (search) {
       const safe = search.replace(/[%,"\\]/g, '').trim();
@@ -64,8 +90,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: fetchError.message || 'Failed to fetch customers' }, { status: 500 });
     }
 
+    const rows = customers ?? [];
+    const roles = await rolesByContactId(supabase, rows.map((row) => row.id));
     return NextResponse.json({
-      customers: customers ?? [],
+      customers: rows.map((row) => ({ ...row, roles: roles.get(row.id) ?? [] })),
       total: count ?? 0,
       page,
       pageSize,
@@ -140,9 +168,19 @@ export async function POST(request: NextRequest) {
       .select('id, display_id, created_at')
       .single();
 
-    if (error) {
-      return NextResponse.json({ error: error.message || 'Failed to create customer' }, { status: 500 });
+    if (error || !row) {
+      return NextResponse.json({ error: error?.message || 'Failed to create customer' }, { status: 500 });
     }
+
+    const roleIds = parseRoleIds(body);
+    const roleResult = roleIds
+      ? await replaceContactRoles(supabase, user.id, row.id, roleIds)
+      : await assignDefaultCustomerRole(supabase, row.id);
+    if (roleResult) {
+      await supabase.from('pro_crm_customers').delete().eq('id', row.id).eq('owner_id', user.id);
+      return NextResponse.json({ error: roleResult.error }, { status: roleResult.status });
+    }
+
     return NextResponse.json({ id: row.id, display_id: row.display_id, created_at: row.created_at }, { status: 201 });
   } catch (err) {
     console.error('POST /api/crm/customers', err);

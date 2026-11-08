@@ -23,6 +23,16 @@ export const proProductWriteSchema = z.object({
   product_type: z.string().trim().max(80),
   description: z.string().trim().max(4000),
   image_url: catalogImage.optional(),
+  specs: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(80),
+        value: z.string().trim().min(1).max(200),
+      })
+    )
+    .max(40)
+    .optional()
+    .default([]),
 });
 
 export const productVariantWriteSchema = z

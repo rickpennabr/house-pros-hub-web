@@ -76,6 +76,13 @@ export async function POST(request: NextRequest) {
     if (!business.bookingEnabled) {
       return NextResponse.json({ error: 'This pro is not accepting appointments' }, { status: 403 });
     }
+    const ownerEmail = business.email?.trim().toLowerCase() || '';
+    if (customerUserId === business.ownerId || (ownerEmail && customerEmail === ownerEmail)) {
+      return NextResponse.json(
+        { error: "You can't book an appointment with your own business." },
+        { status: 403 }
+      );
+    }
 
     const proEmail = business.email?.trim() || null;
     if (!proEmail) {

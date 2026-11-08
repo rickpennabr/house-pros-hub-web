@@ -7,6 +7,7 @@ export const CATALOG_SELECT = `
   product_type,
   product_note,
   image_url,
+  specs:product_specs(spec_name, spec_value, sort_order),
   created_at,
   updated_at,
   brand:brands(brand_name),
@@ -29,6 +30,12 @@ interface NamedRow {
   color_name?: string;
   thickness_mm?: string;
   thickness_in?: string;
+}
+
+interface SpecRow {
+  spec_name?: string | null;
+  spec_value?: string | null;
+  sort_order?: number | null;
 }
 
 interface ImageRow {
@@ -54,6 +61,7 @@ export interface CatalogProductRow {
   product_type?: string | null;
   product_note?: string | null;
   image_url?: string | null;
+  specs?: SpecRow[] | null;
   created_at?: string | null;
   updated_at?: string | null;
   brand?: NamedRow | NamedRow[] | null;
@@ -104,6 +112,11 @@ export function mapCatalogProduct(row: CatalogProductRow): ProProduct {
     description: row.product_note ?? '',
     image_url: images[0] ?? null,
     images,
+    specs: (row.specs ?? [])
+      .slice()
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map((spec) => ({ name: (spec.spec_name ?? '').trim(), value: (spec.spec_value ?? '').trim() }))
+      .filter((spec) => spec.name && spec.value),
     variants,
     published: true,
     created_at: row.created_at ?? '',
@@ -111,17 +124,50 @@ export function mapCatalogProduct(row: CatalogProductRow): ProProduct {
   };
 }
 
+const SPECS_EMBED = 'specs:product_specs(spec_name, spec_value, sort_order),';
+
+async function runCatalogQuery<T>(
+  run: (select: string) => PromiseLike<{ data: T; error: { message?: string } | null }>
+): Promise<{ data: T; error: { message?: string } | null }> {
+  const withSpecs = await run(CATALOG_SELECT);
+  if (withSpecs.error && /product_specs/i.test(withSpecs.error.message ?? '')) {
+    return run(CATALOG_SELECT.replace(SPECS_EMBED, ''));
+  }
+  return withSpecs;
+}
+
 export async function listCatalogProducts(service: SupabaseClient): Promise<ProProduct[]> {
-  const result = await service.from('base_products').select(CATALOG_SELECT).order('product_name');
+  const result = await runCatalogQuery((select) => service.from('base_products').select(select).order('product_name'));
   if (result.error) throw result.error;
-  return ((result.data ?? []) as CatalogProductRow[]).map(mapCatalogProduct);
+  return ((result.data ?? []) as unknown as CatalogProductRow[]).map(mapCatalogProduct);
 }
 
 export async function getCatalogProduct(service: SupabaseClient, id: number): Promise<ProProduct | null> {
-  const result = await service.from('base_products').select(CATALOG_SELECT).eq('base_product_id', id).maybeSingle();
+  const result = await runCatalogQuery((select) =>
+    service.from('base_products').select(select).eq('base_product_id', id).maybeSingle()
+  );
   if (result.error) throw result.error;
   if (!result.data) return null;
-  return mapCatalogProduct(result.data as CatalogProductRow);
+  return mapCatalogProduct(result.data as unknown as CatalogProductRow);
+}
+
+export async function replaceCatalogSpecs(
+  service: SupabaseClient,
+  productId: number,
+  specs: { name: string; value: string }[]
+): Promise<void> {
+  const deleted = await service.from('product_specs').delete().eq('base_product_id', productId);
+  if (deleted.error) throw deleted.error;
+  if (specs.length === 0) return;
+  const inserted = await service.from('product_specs').insert(
+    specs.map((spec, index) => ({
+      base_product_id: productId,
+      spec_name: spec.name,
+      spec_value: spec.value,
+      sort_order: index,
+    }))
+  );
+  if (inserted.error) throw inserted.error;
 }
 
 export async function resolveBrandId(service: SupabaseClient, name: string): Promise<number | null> {

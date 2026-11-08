@@ -29,6 +29,12 @@ interface VariantFormState {
   pcs_pallet: string;
 }
 
+interface SpecDraft {
+  key: string;
+  name: string;
+  value: string;
+}
+
 const emptyForm: ProductFormState = {
   name: '',
   brand: '',
@@ -103,6 +109,7 @@ export default function AdminProductsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductFormState>(emptyForm);
   const [variantForm, setVariantForm] = useState<VariantFormState>(emptyVariant);
+  const [specs, setSpecs] = useState<SpecDraft[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{ ids: string[]; label: string } | null>(null);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -150,6 +157,7 @@ export default function AdminProductsPage() {
     setEditingId(null);
     setForm(emptyForm);
     setVariantForm(emptyVariant);
+    setSpecs([]);
     setError(null);
     setEditorOpen(true);
   };
@@ -158,6 +166,7 @@ export default function AdminProductsPage() {
     setEditingId(product.id);
     setForm(productToForm(product));
     setVariantForm(emptyVariant);
+    setSpecs(product.specs.map((spec) => ({ key: crypto.randomUUID(), name: spec.name, value: spec.value })));
     setError(null);
     setEditorOpen(true);
   };
@@ -176,7 +185,12 @@ export default function AdminProductsPage() {
         method: editingId ? 'PATCH' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          specs: specs
+            .map((spec) => ({ name: spec.name.trim(), value: spec.value.trim() }))
+            .filter((spec) => spec.name && spec.value),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? 'Failed to save product');
@@ -297,7 +311,7 @@ export default function AdminProductsPage() {
       <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
         <div className="min-w-0">
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Products</h1>
-          <p className="mt-0.5 text-sm text-gray-500">House Pros catalog, including colors, sizes, and thicknesses.</p>
+          <p className="mt-0.5 text-sm text-gray-500">Any product type. Use specifications for facts that change by category. Paver colors and pallet counts stay under variations.</p>
         </div>
         <Button variant="primary" size="sm" className="hidden md:flex items-center gap-2 shrink-0" onClick={openCreate}>
           <Plus className="w-4 h-4" />
@@ -414,6 +428,7 @@ export default function AdminProductsPage() {
               <input
                 className={fieldClass}
                 value={form.product_type}
+                placeholder="Pavers, plants, lighting…"
                 onChange={(event) => setForm({ ...form, product_type: event.target.value })}
               />
             </label>
@@ -427,9 +442,42 @@ export default function AdminProductsPage() {
             />
           </label>
 
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Specifications</p>
+              <button
+                type="button"
+                className="text-sm font-bold"
+                onClick={() => setSpecs((current) => [...current, { key: crypto.randomUUID(), name: '', value: '' }])}
+              >
+                Add spec
+              </button>
+            </div>
+            <p className="text-xs text-gray-600">Thickness for pavers, sun exposure for plants, wattage for lights. Each product keeps only the facts it needs.</p>
+            {specs.map((spec) => (
+              <div key={spec.key} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                <input
+                  className={fieldClass}
+                  placeholder="Name"
+                  value={spec.name}
+                  onChange={(event) => setSpecs((current) => current.map((row) => (row.key === spec.key ? { ...row, name: event.target.value } : row)))}
+                />
+                <input
+                  className={fieldClass}
+                  placeholder="Value"
+                  value={spec.value}
+                  onChange={(event) => setSpecs((current) => current.map((row) => (row.key === spec.key ? { ...row, value: event.target.value } : row)))}
+                />
+                <button type="button" className="text-sm font-bold text-red-600" onClick={() => setSpecs((current) => current.filter((row) => row.key !== spec.key))}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+
           {editing ? (
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Variations</p>
+              <p className="text-sm font-semibold">Hardscape variations (optional)</p>
               {editing.variants.length === 0 ? <p className="text-sm text-gray-600">No variations yet.</p> : null}
               <ul className="max-h-40 space-y-1 overflow-y-auto">
                 {editing.variants.map((variant) => (

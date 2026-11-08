@@ -37,7 +37,8 @@
       "map": "Map",
       "bgToggle": "BG",
       "bgToggleRegular": "Background: regular",
-      "bgToggleDynamic": "Background: dynamic"
+      "bgToggleDynamic": "Background: dynamic",
+      "add": "Add"
     },
     "search": {
       "categories": "Search categories...",
@@ -155,6 +156,7 @@
       "generalEstimate": "General estimate",
       "service": "Service",
       "notAccepting": "This pro is not accepting appointments yet.",
+      "ownService": "You can't book an appointment with your own business.",
       "freeEstimateLink": "Request a free estimate",
       "appointmentNote": "This books a time with this pro. The free House Pros estimate is a separate request.",
       "closedDay": "Closed this day.",
@@ -518,13 +520,15 @@
     "addCustomer": "Add a customer",
     "crmDashboard": "Dashboard",
     "crmCalendar": "Calendar",
-    "crmCustomers": "Customers",
+    "crmCustomers": "Contacts",
     "crmEstimates": "Estimates",
     "crmInvoices": "Invoices",
     "crmProjects": "Projects",
     "crmExpenses": "Expenses",
     "crmReports": "Reports",
     "crmItems": "Products & Services",
+    "crmServices": "Services",
+    "crmProducts": "Products",
     "crmInvoiceSettings": "Invoice settings",
     "convertToInvoice": "Convert to invoice",
     "invoiceNumber": "Invoice #",
@@ -597,7 +601,19 @@
     "messagingPro": "Messaging {name}",
     "crmJobsite": "Jobsite",
     "crmPortal": "Customer portal",
-    "crmQrcode": "QR code"
+    "crmQrcode": "QR code",
+    "proAdd": {
+      "title": "Add",
+      "crm": "CRM",
+      "customer": "New contact",
+      "estimate": "New estimate",
+      "invoice": "New invoice",
+      "project": "New project",
+      "expense": "New expense",
+      "task": "New task",
+      "service": "New service",
+      "product": "New product"
+    }
   },
   "validation": {
     "firstName": {

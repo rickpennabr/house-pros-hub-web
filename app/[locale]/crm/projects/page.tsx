@@ -137,15 +137,15 @@ export default function CRMProjectsPage() {
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
   useEffect(() => {
-    const requestedCustomerId = searchParams.get('customerId');
-    if (!requestedCustomerId) return;
-    setViewMode('add');
+    if (searchParams.get('customerId') || searchParams.get('new') === '1') {
+      setViewMode('add');
+    }
   }, [searchParams]);
 
   useEffect(() => {
     if (viewMode === 'add' || viewMode === 'edit') {
       Promise.all([
-        fetch('/api/crm/customers?pageSize=500', { credentials: 'include' }).then((r) => r.json()),
+        fetch('/api/crm/customers?pageSize=500&billable=1', { credentials: 'include' }).then((r) => r.json()),
         fetch('/api/crm/estimates?pageSize=500', { credentials: 'include' }).then((r) => r.json()),
       ]).then(([cData, eData]) => {
         setCustomers(cData.customers ?? []);

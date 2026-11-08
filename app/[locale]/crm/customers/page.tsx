@@ -27,8 +27,12 @@ import { useWindowDimensions } from '@/hooks/useWindowDimensions';
 import CustomerCard from '@/components/crm/CustomerCard';
 import AddTaskModal from '@/components/crm/AddTaskModal';
 import CustomerQuickActionsBar from '@/components/crm/CustomerQuickActionsBar';
+import { ContactRolesField } from '@/components/crm/ContactRolesField';
+import type { CrmContactRole } from '@/lib/crm/contact-role';
 
-type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'];
+type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'] & {
+  roles?: CrmContactRole[];
+};
 
 const PAGE_SIZE = 25;
 const SORT_OPTIONS = [
@@ -84,14 +88,18 @@ const CUSTOMER_TABLE_COLUMNS: { key: keyof CRMCustomerRow; label: string; sortKe
   { key: 'updated_at', label: 'Updated', sortKey: 'updated_at' },
 ];
 
+const mappedCustomerColumns: AdminDataTableColumn<CRMCustomerRow>[] = CUSTOMER_TABLE_COLUMNS.map(({ key, label, sortKey }) => ({
+  id: key,
+  label: key === 'display_id' ? 'Contact ID' : label,
+  sortKey,
+  width: key === 'notes' ? 240 : 150,
+  wrap: key === 'notes',
+}));
+const displayNameColumnIndex = mappedCustomerColumns.findIndex((column) => column.id === 'display_name');
 const CUSTOMER_COLUMNS: AdminDataTableColumn<CRMCustomerRow>[] = [
-  ...CUSTOMER_TABLE_COLUMNS.map(({ key, label, sortKey }) => ({
-    id: key,
-    label,
-    sortKey,
-    width: key === 'notes' ? 240 : 150,
-    wrap: key === 'notes',
-  })),
+  ...mappedCustomerColumns.slice(0, displayNameColumnIndex + 1),
+  { id: 'roles', label: 'Roles', width: 220 },
+  ...mappedCustomerColumns.slice(displayNameColumnIndex + 1),
   { id: 'actions', label: 'Actions', resizable: false },
 ];
 
@@ -128,6 +136,9 @@ function customerMapAddress(row: CRMCustomerRow): string {
 }
 
 function customerSheetText(row: CRMCustomerRow, columnId: string): string {
+  if (columnId === 'roles') {
+    return (row.roles ?? []).map((role) => role.name).join(', ');
+  }
   if (columnId === 'created_at' || columnId === 'updated_at') {
     return formatDate(row[columnId]);
   }
@@ -178,6 +189,7 @@ export type CRMCustomerFormData = {
   paymentTerms: string;
   invoiceLanguage: 'en' | 'es';
   openingBalance: string;
+  roleIds?: string[];
 };
 
 const emptyForm: CRMCustomerFormData = {
@@ -231,6 +243,7 @@ function CustomerForm({
   onSuccess: () => void;
 }) {
   const [form, setForm] = useState<CRMCustomerFormData>({ ...emptyForm, ...initial });
+  const [roleIds, setRoleIds] = useState<string[]>(initial.roleIds ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shippingSearch, setShippingSearch] = useState('');
@@ -306,6 +319,7 @@ function CustomerForm({
             payment_terms: trim(form.paymentTerms) || null,
             invoice_language: form.invoiceLanguage,
             opening_balance: form.openingBalance === '' ? null : parseFloat(form.openingBalance) || 0,
+            role_ids: roleIds,
           }
         : {
             first_name: trim(form.firstName),
@@ -339,6 +353,7 @@ function CustomerForm({
             payment_terms: trim(form.paymentTerms) || null,
             invoice_language: form.invoiceLanguage,
             opening_balance: form.openingBalance === '' ? null : parseFloat(form.openingBalance) || 0,
+            role_ids: roleIds,
           };
       const res = await fetch(url, {
         method,
@@ -372,6 +387,7 @@ function CustomerForm({
         icon={<User className="w-5 h-5" />}
       >
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <ContactRolesField selectedIds={roleIds} onChange={setRoleIds} />
           {/* Row 1: First name, Last name, Company name */}
           <FormField label="First name" required>
             <Input ref={firstInputRef} value={form.firstName} onChange={(e) => update('firstName', e.target.value)} placeholder="First name" required />
@@ -383,7 +399,7 @@ function CustomerForm({
             <Input value={form.companyName} onChange={(e) => update('companyName', e.target.value)} placeholder="Company name" />
           </FormField>
           {/* Row 2: Customer display name, Phone, Mobile number */}
-          <FormField label="Customer display name" className="sm:col-span-2 md:col-span-1">
+          <FormField label="Display name" className="sm:col-span-2 md:col-span-1">
             <Input value={form.displayName} onChange={(e) => update('displayName', e.target.value)} placeholder="Name shown on forms" />
           </FormField>
           <FormField label="Phone">
@@ -609,7 +625,7 @@ function CustomerForm({
           Cancel
         </Button>
         <Button type="submit" variant="primary" size="sm" disabled={saving}>
-          {saving ? 'Saving…' : mode === 'add' ? 'New Customer' : 'Save changes'}
+          {saving ? 'Saving…' : mode === 'add' ? 'Create contact' : 'Save changes'}
         </Button>
       </div>
     </form>
@@ -632,6 +648,8 @@ export default function CRMCustomersPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [roleCatalog, setRoleCatalog] = useState<CrmContactRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefetching, setIsRefetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -639,11 +657,24 @@ export default function CRMCustomersPage() {
   const hasLoadedOnceRef = useRef(false);
 
   useEffect(() => {
-    if (!hasLoadedOnce) return;
+    if (!hasLoadedOnce || roleFilter) return;
     setCustomerCount?.(total);
-  }, [hasLoadedOnce, total, setCustomerCount]);
+  }, [hasLoadedOnce, total, setCustomerCount, roleFilter]);
 
   const [viewMode, setViewMode] = useState<ViewMode>('table');
+  useEffect(() => {
+    if (viewMode !== 'table') return;
+    let cancelled = false;
+    fetch('/api/crm/roles', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data: { roles?: CrmContactRole[] }) => {
+        if (!cancelled) setRoleCatalog(data.roles ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingInitial, setEditingInitial] = useState<(CRMCustomerFormData & { id?: string }) | null>(null);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
@@ -682,6 +713,7 @@ export default function CRMCustomersPage() {
       setError(null);
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sortBy, sortDir });
       if (search) params.set('search', search);
+      if (roleFilter) params.set('role', roleFilter);
       const res = await fetch(`/api/crm/customers?${params}`, { credentials: 'include' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -699,7 +731,7 @@ export default function CRMCustomersPage() {
       setIsLoading(false);
       setIsRefetching(false);
     }
-  }, [page, sortBy, sortDir, search]);
+  }, [page, sortBy, sortDir, search, roleFilter]);
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
@@ -761,6 +793,7 @@ export default function CRMCustomersPage() {
           paymentTerms: empty(data.payment_terms),
           invoiceLanguage: data.invoice_language === 'es' ? 'es' : 'en',
           openingBalance: num(data.opening_balance),
+          roleIds: Array.isArray(data.roles) ? data.roles.map((role: { id: string }) => role.id) : [],
         });
       })
       .catch(() => { if (!cancelled) setEditingInitial({ ...emptyForm, id: editingId }); });
@@ -849,16 +882,16 @@ export default function CRMCustomersPage() {
           <div className="max-md:hidden! md:flex md:flex-row md:items-center md:justify-between md:gap-4">
             <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-semibold text-gray-900 inline-flex items-center gap-2">
-                Customers
+                Contacts
                 <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border-2 border-black bg-white px-1 text-xs font-semibold text-black">
                   {total}
                 </span>
               </h1>
-              <p className="text-sm text-gray-500 mt-0.5">Manage your customer contacts.</p>
+              <p className="text-sm text-gray-500 mt-0.5">People and companies you work with. A contact can have more than one role.</p>
             </div>
             <Button variant="primary" size="sm" className="hidden md:flex items-center gap-2 shrink-0" onClick={() => setViewMode('add')}>
               <Plus className="w-4 h-4" />
-              New Customer
+              New contact
             </Button>
           </div>
         </>
@@ -889,7 +922,7 @@ export default function CRMCustomersPage() {
                 <ArrowLeft className="w-5 h-5 shrink-0" />
                 <span className="hidden md:inline">Back</span>
               </button>
-              <span className="text-lg md:text-xl font-semibold text-gray-900">New Customer</span>
+              <span className="text-lg md:text-xl font-semibold text-gray-900">New contact</span>
             </div>
           )}
           {viewMode === 'add' && (
@@ -917,6 +950,27 @@ export default function CRMCustomersPage() {
 
       {viewMode === 'table' && (
         <>
+          {roleCatalog.length > 0 && (
+            <div className="flex flex-wrap gap-2 pb-3">
+              <button
+                type="button"
+                onClick={() => { setRoleFilter(''); setPage(1); }}
+                className={`rounded-full border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${roleFilter === '' ? 'bg-black text-white' : 'bg-white text-black'}`}
+              >
+                All
+              </button>
+              {roleCatalog.map((role) => (
+                <button
+                  key={role.id}
+                  type="button"
+                  onClick={() => { setRoleFilter(role.slug); setPage(1); }}
+                  className={`rounded-full border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${roleFilter === role.slug ? 'bg-black text-white' : 'bg-white text-black'}`}
+                >
+                  {role.name}
+                </button>
+              ))}
+            </div>
+          )}
           {listView !== 'list' && (
           <CRMSearchField
             formRef={cardSearchRef}
@@ -953,7 +1007,7 @@ export default function CRMCustomersPage() {
               {isLoading && !hasLoadedOnce ? (
                 <div className="p-12 text-center text-gray-500 text-sm">Loading customers…</div>
               ) : customers.length === 0 ? (
-                <div className="py-12 text-center text-gray-500 text-sm">No customers found.</div>
+                <div className="py-12 text-center text-gray-500 text-sm">No contacts found.</div>
               ) : (
                 <div className="relative">
                   {isRefetching && (
@@ -1054,7 +1108,7 @@ export default function CRMCustomersPage() {
                 },
                 onEdit: (row) => { setEditingId(row.id); setViewMode('edit'); },
               }}
-              emptyMessage="No customers found."
+              emptyMessage="No contacts found."
               itemLabel="customers"
               primaryColumnId="display_name"
               tableLayoutMinWidth={960}
@@ -1311,7 +1365,7 @@ export default function CRMCustomersPage() {
           views={['card', 'list', 'map']}
           hideBackgroundToggle
           onAdd={() => setViewMode('add')}
-          addLabel="New customer"
+          addLabel="New contact"
         />
       )}
 

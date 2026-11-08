@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import ProCardGrid from '@/components/proscard/ProCardGrid';
 import ViewToggle, { ViewType } from '@/components/pageslayout/ViewToggle';
 import BusinessListMobileBottomBar from '@/components/pageslayout/BusinessListMobileBottomBar';
+import { isHubPro, ProAddModal } from '@/components/pageslayout/ProAddChooser';
+import { useAuth } from '@/contexts/AuthContext';
 import { useCategory } from '@/contexts/CategoryContext';
 import BotFloatingButton from '@/components/pageslayout/BotFloatingButton';
 import Pagination from '@/components/ui/Pagination';
@@ -34,6 +36,10 @@ export default function BusinessListClient({
   initialCity = '',
 }: BusinessListClientProps) {
   const t = useTranslations('businessList');
+  const tCommon = useTranslations('common');
+  const { isAuthenticated, roles } = useAuth();
+  const isPro = isAuthenticated && isHubPro(roles as readonly string[]);
+  const [addOpen, setAddOpen] = useState(false);
   const searchParams = useSearchParams();
   const category = sanitizeDirectoryCategory(searchParams.get('category')) || initialCategory || 'All';
   const city = sanitizeDirectoryCity(searchParams.get('city')) || initialCity;
@@ -134,11 +140,26 @@ export default function BusinessListClient({
         )}
       </div>
       {pageCards.length > 0 && isMobileSafe && (
-        <BusinessListMobileBottomBar currentView={view} onViewChange={setView} />
+        <BusinessListMobileBottomBar
+          currentView={view}
+          onViewChange={setView}
+          showProAdd={isPro}
+          addOpen={addOpen}
+          onAdd={() => setAddOpen(true)}
+          addLabel={tCommon('view.add')}
+        />
       )}
       {pageCards.length > 0 && !isMobileSafe && (
-        <ViewToggle currentView={view} onViewChange={setView} />
+        <ViewToggle
+          currentView={view}
+          onViewChange={setView}
+          onAdd={isPro ? () => setAddOpen(true) : undefined}
+          addLabel={tCommon('view.add')}
+          addOpen={addOpen}
+          showAddOnDesktop
+        />
       )}
+      {isPro && <ProAddModal isOpen={addOpen} onClose={() => setAddOpen(false)} />}
       {pageCards.length > 0 && <BotFloatingButton />}
     </>
   );

@@ -21,6 +21,10 @@ interface ViewToggleProps {
   /** Rightmost button in the bar, used for create actions. */
   onAdd?: () => void;
   addLabel?: string;
+  /** Plus turns into an X while the add chooser is open. */
+  addOpen?: boolean;
+  /** CRM list pages keep Add on the phone only. The directory shows it on desktop too. */
+  showAddOnDesktop?: boolean;
 }
 
 interface ViewOption {
@@ -43,6 +47,8 @@ export default function ViewToggle({
   hideBackgroundToggle = false,
   onAdd,
   addLabel = 'Add',
+  addOpen = false,
+  showAddOnDesktop = false,
 }: ViewToggleProps) {
   const t = useTranslations('common');
   const { mode, setMode } = useBackgroundMode();
@@ -116,14 +122,18 @@ export default function ViewToggle({
           type="button"
           onClick={onAdd}
           className={`
-            md:hidden flex items-center justify-center transition-all duration-200 cursor-pointer active:scale-95 shrink-0
+            ${showAddOnDesktop ? 'flex' : 'flex md:hidden'} items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 shrink-0
             rounded-lg border-2 border-white box-border text-white hover:bg-gray-800
             ${controlSize}
-            ${embedded ? '' : 'md:w-10 md:min-w-10'}
+            ${!embedded && showAddOnDesktop ? 'md:w-auto md:min-w-10 md:px-3' : ''}
           `}
           aria-label={addLabel}
+          aria-expanded={addOpen}
         >
-          <Plus className={iconSize} />
+          <Plus className={`${iconSize} transition-transform duration-200 ${addOpen ? 'rotate-45' : ''}`} />
+          {!embedded && showAddOnDesktop && (
+            <span className="hidden md:inline whitespace-nowrap tracking-wider">{addLabel}</span>
+          )}
         </button>
       )}
     </div>

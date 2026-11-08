@@ -37,7 +37,8 @@
       "map": "Mapa",
       "bgToggle": "BG",
       "bgToggleRegular": "Fundo: regular",
-      "bgToggleDynamic": "Fundo: dinâmico"
+      "bgToggleDynamic": "Fundo: dinâmico",
+      "add": "Adicionar"
     },
     "search": {
       "categories": "Buscar categorias...",
@@ -155,6 +156,7 @@
       "generalEstimate": "Orçamento geral",
       "service": "Serviço",
       "notAccepting": "Este profissional ainda não aceita horários.",
+      "ownService": "Você não pode agendar um horário com o seu próprio negócio.",
       "freeEstimateLink": "Pedir um orçamento grátis",
       "appointmentNote": "Isto marca um horário com este profissional. O orçamento grátis da House Pros é um pedido separado.",
       "closedDay": "Fechado neste dia.",
@@ -518,13 +520,15 @@
     "addCustomer": "Adicionar um cliente",
     "crmDashboard": "Painel",
     "crmCalendar": "Calendário",
-    "crmCustomers": "Clientes",
+    "crmCustomers": "Contatos",
     "crmEstimates": "Orçamentos",
     "crmInvoices": "Faturas",
     "crmProjects": "Projetos",
     "crmExpenses": "Despesas",
     "crmReports": "Relatórios",
     "crmItems": "Produtos e serviços",
+    "crmServices": "Serviços",
+    "crmProducts": "Produtos",
     "crmInvoiceSettings": "Configurações de fatura",
     "convertToInvoice": "Converter em fatura",
     "invoiceNumber": "Fatura #",
@@ -597,7 +601,19 @@
     "messagingPro": "A enviar mensagem a {name}",
     "crmJobsite": "Obra",
     "crmPortal": "Portal do cliente",
-    "crmQrcode": "QR code"
+    "crmQrcode": "QR code",
+    "proAdd": {
+      "title": "Adicionar",
+      "crm": "CRM",
+      "customer": "Novo contato",
+      "estimate": "Novo orçamento",
+      "invoice": "Nova fatura",
+      "project": "Novo projeto",
+      "expense": "Nova despesa",
+      "task": "Nova tarefa",
+      "service": "Novo serviço",
+      "product": "Novo produto"
+    }
   },
   "validation": {
     "firstName": {

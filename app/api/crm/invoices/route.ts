@@ -4,6 +4,7 @@ import { hasRole } from '@/lib/utils/roles';
 import { sanitizeCompanyDisplay } from '@/lib/invoices/companyDisplay';
 import { getNextInvoiceNumber } from '@/lib/crm/invoice-number';
 import { PRO_INVOICE_STATUSES, type ProInvoiceStatus } from '@/lib/crm/invoice-books';
+import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -182,6 +183,9 @@ export async function POST(request: NextRequest) {
       .single();
     if (!customer) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    }
+    if (!(await contactCanBeInvoiced(supabase, customerId))) {
+      return NextResponse.json({ error: 'This contact cannot be invoiced. Add a role that can be invoiced.' }, { status: 400 });
     }
 
     const invoiceNumber = await getNextInvoiceNumber(supabase, user.id);

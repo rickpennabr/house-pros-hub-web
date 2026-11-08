@@ -41,6 +41,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const rows = [
     { label: t('brand'), value: product.brand || '—' },
     { label: t('type'), value: product.product_type || '—' },
+    ...product.specs.map((spec) => ({ label: spec.name, value: spec.value })),
   ];
 
   return (

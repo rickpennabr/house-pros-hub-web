@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
+import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -110,6 +111,9 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: customer } = await supabase.from('pro_crm_customers').select('id').eq('id', customerId).eq('owner_id', user.id).single();
     if (!customer) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    if (!(await contactCanBeInvoiced(supabase, customerId))) {
+      return NextResponse.json({ error: 'This contact cannot be invoiced. Add a role that can be invoiced.' }, { status: 400 });
+    }
 
     const status = ['planned', 'in_progress', 'on_hold', 'completed', 'cancelled'].includes(body.status) ? body.status : 'planned';
     const estimateId = body.estimateId ?? body.estimate_id ?? null;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { getCatalogProduct, listCatalogProducts, resolveBrandId } from '@/lib/products/catalog';
+import { getCatalogProduct, listCatalogProducts, replaceCatalogSpecs, resolveBrandId } from '@/lib/products/catalog';
 import { proProductWriteSchema } from '@/lib/schemas/pro-products';
 import { isMissingProductsStorage, productsStorageError, requireProductsAdmin } from '@/lib/products/admin';
 
@@ -63,10 +63,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
     }
 
+    await replaceCatalogSpecs(service, inserted.data.base_product_id as number, parsed.data.specs);
     const product = await getCatalogProduct(service, inserted.data.base_product_id as number);
     return NextResponse.json({ product }, { status: 201 });
   } catch (error) {
     console.error('POST /api/admin/products', error);
+    const message = error instanceof Error ? error.message : (error as { message?: string })?.message ?? '';
+    if (/product_specs/i.test(message)) {
+      return NextResponse.json(
+        { error: 'Specifications are not ready. Apply supabase/migrations/102_product_specs.sql.' },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
   }
 }

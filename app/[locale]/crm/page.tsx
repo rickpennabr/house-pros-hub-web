@@ -445,7 +445,7 @@ export default function CRMPage() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {showCustomers && (
         <div className="rounded-lg border-2 border-black bg-white p-4">
-          <div className="flex items-center gap-2 text-gray-600"><Users className="h-4 w-4 text-red-600" /> Customers</div>
+          <div className="flex items-center gap-2 text-gray-600"><Users className="h-4 w-4 text-red-600" /> Contacts</div>
           <p className="mt-2 text-2xl font-semibold text-black">{data.customersTotal}</p>
         </div>
         )}

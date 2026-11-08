@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
+import { parseRoleIds, replaceContactRoles, rolesByContactId } from '@/lib/crm/contact-role';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -45,7 +46,8 @@ export async function GET(
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    return NextResponse.json(row);
+    const roles = await rolesByContactId(supabase, [row.id]);
+    return NextResponse.json({ ...row, roles: roles.get(row.id) ?? [] });
   } catch (err) {
     console.error('GET /api/crm/customers/[id]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -101,6 +103,12 @@ export async function PUT(
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message || 'Failed to update customer' }, { status: 500 });
+    }
+
+    const roleIds = parseRoleIds(body);
+    if (roleIds) {
+      const roleResult = await replaceContactRoles(supabase, user.id, id, roleIds);
+      if (roleResult) return NextResponse.json({ error: roleResult.error }, { status: roleResult.status });
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

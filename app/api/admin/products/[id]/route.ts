@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { getCatalogProduct, resolveBrandId } from '@/lib/products/catalog';
+import { getCatalogProduct, replaceCatalogSpecs, resolveBrandId } from '@/lib/products/catalog';
 import { proProductWriteSchema } from '@/lib/schemas/pro-products';
 import { isMissingProductsStorage, productsStorageError, requireProductsAdmin } from '@/lib/products/admin';
 
@@ -57,10 +57,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
     if (!updated.data?.length) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
 
+    await replaceCatalogSpecs(service, id, parsed.data.specs);
     const product = await getCatalogProduct(service, id);
     return NextResponse.json({ product });
   } catch (error) {
     console.error('PATCH /api/admin/products', error);
+    const message = error instanceof Error ? error.message : (error as { message?: string })?.message ?? '';
+    if (/product_specs/i.test(message)) {
+      return NextResponse.json(
+        { error: 'Specifications are not ready. Apply supabase/migrations/102_product_specs.sql.' },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: 'Failed to update product' }, { status: 500 });
   }
 }

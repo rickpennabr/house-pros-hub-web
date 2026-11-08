@@ -12,6 +12,11 @@ export interface ProductVariant {
   images: string[];
 }
 
+export interface ProductSpec {
+  name: string;
+  value: string;
+}
+
 export interface ProProduct {
   id: string;
   name: string;
@@ -21,6 +26,7 @@ export interface ProProduct {
   description: string;
   image_url: string | null;
   images: string[];
+  specs: ProductSpec[];
   variants: ProductVariant[];
   published: boolean;
   created_at: string;
