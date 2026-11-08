@@ -298,7 +298,9 @@ async function writeServiceImages(
     if (deleted.error) throw deleted.error;
   }
   const kept = new Set(images.map((image) => image.storage_path).filter((path): path is string => Boolean(path)));
-  return previousRows.map((row) => row.storage_path).filter((path): path is string => Boolean(path) && !kept.has(path));
+  return previousRows
+    .map((row) => row.storage_path)
+    .filter((path): path is string => typeof path === 'string' && path.length > 0 && !kept.has(path));
 }
 
 async function writeProductImages(
@@ -346,7 +348,9 @@ async function writeProductImages(
     if (deleted.error) throw deleted.error;
   }
   const kept = new Set(images.map((image) => image.storage_path).filter((path): path is string => Boolean(path)));
-  return previousRows.map((row) => row.storage_path).filter((path): path is string => Boolean(path) && !kept.has(path));
+  return previousRows
+    .map((row) => row.storage_path)
+    .filter((path): path is string => typeof path === 'string' && path.length > 0 && !kept.has(path));
 }
 
 async function writeProductSpecs(supabase: Db, ownerId: string, productId: string, specs: ProductWriteInput['specs']): Promise<void> {
