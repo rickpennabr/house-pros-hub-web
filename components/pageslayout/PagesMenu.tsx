@@ -52,7 +52,12 @@ function RepairCameraMark() {
         <rect x="2.5" y="13" width="75" height="48.5" rx="8" fill="none" stroke="currentColor" strokeWidth="3" />
         <path d="M27 13v-4c0-2 1.4-3.2 3.6-3.2h18.8c2.2 0 3.6 1.2 3.6 3.2V13" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
         <foreignObject x="0" y="3" width="80" height="61" mask={`url(#${maskId})`}>
-          <div xmlns="http://www.w3.org/1999/xhtml" className="repair-cam-lights" />
+          <div
+            className="repair-cam-lights"
+            ref={(node) => {
+              node?.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+            }}
+          />
         </foreignObject>
         <circle cx="40" cy="38" r="20" fill="none" stroke="currentColor" strokeWidth="2.8" />
         <circle cx="40" cy="38" r="15.4" fill="none" stroke="#ef4444" strokeWidth="2.3" />

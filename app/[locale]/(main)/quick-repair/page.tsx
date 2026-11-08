@@ -6,7 +6,6 @@ import { Camera, ImagePlus, HardDrive } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
-import { InstallAppButton } from '@/components/pwa/InstallAppButton';
 import { ProDrivePicker } from '@/components/drive/ProDrivePicker';
 import { ProDriveQuotaModal } from '@/components/drive/ProDriveQuotaModal';
 import { Button } from '@/components/ui/Button';
@@ -482,7 +481,6 @@ export default function QuickRepairPage() {
         </div>
       )}
       <div className="w-full px-2 py-2 md:px-4 md:py-4">
-      <InstallAppButton />
       {isLoading || !ready ? null : done ? (
         <p>{t('success')}</p>
       ) : (
