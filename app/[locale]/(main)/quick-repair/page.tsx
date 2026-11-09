@@ -515,17 +515,19 @@ export default function QuickRepairPage() {
               <h2 className="text-2xl font-bold md:text-lg">{t('uploadStepTitle')}</h2>
               <p className="text-base md:text-sm">{t('uploadStepBody')}</p>
               <PhotoGrid photos={photos} onRemove={removePhoto} removeLabel={t('remove')} />
-              <div className="flex w-full flex-nowrap gap-2">
-                <Button type="button" variant={photos.length === 0 ? 'primary' : 'secondary'} disabled={photos.length >= MAX_PHOTOS} className="max-md:flex-1 max-md:whitespace-nowrap max-md:px-2 max-md:text-lg" onClick={() => openQuickRepairCamera()}>
-                  <Camera className="w-4 h-4 inline mr-2" />
-                  {photos.length === 0 ? t('snap') : t('takeAnother')}
-                </Button>
-                <Button type="button" variant="secondary" disabled={photos.length >= MAX_PHOTOS} className="max-md:flex-1 max-md:whitespace-nowrap max-md:px-2 max-md:text-lg" onClick={() => inputRef.current?.click()}>
-                  <ImagePlus className="w-4 h-4 inline mr-2" />
-                  {t('uploadPhoto')}
-                </Button>
+              <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap">
+                <div className="flex w-full gap-2 md:contents">
+                  <Button type="button" variant={photos.length === 0 ? 'primary' : 'secondary'} disabled={photos.length >= MAX_PHOTOS} className="max-md:!inline-flex max-md:h-10 max-md:flex-1 max-md:items-center max-md:justify-center max-md:whitespace-nowrap max-md:px-2 max-md:!py-0 max-md:text-base" onClick={() => openQuickRepairCamera()}>
+                    <Camera className="w-4 h-4 inline mr-2" />
+                    {photos.length === 0 ? t('snap') : t('takeAnother')}
+                  </Button>
+                  <Button type="button" variant="secondary" disabled={photos.length >= MAX_PHOTOS} className="max-md:!inline-flex max-md:h-10 max-md:flex-1 max-md:items-center max-md:justify-center max-md:whitespace-nowrap max-md:px-2 max-md:!py-0 max-md:text-base" onClick={() => inputRef.current?.click()}>
+                    <ImagePlus className="w-4 h-4 inline mr-2" />
+                    {t('uploadPhoto')}
+                  </Button>
+                </div>
                 {user && (
-                  <Button type="button" variant="secondary" disabled={photos.length >= MAX_PHOTOS} onClick={() => setPickerOpen(true)}>
+                  <Button type="button" variant="secondary" disabled={photos.length >= MAX_PHOTOS} className="max-md:!inline-flex max-md:h-10 max-md:items-center max-md:justify-center max-md:self-start max-md:whitespace-nowrap max-md:px-3 max-md:!py-0 max-md:text-base" onClick={() => setPickerOpen(true)}>
                     <HardDrive className="w-4 h-4 inline mr-2" />
                     {t('drive')}
                   </Button>
@@ -539,7 +541,7 @@ export default function QuickRepairPage() {
                 className="hidden"
                 onChange={(event) => void onPickFiles(event.target.files)}
               />
-              <Button type="button" className="max-md:whitespace-nowrap max-md:px-2 max-md:text-lg" onClick={() => {
+              <Button type="button" className="max-md:!inline-flex max-md:h-10 max-md:items-center max-md:justify-center max-md:self-start max-md:whitespace-nowrap max-md:px-3 max-md:!py-0 max-md:text-base" onClick={() => {
                 void rememberPlace();
                 setStep('details');
               }}
