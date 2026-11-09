@@ -349,26 +349,6 @@ export default function EstimatePage() {
     }
   }, [accordionState, isOpen]);
 
-  // Show loading state while checking authentication
-  if (isLoading || !isAuthenticated) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 px-4">
-        <p className="text-gray-600">{tCommon('message.loading')}</p>
-        {loadingFallback && (
-          <p className="text-sm text-gray-500 text-center">
-            Taking a while?{' '}
-            <Link
-              href={createSignUpUrl(locale as 'en' | 'es', pathname)}
-              className="font-medium text-black underline hover:no-underline"
-            >
-              Sign in or sign up
-            </Link>
-          </p>
-        )}
-      </div>
-    );
-  }
-
   const handleRequestNewEstimate = useCallback(() => {
     setSuccessMessage('');
     setErrorMessage('');
@@ -397,6 +377,26 @@ export default function EstimatePage() {
         .catch(() => {});
     }
   }, [reset, isAuthenticated, user, isLoading, setValue]);
+
+  // Show loading state while checking authentication
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 px-4">
+        <p className="text-gray-600">{tCommon('message.loading')}</p>
+        {loadingFallback && (
+          <p className="text-sm text-gray-500 text-center">
+            Taking a while?{' '}
+            <Link
+              href={createSignUpUrl(locale as 'en' | 'es', pathname)}
+              className="font-medium text-black underline hover:no-underline"
+            >
+              Sign in or sign up
+            </Link>
+          </p>
+        )}
+      </div>
+    );
+  }
 
   const onSubmit = async (data: EstimateSchema) => {
     try {

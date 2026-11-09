@@ -2113,6 +2113,8 @@
     "submit": "Pedir reparo",
     "submitting": "Enviando…",
     "success": "Seu pedido de reparo foi enviado.",
+    "successThanks": "Muito obrigado,",
+    "successSoon": "Vamos cuidar do seu reparo em breve.",
     "remove": "Remover",
     "uploadFailed": "Não foi possível salvar a foto."
   },

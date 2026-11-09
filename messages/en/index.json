@@ -2113,6 +2113,8 @@
     "submit": "Request repair",
     "submitting": "Sending…",
     "success": "Your repair request was sent.",
+    "successThanks": "Thank you very much,",
+    "successSoon": "We will get to your repair soon.",
     "remove": "Remove",
     "uploadFailed": "Could not save the photo."
   },

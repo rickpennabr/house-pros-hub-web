@@ -98,6 +98,7 @@ export default function QuickRepairPage() {
   const located = useRef(false);
   const uploadedIds = useRef<Map<string, string>>(new Map());
   const finished = useRef(false);
+  const resumeSubmitRef = useRef(false);
   const photosRef = useRef(photos);
   photosRef.current = photos;
   const addFileRef = useRef<(file: File) => Promise<void>>(async () => undefined);
@@ -121,7 +122,19 @@ export default function QuickRepairPage() {
     void (async () => {
       try {
         const draft = await loadQuickRepairDraft();
-        if (cancelled || !draft || !draftHasWork(draft)) return;
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('step') === '3') resumeSubmitRef.current = true;
+        const resumeSubmit = resumeSubmitRef.current;
+        if (resumeSubmit && params.has('step')) {
+          params.delete('step');
+          const next = params.toString();
+          window.history.replaceState(null, '', `${window.location.pathname}${next ? `?${next}` : ''}`);
+        }
+        if (cancelled) return;
+        if (!draft || !draftHasWork(draft)) {
+          if (isAuthenticated && resumeSubmit) setStep('submit');
+          return;
+        }
         const keep = (value: string, fallback: string) => value || fallback;
         setFirstName((current) => keep(draft.firstName, current));
         setLastName((current) => keep(draft.lastName, current));
@@ -153,7 +166,7 @@ export default function QuickRepairPage() {
           });
         }
         const readyToSend = Boolean(draft.firstName && draft.lastName && draft.email && draft.phone && draft.streetAddress && draft.city && draft.state && draft.zipCode);
-        if (isAuthenticated && readyToSend) setStep('submit');
+        if (isAuthenticated && (readyToSend || resumeSubmit)) setStep('submit');
         else if (draft.trade || draft.description) setStep('details');
         else setStep('upload');
       } catch {
@@ -339,7 +352,7 @@ export default function QuickRepairPage() {
       return;
     }
     const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-    const returnUrl = `/${locale}/quick-repair`;
+    const returnUrl = `/${locale}/quick-repair?step=3`;
     document.cookie = `hph_oauth_flow=customer; Path=/; Max-Age=600; SameSite=Lax${secure}`;
     document.cookie = `hph_oauth_locale=${encodeURIComponent(locale)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
     document.cookie = `hph_oauth_next=${encodeURIComponent(returnUrl)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
@@ -443,19 +456,22 @@ export default function QuickRepairPage() {
   const progressRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    if (step !== 'details' || !ready) return;
-    if (window.matchMedia('(min-width: 768px)').matches) return;
+    if (!ready) return;
+    if (!done && step !== 'details' && step !== 'submit') return;
+    if (!done && window.matchMedia('(min-width: 768px)').matches) return;
     const bar = progressRef.current;
     if (!bar) return;
     scrollBarToScreenTop(bar);
-  }, [step, ready]);
+  }, [step, ready, done]);
 
   const stepIndex = STEPS.indexOf(step);
-  const returnPath = `/${locale}/quick-repair`;
+  const returnPath = `/${locale}/quick-repair?step=3`;
   const progress = done ? 100 : ((Math.max(stepIndex, 0) + 1) / STEPS.length) * 100;
 
+  const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+
   return (
-    <div className="w-full md:shrink-0">
+    <div className={`w-full md:shrink-0 ${done ? 'flex min-h-0 flex-1 flex-col' : ''}`}>
       <GoogleHandoffOverlay
         open={googleLoading}
         title={tHandoff('title')}
@@ -465,7 +481,7 @@ export default function QuickRepairPage() {
         <div
           ref={progressRef}
           className={`-mx-1 -mt-1 md:-mx-2 md:-mt-2 ${
-            step === 'details' ? 'max-md:sticky max-md:top-0 max-md:z-30 max-md:bg-white' : ''
+            step === 'details' || step === 'submit' ? 'max-md:sticky max-md:top-0 max-md:z-30 max-md:bg-white' : ''
           }`}
         >
           <div
@@ -480,27 +496,31 @@ export default function QuickRepairPage() {
           </div>
         </div>
       )}
-      <div className="w-full px-2 py-2 md:px-4 md:py-4">
+      <div className={`w-full px-2 py-2 md:px-4 md:py-4 ${done ? 'flex flex-1 flex-col' : ''}`}>
       {isLoading || !ready ? null : done ? (
-        <p>{t('success')}</p>
+        <RepairSentThanks
+          name={fullName}
+          thanks={t('successThanks')}
+          soon={t('successSoon')}
+        />
       ) : (
         <div className="mx-auto w-full max-w-xl space-y-[0.2rem] md:space-y-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-600">
+          <p className="text-sm font-medium uppercase tracking-wide text-gray-600 md:text-xs">
             {t('stepOf', { current: stepIndex + 1, total: STEPS.length })}
           </p>
           {sharedPhoto && <p className="text-sm font-medium">{t('sharedPhoto')}</p>}
 
           {step === 'upload' && (
             <section className="space-y-3">
-              <h2 className="text-lg font-bold">{t('uploadStepTitle')}</h2>
-              <p className="text-sm">{t('uploadStepBody')}</p>
+              <h2 className="text-2xl font-bold md:text-lg">{t('uploadStepTitle')}</h2>
+              <p className="text-base md:text-sm">{t('uploadStepBody')}</p>
               <PhotoGrid photos={photos} onRemove={removePhoto} removeLabel={t('remove')} />
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant={photos.length === 0 ? 'primary' : 'secondary'} disabled={photos.length >= MAX_PHOTOS} onClick={() => openQuickRepairCamera()}>
+              <div className="flex w-full flex-nowrap gap-2">
+                <Button type="button" variant={photos.length === 0 ? 'primary' : 'secondary'} disabled={photos.length >= MAX_PHOTOS} className="max-md:flex-1 max-md:whitespace-nowrap max-md:px-2 max-md:text-lg" onClick={() => openQuickRepairCamera()}>
                   <Camera className="w-4 h-4 inline mr-2" />
                   {photos.length === 0 ? t('snap') : t('takeAnother')}
                 </Button>
-                <Button type="button" variant="secondary" disabled={photos.length >= MAX_PHOTOS} onClick={() => inputRef.current?.click()}>
+                <Button type="button" variant="secondary" disabled={photos.length >= MAX_PHOTOS} className="max-md:flex-1 max-md:whitespace-nowrap max-md:px-2 max-md:text-lg" onClick={() => inputRef.current?.click()}>
                   <ImagePlus className="w-4 h-4 inline mr-2" />
                   {t('uploadPhoto')}
                 </Button>
@@ -519,7 +539,7 @@ export default function QuickRepairPage() {
                 className="hidden"
                 onChange={(event) => void onPickFiles(event.target.files)}
               />
-              <Button type="button" onClick={() => {
+              <Button type="button" className="max-md:whitespace-nowrap max-md:px-2 max-md:text-lg" onClick={() => {
                 void rememberPlace();
                 setStep('details');
               }}
@@ -659,6 +679,28 @@ async function previewFor(fileId: string): Promise<string | null> {
   if (!response.ok) return null;
   const body = (await response.json()) as { url?: string };
   return body.url ?? null;
+}
+
+function RepairSentThanks({ name, thanks, soon }: { name: string; thanks: string; soon: string }) {
+  const [src, setSrc] = useState('/pro-bot-solo.gif');
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center px-3 py-8 text-center" role="status">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        width={176}
+        height={176}
+        className="h-40 w-40 object-contain md:h-44 md:w-44"
+        onError={() => setSrc('/pro-bot-solo.png')}
+      />
+      <p className="mt-4 text-xl font-medium leading-snug text-black md:text-2xl">{thanks}</p>
+      {name ? <p className="mt-1 text-3xl font-bold leading-tight text-black md:text-4xl">{name}</p> : null}
+      <p className="mt-5 max-w-xs text-lg font-black uppercase leading-tight tracking-wide text-black md:max-w-sm md:text-xl">
+        {soon}
+      </p>
+    </div>
+  );
 }
 
 function PhotoGrid({ photos, onRemove, removeLabel }: { photos: LocalPhoto[]; onRemove: (key: string) => void; removeLabel: string }) {

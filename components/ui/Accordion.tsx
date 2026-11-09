@@ -47,9 +47,7 @@ export default function Accordion({
   const showRequiredMark = required && !isComplete && !error;
 
   return (
-    <div className={`border-2 rounded-lg bg-white overflow-hidden ${
-      showErrorState ? 'border-red-600' : 'border-black'
-    } ${className}`}>
+    <div className={`border-2 rounded-lg border-black bg-white overflow-hidden ${className}`}>
       <div
         className={`relative w-full transition-colors ${
           isOpen ? 'rounded-t-lg' : 'rounded-lg'
@@ -70,23 +68,25 @@ export default function Accordion({
                 {icon}
               </div>
             )}
-            <div className="flex items-center gap-x-2 gap-y-1 flex-1 min-w-0 flex-wrap">
-              <h2 className={`text-base md:text-lg font-bold overflow-hidden text-ellipsis whitespace-nowrap md:whitespace-normal md:overflow-visible ${useCompleteStyle ? 'text-white' : 'text-black'}`}>
-                {title}
-                {showRequiredMark && <span className="text-red-500 ml-1">*</span>}
-              </h2>
-              {showRequiredMark && tip && (
-                <span className="pointer-events-auto shrink-0">
-                  <TipModal message={tip} hoverOnly />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <h2 className={`inline-flex max-w-full min-w-0 items-center gap-2 text-base font-bold md:text-lg ${useCompleteStyle ? 'text-white' : 'text-black'}`}>
+                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap md:overflow-visible md:whitespace-normal">
+                  {title}
                 </span>
-              )}
+                {showRequiredMark && <span className="shrink-0 text-red-500">*</span>}
+                {showRequiredMark && tip && (
+                  <span className="pointer-events-auto shrink-0">
+                    <TipModal message={tip} hoverOnly />
+                  </span>
+                )}
+              </h2>
               {showErrorState && missingInfoMessage && (
-                <span className="ml-2 font-normal text-sm text-red-600 whitespace-nowrap flex-shrink-0">
+                <span className="font-normal text-sm text-red-600">
                   {missingInfoMessage}
                 </span>
               )}
               {error && (
-                <span className={`ml-2 font-normal text-xs ${useCompleteStyle ? 'text-white' : 'text-red-600'}`}>
+                <span className={`font-normal text-xs ${useCompleteStyle ? 'text-white' : 'text-red-600'}`}>
                   {error}
                 </span>
               )}

@@ -1864,6 +1864,8 @@
     "submit": "Pedir reparación",
     "submitting": "Enviando…",
     "success": "Tu solicitud de reparación fue enviada.",
+    "successThanks": "Muchas gracias,",
+    "successSoon": "Atenderemos tu reparación pronto.",
     "remove": "Quitar",
     "uploadFailed": "No se pudo guardar la foto."
   },
