@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useId, useLayoutEffect, useRef } from 'react';
+import { ReactNode, useLayoutEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -34,31 +34,13 @@ function scrollMenuToEnd(container: HTMLDivElement | null) {
   }
 }
 
-const cameraOutline =
-  'M27 13 V9 C27 7 28.4 5.8 30.6 5.8 H49.4 C51.6 5.8 53 7 53 9 V13 H69.5 A8 8 0 0 1 77.5 21 V53.5 A8 8 0 0 1 69.5 61.5 H10.5 A8 8 0 0 1 2.5 53.5 V21 A8 8 0 0 1 10.5 13 Z';
-
 /** Camera mark for Quick Repair. FIX sits inside the lens. */
 function RepairCameraMark() {
-  const maskId = useId().replace(/:/g, '');
   return (
-    <span className="relative block h-full w-full text-black">
-      <svg viewBox="0 3 80 61" className="h-full w-full" aria-hidden>
-        <defs>
-          <mask id={maskId} maskUnits="userSpaceOnUse">
-            <rect x="0" y="0" width="80" height="64" fill="black" />
-            <path d={cameraOutline} fill="none" stroke="white" strokeWidth="3.6" strokeLinejoin="round" />
-          </mask>
-        </defs>
+    <span className="relative block h-full w-full overflow-hidden text-black">
+      <svg viewBox="0 3 80 61" className="h-full w-full overflow-hidden" aria-hidden>
         <rect x="2.5" y="13" width="75" height="48.5" rx="8" fill="none" stroke="currentColor" strokeWidth="3" />
         <path d="M27 13v-4c0-2 1.4-3.2 3.6-3.2h18.8c2.2 0 3.6 1.2 3.6 3.2V13" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
-        <foreignObject x="0" y="3" width="80" height="61" mask={`url(#${maskId})`}>
-          <div
-            className="repair-cam-lights"
-            ref={(node) => {
-              node?.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
-            }}
-          />
-        </foreignObject>
         <circle cx="40" cy="38" r="20" fill="none" stroke="currentColor" strokeWidth="2.8" />
         <circle cx="40" cy="38" r="15.4" fill="none" stroke="#ef4444" strokeWidth="2.3" />
         <text
@@ -79,6 +61,9 @@ function RepairCameraMark() {
         <rect x="7.9" y="17.9" width="6.2" height="6.2" fill="#ffe14a" stroke="none" className="repair-cam-flash" />
         <rect x="7" y="17" width="8" height="8" fill="none" stroke="currentColor" strokeWidth="1.6" />
       </svg>
+      <span className="repair-cam-mask" aria-hidden>
+        <span className="repair-cam-lights" />
+      </span>
     </span>
   );
 }
