@@ -10,6 +10,7 @@
     "lint": "eslint",
     "type-check": "tsc --noEmit",
     "check": "npm run lint && npm run type-check",
+    "test": "tsx --test lib/**/*.test.ts",
     "analyze": "next build",
     "audit": "npm audit",
     "probot:check": "npx --yes tsx --test lib/chat/probot-eval.test.ts",
@@ -17,7 +18,6 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
-    "@react-google-maps/api": "^2.20.8",
     "@react-pdf/renderer": "^4.3.2",
     "@sentry/nextjs": "^10.32.1",
     "@supabase/ssr": "^0.8.0",
@@ -45,6 +45,7 @@
     "@next/bundle-analyzer": "16.4.5",
     "@tailwindcss/postcss": "^4",
     "@types/dompurify": "^3.0.5",
+    "@types/google.maps": "^3.66.10",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
@@ -53,6 +54,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

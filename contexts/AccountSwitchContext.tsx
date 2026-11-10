@@ -12,7 +12,6 @@ import {
   type ReactNode,
 } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { businessStorage } from '@/lib/storage/businessStorage';
 import type { ProCardData } from '@/components/proscard/ProCard';
 
 const STORAGE_KEY = 'hph-active-account';
@@ -57,22 +56,6 @@ function writeStoredAccountId(userId: string, accountId: string) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, accountId }));
 }
 
-function syncBusinessesToStorage(userId: string, list: OwnedBusiness[]) {
-  try {
-    const existing = businessStorage.getBusinessesByUserId(userId);
-    list.forEach((business) => {
-      const withUser = { ...business, userId };
-      if (!existing.some((item) => item.id === business.id)) {
-        businessStorage.addBusiness(withUser);
-      } else {
-        businessStorage.updateBusiness(business.id, withUser);
-      }
-    });
-  } catch (error) {
-    console.error('Error syncing businesses:', error);
-  }
-}
-
 export function AccountSwitchProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? '';
@@ -100,12 +83,8 @@ export function AccountSwitchProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const cached = businessStorage.getBusinessesByUserId(userId);
-    if (cached.length > 0) {
-      setBusinesses(cached.map((business) => ({ ...business, userId })));
-    }
-
     let cancelled = false;
+    setBusinesses((current) => current.filter((business) => business.userId === userId));
     setBusinessesLoading(true);
     fetch('/api/me/businesses/list', { credentials: 'include' })
       .then((res) => (res.ok ? res.json() : { businesses: [] }))
@@ -116,10 +95,10 @@ export function AccountSwitchProvider({ children }: { children: ReactNode }) {
           userId,
         }));
         setBusinesses(list);
-        syncBusinessesToStorage(userId, list);
       })
       .catch((error) => {
         console.error('Error loading accounts:', error);
+        if (!cancelled) setBusinesses([]);
       })
       .finally(() => {
         if (cancelled) return;

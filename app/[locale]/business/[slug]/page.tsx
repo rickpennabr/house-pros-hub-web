@@ -26,8 +26,6 @@ import { ImagePlus, Loader2, X } from 'lucide-react';
 
 type TabType = BusinessDetailsTab;
 
-import { getBusinessData } from '@/lib/mockData/mockBusinessData';
-import { businessStorage } from '@/lib/storage/businessStorage';
 import type { WeekSchedule } from '@/lib/booking/businessHours';
 
 interface OwnerProfile {
@@ -61,6 +59,7 @@ export default function BusinessDetailsPage() {
   const [ownerRoles, setOwnerRoles] = useState<string[]>([]);
   const [bookingSettings, setBookingSettings] = useState<BookingSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [bgSaving, setBgSaving] = useState(false);
   const bgInputRef = useRef<HTMLInputElement>(null);
   const heroContainerRef = useRef<HTMLDivElement>(null);
@@ -141,6 +140,7 @@ export default function BusinessDetailsPage() {
         let data: BusinessWithMeta | null = null;
         let ownerProfile: OwnerProfile | null = null;
         let rolesFromApi: string[] = [];
+        let failed = false;
 
         // Fetch from API with timeout so we don't hang indefinitely
         try {
@@ -174,38 +174,20 @@ export default function BusinessDetailsPage() {
                 console.error('Error fetching owner profile:', profileError);
               }
             }
+          } else if (response.status !== 404) {
+            failed = true;
           }
         } catch (apiError) {
+          failed = true;
           if ((apiError as Error)?.name === 'AbortError') {
-            console.warn('Business fetch timed out, trying fallbacks');
+            console.warn('Business fetch timed out');
           } else {
             console.error('Error fetching from API:', apiError);
           }
         }
         if (cancelled) return;
 
-        if (!data) {
-          data = businessStorage.getBusinessBySlug(slug);
-          if (data?.userId) {
-            try {
-              const supabase = createClient();
-              const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('first_name, last_name, user_picture, company_role')
-                .eq('id', data.userId)
-                .single();
-              if (!profileError && profile) ownerProfile = profile;
-            } catch (profileError) {
-              console.error('Error fetching owner profile:', profileError);
-            }
-          }
-        }
-        if (cancelled) return;
-
-        if (!data) {
-          data = await getBusinessData(slug);
-        }
-        if (cancelled) return;
+        setLoadError(data ? null : failed ? 'Could not load this business. Try again.' : null);
 
         if (data && ownerProfile) {
           const fullName =
@@ -233,6 +215,7 @@ export default function BusinessDetailsPage() {
         }
       } catch (error) {
         console.error('Error fetching business:', error);
+        if (!cancelled) setLoadError('Could not load this business. Try again.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -255,7 +238,7 @@ export default function BusinessDetailsPage() {
   if (!business) {
     return (
       <div className="w-full flex items-center justify-center min-h-[400px]">
-        <p className="text-black">Business not found</p>
+        <p className="text-black">{loadError ?? 'Business not found'}</p>
       </div>
     );
   }
@@ -283,7 +266,6 @@ export default function BusinessDetailsPage() {
       const result = await res.json();
       if (result?.business?.businessBackgroundPosition != null) {
         setBusiness((prev) => (prev ? { ...prev, businessBackgroundPosition: result.business.businessBackgroundPosition } : null));
-        businessStorage.updateBusiness(business.id, { businessBackgroundPosition: result.business.businessBackgroundPosition });
       } else {
         setBusiness((prev) => (prev ? { ...prev, businessBackgroundPosition: position } : null));
       }
@@ -332,10 +314,6 @@ export default function BusinessDetailsPage() {
       const result = await patchRes.json();
       if (result?.business) {
         setBusiness((prev) => (prev ? { ...prev, ...result.business } : result.business));
-        businessStorage.updateBusiness(business.id, {
-          businessBackground: result.business.businessBackground,
-          businessBackgroundPosition: '50% 50%',
-        });
       } else {
         setBusiness((prev) => (prev ? { ...prev, businessBackground: url } : null));
       }
@@ -369,10 +347,6 @@ export default function BusinessDetailsPage() {
       // Always clear background in state: JSON omits undefined so result.business may not have businessBackground,
       // and spreading would leave the old URL in state and the image would still show.
       setBusiness((prev) => (prev ? { ...prev, ...result?.business, businessBackground: '' } : null));
-      businessStorage.updateBusiness(business.id, {
-        businessBackground: '',
-        businessBackgroundPosition: '50% 50%',
-      });
       setSavedBgPosition('50% 50%');
       setIsAdjustMode(false);
     } catch (err) {
@@ -501,16 +475,9 @@ export default function BusinessDetailsPage() {
             contractorType={business.contractorType}
             logo={business.logo || business.businessLogo}
             businessId={business.id}
+            ownerUserId={business.userId}
             layout="around"
             gap="gap-1"
-            onReaction={() => {
-              // Refresh business data to get updated reactions
-              const allBusinesses = businessStorage.getAllBusinesses();
-              const updatedBusiness = allBusinesses.find((b) => b.id === business.id);
-              if (updatedBusiness) {
-                setBusiness(updatedBusiness);
-              }
-            }}
           />
         </div>
         {/* Divider: horizontal on mobile, vertical on desktop */}

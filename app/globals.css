@@ -74,21 +74,65 @@
   width: 160px;
   height: 160px;
   background: conic-gradient(
-    #000 0deg,
-    #fff 28deg,
-    #ffe14a 46deg,
-    #000 78deg,
-    #000 180deg,
-    #fff 208deg,
-    #ffe14a 226deg,
-    #000 258deg,
-    #000 360deg
+    #ffe14a 0deg,
+    #fff 8deg,
+    transparent 22deg,
+    transparent 158deg,
+    #fff 172deg,
+    #ffe14a 180deg,
+    #fff 188deg,
+    transparent 202deg,
+    transparent 338deg,
+    #fff 352deg,
+    #ffe14a 360deg
   );
   animation: repair-cam-lights-spin 6s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .repair-cam-lights {
+    animation: none;
+  }
+}
+
+/* Chat composer: same yellow light traveling the outline as the camera mark. */
+.chat-cam-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: 1rem;
+  padding: 2px;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+.chat-cam-lights {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 160%;
+  aspect-ratio: 1;
+  background: conic-gradient(
+    #ffe14a 0deg,
+    #fff 8deg,
+    transparent 22deg,
+    transparent 158deg,
+    #fff 172deg,
+    #ffe14a 180deg,
+    #fff 188deg,
+    transparent 202deg,
+    transparent 338deg,
+    #fff 352deg,
+    #ffe14a 360deg
+  );
+  animation: repair-cam-lights-spin 6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-cam-lights {
     animation: none;
   }
 }
@@ -744,6 +788,9 @@ textarea::placeholder {
   }
 }
 
+/* ─── ProBot sky (parked) ────────────────────────────────────────────────────── */
+/* Not painted while DAY_CYCLE_SKY_ENABLED is false in lib/constants/probot.ts. */
+/* Day → sunset → night → dawn. Flip that flag to restore this block.           */
 /* ─── ProBot sky: animatable CSS custom properties (@property) ───────────────── */
 /* These allow smooth color interpolation inside gradient stops.                  */
 @property --probot-sky-a {
@@ -949,17 +996,19 @@ textarea::placeholder {
     probot-clouds-move 28s ease-in-out infinite;
 }
 
-/* PC only: chat area is transparent so the layout sky + mountains show through.
- * Higher specificity so it wins over .probot-sky-bg; reset all background props. */
+/* Chat area never paints its own sky. The layout sky sits behind the card.
+ * A second 24-layer animation inside the card crashes mobile Safari when the
+ * card scales in. Higher specificity so this wins over .probot-sky-bg. */
+.probot-sky-bg.probot-chat-area-pc-transparent {
+  background: transparent !important;
+  background-image: none !important;
+  background-size: initial !important;
+  background-position: initial !important;
+  background-repeat: initial !important;
+  animation: none !important;
+}
+
 @media (min-width: 768px) {
-  .probot-sky-bg.probot-chat-area-pc-transparent {
-    background: transparent !important;
-    background-image: none !important;
-    background-size: initial !important;
-    background-position: initial !important;
-    background-repeat: initial !important;
-    animation: none !important;
-  }
   /* Content wrapper and scroll area must not block the background */
   .probot-page-content-pc-transparent {
     background: transparent !important;

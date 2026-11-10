@@ -192,6 +192,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
         contractorType={data.contractorType}
         logo={data.logo}
         businessId={data.id}
+        ownerUserId={(data as { userId?: string }).userId}
         onSignInRequired={!isAuthenticated ? showSignInRequired : undefined}
       />
       </div>

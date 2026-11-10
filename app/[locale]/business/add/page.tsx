@@ -6,8 +6,8 @@ import { useLocale, useTranslations } from 'next-intl';
 import { FormProvider } from 'react-hook-form';
 import type { FieldErrors } from 'react-hook-form';
 
-import { businessStorage } from '@/lib/storage/businessStorage';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { Settings, PlusCircle } from 'lucide-react';
@@ -38,6 +38,7 @@ export default function AddBusinessPage() {
   const t = useTranslations('accountManagement');
   const tBusinessForm = useTranslations('businessForm');
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { refreshBusinesses } = useAccountSwitch();
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [createdBusinessId, setCreatedBusinessId] = useState<string | null>(null);
 
@@ -144,12 +145,6 @@ export default function AddBusinessPage() {
           
           const csrfData = await csrfResponse.json();
           csrfToken = csrfData.csrfToken;
-          
-          console.log('[CLIENT] CSRF token received:', {
-            tokenLength: csrfToken.length,
-            tokenPrefix: csrfToken.substring(0, 10) + '...',
-            userId: user.id,
-          });
         } catch (csrfError) {
           console.error('[CLIENT] Error getting CSRF token:', csrfError);
           throw new Error('Failed to get security token. Please refresh the page and try again.');
@@ -210,8 +205,7 @@ export default function AddBusinessPage() {
         const result = await response.json();
         const business = result.business;
 
-        // Also save to localStorage for local access
-        businessStorage.addBusiness(business);
+        refreshBusinesses();
         setCreatedBusinessId(business?.id ?? null);
         setIsSuccessModalOpen(true);
       } catch (err) {

@@ -86,15 +86,6 @@ export default function AdminDashboardPage() {
           </Link>
         </div>
 
-        <div className="p-6 border-2 border-black rounded-lg bg-white">
-          <h2 className="text-xl font-semibold mb-2">Delete Business</h2>
-          <p className="text-gray-600 mb-4">
-            Delete businesses from local storage.
-          </p>
-          <Link href="/admin/delete-business" className="text-black underline hover:no-underline">
-            Go to Delete Business →
-          </Link>
-        </div>
       </div>
     </div>
   );

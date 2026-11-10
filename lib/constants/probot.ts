@@ -20,5 +20,14 @@ export const PROBOT_ASSETS = {
   visitorAvatar: '/house-pros-hub-logo-simble-bot.png',
 } as const;
 
+/**
+ * Day → sunset → night → dawn sky, Nevada mountains, and the bottom-bar
+ * background toggle. Parked. Flip to true to bring it back.
+ * Styles: app/globals.css (.probot-sky-bg, @keyframes probot-sky-colors).
+ * Mountains: components/probot/ProBotNevadaMountains.tsx
+ * Jets: components/probot/ProBotSkyJets.tsx
+ */
+export const DAY_CYCLE_SKY_ENABLED = false;
+
 /** ProBot chat area background. Use Tailwind classes for the main content area. */
-export const PROBOT_CHAT_BG = 'probot-sky-bg';
+export const PROBOT_CHAT_BG = DAY_CYCLE_SKY_ENABLED ? 'probot-sky-bg' : 'bg-white';

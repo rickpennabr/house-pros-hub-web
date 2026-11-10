@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
-import { businessStorage } from '@/lib/storage/businessStorage';
 import { savedBusinessStorage } from '@/lib/storage/savedBusinessStorage';
 import { ProCardData } from '@/components/proscard/ProCard';
 import ProCard from '@/components/proscard/ProCard';
@@ -16,17 +15,41 @@ export default function SavedBusinessesPage() {
   const t = useTranslations('savedBusinesses');
   const tAccount = useTranslations('accountManagement');
   const { user } = useAuth();
-  const [, setRefresh] = useState(0);
+  const [refresh, setRefresh] = useState(0);
+  const [savedBusinesses, setSavedBusinesses] = useState<ProCardData[]>([]);
+  const [loadingCards, setLoadingCards] = useState(true);
 
-  const savedBusinesses: ProCardData[] = (() => {
-    if (!user?.id) return [];
-
-    const savedBusinessIds = savedBusinessStorage.getSavedBusinessIds(user.id);
-    const allBusinesses = businessStorage.getAllBusinesses();
-
-    // Filter businesses that are saved by this user
-    return allBusinesses.filter((business) => savedBusinessIds.includes(business.id));
-  })();
+  useEffect(() => {
+    if (!user?.id) {
+      setSavedBusinesses([]);
+      setLoadingCards(false);
+      return;
+    }
+    let cancelled = false;
+    const ids = savedBusinessStorage.getSavedBusinessIds(user.id);
+    setLoadingCards(true);
+    Promise.all(
+      ids.map(async (id) => {
+        const res = await fetch(`/api/businesses/${id}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return (data.business ?? null) as ProCardData | null;
+      })
+    )
+      .then((cards) => {
+        if (cancelled) return;
+        setSavedBusinesses(cards.filter((card): card is ProCardData => Boolean(card)));
+      })
+      .catch(() => {
+        if (!cancelled) setSavedBusinesses([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCards(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, refresh]);
 
   const handleRemove = (businessId: string) => {
     if (user?.id && confirm(t('removeConfirm'))) {
@@ -75,7 +98,9 @@ export default function SavedBusinessesPage() {
         </div>
 
         {/* Business Cards Grid */}
-        {savedBusinesses.length > 0 ? (
+        {loadingCards ? (
+          <p className="text-gray-600">Loading…</p>
+        ) : savedBusinesses.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
             {savedBusinesses.map((business) => (
               <div key={business.id} className="relative group">

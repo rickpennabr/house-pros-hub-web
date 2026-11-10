@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { uploadProDriveFile, ProDriveQuotaClientError } from '@/lib/drive/upload-client';
 import type { DriveUsage } from '@/lib/drive/types';
 import type { CaptureLocation } from '@/lib/media/capture-location';
+import { jobLocationAllowed, setJobCameraAllowed } from '@/lib/media/job-camera-prefs';
 
 interface JobPhoto {
   id: string;
@@ -183,6 +184,9 @@ export default function JobsitePhotosPage() {
       ))}
       <ProCamCaptureSheet
         isOpen={sheetOpen}
+        autoStart
+        withLocation={jobLocationAllowed()}
+        onCameraReady={() => setJobCameraAllowed(true)}
         onClose={() => setSheetOpen(false)}
         showDrive={Boolean(businessId)}
         onPickDrive={() => {

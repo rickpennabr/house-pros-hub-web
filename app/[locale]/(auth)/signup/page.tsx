@@ -24,7 +24,7 @@ import { CustomerStep1 } from './components/steps/CustomerStep1';
 import { CustomerStep2 } from './components/steps/CustomerStep2';
 import { CustomerStep3 } from './components/steps/CustomerStep3';
 import { useAuth } from '@/contexts/AuthContext';
-import { businessStorage } from '@/lib/storage/businessStorage';
+import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
 import { useBeforeUnloadWarning } from './hooks/useBeforeUnloadWarning';
 import { LeavePageWarningModal } from './components/LeavePageWarningModal';
 import { FormProvider } from 'react-hook-form';
@@ -39,6 +39,7 @@ function SignUpForm() {
   const t = useTranslations('auth.signup');
   const tHandoff = useTranslations('auth.googleHandoff');
   const { user, checkAuth } = useAuth();
+  const { refreshBusinesses } = useAccountSwitch();
   
   // Get role from URL if coming from Free Estimate button
   const urlRole = searchParams.get('role') as 'customer' | 'contractor' | 'realtor' | 'installer' | null;
@@ -255,7 +256,7 @@ function SignUpForm() {
     const result = await response.json();
     const business = result.business;
 
-    businessStorage.addBusiness(business);
+    refreshBusinesses();
     handleBusinessFormClose();
     setBusinessSuccessMessage('Business created successfully!');
     // Store the business ID so we can pass it to the success message

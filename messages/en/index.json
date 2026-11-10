@@ -53,6 +53,7 @@
       "accountManagement": "Account Management",
       "proscrm": "ProsCRM",
       "probot": "ProBot",
+      "callTheHub": "Call the hub",
       "myPlaces": "My Places",
       "appointments": "Appointments",
       "settings": "Settings",
@@ -2071,6 +2072,7 @@
     "cameraWaiting": "Your browser is asking to use the camera.",
     "captureHint": "Take a photo of what broke.",
     "title": "Quick Repair",
+    "brandTitle": "Quick FIX",
     "stepOf": "Step {current} of {total}",
     "cameraStepTitle": "Allow the camera",
     "cameraStepBody": "Start with a photo of what broke. Allow the camera, then take the picture. You can skip this and upload a photo instead.",
@@ -2199,7 +2201,12 @@
     "noBusiness": "Add a business before saving job photos to ProDrive.",
     "back": "All jobs",
     "loadFailed": "Could not load job photos.",
-    "saveFailed": "Could not save the photo."
+    "saveFailed": "Could not save the photo.",
+    "pickJob": "Save this photo to a job",
+    "noJobs": "No jobs yet.",
+    "cameraSetting": "Camera",
+    "locationSetting": "Current location",
+    "permissionHint": "JOB photos open the camera. Turn on location to stamp where the photo was taken."
   },
   "places": {
     "title": "My Places",

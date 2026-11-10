@@ -1,119 +1,64 @@
 # Architecture & API Conventions
 
-This document describes the backend conventions used in this repo (Next.js App Router + Supabase).
+Next.js App Router app with Supabase. Postgres is the source of truth for businesses, CRM records, bookings, and files. The browser keeps only the active account id (`hph-active-account`), plus device-local reaction counts, saved-business ids, and partner links that do not have a server table yet.
 
-## Architecture Overview
+## Layout
 
-- **UI**: `app/[locale]/**` pages/components
-- **API**: `app/api/**` route handlers (JSON + multipart)
-- **Middleware**:
-  - Auth + CSRF for JSON state changes: `lib/middleware/auth.ts` (`requireAuth`)
-  - Role checks: `lib/middleware/requireRole.ts` (`requireRole`)
-  - Rate limiting: `lib/middleware/rateLimit.ts`
-- **Data**:
-  - Supabase Postgres (RLS): `profiles`, `user_roles`, `addresses`, `businesses`, `licenses`, `csrf_tokens`
-  - Supabase Storage buckets:
-    - `profile-pictures`
-    - `business-logos`
-    - `business-backgrounds`
+- **UI**: `app/[locale]/**` for the public site, CRM, booking, and ProBot. `app/admin/**` is the operator console.
+- **API**: `app/api/**` route handlers (JSON and multipart).
+- **Auth and CSRF**: `lib/middleware/auth.ts` (`requireAuth`) reads the JSON body and checks the session plus `X-CSRF-Token`. `lib/middleware/requireRole.ts` checks `user_roles`. `lib/middleware/rateLimit.ts` covers public and auth routes.
+- **Clients**:
+  - `createClient()` in `lib/supabase/server.ts` uses the cookie session and **enforces RLS**.
+  - `createServiceRoleClient()` bypasses RLS and stays on the server.
 
-## Supabase Clients (important)
+## Account roles vs CRM contact roles
 
-- **User-scoped server client**: `createClient()` from `lib/supabase/server.ts`
-  - Uses the user’s cookie session.
-  - **RLS enforced**.
-- **Service role server client**: `createServiceRoleClient()` from `lib/supabase/server.ts`
-  - **Bypasses RLS**.
-  - Must be used **server-side only**.
+`user_roles.role` is the account: `customer`, `contractor`, `realtor`, or `installer`. The installer account is the person who applies to ProJobs and keeps a ProResume. It is separate from CRM contact roles.
 
-## API security (auth by route)
+CRM contact roles live in `pro_crm_roles` and are labels on a pro's customers (customer, subcontractor, and any custom roles). Migration 104 removes the builtin contact slug `installer`. Until that migration is on the database, the customer UI still skips `slug !== 'installer'`. A contact who installs work is a subcontractor.
 
-- **Public** (no auth): `GET /api/businesses`, `GET /api/businesses/[id]`, `GET /api/health`, `POST /api/auth/login`, `POST /api/auth/signup`, `GET /api/auth/callback`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, `POST /api/estimate`, plus agent discovery (`/llms.txt`, `/api/openapi.json`, `/.well-known/mcp/server-card.json`, `/.well-known/api-catalog`). All are rate-limited where applicable.
-- **Agent** (Bearer key, no CSRF cookie): `GET /api/agent/v1/pros`, `GET /api/agent/v1/pros/[id]`, `GET /api/agent/v1/categories`, `POST /api/agent/v1/estimates`, `GET /api/agent/v1/estimates/[id]`, `POST /api/mcp`. Keys live in `agent_apps`. Estimate rows from this door set `source = agent`.
-- **Authenticated** (session required): `GET /api/csrf-token`, `GET /api/auth/me`, `GET /api/auth/is-admin`, `PUT /api/profile`, `DELETE /api/profile/delete`, `GET/POST/DELETE /api/profile/roles`, `GET/POST /api/addresses`, `GET/PUT/DELETE /api/addresses/[id]`, `POST /api/business/create`, `GET /api/business/check-slug`, `PUT/DELETE /api/businesses/[id]`. State-changing JSON routes use **CSRF** (token from `GET /api/csrf-token`, sent as `X-CSRF-Token`).
-- **Upload routes** (auth inside handler, no CSRF): `POST /api/storage/upload-profile-picture`, `upload-business-logo`, `upload-business-background`, `upload-estimate-image`.
-- **Admin only** (`ADMIN_EMAIL`): `GET/POST/PUT/DELETE /api/admin/customers`, `GET/POST/DELETE /api/admin/agent-apps`, `GET/DELETE /api/storage/list`, `DELETE /api/storage/delete`.
-- **Webhook** (signature or API key): `POST /api/webhooks/email`.
+## Businesses
 
-## API Route Types
+`businesses` plus `addresses` are the business record. Reads and writes go through `/api/businesses`, `/api/business/create`, and `/api/me/businesses/list`. Do not mirror a business into `localStorage`. A failed profile load shows an error, not a cached card.
 
-### JSON routes (default)
+Image replacement stays upload, then update the row, then best-effort delete the old object. Buckets include `profile-pictures`, `business-logos`, and `business-backgrounds`.
 
-- Use `Content-Type: application/json`.
-- Wrap state-changing routes with `requireAuth` or `requireRole`.
-- Handlers should read the parsed body from `request._body` when present (middleware caches body).
+## Two product catalogs
 
-Examples:
-- `PUT /api/profile`
-- `POST /api/profile/roles`
-- `POST /api/addresses`
-- `POST /api/business/create`
+These are different databases and stay separate:
 
-### Multipart (file upload) routes
+- **Public paver catalog** (`lib/products`): brands, variants, and specs shown on Pro Products. Admin edits go through `/api/admin/products`.
+- **Pro sellable catalog** (`lib/crm/catalog-db.ts`): the services and products a contractor puts on estimates and invoices. Routes live under `/api/crm/services`, `/api/crm/products`, and `/api/crm/items`.
 
-- Use `request.formData()` in the handler.
-- Do **not** use `requireAuth` (it reads JSON body). Instead, authenticate inside the route via `supabase.auth.getUser()`.
-- Validate:
-  - **file size** (early)
-  - **magic bytes** (content validation)
-  - ownership checks for business assets
+## CRM
 
-Examples:
-- `POST /api/storage/upload-profile-picture`
-- `POST /api/storage/upload-business-logo`
-- `POST /api/storage/upload-business-background`
+Contractor CRM is `/[locale]/crm/**` and `/api/crm/**`. Lists for projects, expenses, and invoices share `hooks/useCrmListQuery.ts` (page, sort, debounced search). Customers and estimates keep their own screens because of the map and the document form.
 
-## CSRF
+Invoice create and edit share `components/invoices/InvoiceEditor.tsx`. Each page still loads and saves on its own: create POSTs `/api/crm/invoices`, edit PATCHes `/api/crm/invoices/[id]`.
 
-JSON state-changing operations are protected by CSRF:
-- Client fetches token from `GET /api/csrf-token`.
-- Client includes token in header `X-CSRF-Token`.
-- Middleware validates token in `lib/middleware/csrf.ts`.
+## Booking
 
-Upload routes currently do not use CSRF (multipart); keep them protected by auth + ownership checks.
+Public booking is `/book/[slug]` and `/api/booking`. Customers manage a visit at `/appointments/[token]`. Pros manage the same visits from the CRM calendar and `/api/crm/bookings`. Slot rules live in `lib/booking`.
 
-## Error Contract
+## ProDrive and billing
 
-Prefer returning errors via `lib/utils/errorHandler.ts` (`handleError`, `withErrorHandler`) and structured `logger`.
+ProDrive files and folders are `/api/prodrive/**` with quota checks in `lib/drive`. Stripe subscriptions and drive overage are `/api/billing/**` and `/api/stripe/webhook`. Usage reporting is the cron route `/api/cron/report-prodrive-usage`.
 
-Common patterns:
-- **401**: `{ error: 'Authentication required' }`
-- **403**: `{ error: 'Insufficient permissions', message?: string }`
-- **400 validation**: `{ error: 'Validation failed', details?: unknown }`
-- **500**: consistent `handleError` output
+## API security (by door)
 
-## RBAC
+- **Public**: `GET /api/businesses`, `GET /api/businesses/[id]`, `GET /api/health`, auth login/signup/callback/password routes, `POST /api/estimate`, and agent discovery (`/llms.txt`, `/api/openapi.json`, `/.well-known/mcp/server-card.json`, `/.well-known/api-catalog`). Rate-limit these.
+- **Agent** (Bearer key, no CSRF cookie): `/api/agent/v1/pros`, `/api/agent/v1/categories`, `/api/agent/v1/estimates`, `POST /api/mcp`. Keys live in `agent_apps`. Estimates from this door set `source = agent`.
+- **Session + CSRF** for JSON mutations: profile, addresses, business create/update/delete, and the same pattern on newer JSON routes that call `requireAuth`.
+- **Uploads**: authenticate inside the handler. Do not wrap them in `requireAuth`, because that middleware reads a JSON body. Check file size, magic bytes, and ownership.
+- **Admin** (`ADMIN_EMAIL`): `/api/admin/**`.
+- **Webhooks**: `POST /api/webhooks/email` and `POST /api/stripe/webhook` verify a signature or API key.
 
-Roles are stored in `user_roles` (`customer`, `contractor`).
+## Errors and types
 
-- Use `requireRole(['contractor'], ...)` for contractor-only routes.
-- Signup assigns roles server-side in `POST /api/auth/signup`.
-- Roles can be managed via `/api/profile/roles`.
+Prefer `lib/utils/errorHandler.ts` (`handleError`, `withErrorHandler`) and `lib/utils/logger.ts` on the server. Route `error.tsx` files and `components/ErrorBoundary.tsx` report exceptions through `lib/monitoring/sentry.ts`.
 
-## Image Storage & Replacement (safe flow)
+`lib/types/supabase.ts` is the database type the app compiles against. It is still maintained by hand. Generating it from the linked production project (`pnwsavbxhbwhwyefccih`) succeeds, but that schema is behind this repo: the generated `pro_estimate_bookings` row has no `visit_street`, and `businesses` has no `images`. Swapping the file in fails `tsc` across CRM and booking. Regenerate only after those migrations are on the linked project, then keep the row aliases at the bottom of the file (`Profile`, `Business`, `ProCrmInvoice`, and the rest).
 
-**Safe swap lifecycle**:
-1. Upload new image to storage (upload endpoints return `url`)
-2. Update the owning record in Postgres to point at the new URL
-3. Best-effort delete the old image URL from storage
-
-Where deletion happens:
-- Profile images: `PUT /api/profile` deletes old image after DB update succeeds
-- Business images: `PUT /api/businesses/[id]` deletes old image after DB update succeeds
-
-## Addresses: Source of Truth
-
-The `addresses` table is the source of truth for addresses.
-
-Endpoints:
-- `GET /api/addresses?type=personal|business`
-- `POST /api/addresses`
-- `PUT /api/addresses/[id]`
-- `DELETE /api/addresses/[id]`
-
-Backfill migration:
-- `supabase/migrations/006_backfill_personal_addresses_from_profiles.sql`
-
-Legacy profile address fields may exist for backwards compatibility, but new writes should go through the `addresses` API.
-
-
+```bash
+npx supabase gen types --lang typescript --schema public --remote=<project-id>
+```

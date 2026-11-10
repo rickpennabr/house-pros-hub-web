@@ -78,28 +78,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { email, password, firstName, lastName, phone, referral, referralOther, streetAddress, apartment, city, state, zipCode, gateCode, addressNote, companyName, companyRole, userPicture, userType, invitationCode } = body;
-    
-    // Log received data (without password) for debugging
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Signup API] Received data:', { 
-        email, 
-        firstName, 
-        lastName, 
-        hasPhone: !!phone, 
-        phone: phone ? '***' : null,
-        hasReferral: !!referral, 
-        referral,
-        referralOther: referralOther ? '***' : null,
-        hasAddress: !!(streetAddress || city || state || zipCode),
-        streetAddress: streetAddress ? '***' : null,
-        city,
-        state,
-        zipCode,
-        hasUserPicture: !!userPicture,
-        userType
-      });
-    }
-    
+
     // Trim and normalize all string fields (convert empty strings to null)
     const normalizeString = (value: string | undefined | null): string | null => {
       if (!value || typeof value !== 'string') return null;
@@ -260,22 +239,15 @@ export async function POST(request: NextRequest) {
       user_picture: profilePictureUrl || null,
     };
 
-    // Log profile data before database operation
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Signup API] Profile data to save:', JSON.stringify(profileData, null, 2));
-    }
-
     // Use upsert to handle case where trigger already created basic profile
     // This ensures all fields are properly set even if they're null
     // The trigger runs AFTER INSERT, so there may be a race condition
     // Using upsert with onConflict ensures we update if the profile exists, or insert if it doesn't
-    const { data: upsertedProfile, error: profileError } = await serviceRoleClient
+    const { error: profileError } = await serviceRoleClient
       .from('profiles')
       .upsert(profileData, {
         onConflict: 'id',
-      })
-      .select()
-      .single();
+      });
 
     if (profileError) {
       console.error('[Signup API] Profile save error:', {
@@ -290,14 +262,6 @@ export async function POST(request: NextRequest) {
         console.error('[Signup API] Profile data that failed:', JSON.stringify(profileData, null, 2));
       }
       // Don't fail - profile can be updated later, but log the error
-    } else {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Signup API] Profile saved successfully:', {
-          id: upsertedProfile?.id,
-          phone: upsertedProfile?.phone ? '***' : null,
-          referral: upsertedProfile?.referral,
-        });
-      }
     }
 
     // Save address to addresses table if address fields are provided
@@ -337,10 +301,6 @@ export async function POST(request: NextRequest) {
           hint: addressError.hint,
         });
         // Don't fail signup if address save fails - user can add address later
-      } else {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[Signup API] Address saved successfully');
-        }
       }
     }
 

@@ -53,6 +53,7 @@
       "accountManagement": "Gestión de Cuenta",
       "proscrm": "ProsCRM",
       "probot": "ProBot",
+      "callTheHub": "Llamar al Hub",
       "myPlaces": "Mis lugares",
       "appointments": "Citas",
       "settings": "Configuración",
@@ -1822,6 +1823,7 @@
     "cameraWaiting": "El navegador está pidiendo usar la cámara.",
     "captureHint": "Toma una foto de lo que se rompió.",
     "title": "Reparación rápida",
+    "brandTitle": "Quick FIX",
     "stepOf": "Paso {current} de {total}",
     "cameraStepTitle": "Permite la cámara",
     "cameraStepBody": "Empieza con una foto de lo que se rompió. Permite la cámara y toma la foto. Puedes saltar este paso y subir una foto.",
@@ -1950,7 +1952,12 @@
     "noBusiness": "Agrega un negocio antes de guardar fotos de la obra en ProDrive.",
     "back": "Todas las obras",
     "loadFailed": "No se pudieron cargar las fotos.",
-    "saveFailed": "No se pudo guardar la foto."
+    "saveFailed": "No se pudo guardar la foto.",
+    "pickJob": "Guardar esta foto en una obra",
+    "noJobs": "Todavía no hay obras.",
+    "cameraSetting": "Cámara",
+    "locationSetting": "Ubicación actual",
+    "permissionHint": "Las fotos JOB abren la cámara. Activa la ubicación para marcar dónde se tomó la foto."
   },
   "places": {
     "title": "Mis lugares",

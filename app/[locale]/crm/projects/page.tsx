@@ -1,20 +1,20 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
-import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
+import { CrmRowActionsButton, CrmRowActionsPortal, useCrmRowActions } from '@/components/crm/CrmRowActionsMenu';
+import { CRM_LIST_PAGE_SIZE, useCrmListQuery } from '@/hooks/useCrmListQuery';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import Modal from '@/components/ui/Modal';
 
-const PAGE_SIZE = 25;
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Created' },
   { value: 'name', label: 'Name' },
@@ -74,20 +74,32 @@ type ViewMode = 'table' | 'add' | 'edit';
 export default function CRMProjectsPage() {
   const searchParams = useSearchParams();
   const locale = useLocale();
-  const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<SortKey>('created_at');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [statusFilter, setStatusFilter] = useState('');
   const crmChrome = useCRMChrome();
-  const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const searchDebounceRef = useRef<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const hasLoadedOnceRef = useRef(false);
+  const {
+    rows: projects,
+    total,
+    page,
+    setPage,
+    sortBy,
+    sortDir,
+    searchInput,
+    isLoading,
+    error,
+    setError,
+    hasLoadedOnce,
+    reload: fetchProjects,
+    handleSort,
+    handleSearchInput,
+    handleSearchSubmit,
+  } = useCrmListQuery<ProjectRow>({
+    endpoint: '/api/crm/projects',
+    rowsKey: 'projects',
+    defaultSort: 'created_at',
+    extraParams: { status: statusFilter },
+    loadError: 'Failed to load projects',
+  });
+  const rowActions = useCrmRowActions();
 
   const [customers, setCustomers] = useState<{ id: string; first_name: string; last_name: string }[]>([]);
   const [estimates, setEstimates] = useState<{ id: string; customer_id: string; amount_cents: number }[]>([]);
@@ -105,36 +117,7 @@ export default function CRMProjectsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string } | null>(null);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [openActionsId, setOpenActionsId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
-  const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
   const prefillsAppliedRef = useRef(false);
-
-  const fetchProjects = useCallback(async () => {
-    const isFirst = !hasLoadedOnceRef.current;
-    try {
-      if (isFirst) setIsLoading(true);
-      setError(null);
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sortBy, sortDir });
-      if (search) params.set('search', search);
-      if (statusFilter) params.set('status', statusFilter);
-      const res = await fetch(`/api/crm/projects?${params}`, { credentials: 'include' });
-      if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || `HTTP ${res.status}`); }
-      const data = await res.json();
-      setProjects(data.projects ?? []);
-      setTotal(data.total ?? 0);
-      hasLoadedOnceRef.current = true;
-      setHasLoadedOnce(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load projects');
-      if (isFirst) { setProjects([]); setTotal(0); }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, sortBy, sortDir, statusFilter, search]);
-
-  useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
   useEffect(() => {
     if (searchParams.get('customerId') || searchParams.get('new') === '1') {
@@ -184,34 +167,6 @@ export default function CRMProjectsPage() {
     return () => { cancelled = true; };
   }, [viewMode, editingId]);
 
-  useEffect(() => {
-    if (!openActionsId) return;
-    const close = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (!actionsMenuRef.current?.contains(target) && !actionsButtonRef.current?.contains(target)) { setOpenActionsId(null); setMenuPosition(null); }
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [openActionsId]);
-
-  const handleSort = (key: SortKey, dir: 'asc' | 'desc') => { setSortBy(key); setSortDir(dir); setPage(1); };
-  const handleSearchInput = (value: string) => {
-    setSearchInput(value);
-    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = window.setTimeout(() => {
-      setSearch(value.trim());
-      setPage(1);
-    }, 200);
-  };
-  const handleSearchSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
-    setSearch(searchInput.trim());
-    setPage(1);
-  };
-  useEffect(() => () => {
-    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
-  }, []);
   const handleDelete = async (id: string) => {
     setDeleting(true);
     setError(null);
@@ -341,7 +296,7 @@ export default function CRMProjectsPage() {
             data={projects}
             total={total}
             page={page}
-            pageSize={PAGE_SIZE}
+            pageSize={CRM_LIST_PAGE_SIZE}
             onPageChange={setPage}
             sortBy={sortBy}
             sortDir={sortDir}
@@ -362,15 +317,7 @@ export default function CRMProjectsPage() {
             renderCell={(row, columnId) => projectCellText(row, columnId) || '—'}
             onRowClick={(row) => { setEditingId(row.id); setViewMode('edit'); }}
             renderActions={(row) => (
-              <button
-                ref={openActionsId === row.id ? actionsButtonRef : undefined}
-                type="button"
-                onClick={(e) => { e.stopPropagation(); if (openActionsId === row.id) { setOpenActionsId(null); setMenuPosition(null); return; } const rect = e.currentTarget.getBoundingClientRect(); actionsButtonRef.current = e.currentTarget; setMenuPosition({ top: rect.bottom + 4, left: Math.min(rect.right - 120, window.innerWidth - 130) }); setOpenActionsId(row.id); }}
-                className="p-1 rounded hover:bg-gray-200 text-gray-600 cursor-pointer"
-                aria-label="Actions"
-              >
-                <MoreVertical className="w-5 h-5" />
-              </button>
+              <CrmRowActionsButton rowId={row.id} openId={rowActions.openId} onToggle={rowActions.toggle} />
             )}
             bulkActions={{
               onDelete: (ids) => setBulkDeleteIds(ids),
@@ -459,15 +406,11 @@ export default function CRMProjectsPage() {
         </Modal>
       )}
 
-      {openActionsId && menuPosition && typeof document !== 'undefined' &&
-        createPortal(
-          <div ref={actionsMenuRef} className="fixed z-[100] min-w-[120px] py-1 bg-white border border-gray-200 rounded-md shadow-lg" style={{ top: menuPosition.top, left: menuPosition.left }}>
-            <Link href={`/${locale}/crm/projects/${openActionsId}/photos`} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { setOpenActionsId(null); setMenuPosition(null); }}>Photos</Link>
-            <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { setEditingId(openActionsId); setViewMode('edit'); setOpenActionsId(null); setMenuPosition(null); }}><Pencil className="w-3.5 h-3.5" /> Edit</button>
-            <button type="button" className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { setDeleteConfirm({ id: openActionsId }); setOpenActionsId(null); setMenuPosition(null); }}><Trash2 className="w-3.5 h-3.5" /> Delete</button>
-          </div>,
-          document.body
-        )}
+      <CrmRowActionsPortal openId={rowActions.openId} position={rowActions.position} menuRef={rowActions.menuRef}>
+        <Link href={`/${locale}/crm/projects/${rowActions.openId}/photos`} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={rowActions.close}>Photos</Link>
+        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { setEditingId(rowActions.openId); setViewMode('edit'); rowActions.close(); }}><Pencil className="w-3.5 h-3.5" /> Edit</button>
+        <button type="button" className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { if (rowActions.openId) setDeleteConfirm({ id: rowActions.openId }); rowActions.close(); }}><Trash2 className="w-3.5 h-3.5" /> Delete</button>
+      </CrmRowActionsPortal>
     </div>
   );
 }

@@ -13,7 +13,7 @@ import { ChatProvider } from '@/contexts/ChatContext';
 import { ProBotHeaderProvider, useProBotHeader } from '@/contexts/ProBotHeaderContext';
 import { useProBotTransition } from '@/contexts/ProBotTransitionContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { PROBOT_ASSETS } from '@/lib/constants/probot';
+import { DAY_CYCLE_SKY_ENABLED, PROBOT_ASSETS } from '@/lib/constants/probot';
 
 const SHRINK_DURATION_MS = 500;
 /** Entrance scale animation: shorter so we spend less time on the black background. */
@@ -184,12 +184,14 @@ function ProBotLayoutContent({
 
   return (
     <>
-      {/* Full viewport: day/night sky (continuation of chat area) + Nevada mountains */}
+      {/* White for now. Day/night sky + mountains return when DAY_CYCLE_SKY_ENABLED is true. */}
       <div
-        className="fixed inset-0 min-h-screen h-screen min-h-[100dvh] h-[100dvh] w-full overflow-hidden flex flex-col pt-2 box-border relative probot-sky-bg"
+        className={`fixed inset-0 min-h-screen h-screen min-h-[100dvh] h-[100dvh] w-full overflow-hidden flex flex-col pt-2 box-border relative ${
+          DAY_CYCLE_SKY_ENABLED ? 'probot-sky-bg' : 'bg-white'
+        }`}
         style={viewportH != null ? { height: `${viewportH}px` } : { height: '100svh' }}
       >
-        <ProBotNevadaMountains />
+        {DAY_CYCLE_SKY_ENABLED && <ProBotNevadaMountains />}
         {/* Loading screen: one GIF at a time, alternating dance → dance-1 → dance → … until page loads or load error */}
         {!revealed && !exiting && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 probot-page-content-pc-transparent" aria-live="polite" aria-label="Loading page">
@@ -215,19 +217,21 @@ function ProBotLayoutContent({
                 />
               )}
             </div>
-            <p className="text-white font-medium text-lg md:text-xl drop-shadow-md probot-night-text">
+            <p className={`font-medium text-lg md:text-xl ${DAY_CYCLE_SKY_ENABLED ? 'text-white drop-shadow-md probot-night-text' : 'text-black'}`}>
               {loadingGifError ? 'No internet' : 'Loading the page'}
             </p>
           </div>
         )}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col w-full items-center justify-center relative z-10 probot-page-content-pc-transparent">
           <div
-            className={`w-full max-w-[960px] flex-1 min-h-0 mx-auto border-2 border-black md:border-r-0 bg-white md:bg-transparent shadow-lg md:shadow-none rounded-lg overflow-hidden flex flex-col transition-transform ease-out origin-center ${
+            className={`w-full max-w-[960px] md:max-w-none flex-1 min-h-0 mx-auto border-2 border-black shadow-lg md:shadow-none rounded-lg md:rounded-none overflow-hidden flex flex-col transition-transform ease-out origin-center ${
+              DAY_CYCLE_SKY_ENABLED ? 'bg-transparent' : 'bg-white'
+            } ${
               revealed && !exiting ? 'scale-100' : 'scale-0'
             }`}
             style={{ transitionDuration: exiting ? `${SHRINK_DURATION_MS}ms` : `${ENTRANCE_SCALE_DURATION_MS}ms` }}
           >
-            <header className="w-full h-[60px] shrink-0 border-b-2 border-r-2 border-black p-2 md:px-2 md:py-4 bg-white">
+            <header className="w-full h-[60px] shrink-0 border-b-2 border-black p-2 md:px-2 md:py-4 bg-white">
             <div className="relative w-full h-full flex items-center justify-between gap-2">
               {/* Left: on mobile when in chat show back chevron to ProBot welcome; otherwise HPH logo to home */}
               <div className="flex items-center flex-shrink-0 z-10">

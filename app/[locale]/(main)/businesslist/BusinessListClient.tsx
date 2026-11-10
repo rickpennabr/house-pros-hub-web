@@ -19,6 +19,7 @@ import { useScrollPosition } from '@/hooks/useScrollPosition';
 import { useWindowDimensions } from '@/hooks/useWindowDimensions';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { ProCardData } from '@/components/proscard/ProCard';
+import { JobSiteCamera } from '@/components/media/JobSiteCamera';
 
 const PRESENCE_POLL_MS = 60_000;
 
@@ -37,9 +38,11 @@ export default function BusinessListClient({
 }: BusinessListClientProps) {
   const t = useTranslations('businessList');
   const tCommon = useTranslations('common');
+  const tJob = useTranslations('jobsite');
   const { isAuthenticated, roles } = useAuth();
   const isPro = isAuthenticated && isHubPro(roles as readonly string[]);
   const [addOpen, setAddOpen] = useState(false);
+  const [jobCamOpen, setJobCamOpen] = useState(false);
   const searchParams = useSearchParams();
   const category = sanitizeDirectoryCategory(searchParams.get('category')) || initialCategory || 'All';
   const city = sanitizeDirectoryCity(searchParams.get('city')) || initialCity;
@@ -147,6 +150,8 @@ export default function BusinessListClient({
           addOpen={addOpen}
           onAdd={() => setAddOpen(true)}
           addLabel={tCommon('view.add')}
+          onJobCamera={isPro ? () => setJobCamOpen(true) : undefined}
+          jobCameraLabel={tJob('title')}
         />
       )}
       {pageCards.length > 0 && !isMobileSafe && (
@@ -157,9 +162,12 @@ export default function BusinessListClient({
           addLabel={tCommon('view.add')}
           addOpen={addOpen}
           showAddOnDesktop
+          onJobCamera={isPro ? () => setJobCamOpen(true) : undefined}
+          jobCameraLabel={tJob('title')}
         />
       )}
       {isPro && <ProAddModal isOpen={addOpen} onClose={() => setAddOpen(false)} />}
+      {isPro && <JobSiteCamera open={jobCamOpen} onClose={() => setJobCamOpen(false)} />}
       {pageCards.length > 0 && <BotFloatingButton />}
     </>
   );

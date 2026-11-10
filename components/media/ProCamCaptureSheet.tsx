@@ -12,10 +12,16 @@ interface ProCamCaptureSheetProps {
   onClose: () => void;
   showDrive?: boolean;
   onPickDrive?: () => void;
+  /** Open the viewfinder as soon as the sheet opens. The browser asks if access was not granted. */
+  autoStart?: boolean;
+  /** Attach the device position. Off skips the location prompt. */
+  withLocation?: boolean;
+  /** Fires once the browser has granted the camera and the viewfinder is on. */
+  onCameraReady?: () => void;
   onCapture: (result: { file: File; location: CaptureLocation | null }) => void;
 }
 
-export function ProCamCaptureSheet({ isOpen, onClose, showDrive = false, onPickDrive, onCapture }: ProCamCaptureSheetProps) {
+export function ProCamCaptureSheet({ isOpen, onClose, showDrive = false, onPickDrive, autoStart = false, withLocation = true, onCameraReady, onCapture }: ProCamCaptureSheetProps) {
   const t = useTranslations('procam');
   const videoRef = useRef<HTMLVideoElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -40,9 +46,17 @@ export function ProCamCaptureSheet({ isOpen, onClose, showDrive = false, onPickD
     return () => stopTracks();
   }, [isOpen]);
 
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!cameraOn || !video || !stream) return;
+    video.srcObject = stream;
+    void video.play().catch(() => undefined);
+  }, [cameraOn]);
+
   const finish = async (file: File) => {
     setBusy(true);
-    const location = await requestCurrentLocation();
+    const location = withLocation ? await requestCurrentLocation() : null;
     setBusy(false);
     stopTracks();
     setCameraOn(false);
@@ -63,6 +77,7 @@ export function ProCamCaptureSheet({ isOpen, onClose, showDrive = false, onPickD
       });
       streamRef.current = stream;
       setCameraOn(true);
+      onCameraReady?.();
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
@@ -71,6 +86,13 @@ export function ProCamCaptureSheet({ isOpen, onClose, showDrive = false, onPickD
       setCameraError(t('cameraDenied'));
     }
   };
+
+  useEffect(() => {
+    if (!isOpen || !autoStart) return;
+    void startCamera();
+    // Only the open transition should ask. startCamera is recreated each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, autoStart]);
 
   const snap = async () => {
     const video = videoRef.current;

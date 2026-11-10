@@ -12,6 +12,7 @@ import PagesMenu from '@/components/pageslayout/PagesMenu';
 import PageCategories from '@/components/pageslayout/PageCategories';
 import PageContent from '@/components/pageslayout/PageContent';
 import ProBotNevadaMountains from '@/components/probot/ProBotNevadaMountains';
+import { DAY_CYCLE_SKY_ENABLED } from '@/lib/constants/probot';
 import BotChatDrawer from '@/components/chat/BotChatDrawer';
 import Footer from '@/components/layout/Footer';
 
@@ -28,7 +29,6 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
   const isBlog = pathname?.includes('/blog') ?? false;
   const isBlogArticle = /\/blog\/[^/]+\/?$/.test(pathname ?? '');
   const isProJobs = pathname?.includes('/projobs') ?? false;
-  const isQuickRepair = pathname?.includes('/quick-repair') ?? false;
   const keepsMenuVisible =
     isProJobs ||
     (pathname?.includes('/prosuppliers') ?? false) ||
@@ -36,14 +36,12 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
   const collapseMenuForSearch = isSearchOpen && !keepsMenuVisible;
   const useDayCycleBg = isBusinessList;
   const isDynamic = mode === 'dynamic';
-  const showSkyBg = useDayCycleBg && isDynamic;
+  const showSkyBg = DAY_CYCLE_SKY_ENABLED && useDayCycleBg && isDynamic;
 
   return (
     <>
       <div
-        className={`relative w-full flex justify-center p-2 md:p-0 max-md:min-h-dvh max-md:items-start md:min-h-screen ${
-          isQuickRepair ? 'md:items-start' : 'md:items-center'
-        } ${
+        className={`relative w-full flex justify-center p-2 md:p-0 max-md:min-h-dvh max-md:items-start md:min-h-screen md:items-center ${
           showSkyBg ? 'probot-sky-bg main-layout-sky-mobile-only' : 'bg-white'
         }`}
       >
@@ -52,7 +50,7 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
             <ProBotNevadaMountains />
           </div>
         )}
-        <PageContainer transparentBg={showSkyBg} grow={isQuickRepair}>
+        <PageContainer transparentBg={showSkyBg}>
           {isBlogArticle ? (
             <div className="flex min-h-full flex-col">
               {children}
@@ -73,7 +71,7 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
               <Suspense fallback={<div className="h-[60px] w-full shrink-0 border-b-2 border-black" />}>
                 <PageCategories />
               </Suspense>
-              <PageContent scroll={isBlog} grow={isQuickRepair} flushTop={isProJobs}>{children}</PageContent>
+              <PageContent scroll={isBlog} flushTop={isProJobs}>{children}</PageContent>
               <Footer />
             </>
           )}

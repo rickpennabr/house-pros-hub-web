@@ -10,8 +10,9 @@
  */
 
 import { authStorage } from '@/lib/storage/authStorage';
-import { businessStorage } from '@/lib/storage/businessStorage';
 import { savedBusinessStorage } from '@/lib/storage/savedBusinessStorage';
+
+const LEGACY_BUSINESS_CACHE_KEY = 'businesses';
 import { partnerStorage } from '@/lib/storage/partnerStorage';
 
 /**
@@ -32,7 +33,7 @@ export function clearAllLocalData(): void {
   try {
     // Clear using storage utilities
     authStorage.clear();
-    businessStorage.clearAll();
+    localStorage.removeItem(LEGACY_BUSINESS_CACHE_KEY);
     
     // Clear saved businesses if method exists
     if (typeof savedBusinessStorage.clearAll === 'function') {
@@ -114,7 +115,7 @@ export function clearBusinessData(): void {
   if (typeof window === 'undefined') return;
   
   try {
-    businessStorage.clearAll();
+    localStorage.removeItem(LEGACY_BUSINESS_CACHE_KEY);
     console.log('✅ Business data cleared');
   } catch (error) {
     console.error('❌ Error clearing business data:', error);

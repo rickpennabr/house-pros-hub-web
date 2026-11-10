@@ -66,6 +66,7 @@ export default function ProBotMessageBubble({
 }: ProBotMessageBubbleProps) {
   const t = useTranslations('probot');
   const isVisitor = msg.sender === 'visitor';
+  const body = typeof msg.body === 'string' ? msg.body : '';
 
   const avatarContent = isVisitor ? (
     visitorAvatarUrl ? (
@@ -105,7 +106,7 @@ export default function ProBotMessageBubble({
                   : 'ProBot'}
             </p>
           )}
-          {msg.body.trim() && <p className="whitespace-pre-wrap break-words">{msg.body}</p>}
+          {body.trim() && <p className="whitespace-pre-wrap break-words">{body}</p>}
           {msg.payload && (
             <ProAgentCards
               payload={msg.payload}
@@ -118,7 +119,7 @@ export default function ProBotMessageBubble({
           {msg.attachments?.length ? (
             <div className="mt-2 space-y-2">
               {msg.attachments.map((att, i) =>
-                att.contentType.startsWith('image/') ? (
+                (typeof att.contentType === 'string' ? att.contentType : '').startsWith('image/') ? (
                   <a
                     key={i}
                     href={att.url}
@@ -144,7 +145,7 @@ export default function ProBotMessageBubble({
               )}
             </div>
           ) : null}
-          {isVisitor && !msg.body.trim() && !msg.attachments?.length ? (
+          {isVisitor && !body.trim() && !msg.attachments?.length ? (
             <div className={`flex items-center gap-2 py-2 ${isVisitor ? 'text-gray-400' : 'text-gray-500'}`}>
               <ImageIcon className="w-5 h-5 shrink-0 opacity-70" />
               <span className="text-sm italic">{t('photoPlaceholder')}</span>

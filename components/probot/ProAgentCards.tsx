@@ -53,7 +53,7 @@ export default function ProAgentCards({ payload, canConfirm, confirming, onConfi
           </p>
           <p className="text-xs text-gray-500 mt-1">
             {[
-              summary.trades.join(', '),
+              (Array.isArray(summary.trades) ? summary.trades : []).join(', '),
               optionLabel(projectType.has, projectType, summary.projectType),
               optionLabel(budget.has, budget, summary.budgetRange),
               optionLabel(timeline.has, timeline, summary.timeline),
@@ -76,7 +76,7 @@ export default function ProAgentCards({ payload, canConfirm, confirming, onConfi
               <button
                 type="button"
                 onClick={onEdit}
-                className="rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700"
+                className="rounded-full border-2 border-black px-3 py-1.5 text-xs font-medium text-gray-900"
               >
                 {t('editEstimate')}
               </button>

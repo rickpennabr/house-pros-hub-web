@@ -6,7 +6,6 @@ import Image from 'next/image';
 import { useTranslations, useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
-import { businessStorage } from '@/lib/storage/businessStorage';
 import LoadingFallback from '@/components/ui/LoadingFallback';
 import { 
   Building2, 
@@ -60,64 +59,32 @@ function AccountManagementContent() {
   // Also refresh business data from API to ensure we have latest logo/background
   useEffect(() => {
     const businessIdParam = searchParams.get('businessId');
-    if (businessIdParam && userId) {
-      // Verify the business belongs to this user
-      const userBusinesses = businessStorage.getBusinessesByUserId(userId);
-      const businessExists = userBusinesses.some(b => b.id === businessIdParam);
-      
-      if (businessExists) {
-        // Refresh business data from API to get latest logo/background images
-        fetch(`/api/businesses/${businessIdParam}`, {
-          method: 'GET',
-          credentials: 'include',
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (data.business) {
-              // Update localStorage with fresh data including images
-              businessStorage.updateBusiness(businessIdParam, {
-                ...data.business,
-                userId, // Preserve userId
-              });
-            }
-          })
-          .catch(err => {
-            console.error('Error refreshing business data:', err);
-            // Continue anyway - use existing data
-          })
-          .finally(() => {
-            setActiveAccountId(businessIdParam);
-            refreshBusinesses();
-            // Remove the query parameter from URL after selecting
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.delete('businessId');
-            router.replace(newUrl.pathname + newUrl.search, { scroll: false });
-          });
-      } else {
-        // Business doesn't exist in localStorage, but might exist in DB
-        // Try to fetch it from API
-        fetch(`/api/businesses/${businessIdParam}`, {
-          method: 'GET',
-          credentials: 'include',
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (data.business && data.business.userId === userId) {
-              // Add to localStorage so it appears in the account list
-              businessStorage.addBusiness({ ...data.business, userId });
-              refreshBusinesses();
-              setActiveAccountId(businessIdParam);
-              // Remove the query parameter from URL
-              const newUrl = new URL(window.location.href);
-              newUrl.searchParams.delete('businessId');
-              router.replace(newUrl.pathname + newUrl.search, { scroll: false });
-            }
-          })
-          .catch(err => {
-            console.error('Error fetching business data:', err);
-          });
-      }
-    }
+    if (!businessIdParam || !userId) return;
+    let cancelled = false;
+    fetch(`/api/businesses/${businessIdParam}`, {
+      method: 'GET',
+      credentials: 'include',
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.business) return;
+        if (data.business.userId === userId) {
+          refreshBusinesses();
+          setActiveAccountId(businessIdParam);
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching business data:', err);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('businessId');
+        router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams, userId, router, setActiveAccountId, refreshBusinesses]);
 
   useEffect(() => {

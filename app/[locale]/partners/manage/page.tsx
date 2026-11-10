@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
-import { businessStorage } from '@/lib/storage/businessStorage';
 import { partnerStorage, Partnership } from '@/lib/storage/partnerStorage';
 import { ProCardData } from '@/components/proscard/ProCard';
 import { Building2, Clock, CheckCircle2, UserMinus, ChevronRight, Users, Settings } from 'lucide-react';
@@ -12,10 +11,28 @@ import { Breadcrumb } from '@/components/ui/Breadcrumb';
 export default function ManagePartnersPage() {
   const { user } = useAuth();
   const userId = user?.id ?? '';
-  const userBusinesses = useMemo<ProCardData[]>(() => {
-    if (!userId) return [];
-    return businessStorage.getBusinessesByUserId(userId);
-  }, [userId]);
+  const [userBusinesses, setUserBusinesses] = useState<ProCardData[]>([]);
+  const [knownBusinesses, setKnownBusinesses] = useState<ProCardData[]>([]);
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    if (!userId) {
+      setUserBusinesses([]);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/me/businesses/list', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : { businesses: [] }))
+      .then((data) => {
+        if (!cancelled) setUserBusinesses(data.businesses ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setUserBusinesses([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, refresh]);
 
   const [selection, setSelection] = useState<{ userId: string; businessId: string }>(() => ({
     userId,
@@ -24,22 +41,50 @@ export default function ManagePartnersPage() {
   const selectedBusinessId = selection.userId === userId ? selection.businessId : '';
   const effectiveSelectedBusinessId = selectedBusinessId || userBusinesses[0]?.id || '';
 
-  const [, setRefresh] = useState(0);
-
-  const partnerships: Partnership[] = (() => {
+  const storedPartnerships = useMemo(() => {
     if (!effectiveSelectedBusinessId) return [];
+    return partnerStorage.getPartnershipsByBusinessId(effectiveSelectedBusinessId);
+  }, [effectiveSelectedBusinessId, refresh]);
 
-    const bizPartnerships = partnerStorage.getPartnershipsByBusinessId(effectiveSelectedBusinessId);
-
-    // Filter out partnerships where the partner business doesn't exist in our storage
-    // This automatically removes any old mock data that doesn't correspond to real businesses
-    const allBusinesses = businessStorage.getAllBusinesses();
-    return bizPartnerships.filter((p) => {
-      const partnerId =
-        p.requesterId === effectiveSelectedBusinessId ? p.receiverId : p.requesterId;
-      return allBusinesses.some((b) => b.id === partnerId);
+  useEffect(() => {
+    const ids = new Set<string>();
+    userBusinesses.forEach((business) => ids.add(business.id));
+    storedPartnerships.forEach((partnership) => {
+      ids.add(partnership.requesterId);
+      ids.add(partnership.receiverId);
     });
-  })();
+    if (ids.size === 0) {
+      setKnownBusinesses([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      [...ids].map(async (id) => {
+        const res = await fetch(`/api/businesses/${id}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return (data.business ?? null) as ProCardData | null;
+      })
+    )
+      .then((cards) => {
+        if (cancelled) return;
+        setKnownBusinesses(cards.filter((card): card is ProCardData => Boolean(card)));
+      })
+      .catch(() => {
+        if (!cancelled) setKnownBusinesses([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storedPartnerships, userBusinesses]);
+
+  const partnerships: Partnership[] = storedPartnerships.filter((partnership) => {
+    const partnerId =
+      partnership.requesterId === effectiveSelectedBusinessId
+        ? partnership.receiverId
+        : partnership.requesterId;
+    return knownBusinesses.some((business) => business.id === partnerId);
+  });
 
   const requests = useMemo(() => 
     partnerships.filter(p => p.status === 'pending'), 
@@ -69,7 +114,7 @@ export default function ManagePartnersPage() {
       ? partnership.receiverId 
       : partnership.requesterId;
     
-    const business = businessStorage.getAllBusinesses().find(b => b.id === partnerId);
+    const business = knownBusinesses.find((item) => item.id === partnerId);
     
     if (business) {
       return {

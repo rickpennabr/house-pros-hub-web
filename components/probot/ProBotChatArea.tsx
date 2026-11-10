@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import ChatSignupForm from '@/components/chat/ChatSignupForm';
 import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
 import ChatInputBar from '@/components/chat/ChatInputBar';
+import { ChatCamFrame } from '@/components/chat/ChatCamFrame';
 import AddCustomerForm from '@/components/chat/AddCustomerForm';
 import ProEstimateBookingFlow from '@/components/probot/ProEstimateBookingFlow';
 import { PROBOT_ASSETS, PROBOT_CHAT_BG } from '@/lib/constants/probot';
@@ -903,7 +904,7 @@ export default function ProBotChatArea({
                                 key={i}
                                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm"
                               >
-                                {att.contentType.startsWith('image/') ? (
+                                {att.contentType?.startsWith('image/') ? (
                                   <ImageIcon className="w-4 h-4 shrink-0" />
                                 ) : (
                                   <Paperclip className="w-4 h-4 shrink-0" />
@@ -921,6 +922,7 @@ export default function ProBotChatArea({
                             ))}
                           </div>
                         )}
+                        <ChatCamFrame>
                         <form
                           onSubmit={handleSubmit}
                           className="w-full rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5"
@@ -949,6 +951,7 @@ export default function ProBotChatArea({
                             }}
                           />
                         </form>
+                        </ChatCamFrame>
                       </div>
                     )}
                   </>
@@ -1022,49 +1025,49 @@ export default function ProBotChatArea({
                         <button
                           type="button"
                           onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('calendar'); }}
-                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           {tBot('crmCalendar')}
                         </button>
                         <button
                           type="button"
                           onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('customers'); }}
-                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           {tBot('crmCustomers')}
                         </button>
                         <button
                           type="button"
                           onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('estimates'); }}
-                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           {tBot('crmEstimates')}
                         </button>
                         <button
                           type="button"
                           onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('invoices'); }}
-                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           {tBot('crmInvoices')}
                         </button>
                         <button
                           type="button"
                           onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('projects'); }}
-                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           {tBot('crmProjects')}
                         </button>
                         <button
                           type="button"
                           onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('expenses'); }}
-                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           {tBot('crmExpenses')}
                         </button>
                         <button
                           type="button"
                           onClick={() => { markProBotWelcomeSeen(); onWelcomeChoiceMade?.(); setProbotCrmView('add_task'); }}
-                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           {tBot('addTask')}
                         </button>
@@ -1076,7 +1079,7 @@ export default function ProBotChatArea({
                             setUserChoice('add_customer');
                             onWelcomeChoiceMade?.();
                           }}
-                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           {tBot('addCustomer')}
                         </button>
@@ -1090,7 +1093,7 @@ export default function ProBotChatArea({
                           setUserChoice('free_estimate');
                           onWelcomeChoiceMade?.();
                         }}
-                        className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                        className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                       >
                         {tBot('getFreeEstimate')}
                       </button>
@@ -1104,7 +1107,7 @@ export default function ProBotChatArea({
                             setUserChoice('create_account');
                             onWelcomeChoiceMade?.();
                           }}
-                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           {tBot('createAccount')}
                         </button>
@@ -1116,7 +1119,7 @@ export default function ProBotChatArea({
                             setUserChoice('free_estimate');
                             onWelcomeChoiceMade?.();
                           }}
-                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer"
+                          className="probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
                         >
                           {tBot('getFreeEstimate')}
                         </button>
@@ -1146,7 +1149,7 @@ export default function ProBotChatArea({
                               key={i}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm"
                             >
-                              {att.contentType.startsWith('image/') ? (
+                              {att.contentType?.startsWith('image/') ? (
                                 <ImageIcon className="w-4 h-4 shrink-0" />
                               ) : (
                                 <Paperclip className="w-4 h-4 shrink-0" />
@@ -1164,6 +1167,7 @@ export default function ProBotChatArea({
                           ))}
                         </div>
                       )}
+                      <ChatCamFrame>
                       <form
                         onSubmit={handleSubmit}
                         className="w-full rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5"
@@ -1192,6 +1196,7 @@ export default function ProBotChatArea({
                           }}
                         />
                       </form>
+                      </ChatCamFrame>
                     </div>
                   )}
                 </div>
@@ -1453,6 +1458,7 @@ export default function ProBotChatArea({
                   >
                     {t('booking.bookProEstimate')}
                   </button>
+                  <ChatCamFrame className="w-full">
                   <form
                     onSubmit={handleSubmit}
                     className="w-full rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5"
@@ -1464,7 +1470,7 @@ export default function ProBotChatArea({
                             key={i}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm"
                           >
-                            {att.contentType.startsWith('image/') ? (
+                            {att.contentType?.startsWith('image/') ? (
                               <ImageIcon className="w-4 h-4 shrink-0" />
                             ) : (
                               <Paperclip className="w-4 h-4 shrink-0" />
@@ -1506,6 +1512,7 @@ export default function ProBotChatArea({
                         }}
                       />
                   </form>
+                  </ChatCamFrame>
                 </div>
               </div>
             ) : (
@@ -1555,13 +1562,13 @@ export default function ProBotChatArea({
                 className="probot-chat-footer shrink-0 w-full px-2 md:px-4 py-3 pb-[10px] md:pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 bg-white md:bg-transparent border-t border-gray-200/90 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] md:shadow-none"
               >
               {pendingAttachments.length > 0 && (
-                <div className="max-w-3xl mx-auto flex flex-wrap gap-2 mb-2">
+                <div className="mx-auto mb-2 flex w-full flex-wrap gap-2 md:w-[70%]">
                   {pendingAttachments.map((att, i) => (
                     <span
                       key={i}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm"
                     >
-                      {att.contentType.startsWith('image/') ? (
+                      {att.contentType?.startsWith('image/') ? (
                         <ImageIcon className="w-4 h-4 shrink-0" />
                       ) : (
                         <Paperclip className="w-4 h-4 shrink-0" />
@@ -1579,6 +1586,7 @@ export default function ProBotChatArea({
                   ))}
                 </div>
               )}
+              <ChatCamFrame>
               <div className="w-full flex items-center gap-0 rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 focus-within:ring-offset-0 transition-all py-1.5 pl-1.5 pr-1.5">
                 <ChatInputBar
                   wrapperClassName="flex items-center gap-0 w-full"
@@ -1604,6 +1612,7 @@ export default function ProBotChatArea({
                   }}
                 />
               </div>
+              </ChatCamFrame>
             </form>
             </>
           )}

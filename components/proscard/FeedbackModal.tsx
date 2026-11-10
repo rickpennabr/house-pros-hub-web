@@ -5,8 +5,6 @@ import { Send, MessageSquare, User, Reply, CheckCircle } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { feedbackStorage, Comment } from '@/lib/storage/feedbackStorage';
-import { businessStorage } from '@/lib/storage/businessStorage';
-import { ProCardData } from './ProCard';
 import Modal from '@/components/ui/Modal';
 
 interface FeedbackModalProps {
@@ -16,6 +14,7 @@ interface FeedbackModalProps {
   contractorType: string;
   logo?: string;
   businessId: string;
+  ownerUserId?: string;
   onCommentsChange?: () => void;
 }
 
@@ -38,6 +37,7 @@ export default function FeedbackModal({
   contractorType,
   logo,
   businessId,
+  ownerUserId,
   onCommentsChange,
 }: FeedbackModalProps) {
   const { user } = useAuth();
@@ -52,15 +52,7 @@ export default function FeedbackModal({
   const userInitials = user ? getInitials(`${user.firstName} ${user.lastName}`) : 'U';
   const userName = user ? `${user.firstName} ${user.lastName}` : 'User';
 
-  // Check if current user is the business owner
-  const isBusinessOwner = (): boolean => {
-    if (!user || !businessId) return false;
-    const businesses = businessStorage.getAllBusinesses();
-    const business = businesses.find((b: ProCardData & { userId?: string }) => b.id === businessId) as (ProCardData & { userId?: string }) | undefined;   
-    return business?.userId === user.id;
-  };
-
-  const isOwner = isBusinessOwner();
+  const isOwner = Boolean(user?.id && ownerUserId && user.id === ownerUserId);
 
 
   // Load comments from storage when modal opens

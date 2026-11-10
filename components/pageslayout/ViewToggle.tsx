@@ -6,6 +6,8 @@ import { List, Map, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LuIdCard } from 'react-icons/lu';
 import { useBackgroundMode } from '@/contexts/BackgroundModeContext';
+import { DAY_CYCLE_SKY_ENABLED } from '@/lib/constants/probot';
+import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 
 export type ViewType = 'card' | 'list' | 'map';
 
@@ -16,6 +18,8 @@ interface ViewToggleProps {
   views?: ViewType[];
   /** When true, render only the toggle content (no fixed position, no portal). For use inside a bottom bar. */
   embedded?: boolean;
+  /** Hug the buttons instead of stretching across half the bar. */
+  fitContent?: boolean;
   /** When true, hide the background (sky/dynamic) toggle button. Useful for CRM and other non-home pages. */
   hideBackgroundToggle?: boolean;
   /** Rightmost button in the bar, used for create actions. */
@@ -25,6 +29,9 @@ interface ViewToggleProps {
   addOpen?: boolean;
   /** CRM list pages keep Add on the phone only. The directory shows it on desktop too. */
   showAddOnDesktop?: boolean;
+  /** Desktop Jobsite camera. Add sits to its right. */
+  onJobCamera?: () => void;
+  jobCameraLabel?: string;
 }
 
 interface ViewOption {
@@ -44,11 +51,14 @@ export default function ViewToggle({
   onViewChange,
   views: enabledViews = ['card', 'list'],
   embedded = false,
+  fitContent = false,
   hideBackgroundToggle = false,
   onAdd,
   addLabel = 'Add',
   addOpen = false,
   showAddOnDesktop = false,
+  onJobCamera,
+  jobCameraLabel = 'JOB',
 }: ViewToggleProps) {
   const t = useTranslations('common');
   const { mode, setMode } = useBackgroundMode();
@@ -67,11 +77,11 @@ export default function ViewToggle({
 
   const toggleContent = (
     <div className={`
-      ${embedded ? 'py-1 md:py-2 gap-2' : 'p-2 md:py-[0.525rem] md:px-2 border-2 border-black'}
+      ${embedded ? 'py-1 md:py-2' : 'p-2 md:py-[0.525rem] md:px-2 border-2 border-black'}
       bg-black text-white
       rounded-lg
       font-bold text-[11px] md:text-[13px]
-      flex items-center ${embedded ? 'justify-between w-full' : 'justify-center gap-2'}
+      flex items-center ${embedded ? (fitContent ? 'w-max justify-center gap-1.5' : 'w-full justify-evenly') : 'justify-center gap-2'}
       cursor-pointer ${embedded ? 'overflow-visible' : 'overflow-hidden'}
       shadow-lg
     `}>
@@ -98,7 +108,7 @@ export default function ViewToggle({
           </button>
         );
       })}
-      {!hideBackgroundToggle && (
+      {DAY_CYCLE_SKY_ENABLED && !hideBackgroundToggle && (
         <button
           type="button"
           onClick={() => setMode(isDynamic ? 'regular' : 'dynamic')}
@@ -116,6 +126,21 @@ export default function ViewToggle({
           aria-label={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
           title={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
         />
+      )}
+      {onJobCamera && (
+        <div className="mx-0.5 hidden h-10 w-px shrink-0 bg-white opacity-90 md:block" aria-hidden />
+      )}
+      {onJobCamera && (
+        <button
+          type="button"
+          onClick={onJobCamera}
+          className="hidden h-10 w-[3.25rem] shrink-0 items-center justify-center rounded-lg bg-white text-black md:flex"
+          aria-label={jobCameraLabel}
+        >
+          <span className="relative block h-8 w-[2.6rem] overflow-hidden">
+            <RepairCameraMark label="JOB" />
+          </span>
+        </button>
       )}
       {onAdd && (
         <button

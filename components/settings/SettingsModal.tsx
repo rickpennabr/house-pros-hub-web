@@ -10,6 +10,13 @@ import Modal from '@/components/ui/Modal';
 import { UsFlagIcon, SpainFlagIcon, BrazilFlagIcon } from '@/components/pageslayout/LocaleFlagIcons';
 import { locales, type Locale } from '@/i18n';
 import ContractorPushButton from '@/components/probot/ContractorPushButton';
+import { requestCurrentLocation } from '@/lib/media/capture-location';
+import {
+  jobCameraAllowed,
+  jobLocationAllowed,
+  setJobCameraAllowed,
+  setJobLocationAllowed,
+} from '@/lib/media/job-camera-prefs';
 
 type AccordionSection = 'account' | 'language' | 'privacy';
 
@@ -30,14 +37,49 @@ export default function SettingsModal({
   const [selectedLocale, setSelectedLocale] = useState<Locale>(currentLocale);
   const [isUpdatingLocale, setIsUpdatingLocale] = useState(false);
   const [openSection, setOpenSection] = useState<AccordionSection>('account');
+  const [cameraAllowed, setCameraAllowed] = useState(false);
+  const [locationAllowed, setLocationAllowed] = useState(false);
+  const tJob = useTranslations('jobsite');
 
   // Reset selected locale and accordion when modal opens or current locale changes
   useEffect(() => {
     if (isOpen) {
       setSelectedLocale(currentLocale);
       setOpenSection('account');
+      setCameraAllowed(jobCameraAllowed());
+      setLocationAllowed(jobLocationAllowed());
     }
   }, [isOpen, currentLocale]);
+
+  const allowCamera = async (on: boolean) => {
+    if (!on) {
+      setJobCameraAllowed(false);
+      setCameraAllowed(false);
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      stream.getTracks().forEach((track) => track.stop());
+      setJobCameraAllowed(true);
+      setCameraAllowed(true);
+    } catch {
+      setJobCameraAllowed(false);
+      setCameraAllowed(false);
+    }
+  };
+
+  const allowLocation = async (on: boolean) => {
+    if (!on) {
+      setJobLocationAllowed(false);
+      setLocationAllowed(false);
+      return;
+    }
+    const fix = await requestCurrentLocation();
+    const granted = fix !== null;
+    setJobLocationAllowed(granted);
+    setLocationAllowed(granted);
+  };
 
   const hasChanges = selectedLocale !== currentLocale;
 
@@ -278,7 +320,26 @@ export default function SettingsModal({
               />
             </button>
             {openSection === 'privacy' && (
-            <div className="p-2 border-t-2 border-black">
+            <div className="space-y-1 border-t-2 border-black p-2">
+              <p className="px-4 py-2 text-xs text-gray-600">{tJob('permissionHint')}</p>
+              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-4 py-2.5 hover:bg-gray-50">
+                <span className="font-medium text-black">{tJob('cameraSetting')}</span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-black"
+                  checked={cameraAllowed}
+                  onChange={(event) => void allowCamera(event.target.checked)}
+                />
+              </label>
+              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-4 py-2.5 hover:bg-gray-50">
+                <span className="font-medium text-black">{tJob('locationSetting')}</span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-black"
+                  checked={locationAllowed}
+                  onChange={(event) => void allowLocation(event.target.checked)}
+                />
+              </label>
               <button
                 onClick={() => {
                   onClose();

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
+import { isHubPro } from '@/components/pageslayout/ProAddChooser';
 import { createLocalePath, createSignInUrl } from '@/lib/redirect';
 import SettingsModal from '@/components/settings/SettingsModal';
 import { AccountAvatar } from '@/components/pageslayout/AccountAvatar';
@@ -23,8 +24,11 @@ import {
   Briefcase,
   HardDrive,
   Home,
-  Calendar
+  Calendar,
+  Phone
 } from 'lucide-react';
+
+const HUB_PHONE_NUMBER = '702-232-0411';
 
 interface ProfileIconProps {
   className?: string;
@@ -115,6 +119,11 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
     // Ensure internal navigation stays locale-prefixed
     router.push(createLocalePath(locale, path));
     setIsDropdownOpen(false);
+  };
+
+  const handleCallHub = () => {
+    setIsDropdownOpen(false);
+    window.location.href = `tel:${HUB_PHONE_NUMBER.replace(/-/g, '')}`;
   };
 
   const handleAccountButtonClick = () => {
@@ -277,6 +286,16 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
             <>
               <div className="border-t-2 border-black"></div>
               <div className="p-2">
+                {isHubPro(roles) && (
+                  <button
+                    type="button"
+                    onClick={handleCallHub}
+                    className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-4 py-2.5 text-left font-medium text-black transition-colors hover:bg-gray-50 md:hidden"
+                  >
+                    <Phone className="w-4 h-4" />
+                    <span>{t('callTheHub')}</span>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setIsDropdownOpen(false);

@@ -1694,6 +1694,13 @@ export interface Database {
           category: string;
           expense_date: string;
           note: string | null;
+          description: string | null;
+          supplier_id: string | null;
+          po_number: string | null;
+          quantity: number | null;
+          unit: string | null;
+          requested_by: string | null;
+          ordered_by: string | null;
           receipt_url: string | null;
           created_at: string;
           updated_at: string;
@@ -1706,6 +1713,13 @@ export interface Database {
           category?: string;
           expense_date?: string;
           note?: string | null;
+          description?: string | null;
+          supplier_id?: string | null;
+          po_number?: string | null;
+          quantity?: number | null;
+          unit?: string | null;
+          requested_by?: string | null;
+          ordered_by?: string | null;
           receipt_url?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -1718,13 +1732,21 @@ export interface Database {
           category?: string;
           expense_date?: string;
           note?: string | null;
+          description?: string | null;
+          supplier_id?: string | null;
+          po_number?: string | null;
+          quantity?: number | null;
+          unit?: string | null;
+          requested_by?: string | null;
+          ordered_by?: string | null;
           receipt_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Relationships: [
           { foreignKeyName: "pro_crm_expenses_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "users"; referencedColumns: ["id"] },
-          { foreignKeyName: "pro_crm_expenses_project_id_fkey"; columns: ["project_id"]; referencedRelation: "pro_crm_projects"; referencedColumns: ["id"] }
+          { foreignKeyName: "pro_crm_expenses_project_id_fkey"; columns: ["project_id"]; referencedRelation: "pro_crm_projects"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_expenses_supplier_id_fkey"; columns: ["supplier_id"]; referencedRelation: "pro_crm_customers"; referencedColumns: ["id"] }
         ];
       };
       pro_invoice_settings: {

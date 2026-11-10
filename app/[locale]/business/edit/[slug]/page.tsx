@@ -12,7 +12,6 @@ import { SiNextdoor, SiWhatsapp, SiYelp, SiInstagram, SiFacebook, SiLinkedin, Si
 import { AngiIcon } from '@/components/ui/icons/AngiIcon';
 
 import { businessSchema, type BusinessFormValues } from '@/lib/schemas/business';
-import { businessStorage } from '@/lib/storage/businessStorage';
 import { transformBusinessToProCardData } from '@/lib/utils/businessTransform';
 import { normalizeLinks } from '@/lib/utils/normalizeLinks';
 import { useAuth } from '@/contexts/AuthContext';
@@ -419,26 +418,6 @@ export default function EditBusinessPage() {
           if (response.ok) {
             const result = await response.json();
             business = result.business;
-            
-            // Update localStorage with fresh data from database
-            if (business && business.id) {
-              // Check if business exists in storage
-              const existingBusiness = businessStorage.getBusinessBySlug(slug);
-              const userId = (existingBusiness as any)?.userId || (business as any)?.userId;
-              if (existingBusiness) {
-                // Update existing business with fresh data
-                businessStorage.updateBusiness(business.id, {
-                  ...business,
-                  userId: userId, // Preserve userId
-                });
-              } else {
-                // Add new business to storage
-                businessStorage.addBusiness({
-                  ...business,
-                  userId: userId || '',
-                });
-              }
-            }
           } else {
             // Log the error response for debugging
             const errorData = await response.json().catch(() => ({}));
@@ -447,46 +426,8 @@ export default function EditBusinessPage() {
           }
         } catch (apiError) {
           console.error('[Business Edit] Error fetching business from API:', apiError);
-          // Fall back to localStorage
         }
-        
-        // Fallback to localStorage if API fetch failed or returned no data
-        if (!business) {
-          console.warn('[Business Edit] Business not found in API, trying localStorage...');
-          business = businessStorage.getBusinessBySlug(slug);
-          
-          if (business) {
-            console.log('[Business Edit] Found business in localStorage:', business.id);
-            // Try to fetch from API using the business ID instead of slug
-            if (business.id) {
-              try {
-                const idResponse = await fetch(`/api/businesses/${business.id}`, {
-                  method: 'GET',
-                  credentials: 'include',
-                });
-                
-                if (idResponse.ok) {
-                  const idResult = await idResponse.json();
-                  const dbBusiness = idResult.business;
-                  if (dbBusiness) {
-                    console.log('[Business Edit] Found business in database by ID, using fresh data');
-                    business = dbBusiness;
-                    // Update localStorage with fresh data
-                    const existingBusinessInStorage = businessStorage.getBusinessBySlug(slug);
-                    const existingUserId = (existingBusinessInStorage as any)?.userId || (business as any)?.userId;
-                    businessStorage.updateBusiness(business.id, {
-                      ...business,
-                      userId: existingUserId || '',
-                    });
-                  }
-                }
-              } catch (idError) {
-                console.warn('[Business Edit] Could not fetch by ID, using localStorage data:', idError);
-              }
-            }
-          }
-        }
-        
+
         if (business) {
           setBusinessId(business.id);
           // Map stored data back to BusinessFormValues
@@ -530,22 +471,13 @@ export default function EditBusinessPage() {
           // The fallback mechanism in the Image component will handle any edge cases
           const logoUrl = business.businessLogo || business.logo || null;
           const bgUrl = business.businessBackground || null;
-          
-          // Log image URLs for debugging
-          console.log('[Business Edit] Business loaded:', {
-            id: business.id,
-            slug: business.slug,
-            logoUrl,
-            bgUrl,
-            source: (business as any).userId ? 'database' : 'localStorage'
-          });
-          
+
           setPreviewLogo(logoUrl);
           setPreviewBg(bgUrl);
           setSavedBgPosition((business as { businessBackgroundPosition?: string }).businessBackgroundPosition ?? '50% 50%');
           setDataLoaded(true);
         } else {
-          console.error('[Business Edit] Business not found in API or localStorage');
+          console.error('[Business Edit] Business not found');
           setErrorMessage('Business not found. Please check the URL or try refreshing the page.');
           setDataLoaded(true);
         }
@@ -587,8 +519,6 @@ export default function EditBusinessPage() {
       }
       return;
     }
-
-    console.log('[Business Edit] Starting logo upload:', { businessId, fileName: file.name, fileSize: file.size });
 
     // Show preview immediately
     const reader = new FileReader();
@@ -651,7 +581,6 @@ export default function EditBusinessPage() {
       // Update preview to show the uploaded URL (not base64)
       setPreviewLogo(result.url);
       setErrorMessage(''); // Clear any previous errors
-      console.log('[Business Edit] Logo uploaded successfully:', result.url);
     } catch (error) {
       console.error('Error uploading logo:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to upload logo');
@@ -854,17 +783,8 @@ export default function EditBusinessPage() {
 
       setErrorMessage('');
       setSuccessMessage('');
-      
-      // Use the latest data from storage to preserve fields not in the form (like reactions)
-      const businesses = businessStorage.getAllBusinesses();
-      const existingBusiness = businesses.find(b => b.id === businessId);
-      
-      if (!existingBusiness) {
-        setErrorMessage('Business not found in storage');
-        return;
-      }
 
-      const userId = ('userId' in existingBusiness ? (existingBusiness as { userId?: string }).userId : undefined) ?? user?.id;
+      const userId = user?.id;
       if (!userId) {
         setErrorMessage('User ID missing');
         return;
@@ -879,25 +799,14 @@ export default function EditBusinessPage() {
         links,
       });
 
-      // Merge transformed data with raw form data to ensure all fields are saved
-      // This ensures both UI-specific fields (logo, contractorType) and 
-      // form-specific fields (businessLogo, streetAddress, etc.) are in sync
-      const finalUpdate = {
-        ...existingBusiness,
-        ...data,
-        ...transformedData,
-      };
-
-      // Ensure slug is nice - if it's currently an ID or missing, use the new generated one
-      if (!finalUpdate.slug || finalUpdate.slug.startsWith('business_')) {
-        finalUpdate.slug = transformedData.slug || data.slug;
+      let slugValue = data.slug || transformedData.slug || '';
+      if (!slugValue || slugValue.startsWith('business_')) {
+        slugValue = transformedData.slug || data.slug;
       }
 
       // Get CSRF token for authenticated request
       let csrfToken: string;
       try {
-        console.log('[Business Edit] Requesting CSRF token for userId:', userId);
-        
         const csrfResponse = await fetch('/api/csrf-token', {
           method: 'GET',
           credentials: 'include',
@@ -919,11 +828,6 @@ export default function EditBusinessPage() {
           throw new Error('Invalid CSRF token response');
         }
         csrfToken = token.trim();
-
-        console.log('[Business Edit] CSRF token received:', {
-          tokenLength: csrfToken.length,
-          userId: userId,
-        });
       } catch (csrfError) {
         console.error('[Business Edit] Error getting CSRF token:', csrfError);
         throw new Error('Failed to get security token. Please refresh the page and try again.');
@@ -931,7 +835,7 @@ export default function EditBusinessPage() {
 
       const putBody = {
         businessName: data.businessName,
-        slug: finalUpdate.slug,
+        slug: slugValue,
         businessLogo: data.businessLogo || undefined,
         businessBackground: data.businessBackground || undefined,
         businessBackgroundPosition: data.businessBackgroundPosition || undefined,
@@ -951,17 +855,6 @@ export default function EditBusinessPage() {
         csrfToken,
       };
 
-      // Debug: confirm token is in body and headers before send
-      if (process.env.NODE_ENV === 'development') {
-        const bodyKeys = Object.keys(putBody);
-        console.log('[Business Edit] PUT payload', {
-          url: `/api/businesses/${businessId}`,
-          bodyKeys,
-          hasCsrfInBody: 'csrfToken' in putBody && !!putBody.csrfToken,
-          csrfLength: typeof putBody.csrfToken === 'string' ? putBody.csrfToken.length : 0,
-        });
-      }
-
       const updateResponse = await fetch(`/api/businesses/${businessId}`, {
         method: 'PUT',
         headers: {
@@ -978,22 +871,7 @@ export default function EditBusinessPage() {
         throw new Error(errorData.error || 'Failed to update business in database');
       }
 
-      const updateResult = await updateResponse.json();
-      
-      // Update localStorage with the response from API (which has the latest data)
-      const storageUpdate = {
-        ...finalUpdate,
-        licenses: transformedData.licenses,
-        services: transformedData.services,
-      };
-      if (updateResult.business) {
-        businessStorage.updateBusiness(businessId, {
-          ...storageUpdate,
-          ...updateResult.business,
-        });
-      } else {
-        businessStorage.updateBusiness(businessId, storageUpdate);
-      }
+      await updateResponse.json();
 
       setSuccessMessage('Business updated successfully!');
       
@@ -1085,12 +963,8 @@ export default function EditBusinessPage() {
                               className="object-cover"
                               style={{ objectPosition: businessBackgroundPosition }}
                               unoptimized
-                              onError={(e) => {
+                              onError={() => {
                                 console.error('[Business Edit] Error loading background image:', previewBg);
-                                console.error('[Business Edit] Error details:', e);
-                              }}
-                              onLoad={() => {
-                                console.log('[Business Edit] Background image loaded successfully:', previewBg);
                               }}
                             />
                           </div>
@@ -1199,14 +1073,12 @@ export default function EditBusinessPage() {
                                     !previewLogo.includes('/business-logos/business-logos/') &&
                                     !attempts.has(previewLogo.replace('/business-logos/', '/business-logos/business-logos/'))) {
                                   const altPath = previewLogo.replace('/business-logos/', '/business-logos/business-logos/');
-                                  console.log('[Business Edit] Trying alternative path with duplicate bucket name:', altPath);
                                   setPreviewLogo(altPath);
                                 } else if (previewLogo && 
                                            previewLogo.includes('/business-logos/business-logos/') &&
                                            !attempts.has(previewLogo.replace('/business-logos/business-logos/', '/business-logos/'))) {
                                   // Try normalized path (remove duplicate)
                                   const normalizedPath = previewLogo.replace('/business-logos/business-logos/', '/business-logos/');
-                                  console.log('[Business Edit] Trying normalized path (removing duplicate):', normalizedPath);
                                   setPreviewLogo(normalizedPath);
                                 } else {
                                   console.error('[Business Edit] All logo URL attempts failed. Clearing preview.');
@@ -1216,14 +1088,11 @@ export default function EditBusinessPage() {
                                 }
                               }}
                               onLoad={() => {
-                                console.log('[Business Edit] Logo image loaded successfully:', previewLogo);
-                                // Clear attempts on success
                                 setLogoUrlAttempts(new Set());
                                 
                                 // If we loaded using the alternative path (with duplicate bucket name),
                                 // update the form value and potentially the database to use the correct URL
                                 if (previewLogo && previewLogo.includes('/business-logos/business-logos/')) {
-                                  console.log('[Business Edit] Logo loaded from alternative path. Updating form value to correct URL.');
                                   setValue('businessLogo', previewLogo);
                                   // Note: The database will be updated when the form is saved
                                 }

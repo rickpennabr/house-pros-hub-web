@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { createSignInUrl } from '@/lib/redirect';
-import { businessStorage } from '@/lib/storage/businessStorage';
+import { readReactionCounts, writeReactionCounts } from '@/lib/storage/reactionCounts';
 import { feedbackStorage } from '@/lib/storage/feedbackStorage';
 import { savedBusinessStorage } from '@/lib/storage/savedBusinessStorage';
 import Modal from '@/components/ui/Modal';
@@ -29,6 +29,8 @@ interface ProReactionsProps {
   contractorType?: string;
   logo?: string;
   businessId?: string;
+  /** Owner of the business, used so the feedback thread can mark replies. */
+  ownerUserId?: string;
   layout?: 'between' | 'around';
   gap?: string;
   /** When provided and user is not signed in, clicking a reaction invokes this instead of redirecting to sign-in */
@@ -42,6 +44,7 @@ export default function ProReactions({
   contractorType = '',
   logo,
   businessId = '',
+  ownerUserId,
   layout = 'between',
   gap = 'gap-0.5',
   onSignInRequired,
@@ -57,6 +60,12 @@ export default function ProReactions({
   const t = useTranslations('reactions');
 
   // Check if business is saved by current user on mount
+  useEffect(() => {
+    if (!businessId) return;
+    const stored = readReactionCounts(businessId);
+    if (stored) setReactions((prev) => ({ ...prev, ...stored }));
+  }, [businessId]);
+
   useEffect(() => {
     if (user?.id && businessId && typeof window !== 'undefined') {
       const isSaved = savedBusinessStorage.isBusinessSaved(user.id, businessId);
@@ -79,14 +88,7 @@ export default function ProReactions({
         feedback: feedbackCount
       };
       
-      // Update business storage
-      try {
-        businessStorage.updateBusiness(businessId, {
-          reactions: updatedReactions
-        });
-      } catch (error) {
-        console.error('Error updating business reactions:', error);
-      }
+      writeReactionCounts(businessId, updatedReactions);
       
       return updatedReactions;
     });
@@ -162,16 +164,7 @@ export default function ProReactions({
     
     setReactions(updatedReactions);
 
-    // Sync with localStorage if businessId is provided
-    if (businessId && typeof window !== 'undefined') {
-      try {
-        businessStorage.updateBusiness(businessId, {
-          reactions: updatedReactions
-        });
-      } catch (error) {
-        console.error('Error updating business reactions:', error);
-      }
-    }
+    if (businessId) writeReactionCounts(businessId, updatedReactions);
 
     if (onReaction) {
       onReaction(type);
@@ -271,6 +264,7 @@ export default function ProReactions({
         contractorType={contractorType}
         logo={logo}
         businessId={businessId}
+        ownerUserId={ownerUserId}
         onCommentsChange={updateFeedbackCount}
       />
 

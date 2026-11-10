@@ -43,7 +43,7 @@ interface ProBotCrmViewsProps {
 }
 
 const btnClass =
-  'probot-sky-btn px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors cursor-pointer inline-flex items-center gap-2';
+  'probot-sky-btn px-4 py-2.5 rounded-lg bg-white border-2 border-black text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer inline-flex items-center gap-2';
 
 export function ProBotCrmViews({ view, onBack, onOpenAddTask, onOpenAddCustomer, onAddTaskSuccess }: ProBotCrmViewsProps) {
   const t = useTranslations('bot');

@@ -196,9 +196,9 @@ export default function ProBotSidebar({
         />
       )}
       <div
-        className={`flex flex-col border-r bg-white shrink-0 transition-[width] duration-200 ease-out relative ${
-          isMobile && sidebarOpen ? 'border-black' : 'border-gray-200'
-        } ${sidebarOpen ? 'overflow-hidden' : 'overflow-visible'} ${
+        className={`flex flex-col border-r-2 border-black bg-white shrink-0 transition-[width] duration-200 ease-out relative ${
+          sidebarOpen ? 'overflow-hidden' : 'overflow-visible'
+        } ${
           isMobile && !sidebarOpen ? 'w-0 min-w-0 overflow-hidden' : ''
         } ${
           isMobile && sidebarOpen ? 'fixed left-0 top-0 bottom-0 z-50 w-[256px] shadow-xl border-r-2 border-t-2 border-b-2' : ''
@@ -293,7 +293,7 @@ export default function ProBotSidebar({
           {/* Contacts list; on mobile search bar at top filters contacts */}
           <div className="flex flex-col flex-1 min-h-0 flex overflow-hidden">
             {(contactsOpen || isMobile) && (
-              <div className="flex-1 overflow-y-auto py-1 px-1">
+              <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
                 {filteredContacts.map((contact) => {
                   const isSelected = selectedContactId === contact.id;
                   // Business contacts: logo only (never pro personal photo). Customer contacts: profile picture or logo.
@@ -304,8 +304,8 @@ export default function ProBotSidebar({
                       key={contact.id}
                       type="button"
                       onClick={() => onSelectContact(contact)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg transition-colors cursor-pointer ${
-                        isSelected ? 'bg-gray-900 text-white' : 'md:hover:bg-gray-100 text-gray-800'
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg border-2 border-black transition-colors cursor-pointer ${
+                        isSelected ? 'bg-gray-900 text-white' : 'bg-white md:hover:bg-gray-100 text-gray-800'
                       }`}
                     >
                       <div className="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-white relative">

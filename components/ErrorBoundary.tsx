@@ -2,6 +2,7 @@
 
 import { Component, ReactNode } from 'react';
 import { isServerActionError, handleServerActionError, promptRefreshOnServerActionError } from '@/lib/utils/serverActionErrorHandler';
+import { captureException } from '@/lib/monitoring/sentry';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -49,11 +50,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         errorInfo,
       });
     } else {
-      // Log error to error reporting service in production
-      if (process.env.NODE_ENV === 'production') {
-        // TODO: Send to error reporting service (e.g., Sentry, LogRocket)
-        // errorReportingService.captureException(error, { extra: errorInfo });
-      } else {
+      captureException(error, {
+        context: 'react-error-boundary',
+        componentStack: errorInfo.componentStack,
+      });
+      if (process.env.NODE_ENV !== 'production') {
         console.error('Error caught by boundary:', error, errorInfo);
       }
     }

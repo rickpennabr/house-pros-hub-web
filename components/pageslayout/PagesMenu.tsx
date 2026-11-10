@@ -34,14 +34,13 @@ function scrollMenuToEnd(container: HTMLDivElement | null) {
   }
 }
 
-/** Camera mark for Quick Repair. FIX sits inside the lens. */
-function RepairCameraMark() {
+/** Camera mark. The lens label is FIX for Quick Repair and JOB for Jobsite. */
+export function RepairCameraMark({ label = 'FIX' }: { label?: string }) {
   return (
     <span className="relative block h-full w-full overflow-hidden text-black">
       <svg viewBox="0 3 80 61" className="h-full w-full overflow-hidden" aria-hidden>
-        <rect x="2.5" y="13" width="75" height="48.5" rx="8" fill="none" stroke="currentColor" strokeWidth="3" />
-        <path d="M27 13v-4c0-2 1.4-3.2 3.6-3.2h18.8c2.2 0 3.6 1.2 3.6 3.2V13" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
-        <circle cx="40" cy="38" r="20" fill="none" stroke="currentColor" strokeWidth="2.8" />
+        <path d="M10.5 13 H27 V9 C27 7 28.4 5.8 30.6 5.8 H49.4 C51.6 5.8 53 7 53 9 V13 H69.5 A8 8 0 0 1 77.5 21 V53.5 A8 8 0 0 1 69.5 61.5 H10.5 A8 8 0 0 1 2.5 53.5 V21 A8 8 0 0 1 10.5 13 Z" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
+        <circle cx="40" cy="38" r="18.2" fill="none" stroke="currentColor" strokeWidth="2.4" />
         <circle cx="40" cy="38" r="15.4" fill="none" stroke="#ef4444" strokeWidth="2.3" />
         <text
           x="40"
@@ -55,7 +54,7 @@ function RepairCameraMark() {
           letterSpacing="-0.35"
           className="repair-fix-pulse"
         >
-          FIX
+          {label}
         </text>
         <rect x="7.9" y="17.9" width="6.2" height="6.2" fill="#ffffff" stroke="none" />
         <rect x="7.9" y="17.9" width="6.2" height="6.2" fill="#ffe14a" stroke="none" className="repair-cam-flash" />

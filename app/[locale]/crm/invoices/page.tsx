@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react';
-import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Plus, Pencil, Trash2, MoreVertical, AlertTriangle, Settings } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import { CrmRowActionsButton, CrmRowActionsPortal, useCrmRowActions } from '@/components/crm/CrmRowActionsMenu';
+import { CRM_LIST_PAGE_SIZE, useCrmListQuery } from '@/hooks/useCrmListQuery';
 import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
 import { invoiceStatusLabel } from '@/lib/crm/invoice-books';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 
-const PAGE_SIZE = 25;
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Created' },
   { value: 'updated_at', label: 'Updated' },
@@ -82,87 +82,35 @@ function invoiceCellText(row: InvoiceRow, columnId: string): string {
 export default function CRMInvoicesPage() {
   const router = useRouter();
   const locale = useLocale();
-  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<SortKey>('created_at');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [statusFilter, setStatusFilter] = useState('');
   const crmChrome = useCRMChrome();
-  const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const searchDebounceRef = useRef<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const hasLoadedOnceRef = useRef(false);
+  const {
+    rows: invoices,
+    total,
+    page,
+    setPage,
+    sortBy,
+    sortDir,
+    searchInput,
+    isLoading,
+    error,
+    setError,
+    hasLoadedOnce,
+    reload: fetchInvoices,
+    handleSort,
+    handleSearchInput,
+    handleSearchSubmit,
+  } = useCrmListQuery<InvoiceRow>({
+    endpoint: '/api/crm/invoices',
+    rowsKey: 'invoices',
+    defaultSort: 'created_at',
+    extraParams: { status: statusFilter },
+    loadError: 'Failed to load invoices',
+  });
+  const rowActions = useCrmRowActions();
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [openActionsId, setOpenActionsId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
-  const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  const fetchInvoices = useCallback(async () => {
-    const isFirst = !hasLoadedOnceRef.current;
-    try {
-      if (isFirst) setIsLoading(true);
-      setError(null);
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sortBy, sortDir });
-      if (search) params.set('search', search);
-      if (statusFilter) params.set('status', statusFilter);
-      const res = await fetch(`/api/crm/invoices?${params}`, { credentials: 'include' });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      setInvoices(data.invoices ?? []);
-      setTotal(data.total ?? 0);
-      hasLoadedOnceRef.current = true;
-      setHasLoadedOnce(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load invoices');
-      if (isFirst) { setInvoices([]); setTotal(0); }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, sortBy, sortDir, statusFilter, search]);
-
-  useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
-
-  useEffect(() => {
-    if (!openActionsId) return;
-    const close = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (!actionsMenuRef.current?.contains(target) && !actionsButtonRef.current?.contains(target)) {
-        setOpenActionsId(null);
-        setMenuPosition(null);
-      }
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [openActionsId]);
-
-  const handleSort = (key: SortKey, dir: 'asc' | 'desc') => { setSortBy(key); setSortDir(dir); setPage(1); };
-  const handleSearchInput = (value: string) => {
-    setSearchInput(value);
-    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = window.setTimeout(() => {
-      setSearch(value.trim());
-      setPage(1);
-    }, 200);
-  };
-  const handleSearchSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
-    setSearch(searchInput.trim());
-    setPage(1);
-  };
-  useEffect(() => () => {
-    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
-  }, []);
 
   const handleDelete = async (id: string) => {
     setDeleting(true);
@@ -248,7 +196,7 @@ export default function CRMInvoicesPage() {
         data={invoices}
         total={total}
         page={page}
-        pageSize={PAGE_SIZE}
+        pageSize={CRM_LIST_PAGE_SIZE}
         onPageChange={setPage}
         sortBy={sortBy}
         sortDir={sortDir}
@@ -269,22 +217,7 @@ export default function CRMInvoicesPage() {
         renderCell={(row, columnId) => invoiceCellText(row, columnId) || '—'}
         onRowClick={(row) => router.push(`/${locale}/crm/invoices/${row.id}`)}
         renderActions={(row) => (
-          <button
-            ref={openActionsId === row.id ? actionsButtonRef : undefined}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (openActionsId === row.id) { setOpenActionsId(null); setMenuPosition(null); return; }
-              const rect = e.currentTarget.getBoundingClientRect();
-              actionsButtonRef.current = e.currentTarget;
-              setMenuPosition({ top: rect.bottom + 4, left: Math.min(rect.right - 120, window.innerWidth - 130) });
-              setOpenActionsId(row.id);
-            }}
-            className="p-1 rounded hover:bg-gray-200 text-gray-600 cursor-pointer"
-            aria-label="Actions"
-          >
-            <MoreVertical className="w-5 h-5" />
-          </button>
+          <CrmRowActionsButton rowId={row.id} openId={rowActions.openId} onToggle={rowActions.toggle} />
         )}
         bulkActions={{
           onDelete: (ids) => setBulkDeleteIds(ids),
@@ -328,42 +261,38 @@ export default function CRMInvoicesPage() {
         </Modal>
       )}
 
-      {openActionsId && menuPosition && typeof document !== 'undefined' &&
-        createPortal(
-          (() => {
-            const row = invoices.find((i) => i.id === openActionsId);
-            const isDraft = row?.status === 'draft';
-            return (
-              <div
-                ref={actionsMenuRef}
-                className="fixed z-[100] min-w-[120px] py-1 bg-white border border-gray-200 rounded-md shadow-lg"
-                style={{ top: menuPosition.top, left: menuPosition.left }}
+      <CrmRowActionsPortal openId={rowActions.openId} position={rowActions.position} menuRef={rowActions.menuRef}>
+        {(() => {
+          const row = invoices.find((invoice) => invoice.id === rowActions.openId);
+          const isDraft = row?.status === 'draft';
+          return (
+            <>
+              <button
+                type="button"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+                onClick={() => {
+                  router.push(`/${locale}/crm/invoices/${rowActions.openId}`);
+                  rowActions.close();
+                }}
               >
+                <Pencil className="w-3.5 h-3.5" /> View / Edit
+              </button>
+              {isDraft && row && (
                 <button
                   type="button"
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-                  onClick={() => { router.push(`/${locale}/crm/invoices/${openActionsId}`); setOpenActionsId(null); setMenuPosition(null); }}
+                  className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    setDeleteConfirm({ id: row.id, label: row.invoice_number });
+                    rowActions.close();
+                  }}
                 >
-                  <Pencil className="w-3.5 h-3.5" /> View / Edit
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
                 </button>
-                {isDraft && (
-                  <button
-                    type="button"
-                    className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-                    onClick={() => {
-                      if (row) setDeleteConfirm({ id: row.id, label: row.invoice_number });
-                      setOpenActionsId(null);
-                      setMenuPosition(null);
-                    }}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Delete
-                  </button>
-                )}
-              </div>
-            );
-          })(),
-          document.body
-        )}
+              )}
+            </>
+          );
+        })()}
+      </CrmRowActionsPortal>
     </div>
   );
 }

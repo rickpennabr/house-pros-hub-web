@@ -471,7 +471,7 @@ export default function QuickRepairPage() {
   const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
 
   return (
-    <div className={`w-full md:shrink-0 ${done ? 'flex min-h-0 flex-1 flex-col' : ''}`}>
+    <div className="flex w-full flex-1 flex-col">
       <GoogleHandoffOverlay
         open={googleLoading}
         title={tHandoff('title')}
@@ -480,9 +480,7 @@ export default function QuickRepairPage() {
       {ready && !isLoading && (
         <div
           ref={progressRef}
-          className={`-mx-1 -mt-1 md:-mx-2 md:-mt-2 ${
-            step === 'details' || step === 'submit' ? 'max-md:sticky max-md:top-0 max-md:z-30 max-md:bg-white' : ''
-          }`}
+          className="sticky top-0 z-20 bg-white"
         >
           <div
             className="h-2 w-full bg-neutral-200"
