@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Pencil, Trash2, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowLeft, AlertTriangle, ChevronDown } from 'lucide-react';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { CrmRowActionsButton, CrmRowActionsPortal, useCrmRowActions } from '@/components/crm/CrmRowActionsMenu';
 import { CRM_LIST_PAGE_SIZE, useCrmListQuery } from '@/hooks/useCrmListQuery';
@@ -24,7 +24,53 @@ const SORT_OPTIONS = [
 ] as const;
 type SortKey = (typeof SORT_OPTIONS)[number]['value'];
 
-const CATEGORY_OPTIONS = ['materials', 'labor', 'subcontractor', 'equipment', 'permits', 'other'] as const;
+/** Direct costs on a job or project. */
+const JOB_COST_CATEGORIES = [
+  'Materials',
+  'Labor',
+  'Subcontractor',
+  'Equipment',
+  'Permits',
+  'Disposal',
+  'Fuel',
+  'Tools',
+] as const;
+
+/** Overhead for contractors, realtors, handymen, and other house pros. */
+const BUSINESS_COST_CATEGORIES = [
+  'Vehicle',
+  'Mileage',
+  'Insurance',
+  'Advertising',
+  'Marketing',
+  'Signs',
+  'Photography',
+  'Staging',
+  'Commissions',
+  'Office',
+  'Software',
+  'Phone',
+  'Rent',
+  'Utilities',
+  'Licenses',
+  'Supplies',
+  'Meals',
+  'Payroll',
+  'Taxes',
+  'Repairs',
+  'Training',
+  'Dues',
+] as const;
+
+function sameCategory(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+function kindForCategory(value: string): '' | 'job' | 'business' {
+  if (JOB_COST_CATEGORIES.some((item) => sameCategory(item, value))) return 'job';
+  if (BUSINESS_COST_CATEGORIES.some((item) => sameCategory(item, value))) return 'business';
+  return '';
+}
 
 interface ExpenseRow {
   id: string;
@@ -123,11 +169,15 @@ function DescriptionField({
   onChange,
   suggestions,
   placeholder,
+  maxVisible = 8,
+  showMenu = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   suggestions: string[];
   placeholder: string;
+  maxVisible?: number;
+  showMenu?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(-1);
@@ -135,7 +185,7 @@ function DescriptionField({
   const query = value.trim().toLowerCase();
   const matches = suggestions
     .filter((item) => item.toLowerCase() !== query && (query === '' || item.toLowerCase().includes(query)))
-    .slice(0, 8);
+    .slice(0, maxVisible);
 
   useEffect(() => {
     if (!open) return;
@@ -164,6 +214,7 @@ function DescriptionField({
         onFocus={() => setOpen(true)}
         placeholder={placeholder}
         autoComplete="off"
+        className={showMenu ? 'pr-10' : ''}
         onKeyDown={(event) => {
           if (!open || matches.length === 0) return;
           if (event.key === 'ArrowDown') {
@@ -180,8 +231,19 @@ function DescriptionField({
           }
         }}
       />
+      {showMenu && (
+        <button
+          type="button"
+          aria-label="Show categories"
+          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer p-1 text-black"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      )}
       {open && matches.length > 0 && (
-        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border-2 border-black bg-white py-1 shadow-lg" role="listbox">
+        <div className={`absolute z-20 mt-1 w-full overflow-y-auto rounded-lg border-2 border-black bg-white py-1 shadow-lg ${maxVisible > 8 ? 'max-h-72' : 'max-h-56'}`} role="listbox">
           {matches.map((item, index) => (
             <button
               key={item}
@@ -233,7 +295,9 @@ export default function CRMExpensesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formProjectId, setFormProjectId] = useState('');
   const [formAmountDollars, setFormAmountDollars] = useState('');
-  const [formCategory, setFormCategory] = useState('other');
+  const [formCategory, setFormCategory] = useState('');
+  const [expenseKind, setExpenseKind] = useState<'' | 'job' | 'business'>('');
+  const [pickingOther, setPickingOther] = useState(false);
   const [formDate, setFormDate] = useState('');
   const [formNote, setFormNote] = useState('');
   const [formDescription, setFormDescription] = useState('');
@@ -309,7 +373,9 @@ export default function CRMExpensesPage() {
         if (cancelled) return;
         setFormProjectId(data.projectId ?? '');
         setFormAmountDollars(data.amountCents != null ? (data.amountCents / 100).toFixed(2) : '');
-        setFormCategory(data.category ?? 'other');
+        setFormCategory(data.category ?? '');
+        setExpenseKind(kindForCategory(data.category ?? ''));
+        setPickingOther(Boolean((data.category ?? '').trim()) && !kindForCategory(data.category ?? ''));
         setFormDate(data.expenseDate ? data.expenseDate.slice(0, 10) : '');
         setFormNote(data.note ?? '');
         setFormDescription(data.description ?? '');
@@ -365,9 +431,19 @@ export default function CRMExpensesPage() {
     }
   };
 
+  const chooseCategory = (next: string) => {
+    setFormCategory(next);
+    if (!categoryNeedsSupplier(next)) setFormSupplierId('');
+  };
+
   const handleSubmitAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    const category = formCategory.trim();
+    if (!category) {
+      setFormError('Select or add a category.');
+      return;
+    }
     const amountCents = Math.round(parseFloat(formAmountDollars || '0') * 100);
     setSaving(true);
     try {
@@ -378,22 +454,22 @@ export default function CRMExpensesPage() {
         body: JSON.stringify({
           projectId: formProjectId || null,
           amountCents,
-          category: formCategory,
+          category,
           expenseDate: formDate || new Date().toISOString().slice(0, 10),
           note: formNote.trim() || null,
           description: formDescription.trim() || null,
-          supplierId: categoryNeedsSupplier(formCategory) ? formSupplierId || null : null,
-          poNumber: categoryNeedsSupplier(formCategory) ? formPoNumber.trim() || null : null,
-          quantity: categoryNeedsSupplier(formCategory) ? formQuantity : null,
-          unit: categoryNeedsSupplier(formCategory) ? formUnit.trim() || null : null,
-          requestedBy: categoryNeedsSupplier(formCategory) ? formRequestedBy.trim() || null : null,
-          orderedBy: categoryNeedsSupplier(formCategory) ? formOrderedBy.trim() || null : null,
+          supplierId: categoryNeedsSupplier(category) ? formSupplierId || null : null,
+          poNumber: categoryNeedsSupplier(category) ? formPoNumber.trim() || null : null,
+          quantity: categoryNeedsSupplier(category) ? formQuantity : null,
+          unit: categoryNeedsSupplier(category) ? formUnit.trim() || null : null,
+          requestedBy: categoryNeedsSupplier(category) ? formRequestedBy.trim() || null : null,
+          orderedBy: categoryNeedsSupplier(category) ? formOrderedBy.trim() || null : null,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to create expense');
       setViewMode('table');
-      setFormProjectId(''); setFormAmountDollars(''); setFormCategory('other'); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy('');
+      setFormProjectId(''); setFormAmountDollars(''); setFormCategory(''); setExpenseKind(''); setPickingOther(false); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy('');
       fetchExpenses();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Request failed');
@@ -406,6 +482,11 @@ export default function CRMExpensesPage() {
     e.preventDefault();
     if (!editingId) return;
     setFormError(null);
+    const category = formCategory.trim();
+    if (!category) {
+      setFormError('Select or add a category.');
+      return;
+    }
     const amountCents = Math.round(parseFloat(formAmountDollars || '0') * 100);
     setSaving(true);
     try {
@@ -416,16 +497,16 @@ export default function CRMExpensesPage() {
         body: JSON.stringify({
           projectId: formProjectId || null,
           amountCents,
-          category: formCategory,
+          category,
           expenseDate: formDate || null,
           note: formNote.trim() || null,
           description: formDescription.trim() || null,
-          supplierId: categoryNeedsSupplier(formCategory) ? formSupplierId || null : null,
-          poNumber: categoryNeedsSupplier(formCategory) ? formPoNumber.trim() || null : null,
-          quantity: categoryNeedsSupplier(formCategory) ? formQuantity : null,
-          unit: categoryNeedsSupplier(formCategory) ? formUnit.trim() || null : null,
-          requestedBy: categoryNeedsSupplier(formCategory) ? formRequestedBy.trim() || null : null,
-          orderedBy: categoryNeedsSupplier(formCategory) ? formOrderedBy.trim() || null : null,
+          supplierId: categoryNeedsSupplier(category) ? formSupplierId || null : null,
+          poNumber: categoryNeedsSupplier(category) ? formPoNumber.trim() || null : null,
+          quantity: categoryNeedsSupplier(category) ? formQuantity : null,
+          unit: categoryNeedsSupplier(category) ? formUnit.trim() || null : null,
+          requestedBy: categoryNeedsSupplier(category) ? formRequestedBy.trim() || null : null,
+          orderedBy: categoryNeedsSupplier(category) ? formOrderedBy.trim() || null : null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -451,7 +532,7 @@ export default function CRMExpensesPage() {
               <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Expenses</h1>
               <p className="text-sm text-gray-500 mt-0.5">Track expenses and optionally link to projects.</p>
             </div>
-            <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0" onClick={() => { setEditingId(null); setFormProjectId(''); setFormAmountDollars(''); setFormCategory('other'); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy(''); setFormError(null); setViewMode('add'); }}>
+            <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0" onClick={() => { setEditingId(null); setFormProjectId(''); setFormAmountDollars(''); setFormCategory(''); setExpenseKind(''); setPickingOther(false); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy(''); setFormError(null); setViewMode('add'); }}>
               <Plus className="w-4 h-4" />
               New Expense
             </Button>
@@ -508,6 +589,58 @@ export default function CRMExpensesPage() {
           </div>
           <form onSubmit={viewMode === 'add' ? handleSubmitAdd : handleSubmitEdit} className="space-y-4">
             {formError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{formError}</div>}
+            <FormField label="Type of expense">
+              <Select
+                value={expenseKind}
+                onChange={(event) => {
+                  const next = event.target.value === 'job' || event.target.value === 'business' ? event.target.value : '';
+                  setExpenseKind(next);
+                  setPickingOther(false);
+                  const types = next === 'job' ? JOB_COST_CATEGORIES : next === 'business' ? BUSINESS_COST_CATEGORIES : [];
+                  if (!types.some((item) => sameCategory(item, formCategory))) {
+                    chooseCategory('');
+                  }
+                }}
+              >
+                <option value="">Select type</option>
+                <option value="job">Job costs</option>
+                <option value="business">Business costs</option>
+              </Select>
+            </FormField>
+            {expenseKind && (
+              <FormField label={expenseKind === 'job' ? 'Job cost' : 'Business cost'}>
+                <Select
+                  value={
+                    (expenseKind === 'job' ? JOB_COST_CATEGORIES : BUSINESS_COST_CATEGORIES).find((item) => sameCategory(item, formCategory))
+                    ?? (pickingOther || formCategory.trim() ? '__other__' : '')
+                  }
+                  onChange={(event) => {
+                    if (event.target.value === '__other__') {
+                      setPickingOther(true);
+                      if (kindForCategory(formCategory)) chooseCategory('');
+                      return;
+                    }
+                    setPickingOther(false);
+                    chooseCategory(event.target.value);
+                  }}
+                >
+                  <option value="">Select type</option>
+                  {(expenseKind === 'job' ? JOB_COST_CATEGORIES : BUSINESS_COST_CATEGORIES).map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                  <option value="__other__">Other</option>
+                </Select>
+              </FormField>
+            )}
+            {expenseKind && (pickingOther || (formCategory.trim() !== '' && !kindForCategory(formCategory))) && (
+              <FormField label="Other category">
+                <Input
+                  value={kindForCategory(formCategory) ? '' : formCategory}
+                  onChange={(event) => chooseCategory(event.target.value)}
+                  placeholder="Type a category"
+                />
+              </FormField>
+            )}
             <FormField label="Project (optional)">
               <Select value={formProjectId} onChange={(e) => setFormProjectId(e.target.value)}>
                 <option value="">None</option>
@@ -516,18 +649,6 @@ export default function CRMExpensesPage() {
             </FormField>
             <FormField label="Amount ($)" required>
               <Input type="number" step="0.01" min="0" value={formAmountDollars} onChange={(e) => setFormAmountDollars(e.target.value)} placeholder="0.00" required />
-            </FormField>
-            <FormField label="Category">
-              <Select
-                value={formCategory}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setFormCategory(next);
-                  if (!categoryNeedsSupplier(next)) setFormSupplierId('');
-                }}
-              >
-                {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-              </Select>
             </FormField>
             {categoryNeedsSupplier(formCategory) && (
               <>
@@ -572,14 +693,14 @@ export default function CRMExpensesPage() {
               </>
             )}
             <FormField
-              label={formCategory === 'materials' ? 'Material' : formCategory === 'equipment' ? 'Item' : 'Description'}
+              label={formCategory.trim().toLowerCase() === 'materials' ? 'Material' : formCategory.trim().toLowerCase() === 'equipment' ? 'Item' : 'Description'}
               tip={descriptions.length > 0 ? 'Choose one you already used, or type a new one.' : undefined}
             >
               <DescriptionField
                 value={formDescription}
                 onChange={setFormDescription}
                 suggestions={descriptions}
-                placeholder={formCategory === 'materials' ? 'Drywall, lumber, concrete…' : 'What was this expense for?'}
+                placeholder={formCategory.trim().toLowerCase() === 'materials' ? 'Drywall, lumber, concrete…' : 'What was this expense for?'}
               />
             </FormField>
             {categoryNeedsSupplier(formCategory) && (

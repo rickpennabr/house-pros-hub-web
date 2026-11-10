@@ -5,7 +5,8 @@ import { contactDisplayName } from '@/lib/crm/contact-name';
 type Client = SupabaseClient<Database>;
 
 export function categoryNeedsSupplier(category: string): boolean {
-  return category === 'materials' || category === 'equipment';
+  const key = category.trim().toLowerCase();
+  return key === 'materials' || key === 'equipment';
 }
 
 export function cleanExpenseText(value: unknown): string | null {
