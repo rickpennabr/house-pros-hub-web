@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const userIds = [...new Set(convList.map((c) => (c as ConvRow).user_id).filter(Boolean))] as string[];
+    const userIds = [...new Set(convList.map((c) => (c as ConvRow).user_id).filter((id): id is string => typeof id === 'string' && id.length > 0))];
     type ProfileRow = { id: string; first_name: string | null; last_name: string | null; user_picture: string | null };
     const profileByUserId: Record<string, ProfileRow> = {};
     if (userIds.length > 0) {

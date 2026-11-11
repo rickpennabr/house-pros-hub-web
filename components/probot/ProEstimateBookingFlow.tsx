@@ -50,7 +50,8 @@ export default function ProEstimateBookingFlow({
   const [managePath, setManagePath] = useState<string | null>(null);
   const [services, setServices] = useState<CatalogService[]>([]);
   const [servicesReady, setServicesReady] = useState(false);
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(initialServiceId ?? null);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(initialServiceId ? [initialServiceId] : []);
+  const [generalEstimate, setGeneralEstimate] = useState(false);
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -88,7 +89,11 @@ export default function ProEstimateBookingFlow({
     sqft: tServices('sqft'),
     each: tServices('each'),
   };
-  const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
+  const chosenServices = services.filter((service) => selectedServiceIds.includes(service.id));
+  const selectionLabel = [
+    ...(generalEstimate ? [t('generalEstimate')] : []),
+    ...chosenServices.map((service) => service.name),
+  ].join(', ');
 
   useEffect(() => {
     let cancelled = false;
@@ -100,7 +105,8 @@ export default function ProEstimateBookingFlow({
         const list = (data.services ?? []).filter((service) => service.isActive !== false);
         setServices(list);
         const initialOk = !!initialServiceId && list.some((service) => service.id === initialServiceId);
-        setSelectedServiceId(initialOk ? initialServiceId ?? null : null);
+        setSelectedServiceIds(initialOk && initialServiceId ? [initialServiceId] : []);
+        setGeneralEstimate(false);
         setStep(list.length > 0 && !initialOk ? 'service' : 'calendar');
       })
       .catch(() => {
@@ -192,12 +198,13 @@ export default function ProEstimateBookingFlow({
         return;
       }
 
-      const body: Record<string, string> = {
+      const body: Record<string, unknown> = {
         businessId,
         slotStartAt: selectedSlot.start,
         slotEndAt: selectedSlot.end,
       };
-      if (selectedServiceId) body.serviceId = selectedServiceId;
+      if (chosenServices.length > 0) body.serviceIds = chosenServices.map((service) => service.id);
+      if (generalEstimate) body.generalEstimate = true;
       body.locale = locale;
       body.visitStreet = visit.streetAddress.trim();
       body.visitCity = visit.city.trim();
@@ -317,41 +324,55 @@ export default function ProEstimateBookingFlow({
       {step === 'service' && (
         <>
           <p className="text-base font-medium text-gray-900 mb-3">{t('pickService')}</p>
-          <div className="space-y-2">
-            {services.map((service) => (
-              <button
-                key={service.id}
-                type="button"
-                onClick={() => {
-                  setSelectedServiceId(service.id);
-                  setStep('calendar');
-                }}
-                className="w-full rounded-lg border-2 border-black bg-white p-3 text-left hover:bg-gray-50 cursor-pointer"
-              >
-                <p className="font-semibold text-black">{service.name}</p>
-                <p className="text-sm text-gray-700">
-                  {formatCatalogPrice(service, locale, {
-                    requestPrice: tServices('requestPrice'),
-                    from: tServices('from'),
-                    units: unitLabels,
-                  })}
-                </p>
-              </button>
-            ))}
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
             <button
               type="button"
-              onClick={() => {
-                setSelectedServiceId(null);
-                setStep('calendar');
-              }}
-              className="w-full rounded-lg border-2 border-black bg-white p-3 text-left font-medium hover:bg-gray-50 cursor-pointer"
+              onClick={() => setGeneralEstimate((current) => !current)}
+              aria-pressed={generalEstimate}
+              className={`w-full rounded-lg border-2 border-black p-3 text-left font-medium cursor-pointer ${generalEstimate ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
             >
               {t('generalEstimate')}
             </button>
+            {services.map((service) => {
+              const selected = selectedServiceIds.includes(service.id);
+              return (
+                <button
+                  key={service.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedServiceIds((current) => (
+                      current.includes(service.id)
+                        ? current.filter((id) => id !== service.id)
+                        : [...current, service.id]
+                    ));
+                  }}
+                  aria-pressed={selected}
+                  className={`w-full rounded-lg border-2 border-black p-3 text-left cursor-pointer ${selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+                >
+                  <p className="font-semibold">{service.name}</p>
+                  <p className={`text-sm ${selected ? 'text-white' : 'text-gray-700'}`}>
+                    {formatCatalogPrice(service, locale, {
+                      requestPrice: tServices('requestPrice'),
+                      from: tServices('from'),
+                      units: unitLabels,
+                    })}
+                  </p>
+                </button>
+              );
+            })}
           </div>
-          <div className="mt-3 flex justify-start">
+          <div className="mt-3 flex justify-between gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
               {t('back')}
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={!generalEstimate && chosenServices.length === 0}
+              onClick={() => setStep('calendar')}
+            >
+              {t('continueToCalendar')}
             </Button>
           </div>
         </>
@@ -359,9 +380,9 @@ export default function ProEstimateBookingFlow({
 
       {step === 'calendar' && (
         <>
-          {selectedService && (
+          {selectionLabel && (
             <p className="mb-2 text-sm text-gray-700">
-              <span className="font-medium">{t('service')}:</span> {selectedService.name}
+              <span className="font-medium">{t('service')}:</span> {selectionLabel}
             </p>
           )}
           <p className="text-base font-medium text-gray-900 mb-3">{t('pickYourDay')}</p>
@@ -478,9 +499,9 @@ export default function ProEstimateBookingFlow({
             <p className="text-sm text-gray-700">
               <span className="font-medium">{t('dateTime')}:</span> {formatConfirmDateTime()}
             </p>
-            {selectedService && (
+            {selectionLabel && (
               <p className="text-sm text-gray-700">
-                <span className="font-medium">{t('service')}:</span> {selectedService.name}
+                <span className="font-medium">{t('service')}:</span> {selectionLabel}
               </p>
             )}
             <p className="text-sm text-gray-700">

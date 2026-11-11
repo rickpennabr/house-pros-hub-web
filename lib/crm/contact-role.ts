@@ -45,7 +45,8 @@ export function parseRoleIds(body: unknown): string[] | undefined {
   const raw = record.roleIds ?? record.role_ids;
   if (raw === undefined) return undefined;
   if (!Array.isArray(raw)) return [];
-  return [...new Set(raw.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))];
+  const rawIds: unknown[] = raw;
+  return [...new Set(rawIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))];
 }
 
 export async function listContactRoles(supabase: Client, ownerId: string): Promise<CrmContactRole[]> {

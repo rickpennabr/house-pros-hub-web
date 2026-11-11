@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
       unreadCountByConv.set(r.conversation_id, (unreadCountByConv.get(r.conversation_id) ?? 0) + 1);
     }
 
-    const userIds = [...new Set(list.map((c) => c.user_id).filter(Boolean))] as string[];
+    const userIds = [...new Set(list.map((c) => c.user_id).filter((id): id is string => typeof id === 'string' && id.length > 0))];
     type ProfileRow = { id: string; first_name: string | null; last_name: string | null; user_picture: string | null };
     const profileByUserId: Record<string, ProfileRow> = {};
     if (userIds.length > 0) {

@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
         user_id?: string | null;
         updated_at: string;
       }>;
-      const userIds = [...new Set(convList.map((c) => c.user_id).filter(Boolean))] as string[];
+      const userIds = [...new Set(convList.map((c) => c.user_id).filter((id): id is string => typeof id === 'string' && id.length > 0))];
       let profileByUserId: Record<string, { first_name?: string | null; last_name?: string | null; user_picture?: string | null; business_id?: string | null }> = {};
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
           visitor_display_name?: string | null;
           user_id?: string | null;
         }>;
-        const userIds = [...new Set(list.map((c) => c.user_id).filter(Boolean))] as string[];
+        const userIds = [...new Set(list.map((c) => c.user_id).filter((id): id is string => typeof id === 'string' && id.length > 0))];
         let profileByUserId: Record<string, { first_name?: string | null; last_name?: string | null; user_picture?: string | null; business_id?: string | null }> = {};
         if (userIds.length > 0) {
           const { data: profiles } = await supabase

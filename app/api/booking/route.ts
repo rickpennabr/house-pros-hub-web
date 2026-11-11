@@ -31,6 +31,20 @@ export async function POST(request: NextRequest) {
     const guestLastName = typeof body.guestLastName === 'string' ? body.guestLastName.trim() : '';
     const guestPhone = typeof body.guestPhone === 'string' ? body.guestPhone.trim() : '';
     const requestedServiceId = typeof body.serviceId === 'string' ? body.serviceId.trim() : '';
+    // `request.json()` is `any`. TypeScript 5.9 infers `new Set(any[])` as `Set<unknown>`,
+    // so narrow to `unknown[]` before the string guard.
+    const rawServiceIds: unknown[] = Array.isArray(body.serviceIds) ? body.serviceIds : [];
+    const requestedServiceIds = [
+      ...new Set(
+        rawServiceIds
+          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+          .map((id) => id.trim())
+      ),
+    ].slice(0, 12);
+    if (requestedServiceId && !requestedServiceIds.includes(requestedServiceId)) {
+      requestedServiceIds.push(requestedServiceId);
+    }
+    const includeGeneralEstimate = body.generalEstimate === true;
     const customerLocale = bookingLocale(body.locale);
 
     if (!businessId || !slotStartAt || !slotEndAt) {
@@ -99,17 +113,24 @@ export async function POST(request: NextRequest) {
 
     let serviceId: string | null = null;
     let serviceName: string | null = null;
-    if (requestedServiceId) {
-      const { data: catalogService, error: serviceError } = await service
+    if (requestedServiceIds.length > 0) {
+      const { data: catalogServices, error: serviceError } = await service
         .from('pro_booking_services')
         .select('id, name, is_active, business_id')
-        .eq('id', requestedServiceId)
-        .maybeSingle();
-      if (serviceError || !catalogService || catalogService.business_id !== businessId || !catalogService.is_active) {
+        .in('id', requestedServiceIds);
+      const available = (catalogServices ?? []).filter(
+        (row) => row.business_id === businessId && row.is_active
+      );
+      if (serviceError || available.length !== requestedServiceIds.length) {
         return NextResponse.json({ error: 'That service is not available' }, { status: 400 });
       }
-      serviceId = catalogService.id;
-      serviceName = catalogService.name;
+      const nameById = new Map(available.map((row) => [row.id, row.name]));
+      const names = requestedServiceIds.map((id) => nameById.get(id)).filter((name): name is string => Boolean(name));
+      serviceId = names.length === 1 && !includeGeneralEstimate ? requestedServiceIds[0] : null;
+      serviceName = names.join(', ');
+    }
+    if (includeGeneralEstimate) {
+      serviceName = serviceName ? `General estimate, ${serviceName}` : 'General estimate';
     }
 
     const visit = readVisitAddress(body);

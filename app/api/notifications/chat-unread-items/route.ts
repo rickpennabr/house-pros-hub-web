@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
           convById.set(c.id, c);
         }
 
-        const userIds = [...new Set((convList ?? []).map((c: ConvMeta) => c.user_id).filter(Boolean))] as string[];
+        const userIds = [...new Set((convList ?? []).map((c: ConvMeta) => c.user_id).filter((id): id is string => typeof id === 'string' && id.length > 0))];
         const profileByUserId: Record<string, { first_name: string | null; last_name: string | null }> = {};
         if (userIds.length > 0) {
           const { data: profRows } = await supabase

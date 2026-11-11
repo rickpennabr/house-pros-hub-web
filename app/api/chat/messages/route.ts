@@ -481,7 +481,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const businessIds = [...new Set(rows.map((m) => m.business_id).filter(Boolean))] as string[];
+    const businessIds = [...new Set(rows.map((m) => m.business_id).filter((id): id is string => typeof id === 'string' && id.length > 0))];
     let businessNames: Record<string, string> = {};
     if (businessIds.length > 0) {
       const { data: biz } = await supabase
