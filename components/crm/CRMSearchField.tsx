@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type FormEvent, type Ref } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react';
 import { Search, X } from 'lucide-react';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 
@@ -15,6 +15,8 @@ interface CRMSearchFieldProps {
   onClose?: () => void;
   className?: string;
   formRef?: Ref<HTMLFormElement>;
+  /** Sits to the right of the field, such as a mobile filter button. */
+  endAction?: ReactNode;
 }
 
 /**
@@ -31,6 +33,7 @@ export function CRMSearchField({
   onClose,
   className = '',
   formRef,
+  endAction,
 }: CRMSearchFieldProps) {
   const wasEmptyRef = useRef(!value);
   const [animationKey, setAnimationKey] = useState(0);
@@ -82,6 +85,7 @@ export function CRMSearchField({
           </button>
         ) : null}
       </div>
+      {endAction}
       {showClose ? (
         <button
           type="button"

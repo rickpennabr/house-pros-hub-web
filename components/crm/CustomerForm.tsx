@@ -12,6 +12,7 @@ import AddressAutocomplete, { type AddressData } from '@/components/AddressAutoc
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { validateCustomerEmail, validateCustomerPhone } from '@/lib/schemas/crm';
 import { ContactRolesField } from '@/components/crm/ContactRolesField';
+import { combinedPersonName } from '@/lib/crm/contact-name';
 
 export type CRMCustomerFormData = {
   displayId: string;
@@ -120,6 +121,17 @@ export function CustomerForm({
     setError(null);
   };
 
+  const updatePersonName = (key: 'firstName' | 'lastName', value: string) => {
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      const previousAuto = combinedPersonName(prev.firstName, prev.lastName);
+      const nextAuto = combinedPersonName(next.firstName, next.lastName);
+      const custom = prev.displayName.trim() !== '' && prev.displayName.trim() !== previousAuto;
+      return { ...next, displayName: custom ? prev.displayName : nextAuto };
+    });
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -139,6 +151,15 @@ export function CustomerForm({
       setError(tValidation(mobileErr) as string);
       return;
     }
+    const displayName = trim(form.displayName) || combinedPersonName(form.firstName, form.lastName);
+    if (!displayName) {
+      setError('Display name is required.');
+      return;
+    }
+    if (roleIds.length === 0) {
+      setError('Select or add a role.');
+      return;
+    }
     setSaving(true);
     try {
       const id = (initial as { id?: string }).id;
@@ -149,7 +170,7 @@ export function CustomerForm({
             first_name: trim(form.firstName) || null,
             last_name: trim(form.lastName) || null,
             company_name: trim(form.companyName) || null,
-            display_name: trim(form.displayName) || null,
+            display_name: displayName,
             email: trim(form.email) || null,
             phone: trim(form.phone) || null,
             mobile_number: trim(form.mobileNumber) || null,
@@ -183,7 +204,7 @@ export function CustomerForm({
             first_name: trim(form.firstName),
             last_name: trim(form.lastName),
             company_name: trim(form.companyName) || null,
-            display_name: trim(form.displayName) || null,
+            display_name: displayName,
             email: trim(form.email) || null,
             phone: trim(form.phone) || null,
             mobile_number: trim(form.mobileNumber) || null,
@@ -221,11 +242,7 @@ export function CustomerForm({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || (method === 'POST' ? 'Failed to create customer' : 'Failed to update customer'));
-      const name =
-        trim(form.displayName) ||
-        trim(form.companyName) ||
-        [trim(form.firstName), trim(form.lastName)].filter(Boolean).join(' ') ||
-        'Contact';
+      const name = displayName || 'Contact';
       const createdId = typeof data.id === 'string' && data.id ? data.id : id;
       onSuccess(createdId ? { id: createdId, name } : undefined);
     } catch (err) {
@@ -246,7 +263,7 @@ export function CustomerForm({
         isOpen={isOpen('nameAndContact')}
         onToggle={() => toggleAccordion('nameAndContact')}
         required
-        isComplete={Boolean(form.firstName.trim() && form.lastName.trim())}
+        isComplete={Boolean(form.firstName.trim() && form.lastName.trim() && form.displayName.trim())}
         showCompleteStyle={false}
         icon={<User className="w-5 h-5" />}
       >
@@ -254,17 +271,17 @@ export function CustomerForm({
           <ContactRolesField selectedIds={roleIds} onChange={setRoleIds} />
           {/* Row 1: First name, Last name, Company name */}
           <FormField label="First name" required>
-            <Input ref={firstInputRef} value={form.firstName} onChange={(e) => update('firstName', e.target.value)} placeholder="First name" required />
+            <Input ref={firstInputRef} value={form.firstName} onChange={(e) => updatePersonName('firstName', e.target.value)} placeholder="First name" required />
           </FormField>
           <FormField label="Last name" required>
-            <Input value={form.lastName} onChange={(e) => update('lastName', e.target.value)} placeholder="Last name" required />
+            <Input value={form.lastName} onChange={(e) => updatePersonName('lastName', e.target.value)} placeholder="Last name" required />
           </FormField>
           <FormField label="Company name" className="sm:col-span-2 md:col-span-1">
             <Input value={form.companyName} onChange={(e) => update('companyName', e.target.value)} placeholder="Company name" />
           </FormField>
           {/* Row 2: Customer display name, Phone, Mobile number */}
-          <FormField label="Display name" className="sm:col-span-2 md:col-span-1">
-            <Input value={form.displayName} onChange={(e) => update('displayName', e.target.value)} placeholder="Name shown on forms" />
+          <FormField label="Display name" required tip="Filled from the first and last name. This name is required, must be unique, and is what lists, dropdowns, reports, and invoices show." className="sm:col-span-2 md:col-span-1">
+            <Input value={form.displayName} onChange={(e) => update('displayName', e.target.value)} placeholder="First and last name" required />
           </FormField>
           <FormField label="Phone">
             <Input type="tel" value={form.phone} onChange={(e) => update('phone', formatPhoneNumber(e.target.value))} placeholder="(702) 555-0123" />

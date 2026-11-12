@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 import {
   crmEstimateUpdateSchema,
   isValidEstimateStatusTransition,
@@ -46,7 +47,7 @@ export async function GET(
 
     const { data: customer } = await supabase
       .from('pro_crm_customers')
-      .select('id, first_name, last_name, email')
+      .select('id, first_name, last_name, display_name, company_name, email')
       .eq('id', row.customer_id)
       .single();
 
@@ -57,6 +58,7 @@ export async function GET(
       customerId: row.customer_id,
       customerFirstName: customer?.first_name ?? null,
       customerLastName: customer?.last_name ?? null,
+      customerDisplayName: customer ? contactDisplayName(customer) : null,
       customerEmail: customer?.email ?? null,
       amountCents: row.amount_cents,
       lineItems: row.line_items,

@@ -31,6 +31,7 @@ export interface LedgerEvent {
   id: string;
   action: string;
   created_at: string;
+  payload?: { kind?: string; receipt?: string } | null;
 }
 
 interface InvoiceLedgerProps {
@@ -159,7 +160,13 @@ export function InvoiceLedger({
           <ul className="space-y-1 text-sm text-gray-600">
             {events.map((event) => (
               <li key={event.id}>
-                {eventLabel[event.action] ?? event.action}
+                {event.action === 'reminded' && event.payload?.kind === 'due_soon'
+                  ? 'Due soon reminder sent'
+                  : event.action === 'payment_recorded' && event.payload?.receipt === 'sent'
+                    ? 'Payment recorded, receipt emailed'
+                    : event.action === 'payment_recorded' && event.payload?.receipt === 'skipped'
+                      ? 'Payment recorded, no customer email'
+                      : eventLabel[event.action] ?? event.action}
                 <span className="text-gray-400"> · {new Date(event.created_at).toLocaleString()}</span>
               </li>
             ))}

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import Modal from '@/components/ui/Modal';
 import AddTaskModal from '@/components/crm/AddTaskModal';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 import {
   BUSINESS_TIMEZONES,
   DAY_KEYS,
@@ -128,8 +129,9 @@ function formatClock(iso: string, timeZone: string, locale: string): string {
 function taskName(task: TaskItem): string {
   const customer = task.pro_crm_customers;
   const fromCustomer =
-    customer?.display_name?.trim() ||
-    [customer?.first_name, customer?.last_name].filter(Boolean).join(' ').trim();
+    customer && (customer.display_name || customer.first_name || customer.last_name)
+      ? contactDisplayName(customer)
+      : '';
   return fromCustomer || task.meeting_with || TASK_LABEL[task.task_type] || 'Task';
 }
 

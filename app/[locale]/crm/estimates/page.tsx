@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, FileCheck, FolderPlus, Send, Loader2, Copy, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, FileCheck, FolderPlus, Send, Loader2, Copy, Filter, LayoutGrid, FileText, Ban } from 'lucide-react';
 import { CRMSearchField } from '@/components/crm/CRMSearchField';
+import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
@@ -15,10 +16,14 @@ import Pagination from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { EstimateDocumentForm } from '@/components/estimates/EstimateDocumentForm';
+import { ProgressInvoiceDialog } from '@/components/invoices/ProgressInvoiceDialog';
 import { CustomerEstimatePreview, type CustomerEstimatePreviewData } from '@/components/estimates/CustomerEstimatePreview';
 import { AddProductServicePanel, type ProCrmItem } from '@/components/invoices/AddProductServicePanel';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
 import { DOCUMENT_FORM_LAYOUT } from '@/lib/constants/documentFormLayout';
+import { contactDisplayName, listedCustomerName } from '@/lib/crm/contact-name';
+import { emptyEstimateStatusSummary, type EstimateStatusSummary } from '@/lib/crm/estimate-books';
+import { EstimateStatusCards } from '@/components/crm/EstimateStatusCards';
 import {
   duplicateEstimateDraftFromGetResponse,
   lineItemsForEstimateForm,
@@ -35,69 +40,19 @@ function statusOptionLabel(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function EstimateStatusFilter({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="flex h-11 items-center gap-1 rounded-lg border-2 border-black bg-white px-3 text-base text-black cursor-pointer"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label="Filter by status"
-      >
-        <span>{value ? statusOptionLabel(value) : 'Status'}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 min-w-full overflow-hidden rounded-lg border-2 border-black bg-white shadow-sm" role="listbox">
-          {['', ...STATUS_OPTIONS].map((option) => {
-            const selected = option === value;
-            return (
-              <button
-                key={option || 'all'}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                onClick={() => {
-                  onChange(option);
-                  setOpen(false);
-                }}
-                className={`block w-full px-3 py-2 text-left text-sm cursor-pointer hover:bg-gray-50 ${selected ? 'font-semibold text-black' : 'text-gray-800'}`}
-              >
-                {statusOptionLabel(option)}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
+const STATUS_FILTER_ICONS = {
+  draft: FileText,
+  sent: Send,
+  accepted: FileCheck,
+  declined: Ban,
+} as const;
 
 interface EstimateRow {
   id: string;
   customer_id: string;
   customerFirstName: string | null;
   customerLastName: string | null;
+  customerDisplayName?: string | null;
   customerPhone: string | null;
   customerAddress: string;
   amount_cents: number;
@@ -132,7 +87,7 @@ const ESTIMATE_COLUMNS: AdminDataTableColumn<EstimateRow>[] = [
 function estimateCellText(row: EstimateRow, columnId: string): string {
   switch (columnId) {
     case 'customer':
-      return [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ');
+      return listedCustomerName(row);
     case 'amount':
       return formatAmount(row.amount_cents);
     case 'status':
@@ -148,6 +103,8 @@ interface CustomerOption {
   id: string;
   first_name: string;
   last_name: string;
+  display_name?: string | null;
+  company_name?: string | null;
 }
 
 export type EstimateLineItem = CrmEstimateLineItemForm;
@@ -160,7 +117,9 @@ export default function CRMEstimatesPage() {
   const searchParams = useSearchParams();
   const crmChrome = useCRMChrome();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
+  const [statusSummary, setStatusSummary] = useState<EstimateStatusSummary>(emptyEstimateStatusSummary());
   const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [progressEstimateId, setProgressEstimateId] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortKey>('created_at');
@@ -168,6 +127,7 @@ export default function CRMEstimatesPage() {
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -235,6 +195,7 @@ export default function CRMEstimatesPage() {
       const data = await res.json();
       setEstimates(data.estimates ?? []);
       setTotal(data.total ?? 0);
+      if (data.statusSummary) setStatusSummary(data.statusSummary);
       hasLoadedOnceRef.current = true;
       setHasLoadedOnce(true);
     } catch (err) {
@@ -254,6 +215,12 @@ export default function CRMEstimatesPage() {
   }, [sendSuccessMessage]);
 
   useEffect(() => {
+    const id = searchParams.get('id');
+    if (id) {
+      setEditingId(id);
+      setViewMode('edit');
+      return;
+    }
     if (searchParams.get('customerId') || searchParams.get('new') === '1') {
       setViewMode('add');
     }
@@ -362,26 +329,11 @@ export default function CRMEstimatesPage() {
     setPage(1);
   };
 
-  const handleConvertToInvoice = async (estimateId: string) => {
-    setConvertingId(estimateId);
+  const openProgressInvoice = (estimateId: string) => {
     setOpenActionsId(null);
     setMenuPosition(null);
     setError(null);
-    try {
-      const res = await fetch('/api/crm/invoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ estimateId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to create invoice');
-      router.push(`/${locale}/crm/invoices/${data.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to convert to invoice');
-    } finally {
-      setConvertingId(null);
-    }
+    setProgressEstimateId(estimateId);
   };
 
   const handleConvertToProject = async (estimateId: string) => {
@@ -813,6 +765,22 @@ export default function CRMEstimatesPage() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const applyStatusFilter = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+    setFiltersOpen(false);
+  };
+  const statusFilterButton = !crmChrome?.searchOpen ? (
+    <button
+      type="button"
+      onClick={() => setFiltersOpen(true)}
+      className="relative h-11 w-11 shrink-0 rounded-lg border-2 border-black bg-black flex items-center justify-center cursor-pointer hover:bg-gray-800 md:hidden"
+      aria-label="Filter"
+    >
+      <Filter className="w-5 h-5 text-white" />
+      {statusFilter ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" /> : null}
+    </button>
+  ) : null;
 
   return (
     <div className="w-full">
@@ -848,12 +816,31 @@ export default function CRMEstimatesPage() {
               New Estimate
             </Button>
           </div>
-          <div
-            ref={searchRowRef}
-            className="flex items-center gap-2 pt-2 pb-2 md:pt-0"
-          >
+          <div className={crmChrome?.searchOpen ? 'max-md:hidden' : undefined}>
+            <EstimateStatusCards
+              summary={statusSummary}
+              active={statusFilter}
+              onSelect={applyStatusFilter}
+            />
+          </div>
+          <div className="hidden md:flex flex-wrap gap-2 pb-3">
+            {['', ...STATUS_OPTIONS].map((option) => {
+              const selected = statusFilter === option;
+              return (
+                <button
+                  key={option || 'all'}
+                  type="button"
+                  onClick={() => applyStatusFilter(option)}
+                  className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${selected ? 'bg-black text-white' : 'bg-white text-black'}`}
+                >
+                  {statusOptionLabel(option)}
+                </button>
+              );
+            })}
+          </div>
+          <div ref={searchRowRef} className="pt-2 pb-2 md:pt-0">
             <CRMSearchField
-              className="min-w-0 flex-1 md:order-2 md:max-w-md"
+              className="min-w-0 md:max-w-md"
               value={searchInput}
               onChange={handleSearchInput}
               placeholder="Search customer..."
@@ -864,16 +851,35 @@ export default function CRMEstimatesPage() {
                 crmChrome?.setSearchOpen(false);
                 (document.activeElement as HTMLElement | null)?.blur();
               }}
+              endAction={statusFilterButton}
             />
-            <div className={`${crmChrome?.searchOpen ? 'max-md:hidden' : ''} md:order-1`}>
-              <EstimateStatusFilter value={statusFilter} onChange={(value) => { setStatusFilter(value); setPage(1); }} />
-            </div>
           </div>
+          <MobileGridActionsModal
+            isOpen={filtersOpen}
+            onClose={() => setFiltersOpen(false)}
+            title="Filter by status"
+            items={[
+              {
+                id: 'all',
+                label: 'All',
+                icon: LayoutGrid,
+                isActive: statusFilter === '',
+                onClick: () => applyStatusFilter(''),
+              },
+              ...STATUS_OPTIONS.map((option) => ({
+                id: option,
+                label: statusOptionLabel(option),
+                icon: STATUS_FILTER_ICONS[option],
+                isActive: statusFilter === option,
+                onClick: () => applyStatusFilter(option),
+              })),
+            ]}
+          />
           {listView === 'map' ? (
             <AddressPinsMap
               pins={estimates.map((row) => ({
                 id: row.id,
-                title: [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ') || 'Estimate',
+                title: listedCustomerName(row) || 'Estimate',
                 detail: `${row.status} · ${formatAmount(row.amount_cents)}`,
                 address: row.customerAddress || '',
               }))}
@@ -1097,19 +1103,25 @@ export default function CRMEstimatesPage() {
                 >
                   <Send className="w-3.5 h-3.5" /> Review & Send
                 </button>
-                <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => handleConvertToInvoice(openActionsId)} disabled={convertingId === openActionsId}>
-                  <FileCheck className="w-3.5 h-3.5" /> Convert to invoice
+                <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => openProgressInvoice(openActionsId)}>
+                  <FileCheck className="w-3.5 h-3.5" /> Create invoice
                 </button>
                 <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => handleConvertToProject(openActionsId)} disabled={convertingId === openActionsId}>
                   <FolderPlus className="w-3.5 h-3.5" /> Convert to project
                 </button>
-                <button type="button" className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { const r = estimates.find((e) => e.id === openActionsId); if (r) setDeleteConfirm({ id: r.id, label: `${r.customerFirstName} ${r.customerLastName}` }); setOpenActionsId(null); setMenuPosition(null); }}>
+                <button type="button" className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { const r = estimates.find((e) => e.id === openActionsId); if (r) setDeleteConfirm({ id: r.id, label: listedCustomerName(r) || 'Estimate' }); setOpenActionsId(null); setMenuPosition(null); }}>
                   <Trash2 className="w-3.5 h-3.5" /> Delete
                 </button>
               </div>
           ))(),
           document.body
         )}
+
+      <ProgressInvoiceDialog
+        estimateId={progressEstimateId}
+        onClose={() => setProgressEstimateId(null)}
+        onCreated={(invoiceId) => router.push(`/${locale}/crm/invoices/${invoiceId}`)}
+      />
 
       {sendDialogEstimateId && (
         <Modal

@@ -1,4 +1,5 @@
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
+import type { PaymentMethod } from '@/lib/crm/invoice-books';
 import type { CompanyDisplayOverride } from '@/lib/invoices/companyDisplay';
 
 export interface InvoicePendingAttachment {
@@ -13,6 +14,10 @@ export interface InvoiceLineItem {
   qty: number;
   rate_cents: number;
   amount_cents: number;
+  /** Set when the line was added from a project expense. */
+  expense_id?: string | null;
+  /** Cost before markup, so the markup percent can be changed later. */
+  cost_cents?: number | null;
 }
 
 export interface InvoiceBusinessShape {
@@ -41,6 +46,8 @@ export interface InvoiceLinePayload {
   qty: number;
   rate_cents: number;
   amount_cents: number;
+  expense_id?: string | null;
+  cost_cents?: number | null;
 }
 
 /** Values the invoice editor owns. Pages turn this into a create or update request. */
@@ -53,6 +60,9 @@ export interface InvoiceEditorDraft {
   note: string;
   companyOverride: CompanyDisplayOverride | null;
   pendingAttachments: InvoicePendingAttachment[];
+  /** Record a payment for the full total while saving. */
+  paidNow: boolean;
+  paidNowMethod: PaymentMethod;
 }
 
 export const EMPTY_INVOICE_BUSINESS: InvoiceBusinessShape = {
@@ -87,6 +97,8 @@ export function invoiceLineItemsPayload(lines: InvoiceLineItem[]): InvoiceLinePa
       qty: line.qty,
       rate_cents: line.rate_cents,
       amount_cents: line.amount_cents,
+      expense_id: line.expense_id || null,
+      cost_cents: line.cost_cents ?? null,
     }));
 }
 

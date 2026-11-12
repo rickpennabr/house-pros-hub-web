@@ -6,7 +6,7 @@ type Client = SupabaseClient<Database>;
 
 export function categoryNeedsSupplier(category: string): boolean {
   const key = category.trim().toLowerCase();
-  return key === 'materials' || key === 'equipment';
+  return key === 'materials' || key === 'delivery' || key === 'equipment';
 }
 
 export function cleanExpenseText(value: unknown): string | null {
@@ -30,7 +30,7 @@ function cleanQuantity(value: unknown): number | null {
   return Math.round(amount * 1000) / 1000;
 }
 
-/** PO, quantity, unit, and who asked or placed the order. Kept for materials and equipment. */
+/** PO, quantity, unit, and who asked or placed the order. Kept for materials, delivery, and equipment. */
 export function parseExpenseOrderFields(category: string | undefined, body: Record<string, unknown>): ExpenseOrderFields {
   if (category !== undefined && !categoryNeedsSupplier(category)) {
     return { po_number: null, quantity: null, unit: null, requested_by: null, ordered_by: null };

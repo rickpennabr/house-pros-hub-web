@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { Json } from '@/lib/types/supabase';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { RECURRING_FREQUENCIES, type RecurringFrequency } from '@/lib/crm/invoice-books';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 function isDateKey(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -28,13 +29,10 @@ export async function GET() {
     if (customerIds.length > 0) {
       const { data: customers } = await supabase
         .from('pro_crm_customers')
-        .select('id, first_name, last_name, display_name')
+        .select('id, first_name, last_name, display_name, company_name')
         .in('id', customerIds);
       for (const customer of customers ?? []) {
-        names.set(
-          customer.id,
-          customer.display_name?.trim() || [customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Customer'
-        );
+        names.set(customer.id, contactDisplayName(customer));
       }
     }
 

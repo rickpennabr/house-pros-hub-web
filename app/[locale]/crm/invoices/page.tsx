@@ -3,15 +3,17 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Plus, Pencil, Trash2, AlertTriangle, Settings } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, Settings, Filter, LayoutGrid, FileText, Send, CircleDollarSign, CircleCheck, Clock, Ban } from 'lucide-react';
 import Link from 'next/link';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
+import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { CrmRowActionsButton, CrmRowActionsPortal, useCrmRowActions } from '@/components/crm/CrmRowActionsMenu';
 import { CRM_LIST_PAGE_SIZE, useCrmListQuery } from '@/hooks/useCrmListQuery';
 import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
 import { invoiceStatusLabel } from '@/lib/crm/invoice-books';
+import { listedCustomerName } from '@/lib/crm/contact-name';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 
 const SORT_OPTIONS = [
@@ -27,11 +29,21 @@ type SortKey = (typeof SORT_OPTIONS)[number]['value'];
 
 const STATUS_OPTIONS = ['draft', 'sent', 'partial', 'paid', 'overdue', 'cancelled'] as const;
 
+const STATUS_FILTER_ICONS = {
+  draft: FileText,
+  sent: Send,
+  partial: CircleDollarSign,
+  paid: CircleCheck,
+  overdue: Clock,
+  cancelled: Ban,
+} as const;
+
 interface InvoiceRow {
   id: string;
   customer_id: string;
   customerFirstName: string | null;
   customerLastName: string | null;
+  customerDisplayName?: string | null;
   invoice_number: string;
   amount_cents: number;
   status: string;
@@ -65,7 +77,7 @@ function invoiceCellText(row: InvoiceRow, columnId: string): string {
     case 'invoice_number':
       return row.invoice_number;
     case 'customer':
-      return [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ');
+      return listedCustomerName(row);
     case 'amount':
       return formatAmount(row.amount_cents);
     case 'status':
@@ -83,6 +95,7 @@ export default function CRMInvoicesPage() {
   const router = useRouter();
   const locale = useLocale();
   const [statusFilter, setStatusFilter] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const crmChrome = useCRMChrome();
   const {
     rows: invoices,
@@ -146,35 +159,58 @@ export default function CRMInvoicesPage() {
     }
   };
 
+  const applyStatusFilter = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+    setFiltersOpen(false);
+  };
+  const statusFilterButton = !crmChrome?.searchOpen ? (
+    <button
+      type="button"
+      onClick={() => setFiltersOpen(true)}
+      className="relative h-11 w-11 shrink-0 rounded-lg border-2 border-black bg-black flex items-center justify-center cursor-pointer hover:bg-gray-800 md:hidden"
+      aria-label="Filter"
+    >
+      <Filter className="w-5 h-5 text-white" />
+      {statusFilter ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" /> : null}
+    </button>
+  ) : null;
+  const invoiceActions = (
+    <div className="flex items-center gap-2 shrink-0">
+      <Link href={`/${locale}/crm/invoices/recurring`}>
+        <Button variant="secondary" size="sm" className="h-9">Recurring</Button>
+      </Link>
+      <Link href={`/${locale}/crm/invoices/new`}>
+        <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0 h-9">
+          <Plus className="w-4 h-4" />
+          New Invoice
+        </Button>
+      </Link>
+      <Link href={`/${locale}/crm/invoice-settings`}>
+        <button
+          type="button"
+          className="h-9 w-9 rounded-lg border-2 border-black bg-black text-white flex items-center justify-center shrink-0 cursor-pointer hover:bg-gray-800 transition-colors font-medium"
+          aria-label="Invoice settings"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+      </Link>
+    </div>
+  );
+
   return (
     <div className="w-full">
-      <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
+      <div className="hidden md:flex md:flex-row md:items-center md:justify-between md:gap-4 md:pt-0 md:pb-0">
         <div className="min-w-0">
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Invoices</h1>
           <p className="text-sm text-gray-500 mt-0.5">Create and manage invoices. Convert estimates to invoices.</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Link href={`/${locale}/crm/invoices/recurring`}>
-            <Button variant="secondary" size="sm" className="h-9">Recurring</Button>
-          </Link>
-          <Link href={`/${locale}/crm/invoices/new`}>
-            <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0 h-9">
-              <Plus className="w-4 h-4" />
-              New Invoice
-            </Button>
-          </Link>
-          <Link href={`/${locale}/crm/invoice-settings`}>
-            <button
-              type="button"
-              className="h-9 w-9 rounded-lg border-2 border-black bg-black text-white flex items-center justify-center shrink-0 cursor-pointer hover:bg-gray-800 transition-colors font-medium"
-              aria-label="Invoice settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          </Link>
-        </div>
+        {invoiceActions}
       </div>
-      <div className={`flex flex-wrap items-center gap-4 pb-2 ${crmChrome?.searchOpen ? 'max-md:hidden' : ''}`}>
+      <div className={`flex justify-end pt-2 md:hidden ${crmChrome?.searchOpen ? 'max-md:hidden' : ''}`}>
+        {invoiceActions}
+      </div>
+      <div className="hidden md:flex md:flex-wrap md:items-center md:gap-4 md:pb-2">
         <form className="flex gap-2 items-center" onSubmit={(e) => e.preventDefault()}>
           <label className="text-sm text-gray-600">Status</label>
           <select
@@ -189,7 +225,30 @@ export default function CRMInvoicesPage() {
           </select>
         </form>
       </div>
+      <MobileGridActionsModal
+        isOpen={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filter by status"
+        items={[
+          {
+            id: 'all',
+            label: 'All',
+            icon: LayoutGrid,
+            isActive: statusFilter === '',
+            onClick: () => applyStatusFilter(''),
+          },
+          ...STATUS_OPTIONS.map((option) => ({
+            id: option,
+            label: invoiceStatusLabel(option),
+            icon: STATUS_FILTER_ICONS[option],
+            isActive: statusFilter === option,
+            onClick: () => applyStatusFilter(option),
+          })),
+        ]}
+      />
       <AdminDataTable
+        searchRowClassName="max-md:pt-2"
+        searchEndAction={statusFilterButton}
         columnOrderKey="crm-invoices"
         exportName="invoices"
         columns={INVOICE_COLUMNS}

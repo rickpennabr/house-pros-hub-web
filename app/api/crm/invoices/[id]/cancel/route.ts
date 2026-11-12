@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { activePaidCents, canCancelInvoice } from '@/lib/crm/invoice-books';
+import { releaseBilledExpenses } from '@/lib/crm/job-costs';
 
 /**
  * POST /api/crm/invoices/[id]/cancel
@@ -45,6 +46,8 @@ export async function POST(
       .eq('id', id)
       .eq('owner_id', user.id);
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+
+    await releaseBilledExpenses(supabase, user.id, id);
 
     await supabase.from('pro_crm_document_events').insert({
       owner_id: user.id,

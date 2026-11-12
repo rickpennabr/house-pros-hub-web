@@ -2,6 +2,7 @@ import React from 'react';
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import type { InvoiceTemplateInvoice, InvoiceTemplateCustomer, InvoiceTemplateBusiness } from './InvoiceTemplate';
 import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10 },
@@ -103,7 +104,7 @@ export function InvoicePdfDocument({ invoice, customer, business, themeColor }: 
         <View style={[styles.tintBlock, { backgroundColor: tintBg }]}>
           <Text style={styles.billToLabel}>Bill to</Text>
           <Text style={styles.billToName}>
-            {customer.display_name?.trim() || customer.company_name || [customer.first_name, customer.last_name].filter(Boolean).join(' ')}
+            {contactDisplayName(customer)}
           </Text>
           {customerAddress ? <Text style={styles.address}>{customerAddress}</Text> : null}
           <View style={styles.metaGrid}>

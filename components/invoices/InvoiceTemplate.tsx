@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 export interface InvoiceLineItem {
   product_or_service?: string | null;
@@ -156,7 +157,7 @@ export function InvoiceTemplate({
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">Bill to</p>
             <p className="font-semibold text-black">
-              {customer.display_name?.trim() || customer.company_name || [customer.first_name, customer.last_name].filter(Boolean).join(' ')}
+              {contactDisplayName(customer)}
             </p>
             {customerAddress && (
               <p className="text-sm text-gray-700 mt-1 whitespace-pre-line">{customerAddress}</p>

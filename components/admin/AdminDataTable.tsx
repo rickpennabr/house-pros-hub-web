@@ -87,6 +87,8 @@ export interface AdminDataTableProps<T> {
   hideSearch?: boolean;
   /** Extra classes on the search row, such as mobile top spacing. */
   searchRowClassName?: string;
+  /** Control rendered on the right of the search field. */
+  searchEndAction?: React.ReactNode;
   /**
    * Search, sort, column filters, and pagination run on `data` in the browser.
    * Use this for lists that are already fully loaded.
@@ -144,6 +146,7 @@ export function AdminDataTable<T>({
   searchPlaceholder = 'Search…',
   hideSearch = false,
   searchRowClassName = '',
+  searchEndAction,
   clientSide = false,
   getCellText,
   columnOrderKey,
@@ -795,6 +798,7 @@ export function AdminDataTable<T>({
             (document.activeElement as HTMLElement | null)?.blur();
           }}
           className={`pb-2 max-w-md ${searchRowClassName} ${hideSearch ? 'hidden' : ''}`}
+          endAction={searchEndAction}
         />
       ) : (
         <form
@@ -831,6 +835,7 @@ export function AdminDataTable<T>({
               </button>
             ) : null}
           </div>
+          {searchEndAction}
           {clientSide ? null : (
             <button
               type="submit"

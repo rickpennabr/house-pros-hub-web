@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -13,6 +14,35 @@ async function requireContractor() {
 }
 
 const VALID_SORT = ['created_at', 'updated_at', 'name', 'status', 'start_date', 'end_date'] as const;
+
+/** Sum job expenses for the projects on this page. Pages past the default row cap so the total is complete. */
+async function sumExpenseCentsByProject(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ownerId: string,
+  projectIds: string[]
+): Promise<Map<string, number>> {
+  const totals = new Map<string, number>();
+  if (projectIds.length === 0) return totals;
+  const pageSize = 1000;
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from('pro_crm_expenses')
+      .select('project_id, amount_cents')
+      .eq('owner_id', ownerId)
+      .in('project_id', projectIds)
+      .order('id', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw new Error(error.message || 'Failed to load project costs');
+    for (const row of data ?? []) {
+      if (!row.project_id) continue;
+      totals.set(row.project_id, (totals.get(row.project_id) ?? 0) + (row.amount_cents ?? 0));
+    }
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return totals;
+}
 
 async function validateEstimateLink(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -80,15 +110,41 @@ export async function GET(request: NextRequest) {
 
     const list = projects ?? [];
     const customerIds = [...new Set(list.map((p) => p.customer_id))];
-    const customerMap = new Map<string, { first_name: string; last_name: string }>();
-    if (customerIds.length > 0) {
-      const { data: customers } = await supabase.from('pro_crm_customers').select('id, first_name, last_name').in('id', customerIds);
-      customers?.forEach((c) => customerMap.set(c.id, { first_name: c.first_name, last_name: c.last_name }));
+    const estimateIds = [...new Set(list.map((p) => p.estimate_id).filter((id): id is string => Boolean(id)))];
+    const projectIds = list.map((p) => p.id);
+
+    const [customersResult, estimatesResult, expenseTotals] = await Promise.all([
+      customerIds.length > 0
+        ? supabase.from('pro_crm_customers').select('id, first_name, last_name, display_name, company_name').in('id', customerIds)
+        : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string; display_name: string | null; company_name: string | null }[], error: null }),
+      estimateIds.length > 0
+        ? supabase.from('pro_crm_estimates').select('id, amount_cents').eq('owner_id', user.id).in('id', estimateIds)
+        : Promise.resolve({ data: [] as { id: string; amount_cents: number }[], error: null }),
+      sumExpenseCentsByProject(supabase, user.id, projectIds),
+    ]);
+    if (customersResult.error) {
+      return NextResponse.json({ error: customersResult.error.message || 'Failed to load customers' }, { status: 500 });
     }
+    if (estimatesResult.error) {
+      return NextResponse.json({ error: estimatesResult.error.message || 'Failed to load contract amounts' }, { status: 500 });
+    }
+
+    const customerMap = new Map<string, { first_name: string; last_name: string; display_name: string | null; company_name: string | null }>();
+    customersResult.data?.forEach((c) => customerMap.set(c.id, c));
+    const contractByEstimate = new Map<string, number>();
+    estimatesResult.data?.forEach((estimate) => contractByEstimate.set(estimate.id, estimate.amount_cents ?? 0));
 
     const withCustomer = list.map((p) => {
       const c = customerMap.get(p.customer_id);
-      return { ...p, customerFirstName: c?.first_name ?? null, customerLastName: c?.last_name ?? null };
+      const contractAmountCents = p.estimate_id ? contractByEstimate.get(p.estimate_id) ?? null : null;
+      return {
+        ...p,
+        customerFirstName: c?.first_name ?? null,
+        customerLastName: c?.last_name ?? null,
+        customerDisplayName: c ? contactDisplayName(c) : null,
+        contract_amount_cents: contractAmountCents,
+        project_cost_cents: expenseTotals.get(p.id) ?? 0,
+      };
     });
 
     return NextResponse.json({ projects: withCustomer, total: count ?? 0, page, pageSize });

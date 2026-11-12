@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { sendInvoiceEmail } from '@/lib/services/emailService';
 import { getNextInvoiceNumber } from '@/lib/crm/invoice-number';
-import { nextRecurringDate, statusFromPayments, todayDateKey, type RecurringFrequency } from '@/lib/crm/invoice-books';
+import { dueSoonThrough, nextRecurringDate, statusFromPayments, todayDateKey, type RecurringFrequency } from '@/lib/crm/invoice-books';
 
 const REMINDER_GAP_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -23,9 +23,10 @@ export async function GET(request: NextRequest) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()?.replace(/\/$/, '') ?? '';
 
   const created = await runRecurring(supabase, today, baseUrl);
+  const dueSoon = await runDueSoon(supabase, today, baseUrl);
   const reminded = await runReminders(supabase, today, baseUrl);
 
-  return NextResponse.json({ created, reminded });
+  return NextResponse.json({ created, dueSoon, reminded });
 }
 
 async function runRecurring(
@@ -105,6 +106,52 @@ async function runRecurring(
   return created;
 }
 
+async function runDueSoon(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  today: string,
+  baseUrl: string
+) {
+  let reminded = 0;
+  const { data: open, error } = await supabase
+    .from('pro_crm_invoices')
+    .select('id, owner_id, customer_id, business_id, invoice_number, amount_cents, payment_applied_cents, due_date, status, due_soon_reminded_at')
+    .in('status', ['sent', 'partial'])
+    .gte('due_date', today)
+    .lte('due_date', dueSoonThrough(today))
+    .is('due_soon_reminded_at', null)
+    .limit(200);
+  if (error || !open) return reminded;
+
+  for (const invoice of open) {
+    const balance = invoice.amount_cents - invoice.payment_applied_cents;
+    if (balance <= 0 || !invoice.due_date) continue;
+    const sent = await emailInvoice(supabase, {
+      ownerId: invoice.owner_id,
+      invoiceId: invoice.id,
+      customerId: invoice.customer_id,
+      businessId: invoice.business_id,
+      invoiceNumber: invoice.invoice_number,
+      amountCents: balance,
+      baseUrl,
+      message: `This invoice is due on ${invoice.due_date}.`,
+    });
+    if (!sent) continue;
+    await supabase
+      .from('pro_crm_invoices')
+      .update({ due_soon_reminded_at: new Date().toISOString() })
+      .eq('id', invoice.id);
+    await supabase.from('pro_crm_document_events').insert({
+      owner_id: invoice.owner_id,
+      invoice_id: invoice.id,
+      actor_id: null,
+      action: 'reminded',
+      payload: { kind: 'due_soon', due_date: invoice.due_date },
+    });
+    reminded += 1;
+  }
+  return reminded;
+}
+
 async function runReminders(
   supabase: ReturnType<typeof createServiceRoleClient>,
   today: string,
@@ -129,7 +176,7 @@ async function runReminders(
       customerId: invoice.customer_id,
       businessId: invoice.business_id,
       invoiceNumber: invoice.invoice_number,
-      amountCents: invoice.amount_cents,
+      amountCents: invoice.amount_cents - invoice.payment_applied_cents,
       baseUrl,
       message: 'This invoice is past due. You can review it from the link in this email.',
     });

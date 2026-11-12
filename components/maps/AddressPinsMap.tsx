@@ -85,9 +85,11 @@ function PinMarker({ title, selected }: { title: string; selected: boolean }) {
 function MapCanvas({
   pins,
   onOpen,
+  showEmpty = true,
 }: {
   pins: AddressPin[];
   onOpen?: (id: string) => void;
+  showEmpty?: boolean;
 }) {
   const [located, setLocated] = useState<LocatedPin[]>([]);
   const [pending, setPending] = useState(true);
@@ -136,7 +138,7 @@ function MapCanvas({
           <p className="text-sm text-gray-600">Placing addresses…</p>
         </div>
       )}
-      {!pending && located.length === 0 && (
+      {showEmpty && !pending && located.length === 0 && (
         <div className="absolute inset-x-4 top-4 z-10 rounded-lg border-2 border-black bg-white px-3 py-2 text-sm text-black">
           None of these rows have an address that can be placed on the map.
         </div>
@@ -198,9 +200,10 @@ interface AddressPinsMapProps {
   pins: AddressPin[];
   onOpen?: (id: string) => void;
   className?: string;
+  showEmpty?: boolean;
 }
 
-export function AddressPinsMap({ pins, onOpen, className = 'h-[min(70vh,640px)]' }: AddressPinsMapProps) {
+export function AddressPinsMap({ pins, onOpen, className = 'h-[min(70vh,640px)]', showEmpty = true }: AddressPinsMapProps) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -221,7 +224,7 @@ export function AddressPinsMap({ pins, onOpen, className = 'h-[min(70vh,640px)]'
         </div>
       )}
       <APIProvider apiKey={apiKey} libraries={['marker']} onLoad={() => setReady(true)} onError={() => setFailed(true)}>
-        {ready ? <MapCanvas pins={pins} onOpen={onOpen} /> : <div className="h-full w-full" />}
+        {ready ? <MapCanvas pins={pins} onOpen={onOpen} showEmpty={showEmpty} /> : <div className="h-full w-full" />}
       </APIProvider>
     </div>
   );

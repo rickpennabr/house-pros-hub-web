@@ -5,9 +5,11 @@ import { createPortal } from 'react-dom';
 import { User, Building2, Mail, Phone, MapPin, Globe, MoreVertical, FileText, FileCheck, FolderOpen, PlusCircle, Pencil, Trash2 } from 'lucide-react';
 import type { Database } from '@/lib/types/supabase';
 import type { CrmContactRole } from '@/lib/crm/contact-role';
+import { formatAmount } from '@/lib/invoices/format';
 
 type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'] & {
   roles?: CrmContactRole[];
+  open_balance_cents?: number;
 };
 
 export interface CustomerCardMenuActions {
@@ -49,6 +51,38 @@ function buildMapsUrl(c: CRMCustomerRow): string | null {
 const iconButtonClass =
   'w-9 h-9 rounded-lg bg-white border-2 border-black flex items-center justify-center shrink-0 cursor-pointer hover:bg-gray-50 transition-colors';
 
+function ContactAction({
+  href,
+  label,
+  external,
+  children,
+}: {
+  href: string | null;
+  label: string;
+  external?: boolean;
+  children: React.ReactNode;
+}) {
+  if (!href) {
+    return (
+      <span className={`${iconButtonClass} cursor-default opacity-30`} aria-hidden>
+        {children}
+      </span>
+    );
+  }
+  return (
+    <a
+      href={href}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noopener noreferrer' : undefined}
+      onClick={(event) => event.stopPropagation()}
+      className={iconButtonClass}
+      aria-label={label}
+    >
+      {children}
+    </a>
+  );
+}
+
 export default function CustomerCard({
   customer,
   onEdit,
@@ -69,8 +103,6 @@ export default function CustomerCard({
   const hasPhone = !!primaryPhone;
   const hasWebsite = !!customer.website?.trim();
   const mapsUrl = buildMapsUrl(customer);
-  const hasLocation = !!mapsUrl;
-  const hasAnyContact = hasEmail || hasPhone || hasWebsite || hasLocation;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -118,9 +150,9 @@ export default function CustomerCard({
           onEdit(customer.id);
         }
       }}
-      className="border-2 border-black rounded-lg bg-white overflow-visible hover:shadow-lg transition-shadow cursor-pointer text-left w-full relative"
+      className="border-2 border-black rounded-lg bg-white overflow-visible hover:shadow-lg transition-shadow cursor-pointer text-left w-full h-full relative flex flex-col"
     >
-      <div className="p-4">
+      <div className="p-4 flex-1">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
             <User className="w-5 h-5 text-gray-600" />
@@ -128,21 +160,25 @@ export default function CustomerCard({
           <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-gray-900 truncate">{name}</h3>
             <p className="mt-0.5 text-xs text-gray-500 truncate">{customer.display_id ?? 'Pending ID'}</p>
-            {(customer.roles ?? []).length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1">
-                {customer.roles!.filter((role) => role.slug !== 'installer').map((role) => (
-                  <span key={role.id} className="rounded-full border border-black px-2 py-0.5 text-[11px] font-medium text-black">
-                    {role.name}
-                  </span>
-                ))}
-              </div>
-            )}
-            {customer.company_name?.trim() && (
-              <div className="flex items-center gap-1.5 mt-0.5 text-sm text-gray-600 truncate">
-                <Building2 className="w-3.5 h-3.5 shrink-0 text-gray-500" />
-                <span className="truncate">{customer.company_name}</span>
-              </div>
-            )}
+            <div className="mt-1 flex min-h-5 flex-wrap gap-1">
+              {(customer.roles ?? []).filter((role) => role.slug !== 'installer').map((role) => (
+                <span key={role.id} className="rounded-lg border border-black px-2 py-0.5 text-[11px] font-medium text-black">
+                  {role.name}
+                </span>
+              ))}
+            </div>
+            <div className="mt-1 flex h-5 items-center justify-between gap-2 text-sm">
+              <span className="text-gray-500">Open balance</span>
+              <span className="font-semibold text-black">{formatAmount(customer.open_balance_cents ?? 0)}</span>
+            </div>
+            <div className="mt-0.5 flex h-5 items-center gap-1.5 text-sm text-gray-600">
+              {customer.company_name?.trim() ? (
+                <>
+                  <Building2 className="w-3.5 h-3.5 shrink-0 text-gray-500" />
+                  <span className="truncate">{customer.company_name}</span>
+                </>
+              ) : null}
+            </div>
           </div>
           <div className="relative shrink-0" ref={menuRef}>
             <button
@@ -253,56 +289,26 @@ export default function CustomerCard({
           </div>
         </div>
       </div>
-      {hasAnyContact && (
-        <div className="h-[50px] flex items-center px-2 border-t border-black">
-          <div className="flex items-center gap-2 w-full">
-            {hasEmail && (
-              <a
-                href={`mailto:${customer.email}`}
-                onClick={(e) => e.stopPropagation()}
-                className={iconButtonClass}
-                aria-label="Email"
-              >
-                <Mail className="w-5 h-5 text-black" />
-              </a>
-            )}
-            {hasPhone && (
-              <a
-                href={`tel:${primaryPhone}`}
-                onClick={(e) => e.stopPropagation()}
-                className={iconButtonClass}
-                aria-label="Phone"
-              >
-                <Phone className="w-5 h-5 text-black" />
-              </a>
-            )}
-            {hasWebsite && (
-              <a
-                href={customer.website!.startsWith('http') ? customer.website! : `https://${customer.website}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className={iconButtonClass}
-                aria-label="Website"
-              >
-                <Globe className="w-5 h-5 text-black" />
-              </a>
-            )}
-            {hasLocation && (
-              <a
-                href={mapsUrl!}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className={iconButtonClass}
-                aria-label="Location"
-              >
-                <MapPin className="w-5 h-5 text-black" />
-              </a>
-            )}
-          </div>
+      <div className="mt-auto flex h-[50px] items-center border-t border-black px-2">
+        <div className="flex items-center gap-2 w-full">
+          <ContactAction href={hasEmail ? `mailto:${customer.email}` : null} label="Email">
+            <Mail className="w-5 h-5 text-black" />
+          </ContactAction>
+          <ContactAction href={hasPhone ? `tel:${primaryPhone}` : null} label="Phone">
+            <Phone className="w-5 h-5 text-black" />
+          </ContactAction>
+          <ContactAction
+            href={hasWebsite ? (customer.website!.startsWith('http') ? customer.website! : `https://${customer.website}`) : null}
+            label="Website"
+            external
+          >
+            <Globe className="w-5 h-5 text-black" />
+          </ContactAction>
+          <ContactAction href={mapsUrl} label="Location" external>
+            <MapPin className="w-5 h-5 text-black" />
+          </ContactAction>
         </div>
-      )}
+      </div>
     </div>
   );
 }

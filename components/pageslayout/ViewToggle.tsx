@@ -81,7 +81,7 @@ export default function ViewToggle({
       bg-black text-white
       rounded-lg
       font-bold text-[11px] md:text-[13px]
-      flex items-center ${embedded ? (fitContent ? 'w-max justify-center gap-1.5' : 'w-full justify-evenly') : 'justify-center gap-2'}
+      flex items-center ${embedded ? (fitContent ? 'w-max justify-center gap-3' : 'w-full justify-evenly') : 'justify-center gap-2'}
       cursor-pointer ${embedded ? 'overflow-visible' : 'overflow-hidden'}
       shadow-lg
     `}>
@@ -131,16 +131,24 @@ export default function ViewToggle({
         <div className="mx-0.5 hidden h-10 w-px shrink-0 bg-white opacity-90 md:block" aria-hidden />
       )}
       {onJobCamera && (
-        <button
-          type="button"
-          onClick={onJobCamera}
-          className="hidden h-10 w-[3.25rem] shrink-0 items-center justify-center rounded-lg bg-white text-black md:flex"
-          aria-label={jobCameraLabel}
-        >
-          <span className="relative block h-8 w-[2.6rem] overflow-hidden">
-            <RepairCameraMark label="JOB" />
+        <div className="relative hidden shrink-0 md:flex">
+          <span
+            className="beta-badge-dynamic absolute -top-[10px] -right-2 z-10 rounded border border-black px-0.5 text-[9px] font-bold text-black shadow"
+            aria-hidden
+          >
+            Beta
           </span>
-        </button>
+          <button
+            type="button"
+            onClick={onJobCamera}
+            className="flex h-10 w-[3.25rem] shrink-0 items-center justify-center rounded-lg bg-white text-black"
+            aria-label={jobCameraLabel}
+          >
+            <span className="relative block h-8 w-[2.6rem] overflow-hidden">
+              <RepairCameraMark label="JOB" />
+            </span>
+          </button>
+        </div>
       )}
       {onAdd && (
         <button

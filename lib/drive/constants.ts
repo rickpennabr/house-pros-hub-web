@@ -14,6 +14,9 @@ export const PRO_DRIVE_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/zip',
   'application/x-zip-compressed',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
 ] as const;
 
 export type ProDriveMimeType = (typeof PRO_DRIVE_MIME_TYPES)[number];
@@ -30,6 +33,9 @@ const EXT_BY_MIME: Record<ProDriveMimeType, string> = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
   'application/zip': 'zip',
   'application/x-zip-compressed': 'zip',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
 };
 
 export function isProDriveMime(mime: string): mime is ProDriveMimeType {

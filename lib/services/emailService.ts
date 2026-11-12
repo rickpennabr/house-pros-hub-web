@@ -1,5 +1,5 @@
 import { getResendClient, getResendFromEmail } from '@/lib/utils/resend';
-import { generateEstimateConfirmationEmail, type EmailTranslations, type EstimateEmailData, generateWelcomeEmail, type WelcomeEmailTranslations, type WelcomeEmailData, generateSetPasswordEmail, type SetPasswordEmailTranslations, generatePasswordResetEmail, type PasswordResetEmailData, generatePasswordChangedEmail, generateIncomingEmailNotification, type IncomingEmailNotificationData, generateNewSignupAdminNotification, type NewSignupAdminNotificationData, generateProEstimateBookingEmail, type ProEstimateBookingEmailData, type ProEstimateBookingEmailTranslations, generateInvoiceEmail, type InvoiceEmailData, generateEstimateReviewEmail, type EstimateReviewEmailData, generateEstimateApprovedCustomerEmail, generateEstimateApprovedContractorEmail, generateEstimateApprovedAdminEmail, type EstimateApprovedEmailCommon } from '@/lib/utils/emailTemplates';
+import { generateEstimateConfirmationEmail, type EmailTranslations, type EstimateEmailData, generateWelcomeEmail, type WelcomeEmailTranslations, type WelcomeEmailData, generateSetPasswordEmail, type SetPasswordEmailTranslations, generatePasswordResetEmail, type PasswordResetEmailData, generatePasswordChangedEmail, generateIncomingEmailNotification, type IncomingEmailNotificationData, generateNewSignupAdminNotification, type NewSignupAdminNotificationData, generateProEstimateBookingEmail, type ProEstimateBookingEmailData, type ProEstimateBookingEmailTranslations, generateInvoiceEmail, type InvoiceEmailData, generatePaymentReceiptEmail, type PaymentReceiptEmailData, generateStatementEmail, type StatementEmailData, generateEstimateReviewEmail, type EstimateReviewEmailData, generateEstimateApprovedCustomerEmail, generateEstimateApprovedContractorEmail, generateEstimateApprovedAdminEmail, type EstimateApprovedEmailCommon } from '@/lib/utils/emailTemplates';
 import { logger } from '@/lib/utils/logger';
 import { buildVisitIcs } from '@/lib/booking/visitIcs';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
@@ -615,6 +615,60 @@ export async function sendInvoiceEmail(
     return { success: true };
   } catch (err) {
     logger.error('Error sending invoice email', { toEmail }, err as Error);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+/**
+ * Tell the customer a payment was applied and what is still open.
+ */
+export async function sendPaymentReceiptEmail(
+  data: PaymentReceiptEmailData,
+  toEmail: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const resend = getResendClient();
+    const fromEmail = getResendFromEmail();
+    const { error } = await resend.emails.send({
+      from: fromEmail,
+      to: toEmail,
+      subject: `Payment received for invoice #${data.invoiceNumber}`,
+      html: generatePaymentReceiptEmail(data),
+    });
+    if (error) {
+      logger.error('Failed to send payment receipt', { toEmail, error: error.message }, error as Error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    logger.error('Error sending payment receipt', { toEmail }, err as Error);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+/**
+ * Email a customer the open invoices on their account.
+ */
+export async function sendStatementEmail(
+  data: StatementEmailData,
+  toEmail: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const resend = getResendClient();
+    const fromEmail = getResendFromEmail();
+    const { error } = await resend.emails.send({
+      from: fromEmail,
+      to: toEmail,
+      subject: `Statement from ${data.businessName}`,
+      html: generateStatementEmail(data),
+    });
+    if (error) {
+      logger.error('Failed to send statement', { toEmail, error: error.message }, error as Error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    logger.error('Error sending statement', { toEmail }, err as Error);
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }

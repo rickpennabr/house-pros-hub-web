@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, ReactNode } from 'react';
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -30,6 +30,7 @@ interface ModalProps {
   contentClassName?: string;
   /** Outer overlay (e.g. `md:p-2` for wider modals on desktop) */
   overlayClassName?: string;
+  overlayStyle?: CSSProperties;
 }
 
 export default function Modal({
@@ -45,6 +46,7 @@ export default function Modal({
   preventCloseOnOverlayClick = false,
   contentClassName = 'p-6',
   overlayClassName = '',
+  overlayStyle,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -130,6 +132,7 @@ export default function Modal({
   const modalContent = (
     <div
       className={`fixed inset-0 z-[110] flex items-center justify-center md:p-4 bg-black/50 ${overlayClassName}`.trim()}
+      style={overlayStyle}
       onClick={handleOverlayClick}
       onMouseDown={(e) => e.stopPropagation()}
     >

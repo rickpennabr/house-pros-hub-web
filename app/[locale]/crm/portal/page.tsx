@@ -5,11 +5,13 @@ import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 interface CustomerRow {
   id: string;
   first_name: string;
   last_name: string;
+  display_name?: string | null;
   company_name: string | null;
   email: string | null;
   street_address: string | null;
@@ -167,7 +169,7 @@ export default function CustomerPortalPage() {
           {customers.length === 0 ? <option value="">No customers yet</option> : null}
           {customers.map((row) => (
             <option key={row.id} value={row.id}>
-              {row.first_name} {row.last_name}
+              {contactDisplayName(row)}
               {row.company_name ? ` · ${row.company_name}` : ''}
             </option>
           ))}

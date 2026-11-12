@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, FileCheck, FileText, FolderOpen, Phone, PlusCircle } from 'lucide-react';
+import { ArrowLeft, FileCheck, FileText, FolderOpen, Mail, Phone, PlusCircle } from 'lucide-react';
 import { BsGrid3X3Gap } from 'react-icons/bs';
 import { Button } from '@/components/ui/Button';
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
@@ -15,6 +15,7 @@ interface CustomerQuickActionsBarProps {
   onAddInvoice: () => void;
   onAddProject: () => void;
   onScheduleTask: () => void;
+  onStatement: () => void;
 }
 
 export default function CustomerQuickActionsBar({
@@ -26,6 +27,7 @@ export default function CustomerQuickActionsBar({
   onAddInvoice,
   onAddProject,
   onScheduleTask,
+  onStatement,
 }: CustomerQuickActionsBarProps) {
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
   const quickActionItems: MobileGridActionItem[] = [
@@ -33,6 +35,7 @@ export default function CustomerQuickActionsBar({
     { id: 'invoice', label: 'Add Invoice', icon: FileText, onClick: onAddInvoice },
     { id: 'project', label: 'Add Project', icon: FolderOpen, onClick: onAddProject },
     { id: 'task', label: 'Schedule Task', icon: PlusCircle, onClick: onScheduleTask },
+    { id: 'statement', label: 'Statement', icon: Mail, onClick: onStatement },
   ];
 
   return (
@@ -81,6 +84,10 @@ export default function CustomerQuickActionsBar({
               <PlusCircle className="h-4 w-4" />
               Schedule Task
             </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={onStatement} className="inline-flex items-center gap-1.5">
+              <Mail className="h-4 w-4" />
+              Statement
+            </Button>
           </div>
         </div>
 
@@ -102,6 +109,10 @@ export default function CustomerQuickActionsBar({
               <Button type="button" size="sm" variant="secondary" onClick={onScheduleTask} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
                 <PlusCircle className="h-4 w-4" />
                 Schedule Task
+              </Button>
+              <Button type="button" size="sm" variant="secondary" onClick={onStatement} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+                <Mail className="h-4 w-4" />
+                Statement
               </Button>
             </div>
           </div>

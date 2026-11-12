@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import { getStandardSlotsForDay } from '@/lib/constants/bookingSlots';
 import { slotsForDateKey, type WeekSchedule } from '@/lib/booking/businessHours';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 export type TaskType = 'estimate_appointment' | 'business_meeting' | 'follow_up' | 'other';
 
@@ -33,8 +34,7 @@ function formatSlotLabel(slotStart: Date, slotEnd: Date): string {
 }
 
 function customerDisplayName(c: CRMCustomer): string {
-  if (c.display_name?.trim()) return c.display_name.trim();
-  return [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Customer';
+  return contactDisplayName(c);
 }
 
 interface AddTaskModalProps {

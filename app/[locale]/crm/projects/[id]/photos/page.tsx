@@ -20,6 +20,7 @@ interface JobPhoto {
   latitude: number | null;
   longitude: number | null;
   name: string;
+  mimeType?: string;
   url: string | null;
 }
 
@@ -157,10 +158,12 @@ export default function JobsitePhotosPage() {
           <div className="grid md:grid-cols-2 gap-3">
             {dayPhotos.map((photo) => (
               <article key={photo.id} className="border-2 border-black rounded-lg p-3 bg-white">
-                {photo.url && (
+                {photo.url && (photo.mimeType?.startsWith('video/') ? (
+                  <video src={photo.url} controls playsInline className="w-full h-48 rounded mb-2 bg-black" />
+                ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={photo.url} alt="" className="w-full h-48 object-cover rounded mb-2" />
-                )}
+                ))}
                 <p className="text-sm">{photo.caption || photo.name}</p>
                 <p className="text-xs text-gray-600">{new Date(photo.takenAt).toLocaleTimeString()}</p>
                 {photo.latitude != null && photo.longitude != null ? (
@@ -184,7 +187,6 @@ export default function JobsitePhotosPage() {
       ))}
       <ProCamCaptureSheet
         isOpen={sheetOpen}
-        autoStart
         withLocation={jobLocationAllowed()}
         onCameraReady={() => setJobCameraAllowed(true)}
         onClose={() => setSheetOpen(false)}

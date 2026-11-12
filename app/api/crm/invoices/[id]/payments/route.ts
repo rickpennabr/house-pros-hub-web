@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { PAYMENT_METHODS, todayDateKey, type PaymentMethod } from '@/lib/crm/invoice-books';
 import { recordInvoicePayment } from '@/lib/crm/invoice-payments';
+import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 
 /**
  * POST /api/crm/invoices/[id]/payments
@@ -34,13 +35,22 @@ export async function POST(
     const reference = typeof body.reference === 'string' ? body.reference.trim() || null : null;
     const note = typeof body.note === 'string' ? body.note.trim() || null : null;
 
-    const result = await recordInvoicePayment(supabase, user.id, id, {
-      amountCents,
-      paymentDate,
-      method,
-      reference,
-      note,
-    });
+    const result = await recordInvoicePayment(
+      supabase,
+      user.id,
+      id,
+      {
+        amountCents,
+        paymentDate,
+        method,
+        reference,
+        note,
+      },
+      {
+        baseUrl: getPublicSiteUrlForEmail(request),
+        locale: request.headers.get('x-next-intl-locale') || 'en',
+      }
+    );
     if ('error' in result && result.error) {
       const status = result.error === 'Invoice not found' ? 404 : 400;
       return NextResponse.json({ error: result.error }, { status });

@@ -20,6 +20,8 @@ const postSchema = z.object({
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
   accuracyM: z.number().nonnegative().nullable().optional(),
+  headingDeg: z.number().min(0).max(359.999).nullable().optional(),
+  pairedPhotoId: z.string().uuid().nullable().optional(),
 });
 
 /** GET /api/crm/projects/[id]/photos — job timeline with signed image URLs. */
@@ -37,16 +39,40 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     const { data: business } = await supabase.from('businesses').select('id').eq('owner_id', user.id).limit(1).maybeSingle();
-    const { data: rows } = await supabase
+    const full = await supabase
       .from('pro_jobsite_photos')
-      .select('id, caption, taken_at, latitude, longitude, accuracy_m, drive_file_id')
+      .select('id, caption, taken_at, latitude, longitude, accuracy_m, drive_file_id, tags, hidden, is_cover, paired_photo_id')
       .eq('project_id', id)
       .eq('owner_id', user.id)
+      .is('trashed_at', null)
       .order('taken_at', { ascending: false });
+    let rows = full.data;
+    if (full.error) {
+      const basic = await supabase
+        .from('pro_jobsite_photos')
+        .select('id, caption, taken_at, latitude, longitude, accuracy_m, drive_file_id')
+        .eq('project_id', id)
+        .eq('owner_id', user.id)
+        .order('taken_at', { ascending: false });
+      rows = (basic.data ?? []).map((row) => ({
+        ...row,
+        tags: [] as string[],
+        hidden: false,
+        is_cover: false,
+        paired_photo_id: null as string | null,
+      }));
+    }
+
+    const headingLookup = await supabase
+      .from('pro_jobsite_photos')
+      .select('id, heading_deg')
+      .eq('project_id', id)
+      .eq('owner_id', user.id);
+    const headingById = new Map((headingLookup.data ?? []).map((row) => [row.id, row.heading_deg]));
 
     const fileIds = (rows ?? []).map((row) => row.drive_file_id);
     const { data: files } = fileIds.length
-      ? await supabase.from('pro_drive_files').select('id, name, storage_path').in('id', fileIds)
+      ? await supabase.from('pro_drive_files').select('id, name, mime_type, storage_path').in('id', fileIds)
       : { data: [] };
     const fileMap = new Map((files ?? []).map((file) => [file.id, file]));
 
@@ -65,9 +91,15 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
         latitude: row.latitude,
         longitude: row.longitude,
         accuracyM: row.accuracy_m,
+        headingDeg: headingById.get(row.id) ?? null,
         driveFileId: row.drive_file_id,
         name: file?.name ?? '',
+        mimeType: file?.mime_type ?? '',
         url,
+        tags: row.tags ?? [],
+        hidden: row.hidden,
+        isCover: row.is_cover,
+        pairedPhotoId: row.paired_photo_id,
       });
     }
 
@@ -92,21 +124,35 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     const { data: file } = await supabase.from('pro_drive_files').select('id').eq('id', body.driveFileId).maybeSingle();
     if (!file) return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    if (body.pairedPhotoId) {
+      const { data: before } = await supabase
+        .from('pro_jobsite_photos')
+        .select('id')
+        .eq('id', body.pairedPhotoId)
+        .eq('project_id', id)
+        .eq('owner_id', user.id)
+        .maybeSingle();
+      if (!before) return NextResponse.json({ error: 'The before photo was not found' }, { status: 404 });
+    }
 
-    const { data, error: insertError } = await supabase
-      .from('pro_jobsite_photos')
-      .insert({
-        project_id: id,
-        owner_id: user.id,
-        drive_file_id: body.driveFileId,
-        caption: body.caption || null,
-        taken_at: body.takenAt ?? new Date().toISOString(),
-        latitude: body.latitude ?? null,
-        longitude: body.longitude ?? null,
-        accuracy_m: body.accuracyM ?? null,
-      })
-      .select('id')
-      .single();
+    const row = {
+      project_id: id,
+      owner_id: user.id,
+      drive_file_id: body.driveFileId,
+      caption: body.caption || null,
+      taken_at: body.takenAt ?? new Date().toISOString(),
+      latitude: body.latitude ?? null,
+      longitude: body.longitude ?? null,
+      accuracy_m: body.accuracyM ?? null,
+      paired_photo_id: body.pairedPhotoId ?? null,
+    };
+    const withHeading = typeof body.headingDeg === 'number' ? { ...row, heading_deg: body.headingDeg } : row;
+    let inserted = await supabase.from('pro_jobsite_photos').insert(withHeading).select('id').single();
+    if (inserted.error && 'heading_deg' in withHeading) {
+      inserted = await supabase.from('pro_jobsite_photos').insert(row).select('id').single();
+    }
+    const data = inserted.data;
+    const insertError = inserted.error;
     if (insertError || !data) return NextResponse.json({ error: insertError?.message || 'Could not save the photo' }, { status: 400 });
     return NextResponse.json({ id: data.id });
   } catch (error) {

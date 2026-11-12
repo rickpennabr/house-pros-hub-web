@@ -1081,78 +1081,31 @@ textarea::placeholder {
   background: var(--probot-input-bg);
 }
 
-/* Mobile header logo: wide wordmark scaled into the space between the side buttons; white in dark */
+/* Header logo stays the colored wordmark, including ProBot, on every phone and in dark mode. */
 @media (max-width: 767px) {
   .logo-header.logo-mobile-wrap {
     height: 40px !important;
     width: 100% !important;
+    max-width: 100% !important;
     min-width: 0 !important;
-    max-width: 100%;
     display: flex !important;
     align-items: center;
     justify-content: center;
     overflow: hidden;
   }
-  .logo-header.logo-mobile-default,
-  .logo-header.logo-mobile-dark {
-    min-width: 0 !important;
+  .logo-header.logo-mobile-default {
+    display: block !important;
     width: 100% !important;
     max-width: 100% !important;
     height: 40px !important;
     max-height: 40px !important;
-    object-fit: contain;
+    object-fit: contain !important;
     object-position: center;
   }
-  .logo-mobile-dark {
-    display: none !important;
-  }
-  .logo-mobile-default {
-    display: block !important;
-  }
-  .probot-sky-bg .logo-mobile-dark {
-    display: block !important;
-  }
-  .probot-sky-bg .logo-mobile-default {
-    display: none !important;
-  }
 }
-@media (max-width: 767px) and (prefers-color-scheme: dark) {
-  .logo-mobile-dark {
-    display: block !important;
-  }
-  .logo-mobile-default {
-    display: none !important;
-  }
-}
-
-/* PC desktop logo: show white (hph-logo-with-pro-bot-wt) when dark (dynamic sky or system dark) */
-@media (min-width: 768px) {
-  .logo-desktop-default {
-    display: block !important;
-    visibility: visible !important;
-  }
-  .logo-desktop-dark {
-    display: none !important;
-    visibility: hidden !important;
-  }
-  .probot-sky-bg .logo-desktop-default {
-    display: none !important;
-    visibility: hidden !important;
-  }
-  .probot-sky-bg .logo-desktop-dark {
-    display: block !important;
-    visibility: visible !important;
-  }
-}
-@media (min-width: 768px) and (prefers-color-scheme: dark) {
-  .logo-desktop-default {
-    display: none !important;
-    visibility: hidden !important;
-  }
-  .logo-desktop-dark {
-    display: block !important;
-    visibility: visible !important;
-  }
+.logo-mobile-dark,
+.logo-desktop-dark {
+  display: none !important;
 }
 
 /* Bg toggle button: dynamic (active) = solid white on all viewports including PC */
@@ -1858,5 +1811,21 @@ button[data-bg-toggle="sky"] {
 @media print {
   .no-print {
     display: none !important;
+  }
+}
+
+@page expense-list {
+  size: landscape;
+  margin: 12mm;
+}
+
+.expense-print-sheet {
+  display: none;
+  page: expense-list;
+}
+
+@media print {
+  .expense-print-sheet {
+    display: block !important;
   }
 }

@@ -10,6 +10,7 @@ import { ProductOrServiceCombobox } from '@/components/invoices/ProductOrService
 import type { ProCrmItem } from '@/components/invoices/AddProductServicePanel';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
 import { DOCUMENT_FORM_LAYOUT } from '@/lib/constants/documentFormLayout';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 export interface EstimateLineItemFormValue {
   product_or_service?: string;
@@ -24,6 +25,8 @@ interface EstimateCustomerOption {
   id: string;
   first_name: string;
   last_name: string;
+  display_name?: string | null;
+  company_name?: string | null;
 }
 
 interface EstimateDocumentFormProps {
@@ -194,7 +197,7 @@ export function EstimateDocumentForm({
                     <option value="">Select customer</option>
                     {customers.map((customer) => (
                       <option key={customer.id} value={customer.id}>
-                        {customer.first_name} {customer.last_name}
+                        {contactDisplayName(customer)}
                       </option>
                     ))}
                   </Select>

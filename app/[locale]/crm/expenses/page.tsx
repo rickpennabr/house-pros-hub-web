@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Pencil, Trash2, ArrowLeft, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowLeft, AlertTriangle, ChevronDown, Printer } from 'lucide-react';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { CrmRowActionsButton, CrmRowActionsPortal, useCrmRowActions } from '@/components/crm/CrmRowActionsMenu';
 import { CRM_LIST_PAGE_SIZE, useCrmListQuery } from '@/hooks/useCrmListQuery';
@@ -24,9 +24,10 @@ const SORT_OPTIONS = [
 ] as const;
 type SortKey = (typeof SORT_OPTIONS)[number]['value'];
 
-/** Direct costs on a job or project. */
+/** Direct costs on a project. */
 const JOB_COST_CATEGORIES = [
   'Materials',
+  'Delivery',
   'Labor',
   'Subcontractor',
   'Equipment',
@@ -41,6 +42,7 @@ const BUSINESS_COST_CATEGORIES = [
   'Vehicle',
   'Mileage',
   'Insurance',
+  'Workers comp',
   'Advertising',
   'Marketing',
   'Signs',
@@ -48,7 +50,9 @@ const BUSINESS_COST_CATEGORIES = [
   'Staging',
   'Commissions',
   'Office',
+  'Accounting',
   'Software',
+  'Card fees',
   'Phone',
   'Rent',
   'Utilities',
@@ -118,12 +122,21 @@ function formatQty(value: number | string | null) {
   return Number.isFinite(amount) ? String(amount) : '';
 }
 
+function expenseTypeLabel(category: string): string {
+  const kind = kindForCategory(category);
+  if (kind === 'job') return 'Job';
+  if (kind === 'business') return 'Business';
+  return 'Other';
+}
+
 const EXPENSE_COLUMNS: AdminDataTableColumn<ExpenseRow>[] = [
   { id: 'expense_date', label: 'Date', sortKey: 'expense_date', width: 140 },
-  { id: 'amount', label: 'Amount', sortKey: 'amount_cents', width: 120 },
-  { id: 'category', label: 'Category', sortKey: 'category', width: 150 },
+  { id: 'type', label: 'Type', width: 110 },
+  { id: 'project', label: 'Project', width: 180 },
   { id: 'po_number', label: 'PO', width: 120 },
   { id: 'supplier', label: 'Vendor', width: 180 },
+  { id: 'category', label: 'Category', sortKey: 'category', width: 150 },
+  { id: 'amount', label: 'Amount', sortKey: 'amount_cents', width: 120 },
   { id: 'description', label: 'Material', width: 220, wrap: true },
   { id: 'quantity', label: 'Qty', width: 90 },
   { id: 'unit', label: 'Unit', width: 110 },
@@ -133,10 +146,25 @@ const EXPENSE_COLUMNS: AdminDataTableColumn<ExpenseRow>[] = [
   { id: 'actions', label: 'Actions', resizable: false },
 ];
 
-function expenseCellText(row: ExpenseRow, columnId: string): string {
+const PRINT_COLUMNS = [
+  { id: 'expense_date', label: 'Date' },
+  { id: 'type', label: 'Type' },
+  { id: 'project', label: 'Project' },
+  { id: 'po_number', label: 'PO' },
+  { id: 'supplier', label: 'Vendor' },
+  { id: 'category', label: 'Category' },
+  { id: 'amount', label: 'Amount' },
+  { id: 'note', label: 'Note' },
+] as const;
+
+function expenseCellText(row: ExpenseRow, columnId: string, projectName = ''): string {
   switch (columnId) {
     case 'expense_date':
       return formatDate(row.expense_date);
+    case 'type':
+      return expenseTypeLabel(row.category);
+    case 'project':
+      return projectName;
     case 'amount':
       return formatAmount(row.amount_cents);
     case 'category':
@@ -171,6 +199,8 @@ function DescriptionField({
   placeholder,
   maxVisible = 8,
   showMenu = false,
+  addNewLabel,
+  onAddNew,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -178,6 +208,8 @@ function DescriptionField({
   placeholder: string;
   maxVisible?: number;
   showMenu?: boolean;
+  addNewLabel?: string;
+  onAddNew?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(-1);
@@ -242,22 +274,41 @@ function DescriptionField({
           <ChevronDown className="h-4 w-4" />
         </button>
       )}
-      {open && matches.length > 0 && (
-        <div className={`absolute z-20 mt-1 w-full overflow-y-auto rounded-lg border-2 border-black bg-white py-1 shadow-lg ${maxVisible > 8 ? 'max-h-72' : 'max-h-56'}`} role="listbox">
-          {matches.map((item, index) => (
+      {open && (matches.length > 0 || onAddNew) && (
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border-2 border-black bg-white shadow-lg" role="listbox">
+          {matches.length > 0 && (
+            <div className={`overflow-y-auto py-1 ${maxVisible > 8 ? 'max-h-72' : 'max-h-56'}`}>
+              {matches.map((item, index) => (
+                <button
+                  key={item}
+                  type="button"
+                  role="option"
+                  aria-selected={highlight === index}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setHighlight(index)}
+                  onClick={() => choose(item)}
+                  className={`w-full cursor-pointer px-3 py-2 text-left text-sm ${highlight === index ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          )}
+          {onAddNew && (
             <button
-              key={item}
               type="button"
-              role="option"
-              aria-selected={highlight === index}
               onMouseDown={(event) => event.preventDefault()}
-              onMouseEnter={() => setHighlight(index)}
-              onClick={() => choose(item)}
-              className={`w-full cursor-pointer px-3 py-2 text-left text-sm ${highlight === index ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+              onClick={() => {
+                onAddNew();
+                setOpen(false);
+                setHighlight(-1);
+              }}
+              className={`flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-gray-50 ${matches.length > 0 ? 'border-t border-gray-200' : ''}`}
             >
-              {item}
+              <Plus className="h-4 w-4 shrink-0" />
+              {addNewLabel}
             </button>
-          ))}
+          )}
         </div>
       )}
     </div>
@@ -294,6 +345,22 @@ export default function CRMExpensesPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formProjectId, setFormProjectId] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [billableCustomers, setBillableCustomers] = useState<{ id: string; name: string }[]>([]);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
+  const [projectFormError, setProjectFormError] = useState<string | null>(null);
+  const [showProjectCustomerModal, setShowProjectCustomerModal] = useState(false);
+  const [projectEstimates, setProjectEstimates] = useState<{ id: string; customer_id: string; amount_cents: number }[]>([]);
+  const [projectDraft, setProjectDraft] = useState({
+    customerId: '',
+    estimateId: '',
+    name: '',
+    status: 'planned',
+    startDate: '',
+    endDate: '',
+    note: '',
+  });
   const [formAmountDollars, setFormAmountDollars] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [expenseKind, setExpenseKind] = useState<'' | 'job' | 'business'>('');
@@ -321,12 +388,37 @@ export default function CRMExpensesPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (viewMode !== 'add' && viewMode !== 'edit') return;
+    if (viewMode !== 'add') return;
+    setExpenseKind('');
+    setFormCategory('');
+    setPickingOther(false);
+    setFormProjectId('');
+    setProjectName('');
+  }, [viewMode]);
+
+  useEffect(() => {
     let cancelled = false;
     fetch('/api/crm/projects?pageSize=500', { credentials: 'include' })
       .then((r) => r.json())
       .then((d) => { if (!cancelled) setProjects(d.projects ?? []); })
       .catch(() => { if (!cancelled) setProjects([]); });
+    return () => { cancelled = true; };
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== 'add' && viewMode !== 'edit') return;
+    let cancelled = false;
+    fetch('/api/crm/customers?pageSize=500&billable=1', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data: { customers?: ContactListRow[] }) => {
+        if (cancelled) return;
+        setBillableCustomers(
+          (data.customers ?? [])
+            .map((customer) => ({ id: customer.id, name: contactDisplayName(customer) }))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
+      })
+      .catch(() => { if (!cancelled) setBillableCustomers([]); });
     fetch('/api/crm/customers?role=supplier&pageSize=500', { credentials: 'include' })
       .then((r) => r.json())
       .then((data: { customers?: ContactListRow[] }) => {
@@ -353,6 +445,18 @@ export default function CRMExpensesPage() {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [viewMode]);
+
+  useEffect(() => {
+    if (!showProjectModal) return;
+    let cancelled = false;
+    fetch('/api/crm/estimates?pageSize=500', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data: { estimates?: { id: string; customer_id: string; amount_cents: number }[] }) => {
+        if (!cancelled) setProjectEstimates(data.estimates ?? []);
+      })
+      .catch(() => { if (!cancelled) setProjectEstimates([]); });
+    return () => { cancelled = true; };
+  }, [showProjectModal]);
 
   useEffect(() => {
     if (viewMode !== 'add' && viewMode !== 'edit') return;
@@ -436,6 +540,87 @@ export default function CRMExpensesPage() {
     if (!categoryNeedsSupplier(next)) setFormSupplierId('');
   };
 
+  const chooseKind = (next: 'job' | 'business') => {
+    setExpenseKind(next);
+    setPickingOther(false);
+    if (next !== 'job') {
+      setFormProjectId('');
+      setProjectName('');
+    }
+    const types = next === 'job' ? JOB_COST_CATEGORIES : BUSINESS_COST_CATEGORIES;
+    if (!types.some((item) => sameCategory(item, formCategory))) chooseCategory('');
+  };
+
+  const matchedProject = projects.find((item) => item.id === formProjectId)
+    ?? projects.find((item) => item.name.trim().toLowerCase() === projectName.trim().toLowerCase());
+
+  useEffect(() => {
+    if (!formProjectId) return;
+    const project = projects.find((item) => item.id === formProjectId);
+    if (project) setProjectName(project.name);
+  }, [formProjectId, projects]);
+
+  const openNewProject = () => {
+    const typed = projectName.trim();
+    const known = projects.some((item) => item.name.trim().toLowerCase() === typed.toLowerCase());
+    setProjectDraft({
+      customerId: '',
+      estimateId: '',
+      name: known ? '' : typed,
+      status: 'planned',
+      startDate: '',
+      endDate: '',
+      note: '',
+    });
+    setProjectFormError(null);
+    setShowProjectModal(true);
+  };
+
+  const projectIdForSave = (): string | null | false => {
+    if (expenseKind !== 'job') return null;
+    if (matchedProject) return matchedProject.id;
+    if (projectName.trim()) openNewProject();
+    else setFormError('Select or add a project.');
+    return false;
+  };
+
+  const saveNewProject = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = projectDraft.name.trim();
+    if (!projectDraft.customerId || !name) {
+      setProjectFormError('Customer and project name are required.');
+      return;
+    }
+    setSavingProject(true);
+    setProjectFormError(null);
+    try {
+      const res = await fetch('/api/crm/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          customerId: projectDraft.customerId,
+          estimateId: projectDraft.estimateId || null,
+          name,
+          status: projectDraft.status,
+          startDate: projectDraft.startDate || null,
+          endDate: projectDraft.endDate || null,
+          note: projectDraft.note.trim() || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.id) throw new Error(data.error || 'Failed to add project');
+      setProjects((current) => [...current, { id: data.id as string, name }].sort((a, b) => a.name.localeCompare(b.name)));
+      setFormProjectId(data.id);
+      setProjectName(name);
+      setShowProjectModal(false);
+    } catch (err) {
+      setProjectFormError(err instanceof Error ? err.message : 'Failed to add project');
+    } finally {
+      setSavingProject(false);
+    }
+  };
+
   const handleSubmitAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -444,6 +629,8 @@ export default function CRMExpensesPage() {
       setFormError('Select or add a category.');
       return;
     }
+    const projectId = projectIdForSave();
+    if (projectId === false) return;
     const amountCents = Math.round(parseFloat(formAmountDollars || '0') * 100);
     setSaving(true);
     try {
@@ -452,7 +639,7 @@ export default function CRMExpensesPage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          projectId: formProjectId || null,
+          projectId,
           amountCents,
           category,
           expenseDate: formDate || new Date().toISOString().slice(0, 10),
@@ -469,7 +656,7 @@ export default function CRMExpensesPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to create expense');
       setViewMode('table');
-      setFormProjectId(''); setFormAmountDollars(''); setFormCategory(''); setExpenseKind(''); setPickingOther(false); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy('');
+      setFormProjectId(''); setProjectName(''); setFormAmountDollars(''); setFormCategory(''); setExpenseKind(''); setPickingOther(false); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy('');
       fetchExpenses();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Request failed');
@@ -487,6 +674,8 @@ export default function CRMExpensesPage() {
       setFormError('Select or add a category.');
       return;
     }
+    const projectId = projectIdForSave();
+    if (projectId === false) return;
     const amountCents = Math.round(parseFloat(formAmountDollars || '0') * 100);
     setSaving(true);
     try {
@@ -495,7 +684,7 @@ export default function CRMExpensesPage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          projectId: formProjectId || null,
+          projectId,
           amountCents,
           category,
           expenseDate: formDate || null,
@@ -522,23 +711,71 @@ export default function CRMExpensesPage() {
   };
 
   const defaultDate = formDate || new Date().toISOString().slice(0, 10);
+  const projectNameById = new Map(projects.map((project) => [project.id, project.name]));
+  const projectNameFor = (row: ExpenseRow) => (row.project_id ? projectNameById.get(row.project_id) ?? '' : '');
+  const cellText = (row: ExpenseRow, columnId: string) => expenseCellText(row, columnId, projectNameFor(row));
+  const pageTotalCents = expenses.reduce((sum, row) => sum + (row.amount_cents || 0), 0);
 
   return (
     <div className="w-full">
       {viewMode === 'table' && (
         <>
+          <div className="expense-print-sheet text-black">
+            <h1 className="text-xl font-bold">Expenses</h1>
+            <p className="mt-1 text-sm">
+              Printed {new Date().toLocaleString()} · page {page} · {expenses.length} shown
+            </p>
+            <table className="mt-4 w-full border-collapse text-xs">
+              <thead>
+                <tr>
+                  {PRINT_COLUMNS.map((column) => (
+                    <th key={column.id} className="border border-black px-2 py-1 text-left font-semibold">
+                      {column.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.map((row) => (
+                  <tr key={row.id}>
+                    {PRINT_COLUMNS.map((column) => (
+                      <td key={column.id} className="border border-black px-2 py-1 align-top">
+                        {cellText(row, column.id) || ''}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={6} className="border border-black px-2 py-1 text-right font-semibold">
+                    Page total
+                  </td>
+                  <td className="border border-black px-2 py-1 font-semibold">{formatAmount(pageTotalCents)}</td>
+                  <td className="border border-black px-2 py-1" />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div className="no-print">
           <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
             <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Expenses</h1>
               <p className="text-sm text-gray-500 mt-0.5">Track expenses and optionally link to projects.</p>
             </div>
-            <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0" onClick={() => { setEditingId(null); setFormProjectId(''); setFormAmountDollars(''); setFormCategory(''); setExpenseKind(''); setPickingOther(false); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy(''); setFormError(null); setViewMode('add'); }}>
-              <Plus className="w-4 h-4" />
-              New Expense
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button variant="secondary" size="sm" className="flex items-center gap-2" onClick={() => window.print()} disabled={expenses.length === 0}>
+                <Printer className="w-4 h-4" />
+                Print
+              </Button>
+              <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0" onClick={() => { setEditingId(null); setFormProjectId(''); setProjectName(''); setFormAmountDollars(''); setFormCategory(''); setExpenseKind(''); setPickingOther(false); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy(''); setFormError(null); setViewMode('add'); }}>
+                <Plus className="w-4 h-4" />
+                New Expense
+              </Button>
+            </div>
           </div>
           <AdminDataTable
-            columnOrderKey="crm-expenses"
+            columnOrderKey="crm-expenses-v2"
             exportName="expenses"
             columns={EXPENSE_COLUMNS}
             data={expenses}
@@ -561,8 +798,8 @@ export default function CRMExpensesPage() {
             hasLoadedOnce={hasLoadedOnce}
             error={error}
             getRowId={(row) => row.id}
-            getCellText={expenseCellText}
-            renderCell={(row, columnId) => expenseCellText(row, columnId) || '—'}
+            getCellText={cellText}
+            renderCell={(row, columnId) => cellText(row, columnId) || '—'}
             onRowClick={(row) => { setEditingId(row.id); setViewMode('edit'); }}
             renderActions={(row) => (
               <CrmRowActionsButton rowId={row.id} openId={rowActions.openId} onToggle={rowActions.toggle} />
@@ -576,6 +813,7 @@ export default function CRMExpensesPage() {
             itemLabel="expenses"
             primaryColumnId="amount"
           />
+          </div>
         </>
       )}
 
@@ -589,26 +827,50 @@ export default function CRMExpensesPage() {
           </div>
           <form onSubmit={viewMode === 'add' ? handleSubmitAdd : handleSubmitEdit} className="space-y-4">
             {formError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{formError}</div>}
-            <FormField label="Type of expense">
-              <Select
-                value={expenseKind}
-                onChange={(event) => {
-                  const next = event.target.value === 'job' || event.target.value === 'business' ? event.target.value : '';
-                  setExpenseKind(next);
-                  setPickingOther(false);
-                  const types = next === 'job' ? JOB_COST_CATEGORIES : next === 'business' ? BUSINESS_COST_CATEGORIES : [];
-                  if (!types.some((item) => sameCategory(item, formCategory))) {
-                    chooseCategory('');
-                  }
-                }}
-              >
-                <option value="">Select type</option>
-                <option value="job">Job costs</option>
-                <option value="business">Business costs</option>
-              </Select>
-            </FormField>
+            <div>
+              <p className="mb-2 text-sm font-medium text-gray-900">Expense type</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ['job', 'Project cost'],
+                  ['business', 'Business cost'],
+                ] as const).map(([kind, label]) => {
+                  const selected = expenseKind === kind;
+                  return (
+                    <button
+                      key={kind}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => chooseKind(kind)}
+                      className={`h-12 cursor-pointer rounded-lg border-2 border-black text-sm font-medium ${selected ? 'bg-black text-white' : 'bg-white text-black'}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {expenseKind === 'job' && (
+              <>
+                <FormField label="Project" required>
+                  <DescriptionField
+                    value={projectName}
+                    onChange={(next) => {
+                      setProjectName(next);
+                      const match = projects.find((item) => item.name.trim().toLowerCase() === next.trim().toLowerCase());
+                      setFormProjectId(match?.id ?? '');
+                    }}
+                    suggestions={projects.map((item) => item.name)}
+                    placeholder="Select or add project"
+                    maxVisible={40}
+                    showMenu
+                    addNewLabel="Add new project"
+                    onAddNew={openNewProject}
+                  />
+                </FormField>
+              </>
+            )}
             {expenseKind && (
-              <FormField label={expenseKind === 'job' ? 'Job cost' : 'Business cost'}>
+              <FormField label={expenseKind === 'job' ? 'Project cost' : 'Business cost'}>
                 <Select
                   value={
                     (expenseKind === 'job' ? JOB_COST_CATEGORIES : BUSINESS_COST_CATEGORIES).find((item) => sameCategory(item, formCategory))
@@ -641,12 +903,6 @@ export default function CRMExpensesPage() {
                 />
               </FormField>
             )}
-            <FormField label="Project (optional)">
-              <Select value={formProjectId} onChange={(e) => setFormProjectId(e.target.value)}>
-                <option value="">None</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </Select>
-            </FormField>
             <FormField label="Amount ($)" required>
               <Input type="number" step="0.01" min="0" value={formAmountDollars} onChange={(e) => setFormAmountDollars(e.target.value)} placeholder="0.00" required />
             </FormField>
@@ -765,6 +1021,115 @@ export default function CRMExpensesPage() {
               <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => void handleBulkDeleteConfirm()} disabled={deleting}>{deleting ? 'Deleting…' : `Delete ${bulkDeleteIds.length}`}</Button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {showProjectModal && (
+        <Modal
+          isOpen
+          onClose={() => { if (!savingProject && !showProjectCustomerModal) setShowProjectModal(false); }}
+          title="New project"
+          showHeader
+          showCloseButton
+          maxWidth="lg"
+          contentClassName="p-4 md:p-6"
+          preventCloseOnOverlayClick={savingProject || showProjectCustomerModal}
+        >
+          <form onSubmit={(event) => { void saveNewProject(event); }} className="space-y-4">
+            {projectFormError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{projectFormError}</div>}
+            <FormField label="Customer" required>
+              <Select
+                value={projectDraft.customerId}
+                onChange={(event) => {
+                  if (event.target.value === '__new__') {
+                    setShowProjectCustomerModal(true);
+                    return;
+                  }
+                  setProjectDraft((current) => ({ ...current, customerId: event.target.value, estimateId: '' }));
+                }}
+                required
+              >
+                <option value="">Select customer</option>
+                <option value="__new__">Add new customer</option>
+                {billableCustomers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>{customer.name}</option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Project name" required>
+              <Input
+                value={projectDraft.name}
+                onChange={(event) => setProjectDraft((current) => ({ ...current, name: event.target.value }))}
+                placeholder="e.g. Kitchen remodel"
+                required
+                autoFocus
+              />
+            </FormField>
+            <FormField label="Estimate (optional)">
+              <Select
+                value={projectDraft.estimateId}
+                onChange={(event) => setProjectDraft((current) => ({ ...current, estimateId: event.target.value }))}
+              >
+                <option value="">None</option>
+                {projectEstimates
+                  .filter((estimate) => estimate.customer_id === projectDraft.customerId)
+                  .map((estimate) => (
+                    <option key={estimate.id} value={estimate.id}>Estimate ${(estimate.amount_cents / 100).toFixed(2)}</option>
+                  ))}
+              </Select>
+            </FormField>
+            <FormField label="Status">
+              <Select
+                value={projectDraft.status}
+                onChange={(event) => setProjectDraft((current) => ({ ...current, status: event.target.value }))}
+              >
+                {(['planned', 'in_progress', 'on_hold', 'completed', 'cancelled'] as const).map((status) => (
+                  <option key={status} value={status}>{status.replace('_', ' ')}</option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Start date">
+              <Input type="date" value={projectDraft.startDate} onChange={(event) => setProjectDraft((current) => ({ ...current, startDate: event.target.value }))} />
+            </FormField>
+            <FormField label="End date">
+              <Input type="date" value={projectDraft.endDate} onChange={(event) => setProjectDraft((current) => ({ ...current, endDate: event.target.value }))} />
+            </FormField>
+            <FormField label="Note">
+              <Input value={projectDraft.note} onChange={(event) => setProjectDraft((current) => ({ ...current, note: event.target.value }))} placeholder="Optional note" />
+            </FormField>
+            <div className="flex gap-2 pt-2">
+              <Button type="button" variant="secondary" size="sm" onClick={() => setShowProjectModal(false)} disabled={savingProject}>Cancel</Button>
+              <Button type="submit" variant="primary" size="sm" disabled={savingProject}>{savingProject ? 'Saving…' : 'Save'}</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showProjectCustomerModal && (
+        <Modal
+          isOpen
+          onClose={() => setShowProjectCustomerModal(false)}
+          title="New customer"
+          showHeader
+          showCloseButton
+          maxWidth="6xl"
+          contentClassName="p-4 md:p-6"
+        >
+          <CustomerForm
+            mode="add"
+            initial={emptyForm}
+            onCancel={() => setShowProjectCustomerModal(false)}
+            onSuccess={(created) => {
+              setShowProjectCustomerModal(false);
+              if (!created) return;
+              setBillableCustomers((current) => (
+                current.some((customer) => customer.id === created.id)
+                  ? current
+                  : [...current, created].sort((a, b) => a.name.localeCompare(b.name))
+              ));
+              setProjectDraft((current) => ({ ...current, customerId: created.id, estimateId: '' }));
+            }}
+          />
         </Modal>
       )}
 

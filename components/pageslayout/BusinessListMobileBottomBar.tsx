@@ -107,16 +107,24 @@ export default function BusinessListMobileBottomBar({
           >
             <Phone className="h-5 w-5" />
           </button>
-          <button
-            type="button"
-            onClick={onJobCamera}
-            className="flex h-11 w-[3.25rem] shrink-0 items-center justify-center rounded-lg bg-white text-black"
-            aria-label={jobCameraLabel}
-          >
-            <span className="relative block h-8 w-[2.6rem] overflow-hidden">
-              <RepairCameraMark label="JOB" />
+          <div className="relative flex shrink-0 items-center justify-center">
+            <span
+              className="beta-badge-dynamic absolute -top-[10px] -right-2 z-10 rounded border border-black px-0.5 text-[9px] font-bold text-black shadow"
+              aria-hidden
+            >
+              Beta
             </span>
-          </button>
+            <button
+              type="button"
+              onClick={onJobCamera}
+              className="flex h-11 w-[3.25rem] shrink-0 items-center justify-center rounded-lg bg-white text-black"
+              aria-label={jobCameraLabel}
+            >
+              <span className="relative block h-8 w-[2.6rem] overflow-hidden">
+                <RepairCameraMark label="JOB" />
+              </span>
+            </button>
+          </div>
           <button
             type="button"
             onClick={onAdd}

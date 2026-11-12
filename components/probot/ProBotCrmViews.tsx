@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import AddTaskModal from '@/components/crm/AddTaskModal';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 export type ProBotCrmViewType = 'calendar' | 'customers' | 'estimates' | 'invoices' | 'projects' | 'expenses' | 'add_task';
 
@@ -204,7 +205,7 @@ export function ProBotCrmViews({ view, onBack, onOpenAddTask, onOpenAddCustomer,
                   <span className="font-medium text-gray-900">{TASK_TYPE_SHORT[task.task_type] ?? task.task_type}</span>
                   {task.pro_crm_customers && (
                     <span className="text-gray-600 ml-1">
-                      – {[task.pro_crm_customers.first_name, task.pro_crm_customers.last_name].filter(Boolean).join(' ') || task.pro_crm_customers.display_name || 'Customer'}
+                      – {contactDisplayName(task.pro_crm_customers)}
                     </span>
                   )}
                   {task.meeting_with && <span className="text-gray-600 ml-1">– {task.meeting_with}</span>}
@@ -256,7 +257,7 @@ export function ProBotCrmViews({ view, onBack, onOpenAddTask, onOpenAddCustomer,
                   <span className="font-medium text-gray-900">{TASK_TYPE_SHORT[task.task_type] ?? task.task_type}</span>
                   {task.pro_crm_customers && (
                     <span className="text-gray-600 ml-1">
-                      – {[task.pro_crm_customers.first_name, task.pro_crm_customers.last_name].filter(Boolean).join(' ') || task.pro_crm_customers.display_name || 'Customer'}
+                      – {contactDisplayName(task.pro_crm_customers)}
                     </span>
                   )}
                   {task.meeting_with && <span className="text-gray-600 ml-1">– {task.meeting_with}</span>}
@@ -295,7 +296,7 @@ export function ProBotCrmViews({ view, onBack, onOpenAddTask, onOpenAddCustomer,
               {customers.map((c) => (
                 <li key={c.id} className="p-3 rounded-lg bg-white border border-gray-200 text-sm">
                   <span className="font-medium text-gray-900">
-                    {[c.first_name, c.last_name].filter(Boolean).join(' ') || c.display_name || 'Customer'}
+                    {contactDisplayName(c)}
                   </span>
                   {c.email && <div className="text-gray-500 truncate">{c.email}</div>}
                   {c.phone && <div className="text-gray-500">{c.phone}</div>}

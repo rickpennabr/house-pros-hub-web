@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 export interface CustomerEstimatePreviewData {
   estimateId: string;
@@ -66,10 +67,7 @@ export function CustomerEstimatePreview({
 }: CustomerEstimatePreviewProps) {
   const lineItems = useMemo(() => asLineItems(data.lineItems), [data.lineItems]);
 
-  const displayName = data.customer?.display_name?.trim()
-    || [data.customer?.first_name?.trim(), data.customer?.last_name?.trim()].filter(Boolean).join(' ')
-    || data.customer?.company_name?.trim()
-    || 'Customer';
+  const displayName = data.customer ? contactDisplayName(data.customer) : 'Customer';
 
   return (
     <div className={variant === 'preview' ? 'bg-white' : 'min-h-screen bg-gray-50 py-8 px-4'}>

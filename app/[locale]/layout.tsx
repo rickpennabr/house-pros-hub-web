@@ -8,6 +8,7 @@ import { locales } from '@/i18n';
 import type { Locale } from '@/i18n';
 import AuthProviderWrapper from '@/components/providers/AuthProviderWrapper';
 import { GlobalHashHandler } from '@/components/auth/GlobalHashHandler';
+import { RecoveryHashRedirect } from '@/components/auth/RecoveryHashRedirect';
 import ContractorPresenceHeartbeat from '@/components/presence/ContractorPresenceHeartbeat';
 import UserPresenceHeartbeat from '@/components/presence/UserPresenceHeartbeat';
 import ServiceWorkerRegister from '@/components/notifications/ServiceWorkerRegister';
@@ -199,30 +200,7 @@ export default async function RootLayout({
 
   return (
     <>
-      {/* Redirect to reset-password with hash when recovery tokens land on another page (before React loads) */}
-      <Script
-        id="hash-fragment-recovery-redirect"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-(function() {
-  if (typeof window === 'undefined') return;
-  var pathname = window.location.pathname || '';
-  if (pathname.indexOf('reset-password') !== -1) return;
-  var hash = window.location.hash || '';
-  if (hash.length < 10) return;
-  try {
-    var p = new URLSearchParams(hash.substring(1));
-    if (p.get('access_token') && p.get('refresh_token') && p.get('type') === 'recovery') {
-      var seg = pathname.split('/')[1];
-      var locale = (seg === 'es' || seg === 'en' || seg === 'pt') ? seg : 'en';
-      window.location.replace('/' + locale + '/reset-password' + hash);
-    }
-  } catch (e) {}
-})();
-          `.trim(),
-        }}
-      />
+      <RecoveryHashRedirect />
       {/* Organization Structured Data for SEO */}
       <Script
         id="organization-structured-data"

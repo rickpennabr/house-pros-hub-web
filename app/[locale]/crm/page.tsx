@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +10,7 @@ import { CalendarDays, FileCheck, FilePlus2, FileText, FolderKanban, Loader2, Pl
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
 import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
+import { contactDisplayName, listedCustomerName } from '@/lib/crm/contact-name';
 
 interface CRMEstimate {
   id: string;
@@ -72,11 +74,8 @@ function customerTitle(row: {
   last_name?: string | null;
   display_id?: string | null;
 }) {
-  return row.display_name?.trim()
-    || row.company_name?.trim()
-    || [row.first_name, row.last_name].filter(Boolean).join(' ')
-    || row.display_id
-    || 'Customer';
+  const name = contactDisplayName(row);
+  return name === 'Contact' ? row.display_id || 'Customer' : name;
 }
 
 interface DashboardData {
@@ -267,9 +266,9 @@ export default function CRMPage() {
       const enc = encodeURIComponent(query);
       Promise.all([
         fetchJson<{ customers: Array<{ id: string; display_name?: string | null; company_name?: string | null; first_name?: string | null; last_name?: string | null; display_id?: string | null; city?: string | null; state?: string | null; email?: string | null; phone?: string | null }> }>(`/api/crm/customers?page=1&pageSize=20&search=${enc}`),
-        fetchJson<{ estimates: Array<{ id: string; display_id?: string | null; status?: string | null; customerFirstName?: string | null; customerLastName?: string | null }> }>(`/api/crm/estimates?page=1&pageSize=20&search=${enc}`),
-        fetchJson<{ invoices: Array<{ id: string; invoice_number?: string | null; display_id?: string | null; status?: string | null; customerFirstName?: string | null; customerLastName?: string | null }> }>(`/api/crm/invoices?page=1&pageSize=20&search=${enc}`),
-        fetchJson<{ projects: Array<{ id: string; name?: string | null; display_id?: string | null; status?: string | null; customerFirstName?: string | null; customerLastName?: string | null }> }>(`/api/crm/projects?page=1&pageSize=20&search=${enc}`),
+        fetchJson<{ estimates: Array<{ id: string; display_id?: string | null; status?: string | null; customerDisplayName?: string | null; customerFirstName?: string | null; customerLastName?: string | null }> }>(`/api/crm/estimates?page=1&pageSize=20&search=${enc}`),
+        fetchJson<{ invoices: Array<{ id: string; invoice_number?: string | null; display_id?: string | null; status?: string | null; customerDisplayName?: string | null; customerFirstName?: string | null; customerLastName?: string | null }> }>(`/api/crm/invoices?page=1&pageSize=20&search=${enc}`),
+        fetchJson<{ projects: Array<{ id: string; name?: string | null; display_id?: string | null; status?: string | null; customerDisplayName?: string | null; customerFirstName?: string | null; customerLastName?: string | null }> }>(`/api/crm/projects?page=1&pageSize=20&search=${enc}`),
         fetchJson<{ expenses: Array<{ id: string; category?: string | null; note?: string | null; amount_cents?: number | null }> }>(`/api/crm/expenses?page=1&pageSize=20&search=${enc}`),
       ]).then(([customers, estimates, invoices, projects, expenses]) => {
         if (cancelled) return;
@@ -282,20 +281,20 @@ export default function CRMPage() {
           })),
           estimates: (estimates.estimates || []).map((row) => ({
             id: row.id,
-            title: [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ') || (row.display_id ? `Estimate ${row.display_id}` : 'Estimate'),
+            title: listedCustomerName(row) || (row.display_id ? `Estimate ${row.display_id}` : 'Estimate'),
             detail: row.status ? `Status: ${row.status}` : '',
             href: `/${locale}/crm/estimates`,
           })),
           invoices: (invoices.invoices || []).map((row) => ({
             id: row.id,
-            title: [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ') || (row.invoice_number ? `Invoice ${row.invoice_number}` : 'Invoice'),
+            title: listedCustomerName(row) || (row.invoice_number ? `Invoice ${row.invoice_number}` : 'Invoice'),
             detail: [row.invoice_number, row.status].filter(Boolean).join(' · '),
             href: `/${locale}/crm/invoices`,
           })),
           projects: (projects.projects || []).map((row) => ({
             id: row.id,
             title: row.name || (row.display_id ? `Project ${row.display_id}` : 'Project'),
-            detail: [[row.customerFirstName, row.customerLastName].filter(Boolean).join(' '), row.status].filter(Boolean).join(' · '),
+            detail: [listedCustomerName(row), row.status].filter(Boolean).join(' · '),
             href: `/${locale}/crm/projects`,
           })),
           expenses: (expenses.expenses || []).map((row) => ({
@@ -439,8 +438,19 @@ export default function CRMPage() {
           crmChrome?.setSearchOpen(false);
           (document.activeElement as HTMLElement | null)?.blur();
         }}
-        className="pt-2 md:pt-0"
+        className="pt-2 md:hidden"
       />
+      {crmChrome?.headerSearchEl
+        ? createPortal(
+            <CRMSearchField
+              value={dashQuery}
+              onChange={setDashQuery}
+              placeholder="Search customers, estimates, invoices..."
+              className="pointer-events-auto w-full"
+            />,
+            crmChrome.headerSearchEl,
+          )
+        : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {showCustomers && (

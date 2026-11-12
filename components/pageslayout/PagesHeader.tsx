@@ -104,11 +104,8 @@ export default function PageHeader({ children }: PageHeaderProps) {
   const isSuppliersPage = pathname?.includes('/prosuppliers');
   const isContractor = roles.includes('contractor');
   const showFreeEstimate = (isHomePage || isSuppliersPage) && !isAdmin && !isContractor;
-  /** Mobile header: wide wordmark. Dark sky uses the white wordmark so the type stays visible. */
+  /** One logo on every screen. Dark mode does not swap it. */
   const mobileLogoSrc = '/hph-logo-with-pro-bot-mobile.png';
-  const mobileDarkLogoSrc = '/hph-logo-with-pro-bot-wt.png';
-  /** PC desktop dark (dynamic sky or system dark): white logo */
-  const desktopDarkLogoSrc = '/hph-logo-with-pro-bot-wt.png';
 
   // #region agent log - Development only
   useEffect(() => {
@@ -152,7 +149,7 @@ export default function PageHeader({ children }: PageHeaderProps) {
   // #endregion
 
   return (
-    <header ref={headerRef} className="relative z-[200] w-full h-[60px] border-b-2 border-black p-1 md:px-2 flex-shrink-0 flex items-center">
+    <header ref={headerRef} className="relative z-[200] flex h-[60px] w-full flex-shrink-0 items-center border-b-2 border-black bg-white p-1 md:px-2">
       <div className="relative grid h-10 w-full items-center gap-2" style={{ gridTemplateColumns: 'auto minmax(0, 1fr) auto' }}>
         {/* Left: Logo button for legal pages, Language Switcher for others */}
         <div className="flex items-center flex-shrink-0 z-10 h-10">
@@ -185,7 +182,7 @@ export default function PageHeader({ children }: PageHeaderProps) {
         ) : (
           <div className="flex h-10 min-w-0 items-center justify-center overflow-hidden">
             <Link href={`/${locale}/businesslist`} className="flex h-10 w-full min-w-0 max-w-full cursor-pointer items-center justify-center">
-              <Logo width={160} height={40} className="h-[40px] md:h-[40px] w-auto object-contain logo-header" mobileSrc={mobileLogoSrc} mobileDarkSrc={mobileDarkLogoSrc} desktopDarkSrc={desktopDarkLogoSrc} />
+              <Logo width={160} height={40} className="h-[40px] w-auto object-contain logo-header" mobileSrc={mobileLogoSrc} />
             </Link>
           </div>
         )}

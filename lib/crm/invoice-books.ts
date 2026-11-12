@@ -108,3 +108,15 @@ function addDays(dateKey: string, days: number): string {
   date.setDate(date.getDate() + days);
   return todayDateKey(date);
 }
+
+/** Days ahead of the due date to email a coming-due reminder. */
+export const DUE_SOON_DAYS = 3;
+
+/** Last due date that still counts as coming due, inclusive of today. */
+export function dueSoonThrough(today: string, days = DUE_SOON_DAYS): string {
+  return addDays(today, days);
+}
+
+export function isDueSoon(dueDate: string, today: string, days = DUE_SOON_DAYS): boolean {
+  return dueDate >= today && dueDate <= dueSoonThrough(today, days);
+}

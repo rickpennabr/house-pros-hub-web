@@ -18,6 +18,7 @@ import { AddProductServicePanel, type ProCrmItem } from '@/components/invoices/A
 import { ProductOrServiceCombobox } from '@/components/invoices/ProductOrServiceCombobox';
 import { UnitCombobox } from '@/components/invoices/UnitCombobox';
 import type { CompanyDisplayOverride } from '@/lib/invoices/companyDisplay';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
 import { DOCUMENT_FORM_LAYOUT } from '@/lib/constants/documentFormLayout';
 import { formatAmount } from '@/lib/invoices/format';
@@ -30,6 +31,8 @@ import {
   type InvoiceEditorDraft,
   type InvoiceLineItem,
 } from '@/lib/invoices/draft';
+import { PAYMENT_METHODS, type PaymentMethod } from '@/lib/crm/invoice-books';
+import { JobCostPicker } from '@/components/invoices/JobCostPicker';
 
 interface InvoiceEditorProps {
   title: string;
@@ -50,12 +53,7 @@ interface InvoiceEditorProps {
 }
 
 function customerLabel(customer: InvoiceCustomerOption): string {
-  return (
-    customer.display_name?.trim() ||
-    customer.company_name?.trim() ||
-    [customer.first_name, customer.last_name].filter(Boolean).join(' ') ||
-    'Customer'
-  );
+  return contactDisplayName(customer);
 }
 
 export function InvoiceEditor({
@@ -83,6 +81,8 @@ export function InvoiceEditor({
   const [note, setNote] = useState(initialDraft.note);
   const [companyOverride, setCompanyOverride] = useState<CompanyDisplayOverride | null>(initialDraft.companyOverride);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>(initialDraft.pendingAttachments);
+  const [paidNow, setPaidNow] = useState(initialDraft.paidNow);
+  const [paidNowMethod, setPaidNowMethod] = useState<PaymentMethod>(initialDraft.paidNowMethod);
   const [reusableItems, setReusableItems] = useState<ProCrmItem[]>([]);
   const [addItemPanelOpen, setAddItemPanelOpen] = useState(false);
   const [addItemPanelRowIndex, setAddItemPanelRowIndex] = useState<number | null>(null);
@@ -120,6 +120,8 @@ export function InvoiceEditor({
     note,
     companyOverride,
     pendingAttachments,
+    paidNow,
+    paidNowMethod,
   });
 
   const addLine = () => {
@@ -247,7 +249,13 @@ export function InvoiceEditor({
                   </label>
                   <Select
                     value={customerId}
-                    onChange={(e) => setCustomerId(e.target.value)}
+                    onChange={(e) => {
+                      setCustomerId(e.target.value);
+                      setLineItems((current) => {
+                        const kept = current.filter((line) => !line.expense_id);
+                        return kept.length > 0 ? kept : [emptyInvoiceLine()];
+                      });
+                    }}
                     required
                     className="w-full"
                   >
@@ -449,6 +457,15 @@ export function InvoiceEditor({
               </div>
             </div>
 
+            <div className="mb-4">
+              <JobCostPicker
+                customerId={customerId}
+                invoiceId={invoiceId}
+                lineItems={lineItems}
+                onLineItemsChange={setLineItems}
+              />
+            </div>
+
             <div className={DOCUMENT_FORM_LAYOUT.totalsSection}>
               <div className="flex-1 mb-4 md:mb-0 space-y-4">
                 <div>
@@ -485,6 +502,21 @@ export function InvoiceEditor({
               </div>
             </div>
 
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-800">
+                <input type="checkbox" checked={paidNow} onChange={(event) => setPaidNow(event.target.checked)} />
+                Customer paid now
+              </label>
+              {paidNow && (
+                <div className="w-40">
+                  <Select value={paidNowMethod} onChange={(event) => setPaidNowMethod(event.target.value as PaymentMethod)}>
+                    {PAYMENT_METHODS.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+            </div>
             <div className={DOCUMENT_FORM_LAYOUT.actionBar}>
               <Button
                 type="button"
@@ -514,7 +546,7 @@ export function InvoiceEditor({
                   disabled={saving}
                   loading={saving}
                 >
-                  Review and send
+                  {paidNow ? 'Save as paid' : 'Review and send'}
                 </Button>
               </div>
             </div>

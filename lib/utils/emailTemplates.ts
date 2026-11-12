@@ -1084,6 +1084,110 @@ export function generateInvoiceEmail(data: InvoiceEmailData): string {
   `.trim();
 }
 
+function escapeEmailHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function emailMoney(cents: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+}
+
+export interface PaymentReceiptEmailData {
+  businessName: string;
+  invoiceNumber: string;
+  paidCents: number;
+  balanceCents: number;
+  method: string;
+  viewUrl?: string | null;
+}
+
+/** Customer receipt after a payment is recorded. */
+export function generatePaymentReceiptEmail(data: PaymentReceiptEmailData): string {
+  const business = escapeEmailHtml(data.businessName);
+  const number = escapeEmailHtml(data.invoiceNumber);
+  const method = escapeEmailHtml(data.method);
+  const link = data.viewUrl
+    ? `<p style="margin: 0 0 24px 0;"><a href="${escapeEmailHtml(data.viewUrl)}" style="display: inline-block; padding: 12px 24px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">View invoice</a></p>`
+    : '';
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <tr>
+      <td style="padding: 32px 24px;">
+        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">Payment received</h1>
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">${business} received <strong>${emailMoney(data.paidCents)}</strong> by ${method} for invoice #${number}.</p>
+        <p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">Balance remaining: <strong>${emailMoney(data.balanceCents)}</strong></p>
+        ${link}
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+export interface StatementEmailLine {
+  invoiceNumber: string;
+  dueDate: string | null;
+  balanceCents: number;
+}
+
+export interface StatementEmailData {
+  businessName: string;
+  customerName: string;
+  lines: StatementEmailLine[];
+  totalCents: number;
+}
+
+/** Open invoices for one customer. */
+export function generateStatementEmail(data: StatementEmailData): string {
+  const rows = data.lines
+    .map(
+      (line) =>
+        `<tr>
+          <td style="padding: 8px 0; font-size: 14px; color: #111827;">${escapeEmailHtml(line.invoiceNumber)}</td>
+          <td style="padding: 8px 0; font-size: 14px; color: #374151;">${line.dueDate ? escapeEmailHtml(line.dueDate) : '—'}</td>
+          <td style="padding: 8px 0; font-size: 14px; color: #111827; text-align: right;">${emailMoney(line.balanceCents)}</td>
+        </tr>`
+    )
+    .join('');
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <tr>
+      <td style="padding: 32px 24px;">
+        <h1 style="margin: 0 0 8px 0; font-size: 20px; color: #111827;">Statement from ${escapeEmailHtml(data.businessName)}</h1>
+        <p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">${escapeEmailHtml(data.customerName)}, here is what is still open.</p>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <th align="left" style="padding: 8px 0; font-size: 12px; color: #6b7280;">Invoice</th>
+            <th align="left" style="padding: 8px 0; font-size: 12px; color: #6b7280;">Due</th>
+            <th align="right" style="padding: 8px 0; font-size: 12px; color: #6b7280;">Balance</th>
+          </tr>
+          ${rows}
+          <tr>
+            <td colspan="2" style="padding: 12px 0 0 0; font-size: 14px; font-weight: bold; color: #111827; border-top: 2px solid #111827;">Total due</td>
+            <td style="padding: 12px 0 0 0; font-size: 14px; font-weight: bold; color: #111827; text-align: right; border-top: 2px solid #111827;">${emailMoney(data.totalCents)}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
 export interface EstimateReviewEmailData {
   businessName: string;
   estimateNumber: string;

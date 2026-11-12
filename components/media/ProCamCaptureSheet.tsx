@@ -7,25 +7,58 @@ import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { requestCurrentLocation, type CaptureLocation } from '@/lib/media/capture-location';
 
+/** Phones have no hover and a coarse pointer. They use the system camera, which works on http://LAN as well as https. */
+function useNativeCamera(): boolean {
+  const [nativeCamera, setNativeCamera] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia('(hover: none) and (pointer: coarse)');
+    const apply = () => setNativeCamera(query.matches);
+    apply();
+    query.addEventListener('change', apply);
+    return () => query.removeEventListener('change', apply);
+  }, []);
+  return nativeCamera;
+}
+
 interface ProCamCaptureSheetProps {
   isOpen: boolean;
   onClose: () => void;
   showDrive?: boolean;
   onPickDrive?: () => void;
-  /** Open the viewfinder as soon as the sheet opens. The browser asks if access was not granted. */
-  autoStart?: boolean;
   /** Attach the device position. Off skips the location prompt. */
   withLocation?: boolean;
   /** Fires once the browser has granted the camera and the viewfinder is on. */
   onCameraReady?: () => void;
-  onCapture: (result: { file: File; location: CaptureLocation | null }) => void;
+  /** When false, the sheet stays open so another photo can be taken. */
+  closeOnCapture?: boolean;
+  title?: string;
+  intro?: string | null;
+  notice?: string | null;
+  error?: string | null;
+  onCapture: (result: { file: File; location: CaptureLocation | null }) => void | Promise<void>;
 }
 
-export function ProCamCaptureSheet({ isOpen, onClose, showDrive = false, onPickDrive, autoStart = false, withLocation = true, onCameraReady, onCapture }: ProCamCaptureSheetProps) {
+export function ProCamCaptureSheet({
+  isOpen,
+  onClose,
+  showDrive = false,
+  onPickDrive,
+  withLocation = true,
+  onCameraReady,
+  closeOnCapture = true,
+  title,
+  intro,
+  notice,
+  error,
+  onCapture,
+}: ProCamCaptureSheetProps) {
   const t = useTranslations('procam');
+  const nativeCamera = useNativeCamera();
   const videoRef = useRef<HTMLVideoElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const startingRef = useRef(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,7 +71,10 @@ export function ProCamCaptureSheet({ isOpen, onClose, showDrive = false, onPickD
   const [wasOpen, setWasOpen] = useState(isOpen);
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
-    if (!isOpen) setCameraOn(false);
+    if (!isOpen) {
+      setCameraOn(false);
+      setCameraError(null);
+    }
   }
 
   useEffect(() => {
@@ -57,46 +93,59 @@ export function ProCamCaptureSheet({ isOpen, onClose, showDrive = false, onPickD
   const finish = async (file: File) => {
     setBusy(true);
     const location = withLocation ? await requestCurrentLocation() : null;
-    setBusy(false);
-    stopTracks();
-    setCameraOn(false);
-    onCapture({ file, location });
-    onClose();
+    try {
+      await onCapture({ file, location });
+      stopTracks();
+      setCameraOn(false);
+      if (closeOnCapture) onClose();
+    } catch {
+      stopTracks();
+      setCameraOn(false);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const startCamera = async () => {
+    if (startingRef.current || busy || cameraOn) return;
     setCameraError(null);
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraError(t('cameraUnavailable'));
       return;
     }
+    startingRef.current = true;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false,
+        });
+      } catch (error) {
+        const name = error instanceof DOMException ? error.name : '';
+        if (name !== 'OverconstrainedError' && name !== 'NotFoundError') throw error;
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
       streamRef.current = stream;
       setCameraOn(true);
       onCameraReady?.();
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-    } catch {
-      setCameraError(t('cameraDenied'));
+    } catch (error) {
+      stopTracks();
+      setCameraOn(false);
+      const name = error instanceof DOMException ? error.name : '';
+      setCameraError(
+        name === 'NotAllowedError' || name === 'PermissionDeniedError'
+          ? t('cameraDenied')
+          : t('cameraUnavailable')
+      );
+    } finally {
+      startingRef.current = false;
     }
   };
 
-  useEffect(() => {
-    if (!isOpen || !autoStart) return;
-    void startCamera();
-    // Only the open transition should ask. startCamera is recreated each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, autoStart]);
-
   const snap = async () => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || busy) return;
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth || 1280;
     canvas.height = video.videoHeight || 720;
@@ -108,22 +157,41 @@ export function ProCamCaptureSheet({ isOpen, onClose, showDrive = false, onPickD
     await finish(new File([blob], `procam-${Date.now()}.jpg`, { type: 'image/jpeg' }));
   };
 
+  const heading = title ?? t('whyTitle');
+  const explanation = title ? intro : t('whyBody');
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t('whyTitle')} showHeader showCloseButton maxWidth="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title={heading} showHeader showCloseButton maxWidth="lg">
       <div className="space-y-4">
-        <p className="text-sm text-gray-700">{t('whyBody')}</p>
-        {cameraError && <p className="text-sm text-red-600">{cameraError}</p>}
-        {cameraOn && (
-          <video ref={videoRef} className="w-full rounded-lg border-2 border-black bg-black" playsInline muted />
-        )}
+        {explanation ? <p className="text-sm text-gray-700">{explanation}</p> : null}
+        {notice ? <p className="text-sm">{notice}</p> : null}
+        {(error || cameraError) && <p className="text-sm text-red-600">{error || cameraError}</p>}
+        <video
+          ref={videoRef}
+          className={cameraOn ? 'aspect-[4/3] w-full rounded-lg border-2 border-black bg-black object-cover' : 'hidden'}
+          playsInline
+          muted
+          autoPlay
+        />
         <div className="flex flex-wrap gap-2">
           {cameraOn ? (
-            <Button type="button" onClick={snap} disabled={busy}>
+            <Button type="button" onClick={() => void snap()} disabled={busy}>
               <Camera className="w-4 h-4 inline mr-2" />
               {t('snap')}
             </Button>
           ) : (
-            <Button type="button" onClick={startCamera} disabled={busy}>
+            <Button
+              type="button"
+              onClick={() => {
+                if (nativeCamera) {
+                  setCameraError(null);
+                  cameraInputRef.current?.click();
+                  return;
+                }
+                void startCamera();
+              }}
+              disabled={busy}
+            >
               <Camera className="w-4 h-4 inline mr-2" />
               {t('camera')}
             </Button>
@@ -145,6 +213,18 @@ export function ProCamCaptureSheet({ isOpen, onClose, showDrive = false, onPickD
             </Button>
           )}
         </div>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) void finish(file);
+          }}
+        />
         <input
           ref={inputRef}
           type="file"

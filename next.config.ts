@@ -45,6 +45,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'hzhyuuiovwayblkovfpr.supabase.co',
       },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+      },
     ],
     // Configure supported image qualities
     qualities: [75, 90],

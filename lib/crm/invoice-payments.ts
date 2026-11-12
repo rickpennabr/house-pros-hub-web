@@ -3,10 +3,13 @@ import type { Database, Json } from '@/lib/types/supabase';
 import {
   activePaidCents,
   canRecordPayment,
+  PAYMENT_METHODS,
   statusFromPayments,
+  todayDateKey,
   type PaymentMethod,
   type ProInvoiceStatus,
 } from '@/lib/crm/invoice-books';
+import { emailPaymentReceipt, type ReceiptResult } from '@/lib/crm/payment-receipt';
 
 type Client = SupabaseClient<Database>;
 
@@ -49,11 +52,12 @@ export async function recordInvoicePayment(
     method: PaymentMethod;
     reference: string | null;
     note: string | null;
-  }
+  },
+  options?: { baseUrl?: string | null; locale?: string }
 ) {
   const { data: invoice, error } = await supabase
     .from('pro_crm_invoices')
-    .select('id, status, amount_cents, due_date')
+    .select('id, status, amount_cents, due_date, customer_id, business_id, invoice_number')
     .eq('id', invoiceId)
     .eq('owner_id', ownerId)
     .single();
@@ -101,15 +105,89 @@ export async function recordInvoicePayment(
     .eq('owner_id', ownerId);
   if (updateError) return { error: updateError.message };
 
+  const balanceCents = Math.max(0, invoice.amount_cents - nextPaid);
+  const receipt: ReceiptResult = await emailPaymentReceipt({
+    customerId: invoice.customer_id,
+    businessId: invoice.business_id,
+    invoiceId,
+    invoiceNumber: invoice.invoice_number,
+    paidCents: input.amountCents,
+    balanceCents,
+    method: input.method,
+    baseUrl: options?.baseUrl ?? null,
+    locale: options?.locale,
+  });
+
   await writeEvent(supabase, {
     ownerId,
     invoiceId,
     actorId: ownerId,
     action: 'payment_recorded',
-    payload: { payment_id: payment.id, amount_cents: input.amountCents, status },
+    payload: { payment_id: payment.id, amount_cents: input.amountCents, status, receipt },
   });
 
-  return { payment, status, paymentAppliedCents: nextPaid };
+  return { payment, status, paymentAppliedCents: nextPaid, receipt };
+}
+
+export function parsePaidNow(body: {
+  paidNow?: unknown;
+  paidNowMethod?: unknown;
+}): { paidNow: false } | { paidNow: true; method: PaymentMethod } | { error: string } {
+  if (body.paidNow !== true) return { paidNow: false };
+  const method = String(body.paidNowMethod ?? 'cash') as PaymentMethod;
+  if (!PAYMENT_METHODS.includes(method)) return { error: 'Choose a payment method' };
+  return { paidNow: true, method };
+}
+
+/** Mark a draft as sent and record a payment for whatever is still open. */
+export async function settleInvoicePaidInFull(
+  supabase: Client,
+  ownerId: string,
+  invoiceId: string,
+  method: PaymentMethod,
+  options?: { baseUrl?: string | null; locale?: string }
+) {
+  const { data: invoice, error } = await supabase
+    .from('pro_crm_invoices')
+    .select('id, status, amount_cents, payment_applied_cents')
+    .eq('id', invoiceId)
+    .eq('owner_id', ownerId)
+    .single();
+  if (error || !invoice) return { error: 'Invoice not found' as const };
+  if (invoice.status === 'cancelled') return { error: 'This invoice is cancelled' as const };
+  const balance = invoice.amount_cents - invoice.payment_applied_cents;
+  if (balance <= 0) return { error: 'This invoice has nothing left to pay' as const };
+
+  const wasDraft = invoice.status === 'draft';
+  if (wasDraft) {
+    const { error: sentError } = await supabase
+      .from('pro_crm_invoices')
+      .update({ status: 'sent' })
+      .eq('id', invoiceId)
+      .eq('owner_id', ownerId);
+    if (sentError) return { error: sentError.message };
+  }
+
+  const result = await recordInvoicePayment(
+    supabase,
+    ownerId,
+    invoiceId,
+    {
+      amountCents: balance,
+      paymentDate: todayDateKey(),
+      method,
+      reference: null,
+      note: 'Paid when the invoice was saved',
+    },
+    options
+  );
+  if ('error' in result && result.error) {
+    if (wasDraft) {
+      await supabase.from('pro_crm_invoices').update({ status: 'draft' }).eq('id', invoiceId).eq('owner_id', ownerId);
+    }
+    return { error: result.error };
+  }
+  return result;
 }
 
 export async function voidInvoicePayment(

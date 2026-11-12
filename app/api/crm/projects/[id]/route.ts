@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -42,12 +43,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const { data: row, error } = await supabase.from('pro_crm_projects').select('*').eq('id', id).eq('owner_id', user.id).single();
     if (error || !row) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
-    const { data: customer } = await supabase.from('pro_crm_customers').select('id, first_name, last_name').eq('id', row.customer_id).single();
+    const { data: customer } = await supabase.from('pro_crm_customers').select('id, first_name, last_name, display_name, company_name').eq('id', row.customer_id).single();
     return NextResponse.json({
       id: row.id,
       customerId: row.customer_id,
       customerFirstName: customer?.first_name ?? null,
       customerLastName: customer?.last_name ?? null,
+      customerDisplayName: customer ? contactDisplayName(customer) : null,
       estimateId: row.estimate_id,
       name: row.name,
       status: row.status,

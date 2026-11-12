@@ -69,6 +69,8 @@ export default function CRMEditInvoicePage() {
                 qty: line.qty ?? 1,
                 rate_cents: line.rate_cents ?? 0,
                 amount_cents: line.amount_cents ?? 0,
+                expense_id: line.expense_id ?? null,
+                cost_cents: line.cost_cents ?? null,
               }))
             : [emptyInvoiceLine()];
         setDraft({
@@ -80,6 +82,8 @@ export default function CRMEditInvoicePage() {
           note: inv.note ?? '',
           companyOverride: inv.companyDisplay ?? null,
           pendingAttachments: [],
+          paidNow: false,
+          paidNowMethod: 'cash',
         });
         if (inv.business) {
           setBusiness({
@@ -116,6 +120,8 @@ export default function CRMEditInvoicePage() {
         paymentTerms: form.paymentTerms.trim() || null,
         note: form.note.trim() || null,
         companyDisplay: form.companyOverride ?? undefined,
+        paidNow: form.paidNow,
+        paidNowMethod: form.paidNowMethod,
       }),
     });
     const data = await res.json().catch(() => ({}));

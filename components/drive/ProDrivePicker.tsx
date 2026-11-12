@@ -11,12 +11,21 @@ interface ProDrivePickerProps {
   ownerType: DriveOwnerType;
   ownerId: string;
   onSelect: (file: DriveFile) => void;
+  zIndex?: number;
 }
 
-export function ProDrivePicker({ isOpen, onClose, ownerType, ownerId, onSelect }: ProDrivePickerProps) {
+export function ProDrivePicker({ isOpen, onClose, ownerType, ownerId, onSelect, zIndex }: ProDrivePickerProps) {
   const t = useTranslations('prodrive');
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t('pickTitle')} showHeader showCloseButton maxWidth="6xl">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={t('pickTitle')}
+      showHeader
+      showCloseButton
+      maxWidth="6xl"
+      overlayStyle={zIndex == null ? undefined : { zIndex }}
+    >
       {isOpen && (
         <ProDriveBrowser
           ownerType={ownerType}

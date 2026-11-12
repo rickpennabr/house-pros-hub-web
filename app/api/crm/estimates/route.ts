@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { crmEstimateCreateSchema, normalizeEstimateAmountCents } from '@/lib/schemas/crmEstimate';
 import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
+import { contactDisplayName } from '@/lib/crm/contact-name';
+import { summarizeEstimateStatuses } from '@/lib/crm/estimate-books';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -44,6 +46,16 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const orderColumn = VALID_SORT.includes(sortBy) ? sortBy : 'created_at';
 
+    const { data: statusRows, error: statusError } = await supabase
+      .from('pro_crm_estimates')
+      .select('status, amount_cents')
+      .eq('owner_id', user.id)
+      .limit(2000);
+    if (statusError) return NextResponse.json({ error: statusError.message || 'Failed to fetch estimates' }, { status: 500 });
+    const statusSummary = summarizeEstimateStatuses(
+      (statusRows ?? []).map((row) => ({ status: row.status, amountCents: row.amount_cents }))
+    );
+
     let query = supabase
       .from('pro_crm_estimates')
       .select('*', { count: 'exact' })
@@ -67,6 +79,7 @@ export async function GET(request: NextRequest) {
           total: 0,
           page,
           pageSize,
+          statusSummary,
         });
       }
       query = query.in('customer_id', matchingCustomerIds);
@@ -85,6 +98,8 @@ export async function GET(request: NextRequest) {
     const customerMap = new Map<string, {
       first_name: string;
       last_name: string;
+      display_name: string | null;
+      company_name: string | null;
       street_address: string | null;
       apartment: string | null;
       city: string | null;
@@ -100,7 +115,7 @@ export async function GET(request: NextRequest) {
     if (customerIds.length > 0) {
       const { data: customers } = await supabase
         .from('pro_crm_customers')
-        .select('id, first_name, last_name, street_address, apartment, city, state, zip_code, phone, billing_address_street_1, billing_address_street_2, billing_address_city, billing_address_state, billing_address_zip_code')
+        .select('id, first_name, last_name, display_name, company_name, street_address, apartment, city, state, zip_code, phone, billing_address_street_1, billing_address_street_2, billing_address_city, billing_address_state, billing_address_zip_code')
         .in('id', customerIds);
       customers?.forEach((c) => customerMap.set(c.id, c));
     }
@@ -126,6 +141,7 @@ export async function GET(request: NextRequest) {
         ...e,
         customerFirstName: c?.first_name ?? null,
         customerLastName: c?.last_name ?? null,
+        customerDisplayName: c ? contactDisplayName(c) : null,
         customerPhone: c?.phone ?? null,
         customerAddress: address,
       };
@@ -136,6 +152,7 @@ export async function GET(request: NextRequest) {
       total: count ?? 0,
       page,
       pageSize,
+      statusSummary,
     });
   } catch (err) {
     console.error('GET /api/crm/estimates', err);

@@ -52,14 +52,14 @@ export default function Logo({ className = '', width = 200, height = 50, src: un
         {/* Mobile: height fixed (e.g. 40px from header); width from image so no fixed width */}
         <span
           className={`logo-mobile-wrap md:hidden relative inline-flex min-w-0 max-w-full items-center justify-center ${className}`}
-          style={{ height: '40px', width: '100%', minWidth: 0 }}
+          style={{ height: '40px', width: '100%', maxWidth: '100%', minWidth: 0 }}
         >
           <Image
             src={effectiveMobileSrc}
             alt="House Pros Hub Logo"
             {...sizeOf(effectiveMobileSrc)}
-            className={`${className} logo-mobile-default relative h-full w-full max-w-full object-contain object-center`}
-            style={{ width: '100%', height: '40px', objectFit: 'contain' }}
+            className={`${className} logo-mobile-default relative h-10 w-full max-w-full object-contain object-center`}
+            style={{ width: '100%', maxWidth: '100%', height: '40px', objectFit: 'contain' }}
             priority
           />
           {mobileDarkSrc && (

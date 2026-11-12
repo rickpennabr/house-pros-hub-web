@@ -28,6 +28,8 @@ function blankDraft(customerId = ''): InvoiceEditorDraft {
     note: '',
     companyOverride: null,
     pendingAttachments: [],
+    paidNow: false,
+    paidNowMethod: 'cash',
   };
 }
 
@@ -91,6 +93,8 @@ export default function CRMNewInvoicePage() {
         paymentTerms: form.paymentTerms.trim() || null,
         note: form.note.trim() || null,
         companyDisplay: form.companyOverride ?? undefined,
+        paidNow: form.paidNow,
+        paidNowMethod: form.paidNowMethod,
       }),
     });
     const data = await res.json().catch(() => ({}));

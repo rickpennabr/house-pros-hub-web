@@ -1702,6 +1702,8 @@ export interface Database {
           requested_by: string | null;
           ordered_by: string | null;
           receipt_url: string | null;
+          billed_invoice_id: string | null;
+          billed_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1721,6 +1723,8 @@ export interface Database {
           requested_by?: string | null;
           ordered_by?: string | null;
           receipt_url?: string | null;
+          billed_invoice_id?: string | null;
+          billed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1740,13 +1744,16 @@ export interface Database {
           requested_by?: string | null;
           ordered_by?: string | null;
           receipt_url?: string | null;
+          billed_invoice_id?: string | null;
+          billed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Relationships: [
           { foreignKeyName: "pro_crm_expenses_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "users"; referencedColumns: ["id"] },
           { foreignKeyName: "pro_crm_expenses_project_id_fkey"; columns: ["project_id"]; referencedRelation: "pro_crm_projects"; referencedColumns: ["id"] },
-          { foreignKeyName: "pro_crm_expenses_supplier_id_fkey"; columns: ["supplier_id"]; referencedRelation: "pro_crm_customers"; referencedColumns: ["id"] }
+          { foreignKeyName: "pro_crm_expenses_supplier_id_fkey"; columns: ["supplier_id"]; referencedRelation: "pro_crm_customers"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_expenses_billed_invoice_id_fkey"; columns: ["billed_invoice_id"]; referencedRelation: "pro_crm_invoices"; referencedColumns: ["id"] }
         ];
       };
       pro_invoice_settings: {
@@ -1807,7 +1814,10 @@ export interface Database {
           note: string | null;
           company_display: Json | null;
           last_reminded_at: string | null;
+          due_soon_reminded_at: string | null;
           recurring_invoice_id: string | null;
+          converted_from_estimate_at: string | null;
+          converted_from_estimate_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1829,7 +1839,10 @@ export interface Database {
           note?: string | null;
           company_display?: Json | null;
           last_reminded_at?: string | null;
+          due_soon_reminded_at?: string | null;
           recurring_invoice_id?: string | null;
+          converted_from_estimate_at?: string | null;
+          converted_from_estimate_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1851,7 +1864,10 @@ export interface Database {
           note?: string | null;
           company_display?: Json | null;
           last_reminded_at?: string | null;
+          due_soon_reminded_at?: string | null;
           recurring_invoice_id?: string | null;
+          converted_from_estimate_at?: string | null;
+          converted_from_estimate_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -2376,6 +2392,12 @@ export interface Database {
           latitude: number | null;
           longitude: number | null;
           accuracy_m: number | null;
+          heading_deg: number | null;
+          tags: string[];
+          hidden: boolean;
+          is_cover: boolean;
+          trashed_at: string | null;
+          paired_photo_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -2388,6 +2410,12 @@ export interface Database {
           latitude?: number | null;
           longitude?: number | null;
           accuracy_m?: number | null;
+          heading_deg?: number | null;
+          tags?: string[];
+          hidden?: boolean;
+          is_cover?: boolean;
+          trashed_at?: string | null;
+          paired_photo_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -2400,6 +2428,87 @@ export interface Database {
           latitude?: number | null;
           longitude?: number | null;
           accuracy_m?: number | null;
+          heading_deg?: number | null;
+          tags?: string[];
+          hidden?: boolean;
+          is_cover?: boolean;
+          trashed_at?: string | null;
+          paired_photo_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      pro_jobsite_photo_comments: {
+        Row: {
+          id: string;
+          photo_id: string;
+          owner_id: string;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          photo_id: string;
+          owner_id: string;
+          body: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          photo_id?: string;
+          owner_id?: string;
+          body?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      pro_jobsite_photo_tasks: {
+        Row: {
+          id: string;
+          photo_id: string;
+          owner_id: string;
+          title: string;
+          done: boolean;
+          assignee_contact_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          photo_id: string;
+          owner_id: string;
+          title: string;
+          done?: boolean;
+          assignee_contact_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          photo_id?: string;
+          owner_id?: string;
+          title?: string;
+          done?: boolean;
+          assignee_contact_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      pro_crm_project_members: {
+        Row: {
+          project_id: string;
+          contact_id: string;
+          role_id: string;
+          created_at: string;
+        };
+        Insert: {
+          project_id: string;
+          contact_id: string;
+          role_id: string;
+          created_at?: string;
+        };
+        Update: {
+          project_id?: string;
+          contact_id?: string;
+          role_id?: string;
           created_at?: string;
         };
         Relationships: [];

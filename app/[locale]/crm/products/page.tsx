@@ -11,6 +11,8 @@ import { ProductEditor } from '@/components/crm/catalog/product-editor';
 import { formatCents } from '@/lib/crm/catalog-options';
 import type { CrmCatalogTerm, CrmProduct } from '@/lib/crm/catalog-types';
 
+const ACTIONS_MENU_HEIGHT = 132;
+
 const COLUMNS: AdminDataTableColumn<CrmProduct>[] = [
   { id: 'photo', label: 'Photo', width: 80, resizable: false },
   { id: 'name', label: 'Name', width: 180 },
@@ -218,7 +220,9 @@ export default function CRMProductsPage() {
                 return;
               }
               const rect = event.currentTarget.getBoundingClientRect();
-              setMenuPosition({ top: rect.bottom + 4, left: Math.min(rect.right - 140, window.innerWidth - 150) });
+              const spaceBelow = window.innerHeight - rect.bottom - 4;
+              const top = spaceBelow >= ACTIONS_MENU_HEIGHT ? rect.bottom + 4 : Math.max(8, rect.top - ACTIONS_MENU_HEIGHT - 4);
+              setMenuPosition({ top, left: Math.max(8, Math.min(rect.right - 140, window.innerWidth - 150)) });
               setOpenActionsId(row.id);
             }}
           >

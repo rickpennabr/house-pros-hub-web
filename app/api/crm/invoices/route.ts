@@ -3,8 +3,14 @@ import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { sanitizeCompanyDisplay } from '@/lib/invoices/companyDisplay';
 import { getNextInvoiceNumber } from '@/lib/crm/invoice-number';
-import { PRO_INVOICE_STATUSES, type ProInvoiceStatus } from '@/lib/crm/invoice-books';
+import { PRO_INVOICE_STATUSES, type PaymentMethod, type ProInvoiceStatus } from '@/lib/crm/invoice-books';
 import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
+import { contactDisplayName } from '@/lib/crm/contact-name';
+import { syncBilledExpenses } from '@/lib/crm/job-costs';
+import { parsePaidNow, settleInvoicePaidInFull } from '@/lib/crm/invoice-payments';
+import { buildProgressInvoice, contractBilledCents } from '@/lib/crm/progress-billing';
+import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
+import type { Json } from '@/lib/types/supabase';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -75,13 +81,13 @@ export async function GET(request: NextRequest) {
 
     const list = invoices ?? [];
     const customerIds = [...new Set(list.map((i) => i.customer_id))];
-    const customerMap = new Map<string, { first_name: string; last_name: string }>();
+    const customerMap = new Map<string, { first_name: string; last_name: string; display_name: string | null; company_name: string | null }>();
     if (customerIds.length > 0) {
       const { data: customers } = await supabase
         .from('pro_crm_customers')
-        .select('id, first_name, last_name')
+        .select('id, first_name, last_name, display_name, company_name')
         .in('id', customerIds);
-      customers?.forEach((c) => customerMap.set(c.id, { first_name: c.first_name, last_name: c.last_name }));
+      customers?.forEach((c) => customerMap.set(c.id, c));
     }
 
     const withCustomers = list.map((inv) => {
@@ -90,6 +96,7 @@ export async function GET(request: NextRequest) {
         ...inv,
         customerFirstName: c?.first_name ?? null,
         customerLastName: c?.last_name ?? null,
+        customerDisplayName: c ? contactDisplayName(c) : null,
       };
     });
 
@@ -107,6 +114,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const supabase = await createClient();
+    const paidNow = parsePaidNow(body);
+    if ('error' in paidNow) return NextResponse.json({ error: paidNow.error }, { status: 400 });
 
     if (body.estimateId != null) {
       const estimateId = String(body.estimateId);
@@ -120,15 +129,28 @@ export async function POST(request: NextRequest) {
       if (estErr || !estimate) {
         return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
       }
-      const { data: existingInvoice } = await supabase
+      const { data: priorInvoices, error: priorError } = await supabase
         .from('pro_crm_invoices')
-        .select('id')
+        .select('status, amount_cents')
         .eq('owner_id', user.id)
-        .eq('estimate_id', estimateId)
-        .limit(1)
-        .maybeSingle();
-      if (existingInvoice) {
-        return NextResponse.json({ error: 'This estimate was already converted to an invoice' }, { status: 409 });
+        .eq('estimate_id', estimateId);
+      if (priorError) return NextResponse.json({ error: priorError.message }, { status: 500 });
+
+      const requestedRaw = body.amountCents;
+      const requestedCents =
+        requestedRaw == null || requestedRaw === ''
+          ? null
+          : Math.round(typeof requestedRaw === 'number' ? requestedRaw : Number(requestedRaw));
+      const progress = buildProgressInvoice({
+        contractCents: estimate.amount_cents,
+        billedCents: contractBilledCents(priorInvoices ?? []),
+        requestedCents,
+        lineItems: estimate.line_items,
+        note: estimate.note,
+      });
+      if ('error' in progress) {
+        const status = progress.error === 'This estimate is fully billed' ? 409 : 400;
+        return NextResponse.json({ error: progress.error }, { status });
       }
 
       const invoiceNumber = await getNextInvoiceNumber(supabase, user.id);
@@ -150,14 +172,14 @@ export async function POST(request: NextRequest) {
           estimate_id: estimateId,
           business_id: businessId || null,
           invoice_number: invoiceNumber,
-          amount_cents: estimate.amount_cents,
+          amount_cents: progress.amountCents,
           payment_applied_cents: 0,
-          line_items: estimate.line_items,
+          line_items: (progress.lineItems ?? null) as Json,
           status: 'draft',
           invoice_date: invoiceDate,
           due_date: invoiceDate,
           payment_terms: null,
-          note: estimate.note,
+          note: progress.note,
           converted_from_estimate_at: new Date().toISOString(),
           converted_from_estimate_by: user.id,
         })
@@ -165,9 +187,14 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (error) {
-        return NextResponse.json({ error: error.message || 'Failed to create invoice' }, { status: 500 });
+        const message = error.message.includes('idx_pro_crm_invoices_owner_estimate_unique')
+          ? 'Run the progress billing database update before invoicing this estimate again.'
+          : error.message || 'Failed to create invoice';
+        return NextResponse.json({ error: message }, { status: 500 });
       }
-      return NextResponse.json({ id: row.id, display_id: row.display_id, invoice_number: row.invoice_number, created_at: row.created_at }, { status: 201 });
+      const finished = await finishNewInvoice(supabase, user.id, row.id, progress.lineItems, paidNow.paidNow ? paidNow.method : null, request);
+      if (finished.error) return NextResponse.json({ error: finished.error }, { status: finished.status });
+      return NextResponse.json({ id: row.id, display_id: row.display_id, invoice_number: row.invoice_number, created_at: row.created_at, receipt: finished.receipt ?? null }, { status: 201 });
     }
 
     const customerId = body.customerId ?? body.customer_id;
@@ -232,9 +259,36 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message || 'Failed to create invoice' }, { status: 500 });
     }
-    return NextResponse.json({ id: row.id, display_id: row.display_id, invoice_number: row.invoice_number, created_at: row.created_at }, { status: 201 });
+    const finished = await finishNewInvoice(supabase, user.id, row.id, lineItems, paidNow.paidNow ? paidNow.method : null, request);
+    if (finished.error) return NextResponse.json({ error: finished.error }, { status: finished.status });
+    return NextResponse.json({ id: row.id, display_id: row.display_id, invoice_number: row.invoice_number, created_at: row.created_at, receipt: finished.receipt ?? null }, { status: 201 });
   } catch (err) {
     console.error('POST /api/crm/invoices', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+async function finishNewInvoice(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ownerId: string,
+  invoiceId: string,
+  lineItems: unknown,
+  method: PaymentMethod | null,
+  request: NextRequest
+): Promise<{ error?: string; status: number; receipt?: string | null }> {
+  const synced = await syncBilledExpenses(supabase, ownerId, invoiceId, lineItems);
+  if (synced.error) {
+    await supabase.from('pro_crm_invoices').delete().eq('id', invoiceId).eq('owner_id', ownerId);
+    return { error: synced.error, status: 400 };
+  }
+  if (!method) return { status: 201 };
+  const settled = await settleInvoicePaidInFull(supabase, ownerId, invoiceId, method, {
+    baseUrl: getPublicSiteUrlForEmail(request),
+    locale: request.headers.get('x-next-intl-locale') || 'en',
+  });
+  if ('error' in settled && settled.error) {
+    await supabase.from('pro_crm_invoices').delete().eq('id', invoiceId).eq('owner_id', ownerId);
+    return { error: settled.error, status: 400 };
+  }
+  return { status: 201, receipt: 'receipt' in settled ? settled.receipt : null };
 }

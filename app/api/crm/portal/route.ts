@@ -23,7 +23,7 @@ export async function GET() {
 
     const { data: customers, error: customerError } = await supabase
       .from('pro_crm_customers')
-      .select('id, first_name, last_name, company_name, email, street_address, city, state, zip_code, portal_kind, portal_user_id, place_id')
+      .select('id, first_name, last_name, display_name, company_name, email, street_address, city, state, zip_code, portal_kind, portal_user_id, place_id')
       .eq('owner_id', user.id)
       .order('last_name', { ascending: true });
     if (customerError) return NextResponse.json({ error: customerError.message }, { status: 500 });

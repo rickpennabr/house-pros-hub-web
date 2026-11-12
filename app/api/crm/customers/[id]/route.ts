@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { parseRoleIds, replaceContactRoles, rolesByContactId } from '@/lib/crm/contact-role';
+import { DISPLAY_NAME_TAKEN, displayNameTaken, resolveContactDisplayName } from '@/lib/crm/display-name';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -95,6 +96,37 @@ export async function PUT(
     if (body.opening_balance !== undefined) updatePayload.opening_balance = num(body.opening_balance) ?? body.opening_balance;
 
     const supabase = await createClient();
+    const nameTouched = ['display_name', 'first_name', 'last_name', 'company_name'].some((key) => key in updatePayload);
+    if (nameTouched) {
+      const { data: current } = await supabase
+        .from('pro_crm_customers')
+        .select('first_name, last_name, company_name, display_name')
+        .eq('id', id)
+        .eq('owner_id', user.id)
+        .single();
+      if (!current) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+      const displayName = resolveContactDisplayName({
+        displayName: 'display_name' in updatePayload
+          ? (updatePayload.display_name as string | null)
+          : current.display_name,
+        firstName: 'first_name' in updatePayload
+          ? (updatePayload.first_name as string | null)
+          : current.first_name,
+        lastName: 'last_name' in updatePayload
+          ? (updatePayload.last_name as string | null)
+          : current.last_name,
+        companyName: 'company_name' in updatePayload
+          ? (updatePayload.company_name as string | null)
+          : current.company_name,
+      });
+      if (!displayName) {
+        return NextResponse.json({ error: 'Display name is required' }, { status: 400 });
+      }
+      if (await displayNameTaken(supabase, user.id, displayName, id)) {
+        return NextResponse.json({ error: DISPLAY_NAME_TAKEN }, { status: 409 });
+      }
+      updatePayload.display_name = displayName;
+    }
     const { error: updateError } = await supabase
       .from('pro_crm_customers')
       .update(updatePayload)
@@ -102,7 +134,11 @@ export async function PUT(
       .eq('owner_id', user.id);
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message || 'Failed to update customer' }, { status: 500 });
+      const taken = updateError.code === '23505';
+      return NextResponse.json(
+        { error: taken ? DISPLAY_NAME_TAKEN : updateError.message || 'Failed to update customer' },
+        { status: taken ? 409 : 500 }
+      );
     }
 
     const roleIds = parseRoleIds(body);

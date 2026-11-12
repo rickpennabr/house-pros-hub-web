@@ -4,6 +4,9 @@ import { hasRole } from '@/lib/utils/roles';
 import { applyCompanyDisplay, sanitizeCompanyDisplay } from '@/lib/invoices/companyDisplay';
 import { getDefaultCompanyForInvoice } from '@/lib/invoices/defaultCompany';
 import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
+import { syncBilledExpenses } from '@/lib/crm/job-costs';
+import { parsePaidNow, settleInvoicePaidInFull } from '@/lib/crm/invoice-payments';
+import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -247,6 +250,9 @@ export async function PATCH(
     if (body.companyDisplay !== undefined) updates.company_display = sanitizeCompanyDisplay(body.companyDisplay);
 
     const supabase = await createClient();
+    const paidNow = parsePaidNow(body);
+    if ('error' in paidNow) return NextResponse.json({ error: paidNow.error }, { status: 400 });
+
     const { error } = await supabase
       .from('pro_crm_invoices')
       .update(updates)
@@ -254,6 +260,21 @@ export async function PATCH(
       .eq('owner_id', user.id);
 
     if (error) return NextResponse.json({ error: error.message || 'Failed to update invoice' }, { status: 500 });
+
+    if (body.lineItems !== undefined) {
+      const synced = await syncBilledExpenses(supabase, user.id, id, body.lineItems);
+      if (synced.error) return NextResponse.json({ error: synced.error }, { status: 400 });
+    }
+
+    if (paidNow.paidNow) {
+      const settled = await settleInvoicePaidInFull(supabase, user.id, id, paidNow.method, {
+        baseUrl: getPublicSiteUrlForEmail(request),
+        locale: request.headers.get('x-next-intl-locale') || 'en',
+      });
+      if ('error' in settled && settled.error) return NextResponse.json({ error: settled.error }, { status: 400 });
+      return NextResponse.json({ ok: true, receipt: 'receipt' in settled ? settled.receipt : null });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('PATCH /api/crm/invoices/[id]', err);

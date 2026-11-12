@@ -10,6 +10,8 @@ import {
   replaceContactRoles,
   rolesByContactId,
 } from '@/lib/crm/contact-role';
+import { DISPLAY_NAME_TAKEN, displayNameTaken, resolveContactDisplayName } from '@/lib/crm/display-name';
+import { openBalanceByCustomer } from '@/lib/crm/contact-books';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -91,9 +93,30 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = customers ?? [];
-    const roles = await rolesByContactId(supabase, rows.map((row) => row.id));
+    const ids = rows.map((row) => row.id);
+    const roles = await rolesByContactId(supabase, ids);
+    const { data: openInvoices } = ids.length
+      ? await supabase
+          .from('pro_crm_invoices')
+          .select('customer_id, amount_cents, payment_applied_cents, status')
+          .eq('owner_id', user.id)
+          .in('customer_id', ids)
+          .in('status', ['sent', 'partial', 'overdue'])
+      : { data: [] };
+    const balances = openBalanceByCustomer(
+      (openInvoices ?? []).map((row) => ({
+        customerId: row.customer_id,
+        status: row.status,
+        amountCents: row.amount_cents,
+        paidCents: row.payment_applied_cents,
+      }))
+    );
     return NextResponse.json({
-      customers: rows.map((row) => ({ ...row, roles: roles.get(row.id) ?? [] })),
+      customers: rows.map((row) => ({
+        ...row,
+        roles: roles.get(row.id) ?? [],
+        open_balance_cents: balances.get(row.id) ?? 0,
+      })),
       total: count ?? 0,
       page,
       pageSize,
@@ -121,15 +144,27 @@ export async function POST(request: NextRequest) {
     if (!firstName || !lastName) {
       return NextResponse.json({ error: 'First name and last name are required' }, { status: 400 });
     }
+    const displayName = resolveContactDisplayName({
+      displayName: trim(body.display_name ?? body.displayName),
+      firstName,
+      lastName,
+      companyName: trim(body.company_name ?? body.companyName),
+    });
+    if (!displayName) {
+      return NextResponse.json({ error: 'Display name is required' }, { status: 400 });
+    }
 
     const supabase = await createClient();
+    if (await displayNameTaken(supabase, user.id, displayName)) {
+      return NextResponse.json({ error: DISPLAY_NAME_TAKEN }, { status: 409 });
+    }
     type CustomerInsert = Database['public']['Tables']['pro_crm_customers']['Insert'];
     const insertPayload: CustomerInsert = {
       owner_id: user.id,
       first_name: firstName,
       last_name: lastName,
       company_name: str('company_name'),
-      display_name: str('display_name'),
+      display_name: displayName,
       email: str('email'),
       phone: str('phone'),
       cc: str('cc'),
@@ -169,7 +204,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error || !row) {
-      return NextResponse.json({ error: error?.message || 'Failed to create customer' }, { status: 500 });
+      const taken = error?.code === '23505';
+      return NextResponse.json(
+        { error: taken ? DISPLAY_NAME_TAKEN : error?.message || 'Failed to create customer' },
+        { status: taken ? 409 : 500 }
+      );
     }
 
     const roleIds = parseRoleIds(body);

@@ -29,20 +29,13 @@ export function ContactRolesField({ selectedIds, onChange }: ContactRolesFieldPr
         setRoles(list);
         const installerIds = new Set((data.roles ?? []).filter((role) => role.slug === 'installer').map((role) => role.id));
         const kept = selectedIds.filter((id) => !installerIds.has(id));
-        if (kept.length === 0) {
-          const customer = list.find((role) => role.slug === 'customer' && role.is_system);
-          const subcontractor = list.find((role) => role.slug === 'subcontractor' && role.is_system);
-          const fallback = installerIds.size > 0 && selectedIds.length > 0 ? subcontractor ?? customer : customer;
-          if (fallback) onChange([fallback.id]);
-        } else if (kept.length !== selectedIds.length) {
-          onChange(kept);
-        }
+        if (kept.length !== selectedIds.length) onChange(kept);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-    // Select Customer once, when the catalog first loads.
+    // Drop a retired installer role if one is still selected. Do not pick a role for the user.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -79,7 +72,7 @@ export function ContactRolesField({ selectedIds, onChange }: ContactRolesFieldPr
 
   return (
     <div className="col-span-2 md:col-span-3 space-y-3">
-      <FormField label="Roles" required>
+      <FormField label="Select or Add Role" required>
         <div className="flex flex-wrap gap-2">
           {roles.map((role) => {
             const selected = selectedIds.includes(role.id);
@@ -89,7 +82,7 @@ export function ContactRolesField({ selectedIds, onChange }: ContactRolesFieldPr
                 type="button"
                 onClick={() => toggle(role.id)}
                 aria-pressed={selected}
-                className={`rounded-full border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${
+                className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${
                   selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
                 }`}
               >
@@ -104,7 +97,7 @@ export function ContactRolesField({ selectedIds, onChange }: ContactRolesFieldPr
               setError(null);
             }}
             aria-expanded={adding}
-            className={`rounded-full border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${
+            className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${
               adding ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
             }`}
           >

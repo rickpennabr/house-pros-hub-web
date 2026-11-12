@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { agingBucket, todayDateKey, type AgingBucket } from '@/lib/crm/invoice-books';
+import { contactDisplayName } from '@/lib/crm/contact-name';
 
 function emptyAging(): Record<AgingBucket, number> {
   return { current: 0, days1to30: 0, days31to60: 0, days61to90: 0, days90plus: 0 };
@@ -72,11 +73,7 @@ export async function GET(request: NextRequest) {
         .select('id, first_name, last_name, display_name, company_name')
         .in('id', customerIds);
       for (const customer of customers ?? []) {
-        const name =
-          customer.display_name?.trim() ||
-          customer.company_name?.trim() ||
-          [customer.first_name, customer.last_name].filter(Boolean).join(' ') ||
-          'Customer';
+        const name = contactDisplayName(customer);
         names.set(customer.id, name);
       }
     }

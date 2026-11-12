@@ -13,6 +13,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
+import { contactDisplayName, listedCustomerName } from '@/lib/crm/contact-name';
 import Modal from '@/components/ui/Modal';
 
 const SORT_OPTIONS = [
@@ -31,16 +32,41 @@ interface ProjectRow {
   customer_id: string;
   customerFirstName: string | null;
   customerLastName: string | null;
+  customerDisplayName?: string | null;
   name: string;
   status: string;
   start_date: string | null;
   end_date: string | null;
   created_at: string;
+  /** Linked estimate total. Null when the project has no estimate. */
+  contract_amount_cents: number | null;
+  /** Sum of expenses linked to this project. */
+  project_cost_cents: number;
 }
 
 function formatDate(iso: string | null) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatMoney(cents: number) {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(cents / 100);
+}
+
+/** Contract minus cost. Null when there is no contract to measure against. */
+function profitCents(row: ProjectRow): number | null {
+  if (row.contract_amount_cents == null) return null;
+  return row.contract_amount_cents - row.project_cost_cents;
+}
+
+/** Profit as a percent of the contract. Null when the contract is missing or zero. */
+function profitPercent(row: ProjectRow): number | null {
+  if (row.contract_amount_cents == null || row.contract_amount_cents <= 0) return null;
+  return ((row.contract_amount_cents - row.project_cost_cents) / row.contract_amount_cents) * 100;
+}
+
+function formatPercent(value: number) {
+  return `${value.toFixed(1)}%`;
 }
 
 const PROJECT_COLUMNS: AdminDataTableColumn<ProjectRow>[] = [
@@ -49,6 +75,10 @@ const PROJECT_COLUMNS: AdminDataTableColumn<ProjectRow>[] = [
   { id: 'status', label: 'Status', sortKey: 'status', width: 130 },
   { id: 'start_date', label: 'Start', sortKey: 'start_date', width: 130 },
   { id: 'end_date', label: 'End', sortKey: 'end_date', width: 130 },
+  { id: 'contract_amount', label: 'Contract Amount', width: 150 },
+  { id: 'project_cost', label: 'Project Cost', width: 140 },
+  { id: 'profit', label: 'Profit', width: 130 },
+  { id: 'profit_percent', label: 'Profit %', width: 110 },
   { id: 'actions', label: 'Actions', resizable: false },
 ];
 
@@ -57,16 +87,33 @@ function projectCellText(row: ProjectRow, columnId: string): string {
     case 'name':
       return row.name;
     case 'customer':
-      return [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ');
+      return listedCustomerName(row);
     case 'status':
       return row.status;
     case 'start_date':
       return row.start_date ? formatDate(row.start_date) : '';
     case 'end_date':
       return row.end_date ? formatDate(row.end_date) : '';
+    case 'contract_amount':
+      return row.contract_amount_cents == null ? '' : formatMoney(row.contract_amount_cents);
+    case 'project_cost':
+      return formatMoney(row.project_cost_cents ?? 0);
+    case 'profit': {
+      const profit = profitCents(row);
+      return profit == null ? '' : formatMoney(profit);
+    }
+    case 'profit_percent': {
+      const percent = profitPercent(row);
+      return percent == null ? '' : formatPercent(percent);
+    }
     default:
       return '';
   }
+}
+
+function profitTone(cents: number | null): string {
+  if (cents == null || cents === 0) return 'text-gray-900';
+  return cents > 0 ? 'text-green-700' : 'text-red-600';
 }
 
 type ViewMode = 'table' | 'add' | 'edit';
@@ -101,7 +148,7 @@ export default function CRMProjectsPage() {
   });
   const rowActions = useCrmRowActions();
 
-  const [customers, setCustomers] = useState<{ id: string; first_name: string; last_name: string }[]>([]);
+  const [customers, setCustomers] = useState<{ id: string; first_name: string; last_name: string; display_name?: string | null; company_name?: string | null }[]>([]);
   const [estimates, setEstimates] = useState<{ id: string; customer_id: string; amount_cents: number }[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -314,7 +361,18 @@ export default function CRMProjectsPage() {
             error={error}
             getRowId={(row) => row.id}
             getCellText={projectCellText}
-            renderCell={(row, columnId) => projectCellText(row, columnId) || '—'}
+            renderCell={(row, columnId) => {
+              if (columnId === 'profit' || columnId === 'profit_percent') {
+                const text = projectCellText(row, columnId);
+                if (!text) return '—';
+                return <span className={`tabular-nums font-medium ${profitTone(profitCents(row))}`}>{text}</span>;
+              }
+              if (columnId === 'contract_amount' || columnId === 'project_cost') {
+                const text = projectCellText(row, columnId);
+                return text ? <span className="tabular-nums">{text}</span> : '—';
+              }
+              return projectCellText(row, columnId) || '—';
+            }}
             onRowClick={(row) => { setEditingId(row.id); setViewMode('edit'); }}
             renderActions={(row) => (
               <CrmRowActionsButton rowId={row.id} openId={rowActions.openId} onToggle={rowActions.toggle} />
@@ -344,7 +402,7 @@ export default function CRMProjectsPage() {
             <FormField label="Customer" required>
               <Select value={formCustomerId} onChange={(e) => { setFormCustomerId(e.target.value); setFormEstimateId(''); }} required disabled={viewMode === 'edit'}>
                 <option value="">Select customer</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+                {customers.map((c) => <option key={c.id} value={c.id}>{contactDisplayName(c)}</option>)}
               </Select>
             </FormField>
             <FormField label="Estimate (optional)">

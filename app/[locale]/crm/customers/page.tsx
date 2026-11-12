@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, MapPin, FileText, FileCheck, FolderOpen, PlusCircle, Mail, Globe } from 'lucide-react';
+import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, MapPin, FileText, FileCheck, FolderOpen, PlusCircle, Mail, Globe, Filter, LayoutGrid, User, Truck, HardHat, Briefcase, Tag, type LucideIcon } from 'lucide-react';
 import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import Pagination from '@/components/ui/Pagination';
@@ -20,11 +20,18 @@ import { useWindowDimensions } from '@/hooks/useWindowDimensions';
 import CustomerCard from '@/components/crm/CustomerCard';
 import AddTaskModal from '@/components/crm/AddTaskModal';
 import CustomerQuickActionsBar from '@/components/crm/CustomerQuickActionsBar';
+import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
+import { CustomerStatementDialog } from '@/components/crm/CustomerStatementDialog';
 import { CustomerForm, emptyForm, type CRMCustomerFormData } from '@/components/crm/CustomerForm';
 import type { CrmContactRole } from '@/lib/crm/contact-role';
+import type { ContactBooksSummary } from '@/lib/crm/contact-books';
+import { ContactBooksBar } from '@/components/crm/ContactBooksBar';
+import { ContactActivity } from '@/components/crm/ContactActivity';
+import { formatAmount } from '@/lib/invoices/format';
 
 type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'] & {
   roles?: CrmContactRole[];
+  open_balance_cents?: number;
 };
 
 const PAGE_SIZE = 25;
@@ -42,6 +49,13 @@ const SORT_OPTIONS = [
   { value: 'email', label: 'Email' },
 ] as const;
 type SortKey = (typeof SORT_OPTIONS)[number]['value'];
+
+const ROLE_FILTER_ICONS: Record<string, LucideIcon> = {
+  customer: User,
+  supplier: Truck,
+  subcontractor: HardHat,
+  employee: Briefcase,
+};
 
 /** All pro_crm_customers columns for table display (order matches schema). */
 const CUSTOMER_TABLE_COLUMNS: { key: keyof CRMCustomerRow; label: string; sortKey?: SortKey }[] = [
@@ -92,6 +106,7 @@ const displayNameColumnIndex = mappedCustomerColumns.findIndex((column) => colum
 const CUSTOMER_COLUMNS: AdminDataTableColumn<CRMCustomerRow>[] = [
   ...mappedCustomerColumns.slice(0, displayNameColumnIndex + 1),
   { id: 'roles', label: 'Roles', width: 220 },
+  { id: 'open_balance', label: 'Open balance', width: 140 },
   ...mappedCustomerColumns.slice(displayNameColumnIndex + 1),
   { id: 'actions', label: 'Actions', resizable: false },
 ];
@@ -132,6 +147,7 @@ function customerSheetText(row: CRMCustomerRow, columnId: string): string {
   if (columnId === 'roles') {
     return (row.roles ?? []).filter((role) => role.slug !== 'installer').map((role) => role.name).join(', ');
   }
+  if (columnId === 'open_balance') return formatAmount(row.open_balance_cents ?? 0);
   if (columnId === 'created_at' || columnId === 'updated_at') {
     return formatDate(row[columnId]);
   }
@@ -164,8 +180,10 @@ export default function CRMCustomersPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [books, setBooks] = useState<ContactBooksSummary | null>(null);
   const [roleFilter, setRoleFilter] = useState('');
   const [roleCatalog, setRoleCatalog] = useState<CrmContactRole[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefetching, setIsRefetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +196,7 @@ export default function CRMCustomersPage() {
   }, [hasLoadedOnce, total, setCustomerCount, roleFilter]);
 
   const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [statementCustomerId, setStatementCustomerId] = useState<string | null>(null);
   useEffect(() => {
     if (viewMode !== 'table') return;
     let cancelled = false;
@@ -230,7 +249,10 @@ export default function CRMCustomersPage() {
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sortBy, sortDir });
       if (search) params.set('search', search);
       if (roleFilter) params.set('role', roleFilter);
-      const res = await fetch(`/api/crm/customers?${params}`, { credentials: 'include' });
+      const [res, booksRes] = await Promise.all([
+        fetch(`/api/crm/customers?${params}`, { credentials: 'include' }),
+        fetch('/api/crm/customers/books', { credentials: 'include' }),
+      ]);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `HTTP ${res.status}`);
@@ -238,6 +260,10 @@ export default function CRMCustomersPage() {
       const data = await res.json();
       setCustomers(data.customers ?? []);
       setTotal(data.total ?? 0);
+      if (booksRes.ok) {
+        const booksData = await booksRes.json();
+        setBooks(booksData);
+      }
       hasLoadedOnceRef.current = true;
       setHasLoadedOnce(true);
     } catch (err) {
@@ -280,7 +306,7 @@ export default function CRMCustomersPage() {
           firstName: empty(data.first_name),
           lastName: empty(data.last_name),
           companyName: empty(data.company_name),
-          displayName: empty(data.display_name),
+          displayName: empty(data.display_name) || [empty(data.first_name), empty(data.last_name)].filter(Boolean).join(' '),
           email: empty(data.email),
           phone: empty(data.phone),
           mobileNumber: empty(data.mobile_number),
@@ -390,6 +416,23 @@ export default function CRMCustomersPage() {
   const editingPrimaryPhone = editingInitial ? (editingInitial.mobileNumber || editingInitial.phone || null) : null;
   const editingDisplayId = editingInitial?.displayId || null;
   const editingPhoneHref = editingPrimaryPhone ? `tel:${editingPrimaryPhone.replace(/[^\d+]/g, '')}` : null;
+  const visibleRoles = roleCatalog.filter((role) => role.slug !== 'installer');
+  const applyRoleFilter = (slug: string) => {
+    setRoleFilter(slug);
+    setPage(1);
+    setFiltersOpen(false);
+  };
+  const roleFilterButton = visibleRoles.length > 0 && !crmChrome?.searchOpen ? (
+    <button
+      type="button"
+      onClick={() => setFiltersOpen(true)}
+      className="relative h-11 w-11 shrink-0 rounded-lg border-2 border-black bg-black flex items-center justify-center cursor-pointer hover:bg-gray-800 md:hidden"
+      aria-label="Filter"
+    >
+      <Filter className="w-5 h-5 text-white" />
+      {roleFilter ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" /> : null}
+    </button>
+  ) : null;
 
   return (
     <div className={`w-full ${bottomPadding}`}>
@@ -425,7 +468,11 @@ export default function CRMCustomersPage() {
               onAddInvoice={() => router.push(`/${locale}/crm/invoices/new?customerId=${editingId}`)}
               onAddProject={() => router.push(`/${locale}/crm/projects?customerId=${editingId}`)}
               onScheduleTask={() => setShowAddTaskModal(true)}
+              onStatement={() => setStatementCustomerId(editingId)}
             />
+          )}
+          {viewMode === 'edit' && editingId && (
+            <ContactActivity customerId={editingId} locale={locale} />
           )}
           {viewMode === 'add' && (
             <div className="py-2 md:py-0 md:mb-3 flex items-center justify-between gap-4">
@@ -465,22 +512,27 @@ export default function CRMCustomersPage() {
       )}
 
       {viewMode === 'table' && (
-        <>
+        <div className="max-md:space-y-2 max-md:pt-2">
+          {books ? (
+            <div className={crmChrome?.searchOpen ? 'max-md:hidden' : undefined}>
+              <ContactBooksBar books={books} />
+            </div>
+          ) : null}
           {roleCatalog.length > 0 && (
-            <div className="flex flex-wrap gap-2 pb-3">
+            <div className="hidden md:flex flex-wrap gap-2 md:pt-0 md:pb-3">
               <button
                 type="button"
                 onClick={() => { setRoleFilter(''); setPage(1); }}
-                className={`rounded-full border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${roleFilter === '' ? 'bg-black text-white' : 'bg-white text-black'}`}
+                className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${roleFilter === '' ? 'bg-black text-white' : 'bg-white text-black'}`}
               >
                 All
               </button>
-              {roleCatalog.filter((role) => role.slug !== 'installer').map((role) => (
+              {visibleRoles.map((role) => (
                 <button
                   key={role.id}
                   type="button"
                   onClick={() => { setRoleFilter(role.slug); setPage(1); }}
-                  className={`rounded-full border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${roleFilter === role.slug ? 'bg-black text-white' : 'bg-white text-black'}`}
+                  className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${roleFilter === role.slug ? 'bg-black text-white' : 'bg-white text-black'}`}
                 >
                   {role.name}
                 </button>
@@ -500,9 +552,32 @@ export default function CRMCustomersPage() {
               crmChrome?.setSearchOpen(false);
               (document.activeElement as HTMLElement | null)?.blur();
             }}
-            className="pt-2 pb-2 md:pt-0 max-w-md"
+            className="md:pb-2 md:pt-0 max-w-md"
+            endAction={roleFilterButton}
           />
           )}
+
+          <MobileGridActionsModal
+            isOpen={filtersOpen}
+            onClose={() => setFiltersOpen(false)}
+            title="Filter by contact"
+            items={[
+              {
+                id: 'all',
+                label: 'All',
+                icon: LayoutGrid,
+                isActive: roleFilter === '',
+                onClick: () => applyRoleFilter(''),
+              },
+              ...visibleRoles.map((role) => ({
+                id: role.id,
+                label: role.name,
+                icon: ROLE_FILTER_ICONS[role.slug] ?? Tag,
+                isActive: roleFilter === role.slug,
+                onClick: () => applyRoleFilter(role.slug),
+              })),
+            ]}
+          />
 
           {listView !== 'list' && error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>
@@ -559,7 +634,8 @@ export default function CRMCustomersPage() {
             </div>
           ) : (
             <AdminDataTable
-              searchRowClassName="pt-2 md:pt-0"
+              searchRowClassName="md:pt-0"
+              searchEndAction={roleFilterButton}
               columnOrderKey="crm-customers"
               exportName="customers"
               columns={CUSTOMER_COLUMNS}
@@ -632,7 +708,7 @@ export default function CRMCustomersPage() {
           )}
 
           {listView !== 'list' && !isLoading && total > 0 && (
-            <div className="mt-4">
+            <div className="md:mt-4">
               <Pagination
                 currentPage={page}
                 totalPages={totalPages}
@@ -643,8 +719,10 @@ export default function CRMCustomersPage() {
               />
             </div>
           )}
-        </>
+        </div>
       )}
+
+      <CustomerStatementDialog customerId={statementCustomerId} onClose={() => setStatementCustomerId(null)} />
 
       {deleteConfirm && (
         <Modal
