@@ -11,11 +11,12 @@ import { ServiceEditor } from '@/components/crm/catalog/service-editor';
 import { formatServicePrice } from '@/lib/crm/catalog-options';
 import type { CrmCatalogTerm, CrmService } from '@/lib/crm/catalog-types';
 
-const ACTIONS_MENU_HEIGHT = 132;
+const ACTIONS_MENU_HEIGHT = 220;
 
 const COLUMNS: AdminDataTableColumn<CrmService>[] = [
-  { id: 'photo', label: 'Photo', width: 120, resizable: false },
+  { id: 'photo', label: 'Photo', width: 120 },
   { id: 'name', label: 'Name', width: 280 },
+  { id: 'trade', label: 'Trade', width: 160 },
   { id: 'category', label: 'Category', width: 140 },
   { id: 'unit', label: 'Unit', width: 100 },
   { id: 'price_type', label: 'Price type', width: 130 },
@@ -28,6 +29,8 @@ function cellText(service: CrmService, columnId: string): string {
   switch (columnId) {
     case 'name':
       return service.name;
+    case 'trade':
+      return service.trade ?? '';
     case 'category':
       return service.category ?? '';
     case 'unit':
@@ -106,6 +109,32 @@ export default function CRMServicesPage() {
     setEditorOpen(true);
   };
 
+  const persistOrder = async (ordered: CrmService[]) => {
+    const previous = services;
+    setServices(ordered);
+    const response = await fetch('/api/crm/services/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ ids: ordered.map((service) => service.id) }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setServices(previous);
+      setError(data.error || 'Failed to reorder services');
+    }
+  };
+
+  const moveService = (id: string, direction: -1 | 1) => {
+    const index = services.findIndex((service) => service.id === id);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= services.length) return;
+    const next = [...services];
+    const [moved] = next.splice(index, 1);
+    next.splice(nextIndex, 0, moved);
+    void persistOrder(next);
+  };
+
   const duplicate = async (service: CrmService) => {
     setError(null);
     const response = await fetch('/api/crm/services', {
@@ -114,6 +143,7 @@ export default function CRMServicesPage() {
       credentials: 'include',
       body: JSON.stringify({
         name: copyName(service.name, services),
+        trade: service.trade ?? '',
         category: service.category ?? '',
         description: service.description ?? '',
         unit: service.unit,
@@ -158,7 +188,7 @@ export default function CRMServicesPage() {
 
   return (
     <div className="w-full">
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
+      <div className="hidden md:flex flex-wrap items-center justify-between gap-3 pb-2">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 md:text-2xl">Services</h1>
           <p className="mt-0.5 text-sm text-gray-500">Labor and other services you put on estimates.</p>
@@ -182,9 +212,16 @@ export default function CRMServicesPage() {
         getRowId={(row) => row.id}
         getCellText={cellText}
         searchPlaceholder="Search services..."
+        searchRowClassName="max-md:pt-2"
         emptyMessage="No services yet. Add the first one."
         itemLabel="services"
         primaryColumnId="name"
+        onReorder={(ids) => {
+          const byId = new Map(services.map((service) => [service.id, service]));
+          const next = ids.map((id) => byId.get(id)).filter((service): service is CrmService => Boolean(service));
+          if (next.length !== services.length) return;
+          void persistOrder(next);
+        }}
         onRowClick={(row) => {
           setEditing(row);
           setEditorOpen(true);
@@ -230,6 +267,17 @@ export default function CRMServicesPage() {
         }}
       />
 
+      {!loading && !editorOpen ? (
+        <button
+          type="button"
+          onClick={openNew}
+          className="md:hidden fixed bottom-[100px] right-[50px] z-50 h-12 w-12 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all shadow-lg"
+          aria-label="New service"
+        >
+          <Plus className="w-6 h-6 text-white" />
+        </button>
+      ) : null}
+
       <ServiceEditor
         open={editorOpen}
         initial={editing}
@@ -254,6 +302,8 @@ export default function CRMServicesPage() {
         ? createPortal(
             <div className="fixed z-[100] min-w-[140px] rounded-md border border-gray-200 bg-white py-1 text-left shadow-lg" style={{ top: menuPosition.top, left: menuPosition.left }}>
               <button type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100" onClick={() => { const row = services.find((service) => service.id === openActionsId); setOpenActionsId(null); if (row) { setEditing(row); setEditorOpen(true); } }}>Edit</button>
+              <button type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-40" disabled={services[0]?.id === openActionsId} onClick={() => { const id = openActionsId; setOpenActionsId(null); if (id) moveService(id, -1); }}>Move up</button>
+              <button type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-40" disabled={services[services.length - 1]?.id === openActionsId} onClick={() => { const id = openActionsId; setOpenActionsId(null); if (id) moveService(id, 1); }}>Move down</button>
               <button type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100" onClick={() => { const row = services.find((service) => service.id === openActionsId); setOpenActionsId(null); if (row) void duplicate(row); }}>Duplicate</button>
               <button type="button" className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100" onClick={() => { const row = services.find((service) => service.id === openActionsId); setOpenActionsId(null); if (row) setDeleteTarget(row); }}>Delete</button>
             </div>,

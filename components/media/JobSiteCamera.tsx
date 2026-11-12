@@ -89,6 +89,7 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [useLocation, setUseLocation] = useState(false);
+  const [covers, setCovers] = useState<Record<string, { url: string; mimeType: string }>>({});
 
   useEffect(() => {
     if (!open) return;
@@ -131,6 +132,25 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
       cancelled = true;
     };
   }, [open, t]);
+
+  useEffect(() => {
+    if (!open || selected) return;
+    let cancelled = false;
+    void fetch('/api/crm/projects/covers', { credentials: 'include' })
+      .then((response) => response.json())
+      .then((body: { covers?: { customerId: string; url: string; mimeType: string }[] }) => {
+        if (cancelled || !Array.isArray(body.covers)) return;
+        const next: Record<string, { url: string; mimeType: string }> = {};
+        for (const cover of body.covers) next[cover.customerId] = { url: cover.url, mimeType: cover.mimeType };
+        setCovers(next);
+      })
+      .catch(() => {
+        if (!cancelled) setCovers({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, selected]);
 
   const ensureProject = async (customer: CustomerRow): Promise<string> => {
     const response = await fetch(
@@ -301,7 +321,9 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
             <p className="text-sm">{needle ? t('noCustomerMatches') : t('noCustomers')}</p>
           )}
           <ul className="space-y-2">
-            {visible.map((customer) => (
+            {visible.map((customer) => {
+              const cover = covers[customer.id];
+              return (
               <li key={customer.id}>
                 <button
                   type="button"
@@ -309,8 +331,15 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
                   onClick={() => void choose(customer)}
                   className="flex w-full cursor-pointer items-center gap-3 rounded-lg border-2 border-black bg-white p-2 text-left disabled:opacity-50"
                 >
-                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-gray-200 text-gray-500">
-                    <ImageIcon className="h-6 w-6" aria-hidden />
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-200 text-gray-500">
+                    {cover?.url && cover.mimeType.startsWith('video/') ? (
+                      <video src={cover.url} muted playsInline className="h-full w-full object-cover" />
+                    ) : cover?.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={cover.url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <ImageIcon className="h-6 w-6" aria-hidden />
+                    )}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-bold">{customer.name}</span>
@@ -324,7 +353,8 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
                   <ChevronRight className="h-5 w-5 shrink-0" aria-hidden />
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       </Modal>

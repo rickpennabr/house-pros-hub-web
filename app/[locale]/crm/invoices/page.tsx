@@ -9,12 +9,16 @@ import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/Ad
 import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import Pagination from '@/components/ui/Pagination';
+import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
 import { CrmRowActionsButton, CrmRowActionsPortal, useCrmRowActions } from '@/components/crm/CrmRowActionsMenu';
 import { CRM_LIST_PAGE_SIZE, useCrmListQuery } from '@/hooks/useCrmListQuery';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
 import { invoiceStatusLabel } from '@/lib/crm/invoice-books';
 import { listedCustomerName } from '@/lib/crm/contact-name';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
+import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Created' },
@@ -51,6 +55,7 @@ interface InvoiceRow {
   due_date: string | null;
   payment_terms?: string | null;
   created_at: string;
+  customerAddress?: string | null;
 }
 
 function formatDate(iso: string | null) {
@@ -96,6 +101,8 @@ export default function CRMInvoicesPage() {
   const locale = useLocale();
   const [statusFilter, setStatusFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [savedListView, setSavedListView] = useLocalStorage<string>('crmInvoicesView', 'list');
+  const listView: ViewType = savedListView === 'map' ? 'map' : 'list';
   const crmChrome = useCRMChrome();
   const {
     rows: invoices,
@@ -165,15 +172,24 @@ export default function CRMInvoicesPage() {
     setFiltersOpen(false);
   };
   const statusFilterButton = !crmChrome?.searchOpen ? (
-    <button
-      type="button"
-      onClick={() => setFiltersOpen(true)}
-      className="relative h-11 w-11 shrink-0 rounded-lg border-2 border-black bg-black flex items-center justify-center cursor-pointer hover:bg-gray-800 md:hidden"
-      aria-label="Filter"
-    >
-      <Filter className="w-5 h-5 text-white" />
-      {statusFilter ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" /> : null}
-    </button>
+    <div className="flex shrink-0 items-center gap-2 md:hidden">
+      <button
+        type="button"
+        onClick={() => setFiltersOpen(true)}
+        className="relative h-11 w-11 shrink-0 rounded-lg border-2 border-black bg-black flex items-center justify-center cursor-pointer hover:bg-gray-800"
+        aria-label="Filter"
+      >
+        <Filter className="w-5 h-5 text-white" />
+        {statusFilter ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" /> : null}
+      </button>
+      <Link
+        href={`/${locale}/crm/invoice-settings`}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-black text-white hover:bg-gray-800"
+        aria-label="Invoice settings"
+      >
+        <Settings className="w-5 h-5" />
+      </Link>
+    </div>
   ) : null;
   const invoiceActions = (
     <div className="flex items-center gap-2 shrink-0">
@@ -205,9 +221,6 @@ export default function CRMInvoicesPage() {
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Invoices</h1>
           <p className="text-sm text-gray-500 mt-0.5">Create and manage invoices. Convert estimates to invoices.</p>
         </div>
-        {invoiceActions}
-      </div>
-      <div className={`flex justify-end pt-2 md:hidden ${crmChrome?.searchOpen ? 'max-md:hidden' : ''}`}>
         {invoiceActions}
       </div>
       <div className="hidden md:flex md:flex-wrap md:items-center md:gap-4 md:pb-2">
@@ -249,6 +262,7 @@ export default function CRMInvoicesPage() {
       <AdminDataTable
         searchRowClassName="max-md:pt-2"
         searchEndAction={statusFilterButton}
+        hideBody={listView === 'map'}
         columnOrderKey="crm-invoices"
         exportName="invoices"
         columns={INVOICE_COLUMNS}
@@ -287,6 +301,39 @@ export default function CRMInvoicesPage() {
         itemLabel="invoices"
         primaryColumnId="invoice_number"
       />
+      {listView === 'map' && (
+        <AddressPinsMap
+          pins={invoices.map((row) => ({
+            id: row.id,
+            title: listedCustomerName(row) || row.invoice_number,
+            detail: `${invoiceStatusLabel(row.status)} · ${formatAmount(row.amount_cents)}`,
+            address: row.customerAddress || '',
+          }))}
+          onOpen={(id) => router.push(`/${locale}/crm/invoices/${id}`)}
+        />
+      )}
+      {listView === 'map' && !isLoading && total > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={page}
+            totalPages={Math.max(1, Math.ceil(total / CRM_LIST_PAGE_SIZE))}
+            onPageChange={setPage}
+            totalItems={total}
+            itemsPerPage={CRM_LIST_PAGE_SIZE}
+            itemLabel="invoices"
+          />
+        </div>
+      )}
+      {!isLoading && (
+        <ViewToggle
+          currentView={listView}
+          onViewChange={setSavedListView}
+          views={['list', 'map']}
+          hideBackgroundToggle
+          onAdd={() => router.push(`/${locale}/crm/invoices/new`)}
+          addLabel="New invoice"
+        />
+      )}
 
       {deleteConfirm && (
         <Modal isOpen onClose={() => !deleting && setDeleteConfirm(null)} showHeader={false} showCloseButton maxWidth="sm" preventCloseOnOverlayClick={deleting}>

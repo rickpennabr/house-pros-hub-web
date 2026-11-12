@@ -8,6 +8,7 @@ import { UNIT_OPTIONS, DEFAULT_UNIT } from '@/lib/constants/unitOptions';
 import {
   BUILTIN_PRICE_TYPES,
   SUGGESTED_SERVICE_CATEGORIES,
+  SUGGESTED_SERVICE_TRADES,
   SERVICE_IMAGE_LIMIT,
   builtinPriceMode,
   type PriceMode,
@@ -53,6 +54,7 @@ async function saveTerm(kind: string, label: string, priceMode?: PriceMode | nul
 
 export function ServiceEditor({ open, initial, terms, onClose, onSaved, onTermsChange }: ServiceEditorProps) {
   const [name, setName] = useState('');
+  const [trade, setTrade] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [unit, setUnit] = useState(DEFAULT_UNIT);
@@ -68,6 +70,7 @@ export function ServiceEditor({ open, initial, terms, onClose, onSaved, onTermsC
   useEffect(() => {
     if (!open) return;
     setName(initial?.name ?? '');
+    setTrade(initial?.trade ?? '');
     setCategory(initial?.category ?? '');
     setDescription(initial?.description ?? '');
     setUnit(initial?.unit || DEFAULT_UNIT);
@@ -83,6 +86,22 @@ export function ServiceEditor({ open, initial, terms, onClose, onSaved, onTermsC
   const categoryOptions = useMemo<RememberedOption[]>(() => {
     const saved = new Map(terms.filter((term) => term.kind === 'service_category').map((term) => [term.label.toLowerCase(), term]));
     const options: RememberedOption[] = SUGGESTED_SERVICE_CATEGORIES.map((label) => ({
+      value: label,
+      label,
+      group: saved.has(label.toLowerCase()) ? 'Saved' : 'Suggested',
+      termId: saved.get(label.toLowerCase())?.id,
+    }));
+    for (const term of saved.values()) {
+      if (!options.some((option) => option.value.toLowerCase() === term.label.toLowerCase())) {
+        options.push({ value: term.label, label: term.label, group: 'Saved', termId: term.id });
+      }
+    }
+    return options;
+  }, [terms]);
+
+  const tradeOptions = useMemo<RememberedOption[]>(() => {
+    const saved = new Map(terms.filter((term) => term.kind === 'service_trade').map((term) => [term.label.toLowerCase(), term]));
+    const options: RememberedOption[] = SUGGESTED_SERVICE_TRADES.map((label) => ({
       value: label,
       label,
       group: saved.has(label.toLowerCase()) ? 'Saved' : 'Suggested',
@@ -164,6 +183,7 @@ export function ServiceEditor({ open, initial, terms, onClose, onSaved, onTermsC
       const uploaded = await uploadDraftImages(images, 'services');
       const payload = {
         name: name.trim(),
+        trade: trade.trim(),
         category: category.trim(),
         description: description.trim(),
         unit: unit.trim() || DEFAULT_UNIT,
@@ -225,6 +245,18 @@ export function ServiceEditor({ open, initial, terms, onClose, onSaved, onTermsC
             <span className="mb-1 block text-sm font-medium text-gray-700">Service name *</span>
             <Input value={name} onChange={(event) => setName(event.target.value)} className="w-full" placeholder="Paver installation" />
           </label>
+          <RememberedCombobox
+            label="Trade"
+            value={trade}
+            onChange={setTrade}
+            options={tradeOptions}
+            placeholder="Hardscape, Landscape, or a new trade"
+            onCreate={async (label) => {
+              await addTerm('service_trade', label);
+              setTrade(label);
+            }}
+            onRemove={removeTerm}
+          />
           <RememberedCombobox
             label="Category"
             value={category}

@@ -19,7 +19,7 @@ export type HubFindHit = {
   columnId: string
 }
 
-const SKIP_COLUMN_IDS = new Set(['select', 'actions', 'batch_detect'])
+const SKIP_COLUMN_IDS = new Set(['select', 'actions', 'batch_detect', 'reorder'])
 
 const MOVE_KEYS = new Set([
   'ArrowUp',

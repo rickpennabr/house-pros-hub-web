@@ -712,6 +712,26 @@ export default function CRMExpensesPage() {
 
   const defaultDate = formDate || new Date().toISOString().slice(0, 10);
   const projectNameById = new Map(projects.map((project) => [project.id, project.name]));
+  const openNewExpense = () => {
+    setEditingId(null);
+    setFormProjectId('');
+    setProjectName('');
+    setFormAmountDollars('');
+    setFormCategory('');
+    setExpenseKind('');
+    setPickingOther(false);
+    setFormDate('');
+    setFormNote('');
+    setFormDescription('');
+    setFormSupplierId('');
+    setFormPoNumber('');
+    setFormQuantity('');
+    setFormUnit('');
+    setFormRequestedBy('');
+    setFormOrderedBy('');
+    setFormError(null);
+    setViewMode('add');
+  };
   const projectNameFor = (row: ExpenseRow) => (row.project_id ? projectNameById.get(row.project_id) ?? '' : '');
   const cellText = (row: ExpenseRow, columnId: string) => expenseCellText(row, columnId, projectNameFor(row));
   const pageTotalCents = expenses.reduce((sum, row) => sum + (row.amount_cents || 0), 0);
@@ -758,7 +778,7 @@ export default function CRMExpensesPage() {
             </table>
           </div>
           <div className="no-print">
-          <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
+          <div className="hidden md:flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
             <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Expenses</h1>
               <p className="text-sm text-gray-500 mt-0.5">Track expenses and optionally link to projects.</p>
@@ -768,13 +788,14 @@ export default function CRMExpensesPage() {
                 <Printer className="w-4 h-4" />
                 Print
               </Button>
-              <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0" onClick={() => { setEditingId(null); setFormProjectId(''); setProjectName(''); setFormAmountDollars(''); setFormCategory(''); setExpenseKind(''); setPickingOther(false); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy(''); setFormError(null); setViewMode('add'); }}>
+              <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0" onClick={openNewExpense}>
                 <Plus className="w-4 h-4" />
                 New Expense
               </Button>
             </div>
           </div>
           <AdminDataTable
+            searchRowClassName="max-md:pt-2"
             columnOrderKey="crm-expenses-v2"
             exportName="expenses"
             columns={EXPENSE_COLUMNS}
@@ -813,6 +834,16 @@ export default function CRMExpensesPage() {
             itemLabel="expenses"
             primaryColumnId="amount"
           />
+          {viewMode === 'table' && !isLoading && (
+            <button
+              type="button"
+              onClick={openNewExpense}
+              className="md:hidden fixed bottom-[100px] right-[50px] z-50 h-12 w-12 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all shadow-lg"
+              aria-label="New expense"
+            >
+              <Plus className="w-6 h-6 text-white" />
+            </button>
+          )}
           </div>
         </>
       )}

@@ -304,15 +304,15 @@ export function InvoiceEditor({
             </div>
 
             <div className={DOCUMENT_FORM_LAYOUT.lineItemsSection}>
-              <table className="w-full border-collapse" style={{ minWidth: 520 }}>
+              <table className="w-full border-collapse" style={{ minWidth: 640 }}>
                 <thead>
                   <tr className="border-b-2 border-black">
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-8">#</th>
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Product or service</th>
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Description</th>
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-20">Unit</th>
-                    <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-16">Qty</th>
-                    <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-24">Rate</th>
+                    <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-32 w-32">Qty</th>
+                    <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-40 w-40">Rate</th>
                     <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-24">Amount</th>
                     <th className="w-10" />
                   </tr>
@@ -361,7 +361,7 @@ export function InvoiceEditor({
                           placeholder="Unit"
                         />
                       </td>
-                      <td className="py-1 px-2 align-top text-right">
+                      <td className="min-w-32 py-1 px-2 align-top text-right">
                         <Input
                           type="text"
                           inputMode="decimal"
@@ -372,10 +372,10 @@ export function InvoiceEditor({
                             next[idx] = { ...next[idx], qty, amount_cents: Math.round(qty * next[idx].rate_cents) };
                             setLineItems(next);
                           }}
-                          className="text-sm py-1.5 w-14 text-right border-gray-300"
+                          className="min-w-32 text-sm py-1.5 !w-full text-right border-gray-300"
                         />
                       </td>
-                      <td className="py-1 px-2 align-top text-right">
+                      <td className="min-w-40 py-1 px-2 align-top text-right">
                         <Input
                           type="text"
                           inputMode="decimal"
@@ -411,7 +411,7 @@ export function InvoiceEditor({
                               setLineItems(next);
                             }
                           }}
-                          className="text-sm py-1.5 w-20 text-right border-gray-300"
+                          className="min-w-40 text-sm py-1.5 !w-full text-right border-gray-300"
                         />
                       </td>
                       <td className="py-1 px-2 align-top text-right text-sm text-gray-700 pt-2">

@@ -62,13 +62,7 @@ function ContactAction({
   external?: boolean;
   children: React.ReactNode;
 }) {
-  if (!href) {
-    return (
-      <span className={`${iconButtonClass} cursor-default opacity-30`} aria-hidden>
-        {children}
-      </span>
-    );
-  }
+  if (!href) return null;
   return (
     <a
       href={href}
@@ -152,7 +146,7 @@ export default function CustomerCard({
       }}
       className="border-2 border-black rounded-lg bg-white overflow-visible hover:shadow-lg transition-shadow cursor-pointer text-left w-full h-full relative flex flex-col"
     >
-      <div className="p-4 flex-1">
+      <div className="p-2 md:p-4 flex-1">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
             <User className="w-5 h-5 text-gray-600" />
@@ -289,6 +283,7 @@ export default function CustomerCard({
           </div>
         </div>
       </div>
+      {hasEmail || hasPhone || hasWebsite || mapsUrl ? (
       <div className="mt-auto flex h-[50px] items-center border-t border-black px-2">
         <div className="flex items-center gap-2 w-full">
           <ContactAction href={hasEmail ? `mailto:${customer.email}` : null} label="Email">
@@ -309,6 +304,7 @@ export default function CustomerCard({
           </ContactAction>
         </div>
       </div>
+      ) : null}
     </div>
   );
 }

@@ -239,8 +239,8 @@ export function EstimateDocumentForm({
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Product or service</th>
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Description</th>
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-20">Unit</th>
-                  <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-16">Qty</th>
-                  <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-24">Rate</th>
+                  <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-24">Qty</th>
+                  <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-32">Rate</th>
                   <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-24">Amount</th>
                   <th className="w-10" />
                 </tr>
@@ -311,7 +311,7 @@ export function EstimateDocumentForm({
                           next[index] = { ...next[index], qty, amount_cents: Math.round(qty * next[index].rate_cents) };
                           onLineItemsChange(next);
                         }}
-                        className={`text-sm py-1.5 w-14 text-right border-gray-300 ${
+                        className={`text-sm py-1.5 w-20 text-right border-gray-300 ${
                           duplicateRowIndices.has(index) ? 'border-red-500 focus:border-red-500' : ''
                         }`}
                       />
@@ -344,7 +344,7 @@ export function EstimateDocumentForm({
                             onLineItemsChange(next);
                           }
                         }}
-                        className={`text-sm py-1.5 w-20 text-right border-gray-300 ${
+                        className={`text-sm py-1.5 w-28 text-right border-gray-300 ${
                           duplicateRowIndices.has(index) ? 'border-red-500 focus:border-red-500' : ''
                         }`}
                       />

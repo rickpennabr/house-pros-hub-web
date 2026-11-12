@@ -79,8 +79,11 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     const photos = [];
     for (const row of rows ?? []) {
       const file = fileMap.get(row.drive_file_id);
+      const quicktime = (file?.mime_type ?? '') === 'video/quicktime' || (file?.name ?? '').toLowerCase().endsWith('.mov');
       let url: string | null = null;
-      if (file?.storage_path) {
+      if (file?.storage_path && quicktime) {
+        url = `/api/crm/projects/${id}/photos/${row.id}/media`;
+      } else if (file?.storage_path) {
         const signed = await supabase.storage.from(PRO_DRIVE_BUCKET).createSignedUrl(file.storage_path, PRO_DRIVE_SIGNED_URL_SECONDS);
         url = signed.data?.signedUrl ?? null;
       }

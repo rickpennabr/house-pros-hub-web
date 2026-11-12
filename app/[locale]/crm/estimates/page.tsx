@@ -816,7 +816,7 @@ export default function CRMEstimatesPage() {
               New Estimate
             </Button>
           </div>
-          <div className={crmChrome?.searchOpen ? 'max-md:hidden' : undefined}>
+          <div className={`mt-2 ${crmChrome?.searchOpen ? 'max-md:hidden' : ''}`}>
             <EstimateStatusCards
               summary={statusSummary}
               active={statusFilter}

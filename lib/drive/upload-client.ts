@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { PRO_DRIVE_BUCKET, buildProDriveStoragePath, isImageMime, isProDriveMime } from '@/lib/drive/constants';
 import type { DriveFile, DriveOwnerType, DriveUsage } from '@/lib/drive/types';
 import { optimizeImage } from '@/lib/utils/imageOptimization';
+import { remuxQuickTimeToMp4 } from '@/lib/media/remux-quicktime';
 
 export class ProDriveQuotaClientError extends Error {
   usage: DriveUsage;
@@ -46,6 +47,12 @@ export async function uploadProDriveFile(input: {
   let file = input.file;
   if (isImageMime(file.type)) {
     file = await optimizeImage(file, { maxSizeMB: 2, maxWidthOrHeight: 1920 });
+  } else if (file.type === 'video/quicktime' || file.name.toLowerCase().endsWith('.mov')) {
+    const mp4 = remuxQuickTimeToMp4(new Uint8Array(await file.arrayBuffer()));
+    if (mp4) {
+      const name = file.name.replace(/\.mov$/i, '') || 'clip';
+      file = new File([mp4], `${name}.mp4`, { type: 'video/mp4' });
+    }
   }
   if (!isProDriveMime(file.type)) {
     throw new Error('File type is not allowed');

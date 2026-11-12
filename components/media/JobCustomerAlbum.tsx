@@ -305,7 +305,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
           <button
             type="button"
             onClick={onBack}
-            className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-black"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-black"
             aria-label={t('customers')}
           >
             <X className="h-5 w-5" />
@@ -329,13 +329,13 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
           <div className="mb-3 mt-6 flex items-center justify-between gap-2">
             <h2 className="text-lg font-bold">{t('photoCount', { count: visiblePhotos.length })}</h2>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={() => { setSelecting((on) => !on); setSelectedIds([]); }} className={`flex h-10 w-10 items-center justify-center rounded-full border-2 ${selecting ? 'border-black bg-black text-white' : 'border-black'}`} aria-label={t('selectPhotos')}>
+              <button type="button" onClick={() => { setSelecting((on) => !on); setSelectedIds([]); }} className={`flex h-10 w-10 items-center justify-center rounded-xl border-2 ${selecting ? 'border-black bg-black text-white' : 'border-black'}`} aria-label={t('selectPhotos')}>
                 <Check className="h-5 w-5" />
               </button>
-              <button type="button" onClick={() => setSheet('filter')} className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-black" aria-label={t('filterPhotos')}>
+              <button type="button" onClick={() => setSheet('filter')} className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-black" aria-label={t('filterPhotos')}>
                 <SlidersHorizontal className="h-5 w-5" />
               </button>
-              <button type="button" onClick={() => setSheet('add')} className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-black" aria-label={t('addPhoto')}>
+              <button type="button" onClick={() => setSheet('add')} className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-black" aria-label={t('addPhoto')}>
                 <Plus className="h-5 w-5" />
               </button>
             </div>
@@ -360,7 +360,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
                       }
                       setViewingId(photo.id);
                     }}
-                    className="relative aspect-square overflow-hidden bg-gray-200"
+                    className="relative aspect-square overflow-hidden rounded-xl bg-gray-200"
                   >
                     {selecting ? (
                       <span className={`absolute left-1 top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white ${selectedIds.includes(photo.id) ? 'bg-black text-white' : 'bg-black/30'}`}>
@@ -386,7 +386,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
               <p className="mb-2 text-sm text-gray-600">{t('hiddenPhotos', { count: hiddenPhotos.length })}</p>
               <div className="grid grid-cols-3 gap-1">
                 {hiddenPhotos.map((photo) => (
-                  <button key={photo.id} type="button" onClick={() => photo.url && setViewingId(photo.id)} className="relative aspect-square overflow-hidden bg-gray-200 opacity-60">
+                  <button key={photo.id} type="button" onClick={() => photo.url && setViewingId(photo.id)} className="relative aspect-square overflow-hidden rounded-xl bg-gray-200 opacity-60">
                     {photo.url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={photo.url} alt="" className="h-full w-full object-cover" />
@@ -421,7 +421,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
             type="button"
             onClick={onCamera}
             aria-label={t('openCamera')}
-            className="flex items-center justify-center rounded-full border-2 border-black bg-black text-white"
+            className="flex items-center justify-center rounded-xl border-2 border-black bg-black text-white"
             style={{ width: 72, height: 72 }}
           >
             <Camera className="h-7 w-7" />
@@ -433,7 +433,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
       {sheet ? (
         <div className="absolute inset-0 z-10 flex flex-col justify-end bg-black/40">
           <button type="button" className="min-h-0 flex-1" aria-label={t('closePhoto')} onClick={() => setSheet(null)} />
-          <div className="max-h-[80%] overflow-y-auto rounded-t-3xl bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+          <div className="mx-auto max-h-[80%] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-gray-300" aria-hidden />
             {sheet === 'filter' ? (
               <>

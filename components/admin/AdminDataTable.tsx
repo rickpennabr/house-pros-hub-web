@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  GripVertical,
   Pin,
   PinOff,
   Search,
@@ -37,6 +38,7 @@ import {
 
 const ACTIONS_COLUMN_WIDTH = 72;
 const BULK_SELECT_COLUMN_WIDTH = 44;
+const REORDER_COLUMN_WIDTH = 36;
 const MIN_COLUMN_WIDTH = 60;
 const DEFAULT_COLUMN_WIDTH = 160;
 
@@ -85,6 +87,8 @@ export interface AdminDataTableProps<T> {
   searchPlaceholder?: string;
   /** Skip the built-in search row when the page renders its own. */
   hideSearch?: boolean;
+  /** Keep the search row and hide the grid, for a map view on the same page. */
+  hideBody?: boolean;
   /** Extra classes on the search row, such as mobile top spacing. */
   searchRowClassName?: string;
   /** Control rendered on the right of the search field. */
@@ -110,6 +114,11 @@ export interface AdminDataTableProps<T> {
   onRowClick?: (row: T) => void;
   /** Open the row on the first click. Shift and Ctrl still select. */
   openOnFirstClick?: boolean;
+  /**
+   * Drag the grip to reorder rows. `orderedIds` is the full `data` order.
+   * The grip stays disabled while a search, sort, or column filter is active.
+   */
+  onReorder?: (orderedIds: string[]) => void;
   renderActions?: (row: T) => React.ReactNode;
   bulkActions?: AdminDataTableBulkActions<T>;
   emptyMessage?: string;
@@ -145,6 +154,7 @@ export function AdminDataTable<T>({
   onSearchSubmit,
   searchPlaceholder = 'Search…',
   hideSearch = false,
+  hideBody = false,
   searchRowClassName = '',
   searchEndAction,
   clientSide = false,
@@ -159,6 +169,7 @@ export function AdminDataTable<T>({
   renderCell,
   onRowClick,
   openOnFirstClick = false,
+  onReorder,
   renderActions,
   bulkActions,
   emptyMessage = 'No items found.',
@@ -198,6 +209,9 @@ export function AdminDataTable<T>({
   const [rangeAnchor, setRangeAnchor] = useState<HubActiveCell | null>(null);
   const [columnMenu, setColumnMenu] = useState<{ columnId: string; x: number; y: number } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragRowIdRef = useRef<string | null>(null);
+  const dragOverRowIdRef = useRef<string | null>(null);
+  const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState('');
   const [findHitIndex, setFindHitIndex] = useState(0);
@@ -232,8 +246,11 @@ export function AdminDataTable<T>({
     const select = bulkActions
       ? [{ id: 'select', label: '', resizable: false } as AdminDataTableColumn<T>]
       : [];
-    return [...select, ...orderedDataColumns, ...(actions ? [actions] : [])];
-  }, [bulkActions, columns, orderedDataColumns]);
+    const reorder = onReorder
+      ? [{ id: 'reorder', label: '', resizable: false } as AdminDataTableColumn<T>]
+      : [];
+    return [...select, ...reorder, ...orderedDataColumns, ...(actions ? [actions] : [])];
+  }, [bulkActions, columns, onReorder, orderedDataColumns]);
 
   const navigableColumns = useMemo(
     () => orderedDataColumns.filter((column) => hubNavigableColumnIds([column.id]).length > 0),
@@ -343,6 +360,7 @@ export function AdminDataTable<T>({
     (columnId: string) => {
       if (columnId === 'actions') return ACTIONS_COLUMN_WIDTH;
       if (columnId === 'select') return BULK_SELECT_COLUMN_WIDTH;
+      if (columnId === 'reorder') return REORDER_COLUMN_WIDTH;
       if (columnWidths[columnId]) return columnWidths[columnId]!;
       return columns.find((column) => column.id === columnId)?.width ?? DEFAULT_COLUMN_WIDTH;
     },
@@ -360,6 +378,26 @@ export function AdminDataTable<T>({
     }
     return {} as Record<string, number>;
   }, [displayColumns, frozenUntilId, widthOf]);
+
+  const reorderBlocked =
+    !clientSide ||
+    Boolean(internalSort) ||
+    internalSearch.trim().length > 0 ||
+    Object.values(columnFilters).some(
+      (filter) => Boolean(filter?.query.trim()) || Boolean(filter?.values && filter.values.length > 0)
+    );
+
+  const moveRow = (fromId: string, toId: string) => {
+    if (!onReorder || reorderBlocked || fromId === toId) return;
+    const ids = data.map(getRowId);
+    const from = ids.indexOf(fromId);
+    const to = ids.indexOf(toId);
+    if (from < 0 || to < 0) return;
+    const next = [...ids];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    onReorder(next);
+  };
 
   const canResize = (colId: string) => {
     if (colId === 'actions' || colId === 'select') return false;
@@ -851,6 +889,7 @@ export function AdminDataTable<T>({
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>
       )}
 
+      {!hideBody && (<>
       {showBulkBar && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border-2 border-black bg-neutral-50 px-3 py-2 mb-2">
           <span className="text-sm font-medium text-black">
@@ -1017,6 +1056,16 @@ export function AdminDataTable<T>({
                         </th>
                       );
                     }
+                    if (col.id === 'reorder') {
+                      return (
+                        <th
+                          key={col.id}
+                          className="py-2.5 text-center bg-black border-r border-white"
+                          style={{ ...headerSticky, paddingLeft: 4, paddingRight: 4 }}
+                          aria-label="Reorder"
+                        />
+                      );
+                    }
                     if (col.id === 'actions') {
                       return (
                         <th
@@ -1117,8 +1166,13 @@ export function AdminDataTable<T>({
                   pagedRows.map((row, rowIndex) => {
                     const rowId = getRowId(row);
                     const rowChecked = selectedIds.has(rowId);
+                    const rowDragging = dragOverRowId === rowId && dragRowIdRef.current !== rowId;
                     return (
-                      <tr key={rowId} className={`border-b border-gray-200 ${rowChecked ? 'bg-neutral-100' : ''}`}>
+                      <tr
+                        key={rowId}
+                        data-row-id={rowId}
+                        className={`border-b border-gray-200 ${rowChecked ? 'bg-neutral-100' : ''} ${rowDragging ? 'outline outline-2 outline-black' : ''}`}
+                      >
                         {displayColumns.map((col) => {
                           const frozenLeft = freezeOffsets[col.id];
                           const isLastFrozen = col.id === frozenUntilId;
@@ -1145,6 +1199,60 @@ export function AdminDataTable<T>({
                                   className="w-4 h-4 rounded border-gray-300 accent-red-600 focus:ring-red-500 cursor-pointer"
                                   aria-label={`Select row ${rowId}`}
                                 />
+                              </td>
+                            );
+                          }
+                          if (col.id === 'reorder') {
+                            return (
+                              <td
+                                key={col.id}
+                                className="py-2 text-center border-r border-gray-200 bg-white"
+                                style={{ paddingLeft: 4, paddingRight: 4 }}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <button
+                                  type="button"
+                                  draggable={false}
+                                  disabled={reorderBlocked}
+                                  aria-label="Drag to reorder"
+                                  title={reorderBlocked ? 'Clear search and sort to reorder' : 'Drag to reorder'}
+                                  className={`inline-flex items-center justify-center text-gray-500 touch-none ${
+                                    reorderBlocked ? 'cursor-not-allowed opacity-40' : 'cursor-grab active:cursor-grabbing'
+                                  }`}
+                                  onPointerDown={(event) => {
+                                    if (reorderBlocked) return;
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    event.currentTarget.setPointerCapture(event.pointerId);
+                                    dragRowIdRef.current = rowId;
+                                    dragOverRowIdRef.current = rowId;
+                                    setDragOverRowId(rowId);
+                                  }}
+                                  onPointerMove={(event) => {
+                                    if (!dragRowIdRef.current) return;
+                                    const under = document.elementFromPoint(event.clientX, event.clientY);
+                                    const overId = under?.closest('tr[data-row-id]')?.getAttribute('data-row-id');
+                                    if (overId && overId !== dragOverRowIdRef.current) {
+                                      dragOverRowIdRef.current = overId;
+                                      setDragOverRowId(overId);
+                                    }
+                                  }}
+                                  onPointerUp={() => {
+                                    const fromId = dragRowIdRef.current;
+                                    const toId = dragOverRowIdRef.current;
+                                    dragRowIdRef.current = null;
+                                    dragOverRowIdRef.current = null;
+                                    if (fromId && toId) moveRow(fromId, toId);
+                                    setDragOverRowId(null);
+                                  }}
+                                  onPointerCancel={() => {
+                                    dragRowIdRef.current = null;
+                                    dragOverRowIdRef.current = null;
+                                    setDragOverRowId(null);
+                                  }}
+                                >
+                                  <GripVertical className="h-4 w-4" />
+                                </button>
                               </td>
                             );
                           }
@@ -1363,6 +1471,7 @@ export function AdminDataTable<T>({
             document.body
           )
         : null}
+      </>)}
     </div>
   );
 }

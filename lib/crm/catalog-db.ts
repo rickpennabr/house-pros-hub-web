@@ -30,6 +30,7 @@ interface ServiceRow {
   id: string;
   name: string;
   category: string | null;
+  trade: string | null;
   description: string | null;
   unit: string;
   price_type: string;
@@ -140,6 +141,7 @@ function mapService(row: ServiceRow, images: CrmImage[]): CrmService {
     id: row.id,
     name: row.name,
     category: row.category,
+    trade: row.trade,
     description: row.description,
     unit: row.unit,
     price_type: row.price_type,
@@ -190,8 +192,9 @@ function groupImages(rows: ImageRow[], key: 'service_id' | 'product_id'): Map<st
 export async function listServices(supabase: Db, ownerId: string): Promise<CrmService[]> {
   const services = await supabase
     .from('pro_crm_services')
-    .select('id, name, category, description, unit, price_type, price_mode, price_cents, price_min_cents, price_max_cents, created_at')
+    .select('id, name, category, trade, description, unit, price_type, price_mode, price_cents, price_min_cents, price_max_cents, created_at')
     .eq('owner_id', ownerId)
+    .order('display_order', { ascending: true })
     .order('name', { ascending: true });
   if (services.error) throw services.error;
   const images = await supabase
@@ -397,6 +400,7 @@ function servicePriceColumns(input: ServiceWriteInput) {
 
 async function rememberServiceVocabulary(supabase: Db, ownerId: string, input: ServiceWriteInput): Promise<void> {
   await rememberTerm(supabase, ownerId, 'service_category', input.category);
+  await rememberTerm(supabase, ownerId, 'service_trade', input.trade);
   await rememberTerm(supabase, ownerId, 'unit', input.unit);
   await rememberTerm(supabase, ownerId, 'price_type', input.price_type, input.price_mode);
 }
@@ -411,16 +415,26 @@ async function rememberProductVocabulary(supabase: Db, ownerId: string, input: P
 
 export async function createService(supabase: Db, ownerId: string, input: ServiceWriteInput): Promise<CrmService> {
   const images = normalizeImages(input.images, ownerId, new Set());
+  const latest = await supabase
+    .from('pro_crm_services')
+    .select('display_order')
+    .eq('owner_id', ownerId)
+    .order('display_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latest.error) throw latest.error;
   const inserted = await supabase
     .from('pro_crm_services')
     .insert({
       owner_id: ownerId,
       name: input.name,
       category: input.category || null,
+      trade: input.trade || null,
       description: input.description || null,
       unit: input.unit,
       price_type: input.price_type,
       price_mode: input.price_mode,
+      display_order: (latest.data?.display_order ?? -1) + 1,
       ...servicePriceColumns(input),
     })
     .select('id')
@@ -452,6 +466,7 @@ export async function updateService(
     .update({
       name: input.name,
       category: input.category || null,
+      trade: input.trade || null,
       description: input.description || null,
       unit: input.unit,
       price_type: input.price_type,
@@ -479,6 +494,23 @@ export async function deleteService(supabase: Db, ownerId: string, serviceId: st
   const deleted = await supabase.from('pro_crm_services').delete().eq('id', serviceId).eq('owner_id', ownerId);
   if (deleted.error) throw deleted.error;
   return paths;
+}
+
+export async function reorderServices(supabase: Db, ownerId: string, ids: string[]): Promise<void> {
+  const existing = await supabase.from('pro_crm_services').select('id').eq('owner_id', ownerId);
+  if (existing.error) throw existing.error;
+  const owned = new Set((existing.data ?? []).map((row) => row.id));
+  if (ids.length !== owned.size || ids.some((id) => !owned.has(id))) {
+    throw new CatalogError('Include every service when reordering', 400);
+  }
+  for (let index = 0; index < ids.length; index += 1) {
+    const updated = await supabase
+      .from('pro_crm_services')
+      .update({ display_order: index })
+      .eq('id', ids[index])
+      .eq('owner_id', ownerId);
+    if (updated.error) throw updated.error;
+  }
 }
 
 export async function createProduct(supabase: Db, ownerId: string, input: ProductWriteInput): Promise<CrmProduct> {

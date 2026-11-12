@@ -115,8 +115,24 @@ export async function GET(request: NextRequest) {
 
     const [customersResult, estimatesResult, expenseTotals] = await Promise.all([
       customerIds.length > 0
-        ? supabase.from('pro_crm_customers').select('id, first_name, last_name, display_name, company_name').in('id', customerIds)
-        : Promise.resolve({ data: [] as { id: string; first_name: string; last_name: string; display_name: string | null; company_name: string | null }[], error: null }),
+        ? supabase.from('pro_crm_customers').select('id, first_name, last_name, display_name, company_name, street_address, apartment, city, state, zip_code, billing_address_street_1, billing_address_street_2, billing_address_city, billing_address_state, billing_address_zip_code').in('id', customerIds)
+        : Promise.resolve({ data: [] as {
+            id: string;
+            first_name: string;
+            last_name: string;
+            display_name: string | null;
+            company_name: string | null;
+            street_address: string | null;
+            apartment: string | null;
+            city: string | null;
+            state: string | null;
+            zip_code: string | null;
+            billing_address_street_1: string | null;
+            billing_address_street_2: string | null;
+            billing_address_city: string | null;
+            billing_address_state: string | null;
+            billing_address_zip_code: string | null;
+          }[], error: null }),
       estimateIds.length > 0
         ? supabase.from('pro_crm_estimates').select('id, amount_cents').eq('owner_id', user.id).in('id', estimateIds)
         : Promise.resolve({ data: [] as { id: string; amount_cents: number }[], error: null }),
@@ -129,7 +145,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: estimatesResult.error.message || 'Failed to load contract amounts' }, { status: 500 });
     }
 
-    const customerMap = new Map<string, { first_name: string; last_name: string; display_name: string | null; company_name: string | null }>();
+    const customerMap = new Map<string, {
+      first_name: string;
+      last_name: string;
+      display_name: string | null;
+      company_name: string | null;
+      street_address: string | null;
+      apartment: string | null;
+      city: string | null;
+      state: string | null;
+      zip_code: string | null;
+      billing_address_street_1: string | null;
+      billing_address_street_2: string | null;
+      billing_address_city: string | null;
+      billing_address_state: string | null;
+      billing_address_zip_code: string | null;
+    }>();
     customersResult.data?.forEach((c) => customerMap.set(c.id, c));
     const contractByEstimate = new Map<string, number>();
     estimatesResult.data?.forEach((estimate) => contractByEstimate.set(estimate.id, estimate.amount_cents ?? 0));
@@ -137,11 +168,26 @@ export async function GET(request: NextRequest) {
     const withCustomer = list.map((p) => {
       const c = customerMap.get(p.customer_id);
       const contractAmountCents = p.estimate_id ? contractByEstimate.get(p.estimate_id) ?? null : null;
+      const home = [c?.street_address, c?.apartment, c?.city, c?.state, c?.zip_code]
+        .map((part) => part?.trim() ?? '')
+        .filter(Boolean)
+        .join(', ');
+      const billing = [
+        c?.billing_address_street_1,
+        c?.billing_address_street_2,
+        c?.billing_address_city,
+        c?.billing_address_state,
+        c?.billing_address_zip_code,
+      ]
+        .map((part) => part?.trim() ?? '')
+        .filter(Boolean)
+        .join(', ');
       return {
         ...p,
         customerFirstName: c?.first_name ?? null,
         customerLastName: c?.last_name ?? null,
         customerDisplayName: c ? contactDisplayName(c) : null,
+        customerAddress: home || billing,
         contract_amount_cents: contractAmountCents,
         project_cost_cents: expenseTotals.get(p.id) ?? 0,
       };

@@ -153,6 +153,17 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '•';
 }
 
+/** Width of the bitmap inside an object-contain image or video, in pixels. */
+function containedMediaWidth(media: HTMLImageElement | HTMLVideoElement): number | null {
+  const naturalW = media instanceof HTMLVideoElement ? media.videoWidth : media.naturalWidth;
+  const naturalH = media instanceof HTMLVideoElement ? media.videoHeight : media.naturalHeight;
+  const boxW = media.clientWidth;
+  const boxH = media.clientHeight;
+  if (!naturalW || !naturalH || !boxW || !boxH) return null;
+  const scale = Math.min(boxW / naturalW, boxH / naturalH);
+  return Math.round(naturalW * scale);
+}
+
 /**
  * One job photo. Comments, the job team, and the photo actions live here.
  * Team roles are the CRM contact roles (employee, subcontractor, project manager).
@@ -172,6 +183,39 @@ export function JobPhotoViewer({
   const locale = useLocale();
   const browserBottom = useBrowserBottomInset();
   const captionRef = useRef<HTMLInputElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [photoWidth, setPhotoWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const desktop = window.matchMedia('(min-width: 768px)');
+    const measure = () => {
+      if (!desktop.matches) {
+        setPhotoWidth(null);
+        return;
+      }
+      const media = stage.querySelector('img, video');
+      if (!(media instanceof HTMLImageElement) && !(media instanceof HTMLVideoElement)) {
+        setPhotoWidth(null);
+        return;
+      }
+      setPhotoWidth(containedMediaWidth(media));
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    const media = stage.querySelector('img, video');
+    media?.addEventListener('load', measure);
+    media?.addEventListener('loadedmetadata', measure);
+    desktop.addEventListener('change', measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      media?.removeEventListener('load', measure);
+      media?.removeEventListener('loadedmetadata', measure);
+      desktop.removeEventListener('change', measure);
+    };
+  }, [photo.url, photo.mimeType]);
   const onChangedRef = useRef(onChanged);
   onChangedRef.current = onChanged;
   const [mapPoint, setMapPoint] = useState<{ lat: number; lng: number; accuracy: number | null } | null>(null);
@@ -596,9 +640,11 @@ export function JobPhotoViewer({
         <span className="h-10 w-10" />
       </div>
 
-      <div className="relative min-h-0 flex-1">
+      <div ref={stageRef} className="relative min-h-0 flex-1">
         {photo.url && photo.mimeType.startsWith('video/') ? (
-          <video src={photo.url} controls playsInline className="h-full w-full object-contain" />
+          <div className="flex h-full w-full items-center justify-center">
+            <video src={photo.url} controls playsInline preload="auto" className="max-h-full max-w-full" />
+          </div>
         ) : photo.url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={photo.url} alt="" className="h-full w-full object-contain" />
@@ -608,7 +654,13 @@ export function JobPhotoViewer({
         ) : null}
       </div>
 
-      <div className="shrink-0 bg-black px-3" style={{ paddingBottom: `calc(${browserBottom}px + max(0.75rem, env(safe-area-inset-bottom)))` }}>
+      <div
+        className="mx-auto w-full shrink-0 bg-black px-3"
+        style={{
+          paddingBottom: `calc(${browserBottom}px + max(0.75rem, env(safe-area-inset-bottom)))`,
+          width: photoWidth ? `${photoWidth}px` : undefined,
+        }}
+      >
         {error ? <p className="mb-2 rounded-lg bg-red-600 px-3 py-2 text-sm">{error}</p> : null}
         {notice === t('photoDownloaded') ? (
           <p className="mb-2 flex items-center gap-2 rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white">
@@ -704,7 +756,8 @@ export function JobPhotoViewer({
       {sheet && sheet !== 'map' ? (
         <div className="absolute inset-0 z-10 flex flex-col justify-end bg-black/40">
           <button type="button" className="min-h-0 flex-1" aria-label={t('closePhoto')} onClick={() => setSheet(sheet === 'role' ? roleReturn : null)} />
-          <div className="max-h-[80%] overflow-y-auto rounded-t-3xl bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 text-black">
+          <div className="mx-auto max-h-[80%] w-full overflow-y-auto rounded-t-3xl bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 text-black">
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-gray-300" aria-hidden />
             {sheet === 'comments' ? (
               <>
                 <div className="mb-3 flex items-center justify-between">
@@ -973,7 +1026,7 @@ export function JobPhotoViewer({
                 {menu.map((item) => (
                   <li key={item.label}>
                     <button type="button" onClick={item.run} className="flex w-full items-center gap-3 py-3 text-left">
-                      <item.icon className="h-5 w-5" />
+                      <item.icon className="h-5 w-5 text-red-600" />
                       <span className="font-medium">{item.label}</span>
                     </button>
                   </li>

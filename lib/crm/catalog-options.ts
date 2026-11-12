@@ -1,4 +1,5 @@
 import { UNIT_OPTIONS } from '@/lib/constants/unitOptions';
+import { SERVICE_CATEGORIES } from '@/lib/constants/categories';
 
 /** How the price fields render for a service price type. */
 export type PriceMode = 'flat' | 'unit' | 'range';
@@ -28,6 +29,12 @@ export const SUGGESTED_SERVICE_CATEGORIES = [
   'Consultation',
 ];
 
+/** Same trades as an estimate, plus Hardscape. A contractor can type any other trade. */
+export const SUGGESTED_SERVICE_TRADES = [
+  'Hardscape',
+  ...SERVICE_CATEGORIES.map((category) => category.label),
+];
+
 export const SUGGESTED_PRODUCT_CATEGORIES = [
   'Pavers',
   'Wall block',
@@ -45,6 +52,7 @@ export const SUGGESTED_SPEC_NAMES = ['Color', 'Size', 'Material', 'Thickness', '
 
 export const CATALOG_TERM_KINDS = [
   'service_category',
+  'service_trade',
   'product_category',
   'unit',
   'price_type',

@@ -12,6 +12,7 @@ export interface CrmService {
   id: string;
   name: string;
   category: string | null;
+  trade: string | null;
   description: string | null;
   unit: string;
   price_type: string;

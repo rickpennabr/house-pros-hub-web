@@ -4,17 +4,22 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
-import { Plus, Pencil, Trash2, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowLeft, AlertTriangle, Filter, LayoutGrid, Calendar, Play, Pause, CircleCheck, Ban } from 'lucide-react';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
+import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
+import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import { CrmRowActionsButton, CrmRowActionsPortal, useCrmRowActions } from '@/components/crm/CrmRowActionsMenu';
 import { CRM_LIST_PAGE_SIZE, useCrmListQuery } from '@/hooks/useCrmListQuery';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
+import Pagination from '@/components/ui/Pagination';
 import { contactDisplayName, listedCustomerName } from '@/lib/crm/contact-name';
 import Modal from '@/components/ui/Modal';
+import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Created' },
@@ -26,6 +31,18 @@ const SORT_OPTIONS = [
 type SortKey = (typeof SORT_OPTIONS)[number]['value'];
 
 const STATUS_OPTIONS = ['planned', 'in_progress', 'on_hold', 'completed', 'cancelled'] as const;
+
+const STATUS_FILTER_ICONS = {
+  planned: Calendar,
+  in_progress: Play,
+  on_hold: Pause,
+  completed: CircleCheck,
+  cancelled: Ban,
+} as const;
+
+function statusLabel(value: string) {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
 
 interface ProjectRow {
   id: string;
@@ -42,6 +59,7 @@ interface ProjectRow {
   contract_amount_cents: number | null;
   /** Sum of expenses linked to this project. */
   project_cost_cents: number;
+  customerAddress?: string | null;
 }
 
 function formatDate(iso: string | null) {
@@ -122,6 +140,9 @@ export default function CRMProjectsPage() {
   const searchParams = useSearchParams();
   const locale = useLocale();
   const [statusFilter, setStatusFilter] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [savedListView, setSavedListView] = useLocalStorage<string>('crmProjectsView', 'list');
+  const listView: ViewType = savedListView === 'map' ? 'map' : 'list';
   const crmChrome = useCRMChrome();
   const {
     rows: projects,
@@ -315,11 +336,28 @@ export default function CRMProjectsPage() {
 
   const estimatesForCustomer = formCustomerId ? estimates.filter((e) => e.customer_id === formCustomerId) : [];
 
+  const applyStatusFilter = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+    setFiltersOpen(false);
+  };
+  const statusFilterButton = !crmChrome?.searchOpen ? (
+    <button
+      type="button"
+      onClick={() => setFiltersOpen(true)}
+      className="relative h-11 w-11 shrink-0 rounded-lg border-2 border-black bg-black flex items-center justify-center cursor-pointer hover:bg-gray-800 md:hidden"
+      aria-label="Filter"
+    >
+      <Filter className="w-5 h-5 text-white" />
+      {statusFilter ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" /> : null}
+    </button>
+  ) : null;
+
   return (
     <div className="w-full">
       {viewMode === 'table' && (
         <>
-          <div className="flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
+          <div className="hidden md:flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
             <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Projects</h1>
               <p className="text-sm text-gray-500 mt-0.5">Track jobs and link them to customers and estimates.</p>
@@ -329,14 +367,38 @@ export default function CRMProjectsPage() {
               New Project
             </Button>
           </div>
-          <div className={`flex flex-wrap items-center gap-4 pb-2 ${crmChrome?.searchOpen ? 'max-md:hidden' : ''}`}>
+          <div className="hidden md:flex flex-wrap items-center gap-4 pb-2">
             <label className="text-sm text-gray-600">Status</label>
             <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="h-9 px-3 border border-gray-300 rounded-md text-sm bg-white text-black">
               <option value="">All</option>
-              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
             </select>
           </div>
+          <MobileGridActionsModal
+            isOpen={filtersOpen}
+            onClose={() => setFiltersOpen(false)}
+            title="Filter by status"
+            items={[
+              {
+                id: 'all',
+                label: 'All',
+                icon: LayoutGrid,
+                isActive: statusFilter === '',
+                onClick: () => applyStatusFilter(''),
+              },
+              ...STATUS_OPTIONS.map((option) => ({
+                id: option,
+                label: statusLabel(option),
+                icon: STATUS_FILTER_ICONS[option],
+                isActive: statusFilter === option,
+                onClick: () => applyStatusFilter(option),
+              })),
+            ]}
+          />
           <AdminDataTable
+            searchRowClassName="max-md:pt-2"
+            searchEndAction={statusFilterButton}
+            hideBody={listView === 'map'}
             columnOrderKey="crm-projects"
             exportName="projects"
             columns={PROJECT_COLUMNS}
@@ -386,6 +448,39 @@ export default function CRMProjectsPage() {
             itemLabel="projects"
             primaryColumnId="name"
           />
+          {listView === 'map' && (
+            <AddressPinsMap
+              pins={projects.map((row) => ({
+                id: row.id,
+                title: row.name,
+                detail: `${listedCustomerName(row) || 'Project'} · ${statusLabel(row.status)}`,
+                address: row.customerAddress || '',
+              }))}
+              onOpen={(id) => { setEditingId(id); setViewMode('edit'); }}
+            />
+          )}
+          {listView === 'map' && !isLoading && total > 0 && (
+            <div className="mt-4">
+              <Pagination
+                currentPage={page}
+                totalPages={Math.max(1, Math.ceil(total / CRM_LIST_PAGE_SIZE))}
+                onPageChange={setPage}
+                totalItems={total}
+                itemsPerPage={CRM_LIST_PAGE_SIZE}
+                itemLabel="projects"
+              />
+            </div>
+          )}
+          {!isLoading && (
+            <ViewToggle
+              currentView={listView}
+              onViewChange={setSavedListView}
+              views={['list', 'map']}
+              hideBackgroundToggle
+              onAdd={() => setViewMode('add')}
+              addLabel="New project"
+            />
+          )}
         </>
       )}
 

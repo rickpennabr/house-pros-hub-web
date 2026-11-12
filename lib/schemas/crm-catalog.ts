@@ -15,6 +15,7 @@ export const serviceWriteSchema = z
   .object({
     name: z.string().trim().min(1, 'Service name is required').max(160),
     category: z.string().trim().max(80).optional().default(''),
+    trade: z.string().trim().max(80).optional().default(''),
     description: z.string().trim().max(4000).optional().default(''),
     unit: z.string().trim().min(1).max(40).optional().default('each'),
     price_type: z.string().trim().min(1, 'Choose a price type').max(80),
@@ -72,3 +73,7 @@ export const catalogTermWriteSchema = z
 export type ServiceWriteInput = z.infer<typeof serviceWriteSchema>;
 export type ProductWriteInput = z.infer<typeof productWriteSchema>;
 export type CatalogImageInput = z.infer<typeof catalogImageSchema>;
+
+export const serviceReorderSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(500),
+});

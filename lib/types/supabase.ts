@@ -2790,6 +2790,7 @@ export interface Database {
           display_id: string;
           name: string;
           category: string | null;
+          trade: string | null;
           description: string | null;
           unit: string;
           price_type: string;
@@ -2807,6 +2808,7 @@ export interface Database {
           display_id?: string;
           name: string;
           category?: string | null;
+          trade?: string | null;
           description?: string | null;
           unit?: string;
           price_type?: string;
@@ -2824,6 +2826,7 @@ export interface Database {
           display_id?: string;
           name?: string;
           category?: string | null;
+          trade?: string | null;
           description?: string | null;
           unit?: string;
           price_type?: string;
@@ -2988,7 +2991,7 @@ export interface Database {
         Row: {
           id: string;
           owner_id: string;
-          kind: 'service_category' | 'product_category' | 'unit' | 'price_type' | 'spec_name';
+          kind: 'service_category' | 'service_trade' | 'product_category' | 'unit' | 'price_type' | 'spec_name';
           label: string;
           label_key: string;
           price_mode: 'flat' | 'unit' | 'range' | null;
@@ -2997,7 +3000,7 @@ export interface Database {
         Insert: {
           id?: string;
           owner_id: string;
-          kind: 'service_category' | 'product_category' | 'unit' | 'price_type' | 'spec_name';
+          kind: 'service_category' | 'service_trade' | 'product_category' | 'unit' | 'price_type' | 'spec_name';
           label: string;
           price_mode?: 'flat' | 'unit' | 'range' | null;
           created_at?: string;
@@ -3005,7 +3008,7 @@ export interface Database {
         Update: {
           id?: string;
           owner_id?: string;
-          kind?: 'service_category' | 'product_category' | 'unit' | 'price_type' | 'spec_name';
+          kind?: 'service_category' | 'service_trade' | 'product_category' | 'unit' | 'price_type' | 'spec_name';
           label?: string;
           price_mode?: 'flat' | 'unit' | 'range' | null;
           created_at?: string;
