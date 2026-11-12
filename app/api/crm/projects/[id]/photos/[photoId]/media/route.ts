@@ -67,6 +67,13 @@ async function loadMp4(
   return mp4;
 }
 
+/** Copy into a fresh ArrayBuffer so the response body type-checks under Next 16. */
+function responseBody(bytes: Uint8Array): ArrayBuffer {
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return copy;
+}
+
 function ranged(request: NextRequest, bytes: Uint8Array): NextResponse {
   const headers = {
     'Content-Type': 'video/mp4',
@@ -76,7 +83,7 @@ function ranged(request: NextRequest, bytes: Uint8Array): NextResponse {
   const range = request.headers.get('range');
   const match = range ? /bytes=(\d+)-(\d*)/.exec(range) : null;
   if (!match) {
-    return new NextResponse(bytes, {
+    return new NextResponse(responseBody(bytes), {
       status: 200,
       headers: { ...headers, 'Content-Length': String(bytes.length) },
     });
@@ -90,7 +97,7 @@ function ranged(request: NextRequest, bytes: Uint8Array): NextResponse {
     });
   }
   const slice = bytes.subarray(start, end + 1);
-  return new NextResponse(slice, {
+  return new NextResponse(responseBody(slice), {
     status: 206,
     headers: {
       ...headers,

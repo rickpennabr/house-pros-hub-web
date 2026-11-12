@@ -51,7 +51,9 @@ export async function uploadProDriveFile(input: {
     const mp4 = remuxQuickTimeToMp4(new Uint8Array(await file.arrayBuffer()));
     if (mp4) {
       const name = file.name.replace(/\.mov$/i, '') || 'clip';
-      file = new File([mp4], `${name}.mp4`, { type: 'video/mp4' });
+      const copy = new ArrayBuffer(mp4.byteLength);
+      new Uint8Array(copy).set(mp4);
+      file = new File([copy], `${name}.mp4`, { type: 'video/mp4' });
     }
   }
   if (!isProDriveMime(file.type)) {

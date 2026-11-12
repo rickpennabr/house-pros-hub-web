@@ -700,6 +700,7 @@ export async function createLegacyItem(supabase: Db, ownerId: string, input: Leg
   const service = await createService(supabase, ownerId, {
     name: input.name,
     category: input.category,
+    trade: '',
     description: input.description,
     unit: input.unit,
     price_type: 'Unit price',
@@ -733,6 +734,7 @@ export async function updateLegacyItem(
       {
         name: input.name,
         category: input.category,
+        trade: service.trade ?? '',
         description: input.description,
         unit: input.unit,
         price_type: service.price_type,
