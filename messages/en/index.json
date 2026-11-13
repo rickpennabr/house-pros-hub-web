@@ -2374,6 +2374,7 @@
     "descriptionPlaceholder": "Add a description",
     "nextPhoto": "Next photo",
     "video": "Video",
+    "stopVideo": "Stop",
     "cameraSetting": "Camera",
     "locationSetting": "Current location",
     "permissionHint": "JOB photos open the camera. Turn on location to stamp where the photo was taken."

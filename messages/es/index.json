@@ -2125,6 +2125,7 @@
     "descriptionPlaceholder": "Agrega una descripción",
     "nextPhoto": "Siguiente foto",
     "video": "Video",
+    "stopVideo": "Detener",
     "cameraSetting": "Cámara",
     "locationSetting": "Ubicación actual",
     "permissionHint": "Las fotos JOB abren la cámara. Activa la ubicación para marcar dónde se tomó la foto."

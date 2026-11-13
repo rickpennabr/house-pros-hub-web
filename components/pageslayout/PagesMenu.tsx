@@ -4,6 +4,7 @@ import { ReactNode, useLayoutEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import { openQuickRepairCamera } from '@/lib/media/quick-repair-camera';
 import { BookOpen, Briefcase, HardHat, Package, Truck } from 'lucide-react';
 
 interface PagesMenuProps {
@@ -77,8 +78,9 @@ export function QuickRepairCameraLink({ className }: { className?: string }) {
     <Link
       href={`/${locale}/quick-repair`}
       aria-label={t('quickRepair')}
-      onMouseDown={(event) => {
-        if (event.button === 0) event.preventDefault();
+      onClick={(event) => {
+        event.preventDefault();
+        openQuickRepairCamera();
       }}
       className={className ?? 'relative flex h-10 w-[52px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0'}
     >
@@ -152,6 +154,10 @@ export default function PagesMenu({ children }: PagesMenuProps) {
                 onMouseDown={(event) => {
                   if (event.button === 0) event.preventDefault();
                 }}
+                onClick={isQuickRepair ? (event) => {
+                  event.preventDefault();
+                  openQuickRepairCamera();
+                } : undefined}
                 aria-label={isQuickRepair ? t(item.labelKey) : undefined}
                 className={menuItemClasses(item.path, item.labelKey)}
               >

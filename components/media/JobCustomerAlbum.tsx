@@ -16,6 +16,7 @@ interface JobCustomerAlbumProps {
   customerId: string;
   onBack: () => void;
   onCamera: () => void;
+  onWalkthrough: () => void;
   onTakeAfter: (photoId: string) => void;
   onUpload: (files: File[]) => Promise<void>;
 }
@@ -37,7 +38,7 @@ function isSameDay(iso: string, now: Date): boolean {
 /**
  * Photos already saved for the customer. The camera stays closed until the shutter button.
  */
-export function JobCustomerAlbum({ open, projectId, name, address, customerId, onBack, onCamera, onTakeAfter, onUpload }: JobCustomerAlbumProps) {
+export function JobCustomerAlbum({ open, projectId, name, address, customerId, onBack, onCamera, onWalkthrough, onTakeAfter, onUpload }: JobCustomerAlbumProps) {
   const t = useTranslations('jobsite');
   const locale = useLocale();
   const [photos, setPhotos] = useState<JobPhoto[]>([]);
@@ -223,16 +224,33 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
     const win = window.open('', '_blank', 'noopener,noreferrer');
     if (!win) return;
     win.document.title = name;
+    win.document.body.style.margin = '24px';
     const heading = win.document.createElement('h1');
     heading.textContent = name;
     win.document.body.append(heading);
     for (const photo of chosen) {
+      if (photo.mimeType.startsWith('video/')) {
+        const video = win.document.createElement('video');
+        video.src = photo.url as string;
+        video.controls = true;
+        video.style.maxWidth = '100%';
+        video.style.display = 'block';
+        video.style.margin = '16px auto';
+        win.document.body.append(video);
+        continue;
+      }
       const image = win.document.createElement('img');
       image.src = photo.url as string;
       image.alt = '';
       image.style.maxWidth = '100%';
+      image.style.display = 'block';
+      image.style.margin = '16px auto';
       win.document.body.append(image);
     }
+    window.setTimeout(() => {
+      win.focus();
+      win.print();
+    }, 400);
     setSheet(null);
   };
 
@@ -258,6 +276,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
         ownerType="business"
         ownerId={businessId}
         onSelect={(file) => {
+          setPickerOpen(false);
           void addFromDrive(file);
         }}
       />
@@ -443,17 +462,17 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
                   <span className="w-5" />
                 </div>
                 <p className="mb-2 text-sm font-bold">{t('sort')}</p>
-                <button type="button" onClick={() => setSort('newest')} className="flex w-full items-center gap-3 py-3 text-left">
+                <button type="button" onClick={() => { setSort('newest'); setSheet(null); }} className="flex w-full items-center gap-3 py-3 text-left">
                   <span className={`h-5 w-5 rounded border-2 border-black ${sort === 'newest' ? 'bg-black' : ''}`} />
                   {t('newestFirst')}
                 </button>
-                <button type="button" onClick={() => setSort('oldest')} className="flex w-full items-center gap-3 border-t border-gray-200 py-3 text-left">
+                <button type="button" onClick={() => { setSort('oldest'); setSheet(null); }} className="flex w-full items-center gap-3 border-t border-gray-200 py-3 text-left">
                   <span className={`h-5 w-5 rounded border-2 border-black ${sort === 'oldest' ? 'bg-black' : ''}`} />
                   {t('oldestFirst')}
                 </button>
                 <p className="mb-2 mt-4 text-sm font-bold">{t('photoType')}</p>
                 {(['all', 'photo', 'video'] as const).map((value) => (
-                  <button key={value} type="button" onClick={() => setKind(value)} className="flex w-full items-center gap-3 py-2 text-left">
+                  <button key={value} type="button" onClick={() => { setKind(value); setSheet(null); }} className="flex w-full items-center gap-3 py-2 text-left">
                     <span className={`h-5 w-5 rounded-full border-2 border-black ${kind === value ? 'bg-black' : ''}`} />
                     {value === 'all' ? t('allTypes') : value === 'photo' ? t('photosOnly') : t('videosOnly')}
                   </button>
@@ -461,9 +480,9 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
                 {tagOptions.length > 0 ? (
                   <>
                     <p className="mb-2 mt-4 text-sm font-bold">{t('tag')}</p>
-                    <button type="button" onClick={() => setTag(null)} className="mr-2 mb-2 rounded-full border-2 border-black px-3 py-1 text-sm">{t('allTypes')}</button>
+                    <button type="button" onClick={() => { setTag(null); setSheet(null); }} className="mr-2 mb-2 rounded-full border-2 border-black px-3 py-1 text-sm">{t('allTypes')}</button>
                     {tagOptions.map((option) => (
-                      <button key={option} type="button" onClick={() => setTag(tag === option ? null : option)} className={`mr-2 mb-2 rounded-full border-2 px-3 py-1 text-sm ${tag === option ? 'border-black bg-black text-white' : 'border-black'}`}>{option}</button>
+                      <button key={option} type="button" onClick={() => { setTag(tag === option ? null : option); setSheet(null); }} className={`mr-2 mb-2 rounded-full border-2 px-3 py-1 text-sm ${tag === option ? 'border-black bg-black text-white' : 'border-black'}`}>{option}</button>
                     ))}
                   </>
                 ) : null}
@@ -538,7 +557,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
                   <ImagePlus className="h-5 w-5" />
                   {t('beforeAfter')}
                 </button>
-                <button type="button" onClick={() => { setSheet(null); onCamera(); }} className="flex w-full items-center gap-3 py-3 text-left font-medium">
+                <button type="button" onClick={() => { setSheet(null); onWalkthrough(); }} className="flex w-full items-center gap-3 py-3 text-left font-medium">
                   <Video className="h-5 w-5" />
                   {t('walkthrough')}
                 </button>

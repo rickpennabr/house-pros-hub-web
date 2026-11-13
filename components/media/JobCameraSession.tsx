@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, HardDrive, ImagePlus, SwitchCamera, Video, X } from 'lucide-react';
+import { Check, HardDrive, ImagePlus, Square, SwitchCamera, Video, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ProDrivePicker } from '@/components/drive/ProDrivePicker';
 import type { DriveFile } from '@/lib/drive/types';
@@ -22,6 +22,8 @@ interface JobCameraSessionProps {
   title: string;
   subtitle?: string;
   projectId?: string;
+  /** Walkthrough opens straight into recording. Photo is the shutter. */
+  begin?: 'photo' | 'video';
   /** Fix stops at the photos already allowed. Job has no cap. */
   maxShots?: number;
   onBack: () => void;
@@ -46,6 +48,16 @@ function captureFile(file: File, video: boolean, prefix: string): File {
   return new File([file], file.name || `${prefix}-${Date.now()}.${ext}`, { type });
 }
 
+function recorderChoice(): { mime: string; ext: string } {
+  const options = [
+    { mime: 'video/webm;codecs=vp8,opus', ext: 'webm' },
+    { mime: 'video/webm', ext: 'webm' },
+    { mime: 'video/mp4', ext: 'mp4' },
+  ];
+  if (typeof MediaRecorder === 'undefined') return { mime: '', ext: 'webm' };
+  return options.find((option) => MediaRecorder.isTypeSupported(option.mime)) ?? { mime: '', ext: 'webm' };
+}
+
 /**
  * Shared ProCam frame for Job and Fix.
  * The stage is the full screen. The live preview shows the whole sensor frame (object-contain, 4:3),
@@ -58,6 +70,7 @@ export function JobCameraSession({
   title,
   subtitle,
   projectId,
+  begin = 'photo',
   maxShots,
   onBack,
   onSkip,
@@ -90,6 +103,14 @@ export function JobCameraSession({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const audioRef = useRef<MediaStream | null>(null);
+  const discardRecording = useRef(false);
+  const sessionRef = useRef(0);
+  const recordRef = useRef<() => void>(() => undefined);
+  const walkthroughStarted = useRef(false);
 
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -99,7 +120,7 @@ export function JobCameraSession({
 
   const startLive = async (facing: 'environment' | 'user') => {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) return;
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+    const previous = streamRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -110,10 +131,16 @@ export function JobCameraSession({
         },
         audio: false,
       });
+      previous?.getTracks().forEach((track) => track.stop());
       facingRef.current = facing;
       streamRef.current = stream;
       setLive(true);
     } catch {
+      if (previous?.getVideoTracks().some((track) => track.readyState === 'live')) {
+        streamRef.current = previous;
+        setLive(true);
+        return;
+      }
       setLive(false);
     }
   };
@@ -127,16 +154,39 @@ export function JobCameraSession({
       return null;
     });
     setCaption('');
+    setRecording(false);
+    setElapsed(0);
     setShots((current) => {
       current.forEach((shot) => URL.revokeObjectURL(shot.url));
       return [];
     });
     void startLive('environment');
     return () => {
+      sessionRef.current += 1;
+      discardRecording.current = true;
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
+      audioRef.current?.getTracks().forEach((track) => track.stop());
+      audioRef.current = null;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!recording) return;
+    const id = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [recording]);
+
+  useEffect(() => {
+    if (!open) {
+      walkthroughStarted.current = false;
+      return;
+    }
+    if (begin !== 'video' || !live || isFix || walkthroughStarted.current) return;
+    walkthroughStarted.current = true;
+    recordRef.current();
+  }, [open, begin, live, isFix]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -206,21 +256,22 @@ export function JobCameraSession({
       setError(fix('maxPhotos'));
       return;
     }
-    const images = files.filter((file) => !file.type.startsWith('video/'));
-    const take = images.slice(0, room);
-    if (images.length > take.length) setError(fix('maxPhotos'));
-    if (take.length === 1 && files.length === 1) {
-      openDraft(take[0], false);
+    const usable = files.filter((file) => file.type.startsWith('image/') || (!isFix && file.type.startsWith('video/')));
+    const take = usable.slice(0, room);
+    if (usable.length > take.length) setError(fix('maxPhotos'));
+    if (take.length === 1) {
+      openDraft(take[0], take[0].type.startsWith('video/'));
       return;
     }
     const next = take.map((file) => {
-      const ready = captureFile(file, false, prefix);
+      const video = file.type.startsWith('video/');
+      const ready = captureFile(file, video, prefix);
       return {
         id: `${ready.name}-${ready.size}-${Date.now()}-${Math.random()}`,
         file: ready,
         url: URL.createObjectURL(ready),
         caption: '',
-        video: false,
+        video,
       };
     });
     if (next.length === 0) return;
@@ -241,6 +292,67 @@ export function JobCameraSession({
       if (!blob) return;
       openDraft(new File([blob], `${prefix}-${Date.now()}.jpg`, { type: 'image/jpeg' }), false);
     }, 'image/jpeg', 0.9);
+  };
+
+  const startRecording = async () => {
+    if (isFix || saving) return;
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      recorderRef.current.stop();
+      return;
+    }
+    const videoStream = streamRef.current;
+    if (!live || !videoStream || typeof MediaRecorder === 'undefined') {
+      videoInputRef.current?.click();
+      return;
+    }
+    const chosen = recorderChoice();
+    let mixed: MediaStream = videoStream;
+    try {
+      const audio = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      audioRef.current = audio;
+      mixed = new MediaStream([...videoStream.getVideoTracks(), ...audio.getAudioTracks()]);
+    } catch {
+      audioRef.current = null;
+    }
+    let recorder: MediaRecorder;
+    try {
+      recorder = chosen.mime
+        ? new MediaRecorder(mixed, { mimeType: chosen.mime, videoBitsPerSecond: 800_000 })
+        : new MediaRecorder(mixed);
+    } catch {
+      audioRef.current?.getTracks().forEach((track) => track.stop());
+      audioRef.current = null;
+      videoInputRef.current?.click();
+      return;
+    }
+    const chunks: Blob[] = [];
+    const session = sessionRef.current;
+    recorderRef.current = recorder;
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+    recorder.onstop = () => {
+      audioRef.current?.getTracks().forEach((track) => track.stop());
+      audioRef.current = null;
+      recorderRef.current = null;
+      if (discardRecording.current || session !== sessionRef.current) return;
+      setRecording(false);
+      const type = (recorder.mimeType || chosen.mime || 'video/webm').split(';')[0];
+      const ext = type.includes('mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(chunks, { type });
+      if (blob.size === 0) return;
+      openDraft(new File([blob], `${prefix}-${Date.now()}.${ext}`, { type }), true);
+    };
+    discardRecording.current = false;
+    recorder.start(1000);
+    setElapsed(0);
+    setRecording(true);
+    window.setTimeout(() => {
+      if (recorder.state === 'recording') recorder.stop();
+    }, 120_000);
+  };
+  recordRef.current = () => {
+    void startRecording();
   };
 
   const finish = async () => {
@@ -322,7 +434,8 @@ export function JobCameraSession({
           <button
             type="button"
             onClick={() => void startLive(facingRef.current === 'environment' ? 'user' : 'environment')}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15"
+            disabled={recording}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 disabled:opacity-40"
             aria-label={t('flipCamera')}
           >
             <SwitchCamera className="h-5 w-5" />
@@ -348,7 +461,13 @@ export function JobCameraSession({
             {isFix ? fix('captureHint') : t('shutterHint')}
           </div>
         ) : null}
-        {error ? <p className="absolute inset-x-4 top-4 rounded-lg bg-red-600 px-3 py-2 text-sm">{error}</p> : null}
+        {recording ? (
+          <p className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full bg-red-600 px-3 py-1 text-sm font-bold">
+            <span className="h-2 w-2 rounded-full bg-white" />
+            {`${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`}
+          </p>
+        ) : null}
+        {error ? <p className="absolute inset-x-4 top-14 rounded-lg bg-red-600 px-3 py-2 text-sm">{error}</p> : null}
       </div>
 
       {saved ? (
@@ -396,7 +515,7 @@ export function JobCameraSession({
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            disabled={saving || (maxShots != null && shots.length >= maxShots)}
+            disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
             className="flex shrink-0 items-center justify-center justify-self-start overflow-hidden rounded-lg bg-white/15 disabled:opacity-50"
             style={{ width: 48, height: 48 }}
             aria-label={t('photosFromLibrary')}
@@ -416,7 +535,7 @@ export function JobCameraSession({
               if (live) snapLive();
               else cameraInputRef.current?.click();
             }}
-            disabled={saving || (maxShots != null && shots.length >= maxShots)}
+            disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
             aria-label={t('shutter')}
             className="flex shrink-0 items-center justify-center rounded-full border-4 border-white disabled:opacity-50"
             style={{ width: 76, height: 76 }}
@@ -427,12 +546,13 @@ export function JobCameraSession({
             {isFix ? null : (
               <button
                 type="button"
-                onClick={() => videoInputRef.current?.click()}
+                onClick={() => void startRecording()}
                 disabled={saving}
-                className="flex items-center gap-1 rounded-full bg-white/15 px-3 py-2 text-xs font-bold disabled:opacity-50"
+                className={`flex items-center gap-1 rounded-full px-3 py-2 text-xs font-bold disabled:opacity-50 ${recording ? 'bg-red-600 text-white' : 'bg-white/15'}`}
+                aria-label={recording ? t('stopVideo') : t('video')}
               >
-                <Video className="h-4 w-4" />
-                {t('video')}
+                {recording ? <Square className="h-4 w-4 fill-current" /> : <Video className="h-4 w-4" />}
+                {recording ? t('stopVideo') : t('video')}
               </button>
             )}
             <button
@@ -441,7 +561,7 @@ export function JobCameraSession({
                 if (isFix && shots.length === 0) onSkip?.();
                 else void finish();
               }}
-              disabled={saving || (shots.length === 0 && !(isFix && onSkip))}
+              disabled={saving || recording || (shots.length === 0 && !(isFix && onSkip))}
               className={isFix && shots.length === 0
                 ? 'max-w-[7.5rem] rounded-full bg-white px-3 py-2 text-right text-xs font-bold leading-tight text-black disabled:opacity-40'
                 : 'rounded-full bg-white px-4 py-2 text-sm font-bold text-black disabled:opacity-40'}
@@ -522,6 +642,7 @@ export function JobCameraSession({
           ownerId={businessId}
           onClose={() => setPickerOpen(false)}
           onSelect={(file) => {
+            setPickerOpen(false);
             void addFromDrive(file);
           }}
         />
@@ -529,7 +650,7 @@ export function JobCameraSession({
       <input
         ref={libraryInputRef}
         type="file"
-        accept="image/*"
+        accept={isFix ? 'image/*' : 'image/*,video/*'}
         multiple
         className="hidden"
         onChange={(event) => {

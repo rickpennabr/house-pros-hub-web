@@ -81,6 +81,7 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
   const [pickingId, setPickingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ChosenCustomer | null>(null);
   const [shooting, setShooting] = useState(false);
+  const [capture, setCapture] = useState<'photo' | 'video'>('photo');
   const [afterOf, setAfterOf] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [covers, setCovers] = useState<Record<string, { url: string; mimeType: string }>>({});
@@ -435,6 +436,12 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
           }}
           onCamera={() => {
             setAfterOf(null);
+            setCapture('photo');
+            setShooting(true);
+          }}
+          onWalkthrough={() => {
+            setAfterOf(null);
+            setCapture('video');
             setShooting(true);
           }}
           onTakeAfter={(photoId) => {
@@ -449,16 +456,19 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
       <JobCameraSession
         open={open && Boolean(selected) && shooting}
         mode="job"
+        begin={capture}
         projectId={selected?.projectId}
         title={selected?.name ?? ''}
         subtitle={selected?.address}
-        onBack={() => {
+          onBack={() => {
             setShooting(false);
+            setCapture('photo');
             setAfterOf(null);
             setError(null);
           }}
           onFinished={() => {
             setShooting(false);
+            setCapture('photo');
             setAfterOf(null);
             setError(null);
           }}
