@@ -8,8 +8,10 @@
  *
  * - Admin or contractor replies (POST /api/chat/admin/messages)
  *   → sendVisitorPushNotification(conversationId) (visitor subscriptions for that conversation)
+ *   → url is /{locale}/probot, from the sender's page. Older "/" and "/probot" payloads are rewritten in the service worker.
  *
  * Payload shape: { title, body, url, badge?: number }. Badge is optional; service worker uses payload.badge or 1.
+ * A 404 or 410 from the push service deletes that subscription. TTL is 24 hours.
  *
  * --- Badge behavior ---
  * - Badge = total unread count (today: chat only; later: chat + CRM, calendar, etc.).

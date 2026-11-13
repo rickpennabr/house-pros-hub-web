@@ -12,6 +12,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-visual",
+  themeColor: "#ffffff",
 };
 
 // Validate environment variables at runtime (not during build)

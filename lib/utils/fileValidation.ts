@@ -22,16 +22,25 @@ export const MAX_FILE_SIZES = {
   logo: 5 * 1024 * 1024, // 5MB
   background: 5 * 1024 * 1024, // 5MB
   gallery: 5 * 1024 * 1024, // 5MB per gallery image
-  chat: 10 * 1024 * 1024, // 10MB per chat attachment (images + PDF)
+  chat: 10 * 1024 * 1024, // 10MB per chat photo, PDF, or voice note
+  chatVideo: 25 * 1024 * 1024, // 25MB per chat video
   invoiceAttachment: 20 * 1024 * 1024, // 20MB per invoice attachment (QuickBooks-style)
 } as const;
 
-/** Allowed chat attachment MIME types (images + PDF) */
+/** Allowed chat attachment MIME types (images, PDF, video, voice). */
 export const ALLOWED_CHAT_ATTACHMENT_TYPES = [
   'image/jpeg',
   'image/png',
   'image/webp',
   'application/pdf',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'audio/webm',
+  'audio/mp4',
+  'audio/mpeg',
+  'audio/ogg',
+  'audio/wav',
 ] as const;
 
 export type FileType = keyof typeof MAX_FILE_SIZES;
@@ -116,6 +125,14 @@ export function getExtensionFromMimeType(mimeType: string): string {
     'image/png': '.png',
     'image/webp': '.webp',
     'application/pdf': '.pdf',
+    'video/mp4': '.mp4',
+    'video/webm': '.webm',
+    'video/quicktime': '.mov',
+    'audio/webm': '.webm',
+    'audio/mp4': '.m4a',
+    'audio/mpeg': '.mp3',
+    'audio/ogg': '.ogg',
+    'audio/wav': '.wav',
   };
   return mimeToExt[mimeType] || '.bin';
 }

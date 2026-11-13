@@ -26,6 +26,7 @@ interface ProBotMessageListProps {
   confirmingStepId?: string | null;
   onConfirmEstimate?: (stepId: string) => void;
   onEditEstimate?: () => void;
+  onReply?: (msg: ChatMessage) => void;
 }
 
 export default function ProBotMessageList({
@@ -38,6 +39,7 @@ export default function ProBotMessageList({
   confirmingStepId,
   onConfirmEstimate,
   onEditEstimate,
+  onReply,
 }: ProBotMessageListProps) {
   const uniqueMessages = useMemo(() => dedupeMessagesById(messages), [messages]);
 
@@ -65,6 +67,7 @@ export default function ProBotMessageList({
           confirmingStepId={confirmingStepId}
           onConfirmEstimate={onConfirmEstimate}
           onEditEstimate={onEditEstimate}
+          onReply={onReply}
         />
       ))}
     </div>

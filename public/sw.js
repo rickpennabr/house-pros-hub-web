@@ -63,10 +63,28 @@ self.addEventListener('push', function (event) {
   event.waitUntil(Promise.all([notifyClients, showNotif, setBadge]));
 });
 
+function notificationTarget(url) {
+  var path = typeof url === 'string' && url ? url : '/en/probot';
+  if (path.indexOf('http://') === 0 || path.indexOf('https://') === 0) {
+    try {
+      var parsed = new URL(path);
+      if (parsed.origin !== self.location.origin) return self.location.origin + '/en/probot';
+      path = parsed.pathname + parsed.search;
+    } catch (e) {
+      path = '/en/probot';
+    }
+  }
+  if (path.charAt(0) !== '/') path = '/' + path;
+  // Older payloads used paths that are not pages.
+  if (path === '/probot' || path.indexOf('/probot?') === 0) path = '/en' + path;
+  if (path === '/') path = '/en/probot';
+  return new URL(path, self.location.origin).href;
+}
+
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-  const url = event.notification.data?.url || '/admin/chat';
-  const clearBadge =
+  var target = notificationTarget(event.notification.data && event.notification.data.url);
+  var clearBadge =
     typeof self.navigator !== 'undefined' && 'clearAppBadge' in self.navigator
       ? self.navigator.clearAppBadge().catch(function () {})
       : Promise.resolve();
@@ -74,15 +92,26 @@ self.addEventListener('notificationclick', function (event) {
     Promise.all([
       clearBadge,
       clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-        for (const client of clientList) {
-          if (client.url.includes(self.location.origin) && 'focus' in client) {
-            client.navigate(url);
-            return client.focus();
+        var same = null;
+        var any = null;
+        for (var i = 0; i < clientList.length; i++) {
+          var client = clientList[i];
+          if (!client.url || client.url.indexOf(self.location.origin) !== 0) continue;
+          if (!any) any = client;
+          if (client.url.split('#')[0] === target) same = client;
+        }
+        var chosen = same || any;
+        if (chosen && 'focus' in chosen) {
+          if (chosen.url.split('#')[0] !== target && typeof chosen.navigate === 'function') {
+            return chosen.navigate(target).then(function (next) {
+              return (next || chosen).focus();
+            }).catch(function () {
+              return clients.openWindow ? clients.openWindow(target) : chosen.focus();
+            });
           }
+          return chosen.focus();
         }
-        if (clients.openWindow) {
-          return clients.openWindow(self.location.origin + url);
-        }
+        if (clients.openWindow) return clients.openWindow(target);
       }),
     ])
   );

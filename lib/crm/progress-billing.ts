@@ -91,6 +91,8 @@ export function buildProgressInvoice(input: {
   requestedCents?: number | null;
   lineItems: unknown;
   note: string | null;
+  /** A deposit is the first slice, created when the customer accepts. */
+  purpose?: 'progress' | 'deposit';
 }): { error: string } | ProgressInvoiceDraft {
   const contractCents = Math.max(0, input.contractCents);
   const billedCents = Math.max(0, input.billedCents);
@@ -108,14 +110,15 @@ export function buildProgressInvoice(input: {
   const fullFirstInvoice = billedCents === 0 && amountCents === contractCents;
   const lineItems = fullFirstInvoice ? asLines(input.lineItems) : scaleContractLines(input.lineItems, amountCents);
   const remainingAfterCents = remaining - amountCents;
-  const note = fullFirstInvoice
+  const depositCoversEstimate = input.purpose === 'deposit' && remainingAfterCents === 0;
+  const billingLine = input.purpose === 'deposit'
+    ? depositCoversEstimate
+      ? `Deposit of ${usd(amountCents)} covers this estimate.`
+      : `Deposit of ${usd(amountCents)} due on acceptance. ${usd(remainingAfterCents)} of ${usd(contractCents)} remains on the estimate.`
+    : `Progress billing of ${usd(amountCents)}. ${usd(remainingAfterCents)} of ${usd(contractCents)} remains on the estimate.`;
+  const note = fullFirstInvoice && input.purpose !== 'deposit'
     ? input.note
-    : [
-        input.note,
-        `Progress billing of ${usd(amountCents)}. ${usd(remainingAfterCents)} of ${usd(contractCents)} remains on the estimate.`,
-      ]
-        .filter((part) => part && part.trim())
-        .join('\n\n');
+    : [input.note, billingLine].filter((part) => part && part.trim()).join('\n\n');
 
   return {
     amountCents,

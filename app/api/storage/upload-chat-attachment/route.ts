@@ -19,7 +19,8 @@ const visitorIdSchema = z.string().trim().min(1).max(100);
 
 /**
  * POST /api/storage/upload-chat-attachment
- * Upload one or more chat attachments (images or PDF). Max 10 files, 10MB each.
+ * Upload one or more chat attachments (images, PDF, video, or voice). Max 10 files.
+ * Photos, PDFs, and voice notes are 10MB. Video is 25MB.
  * Returns [{ url, name, contentType }].
  * Path is derived from server-validated conversation ownership (visitor or admin/contractor with access).
  */
@@ -114,17 +115,20 @@ export async function POST(request: NextRequest) {
     const results: { url: string; name: string; contentType: string }[] = [];
 
     for (const file of flat) {
-      if (file.size > MAX_FILE_SIZES.chat) {
-        return NextResponse.json(
-          { error: `File "${file.name}" exceeds 10MB limit` },
-          { status: 400 }
-        );
-      }
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const validation = await validateChatAttachmentMagicBytes(buffer);
+      const isVideo = validation.mimeType?.startsWith('video/') === true && !file.name.startsWith('voice-note');
+      const sizeLimit = isVideo ? MAX_FILE_SIZES.chatVideo : MAX_FILE_SIZES.chat;
+      if (file.size > sizeLimit) {
+        const mb = Math.round(sizeLimit / (1024 * 1024));
+        return NextResponse.json(
+          { error: `File "${file.name}" exceeds ${mb}MB limit` },
+          { status: 400 }
+        );
+      }
       if (!validation.isValid || !validation.mimeType) {
-        const allowed = 'JPEG, PNG, WebP, PDF';
+        const allowed = 'JPEG, PNG, WebP, PDF, MP4, MOV, WebM, and voice notes';
         const hint =
           file.name.toLowerCase().endsWith('.pdf')
             ? ' PDFs must be under 10MB and start with %PDF.'

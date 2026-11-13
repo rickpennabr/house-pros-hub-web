@@ -1,47 +1,14 @@
 'use client';
 
-import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Building2, Paperclip, User, Check, CheckCheck, ImageIcon } from 'lucide-react';
+import { Building2, User, Check, CheckCheck, ImageIcon, Reply } from 'lucide-react';
+import { ChatMediaAttachment } from '@/components/chat/ChatMediaAttachment';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import type { ChatMessage } from '@/lib/types/chat';
 import ProAgentCards from './ProAgentCards';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
-
-/** Renders image with WhatsApp-style thumbnail; shows placeholder if load fails. */
-function ChatImageWithFallback({
-  url,
-  name,
-  isVisitor,
-}: {
-  url: string;
-  name: string;
-  isVisitor: boolean;
-}) {
-  const [error, setError] = useState(false);
-  if (error) {
-    return (
-      <div
-        className={`flex items-center gap-2 py-3 px-4 rounded-lg max-w-[280px] ${
-          isVisitor ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'
-        }`}
-      >
-        <ImageIcon className="w-5 h-5 shrink-0" />
-        <span className="text-sm truncate">{name || 'Photo'}</span>
-      </div>
-    );
-  }
-  return (
-    <img
-      src={url}
-      alt={name || 'Image'}
-      className="w-full h-auto max-h-[320px] object-cover block"
-      onError={() => setError(true)}
-    />
-  );
-}
 
 interface ProBotMessageBubbleProps {
   msg: ChatMessage;
@@ -52,6 +19,7 @@ interface ProBotMessageBubbleProps {
   confirmingStepId?: string | null;
   onConfirmEstimate?: (stepId: string) => void;
   onEditEstimate?: () => void;
+  onReply?: (msg: ChatMessage) => void;
 }
 
 export default function ProBotMessageBubble({
@@ -63,6 +31,7 @@ export default function ProBotMessageBubble({
   confirmingStepId,
   onConfirmEstimate,
   onEditEstimate,
+  onReply,
 }: ProBotMessageBubbleProps) {
   const t = useTranslations('probot');
   const isVisitor = msg.sender === 'visitor';
@@ -106,6 +75,29 @@ export default function ProBotMessageBubble({
                   : 'ProBot'}
             </p>
           )}
+          {msg.replyTo ? (
+            <p className="mb-1 truncate border-l-2 border-current/40 pl-2 text-xs opacity-80">
+              {msg.replyTo.kind === 'photo'
+                ? t('photoPlaceholder')
+                : msg.replyTo.kind === 'video'
+                  ? t('videoLabel')
+                  : msg.replyTo.kind === 'voice'
+                    ? t('voiceNote')
+                    : msg.replyTo.kind === 'file'
+                      ? msg.replyTo.body || t('fileLabel')
+                      : msg.replyTo.body}
+            </p>
+          ) : null}
+          {onReply ? (
+            <button
+              type="button"
+              onClick={() => onReply(msg)}
+              className="float-right cursor-pointer p-0.5 opacity-70 hover:opacity-100"
+              aria-label={t('reply')}
+            >
+              <Reply className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
           {body.trim() && <p className="whitespace-pre-wrap break-words">{body}</p>}
           {msg.payload && (
             <ProAgentCards
@@ -118,31 +110,9 @@ export default function ProBotMessageBubble({
           )}
           {msg.attachments?.length ? (
             <div className="mt-2 space-y-2">
-              {msg.attachments.map((att, i) =>
-                (typeof att.contentType === 'string' ? att.contentType : '').startsWith('image/') ? (
-                  <a
-                    key={i}
-                    href={att.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block rounded-xl overflow-hidden max-w-[280px] border border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 cursor-pointer hover:opacity-95 transition-opacity"
-                    title={t('openImage')}
-                  >
-                    <ChatImageWithFallback url={att.url} name={att.name} isVisitor={isVisitor} />
-                  </a>
-                ) : (
-                  <a
-                    key={i}
-                    href={att.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm underline"
-                  >
-                    <Paperclip className="w-4 h-4 shrink-0" />
-                    {att.name}
-                  </a>
-                )
-              )}
+              {msg.attachments.map((att, i) => (
+                <ChatMediaAttachment key={`${att.url}-${i}`} att={att} />
+              ))}
             </div>
           ) : null}
           {isVisitor && !body.trim() && !msg.attachments?.length ? (

@@ -1,22 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronRight, ImageIcon } from 'lucide-react';
+import { ChevronRight, ImageIcon, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import Modal from '@/components/ui/Modal';
+import { NewJobCameraFlow, newJobAddress, type NewJobDraft, type ProjectFromCustomer } from '@/components/media/NewJobCameraFlow';
 import { JobCameraSession } from '@/components/media/JobCameraSession';
 import { JobCustomerAlbum } from '@/components/media/JobCustomerAlbum';
-import { ProCamCaptureSheet } from '@/components/media/ProCamCaptureSheet';
-import { usePhone } from '@/lib/media/use-phone';
 import { uploadProDriveFile, ProDriveQuotaClientError } from '@/lib/drive/upload-client';
 import { geocodeAddress, locateShot, readCompassHeading, type PhotoSpot } from '@/lib/media/photo-spot';
 import { requestCurrentLocation } from '@/lib/media/capture-location';
-import type { CaptureLocation } from '@/lib/media/capture-location';
-import { jobLocationAllowed, setJobCameraAllowed } from '@/lib/media/job-camera-prefs';
 
-interface CustomerRow {
-  id: string;
-  name: string;
+interface CustomerRow extends ProjectFromCustomer {
   address: string;
 }
 
@@ -31,6 +27,7 @@ interface CustomerApiRow {
   display_name?: string | null;
   company_name?: string | null;
   street_address?: string | null;
+  apartment?: string | null;
   city?: string | null;
   state?: string | null;
   zip_code?: string | null;
@@ -78,7 +75,6 @@ function projectRank(status: string): number {
 /** JOB camera. Pick the customer, see their photos, then open the camera to add more. */
 export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
   const t = useTranslations('jobsite');
-  const phone = usePhone();
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -87,20 +83,22 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
   const [shooting, setShooting] = useState(false);
   const [afterOf, setAfterOf] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [useLocation, setUseLocation] = useState(false);
   const [covers, setCovers] = useState<Record<string, { url: string; mimeType: string }>>({});
+  const [step, setStep] = useState<'list' | 'map'>('list');
+  const [projectCustomer, setProjectCustomer] = useState<CustomerRow | null>(null);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setUseLocation(jobLocationAllowed());
     setSelected(null);
     setShooting(false);
     setAfterOf(null);
     setQuery('');
     setError(null);
-    setNotice(null);
     setPickingId(null);
+    setStep('list');
+    setProjectCustomer(null);
+    setCreating(false);
   }, [open]);
 
   useEffect(() => {
@@ -120,6 +118,11 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
           id: row.id,
           name: customerName(row),
           address: customerAddress(row),
+          street: row.street_address?.trim() || row.billing_address_street_1?.trim() || '',
+          line2: row.apartment?.trim() || '',
+          city: row.city?.trim() || row.billing_address_city?.trim() || '',
+          state: row.state?.trim() || row.billing_address_state?.trim() || '',
+          zip: row.zip_code?.trim() || row.billing_address_zip_code?.trim() || '',
         })));
       })
       .catch(() => {
@@ -175,10 +178,85 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
     return createdBody.id;
   };
 
+  const takePhotoAtPlace = async (draft: NewJobDraft) => {
+    const label = draft.name.trim() || draft.street.trim() || 'New job';
+    const address = newJobAddress(draft);
+    setCreating(true);
+    setError(null);
+    try {
+      let customerId = draft.customerId ?? '';
+      if (!customerId) {
+        const words = label.split(/\s+/).filter(Boolean);
+        const firstName = words[0] || 'New';
+        const lastName = words.slice(1).join(' ') || 'Job';
+        const createCustomer = async (displayName: string) => {
+          const response = await fetch('/api/crm/customers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              first_name: firstName,
+              last_name: lastName,
+              display_name: displayName,
+              street_address: draft.street,
+              apartment: draft.line2,
+              city: draft.city,
+              state: draft.state,
+              zip_code: draft.zip,
+            }),
+          });
+          const body = (await response.json()) as { id?: string; error?: string };
+          return { ok: response.ok, status: response.status, id: body.id, error: body.error };
+        };
+        let createdCustomer = await createCustomer(label);
+        if (createdCustomer.status === 409) {
+          const suffix = [draft.street, draft.zip].filter(Boolean).join(' ');
+          createdCustomer = await createCustomer(suffix ? `${label} · ${suffix}` : `${label} job`);
+        }
+        if (!createdCustomer.ok || !createdCustomer.id) throw new Error(createdCustomer.error || t('saveFailed'));
+        customerId = createdCustomer.id;
+        setCustomers((current) => [{
+          id: customerId,
+          name: label,
+          address,
+          street: draft.street,
+          line2: draft.line2,
+          city: draft.city,
+          state: draft.state,
+          zip: draft.zip,
+        }, ...current]);
+      }
+      const created = await fetch('/api/crm/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ customerId, name: label, note: draft.note, status: 'in_progress' }),
+      });
+      const createdBody = (await created.json()) as { id?: string; error?: string };
+      if (!created.ok || !createdBody.id) throw new Error(createdBody.error || t('saveFailed'));
+      setStep('list');
+      setSelected({
+        id: customerId,
+        name: label,
+        address,
+        street: draft.street,
+        line2: draft.line2,
+        city: draft.city,
+        state: draft.state,
+        zip: draft.zip,
+        projectId: createdBody.id,
+      });
+      setShooting(true);
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : t('saveFailed'));
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const choose = async (customer: CustomerRow) => {
     setPickingId(customer.id);
     setError(null);
-    setNotice(null);
     try {
       const projectId = await ensureProject(customer);
       setSelected({ ...customer, projectId });
@@ -244,77 +322,41 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
     }
   };
 
-  const save = async (file: File, location: CaptureLocation | null) => {
-    if (!selected) return;
-    setError(null);
-    setNotice(null);
-    try {
-      const infoResponse = await fetch(`/api/crm/projects/${selected.projectId}/photos`, { credentials: 'include' });
-      const info = (await infoResponse.json()) as {
-        businessId?: string | null;
-        project?: { displayId?: string };
-        error?: string;
-      };
-      if (!infoResponse.ok || !info.businessId || !info.project?.displayId) {
-        throw new Error(info.error || t('noBusiness'));
-      }
-      const saved = await uploadProDriveFile({
-        file,
-        ownerType: 'business',
-        ownerId: info.businessId,
-        ensureFolderNames: ['Jobsites', info.project.displayId],
-      });
-      const response = await fetch(`/api/crm/projects/${selected.projectId}/photos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          driveFileId: saved.id,
-          takenAt: new Date().toISOString(),
-          latitude: location?.latitude ?? null,
-          longitude: location?.longitude ?? null,
-          accuracyM: location?.accuracyM ?? null,
-        }),
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        throw new Error(body.error || t('saveFailed'));
-      }
-      setNotice(t('photoSaved'));
-    } catch (saveError) {
-      if (saveError instanceof ProDriveQuotaClientError) setError(t('saveFailed'));
-      else setError(saveError instanceof Error ? saveError.message : t('saveFailed'));
-      throw saveError;
-    }
-  };
-
   const needle = query.trim().toLowerCase();
   const visible = needle
     ? customers.filter((customer) => `${customer.name} ${customer.address}`.toLowerCase().includes(needle))
     : customers;
+  const customersByName = [...customers].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <>
       <Modal
-        isOpen={open && !selected}
+        isOpen={open && !selected && step === 'list'}
         onClose={onClose}
         title={t('chooseCustomer')}
         showHeader
         showCloseButton
         maxWidth="lg"
         contentClassName="p-0"
+        headerAction={(
+          <button
+            type="button"
+            onClick={() => { setError(null); setProjectCustomer(null); setStep('map'); }}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border-2 border-black bg-black transition-colors hover:bg-gray-800"
+            aria-label={t('newProject')}
+          >
+            <Plus className="h-5 w-5 text-white" aria-hidden />
+          </button>
+        )}
       >
         <div className="border-b-2 border-black p-3">
-          <p className="mb-2 text-sm font-bold">{t('recent')}</p>
-          <input
+          <CRMSearchField
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={setQuery}
             placeholder={t('searchCustomers')}
-            className="w-full rounded-lg border-2 border-black px-3 py-2 text-sm"
-            aria-label={t('searchCustomers')}
           />
         </div>
-        <div className="max-h-[calc(100dvh-9rem)] overflow-y-auto p-3 md:max-h-[60vh]">
+        <div className="max-h-[calc(100dvh-12rem)] overflow-y-auto p-3 md:max-h-[60vh]">
           {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
           {loading && <p className="text-sm">{t('loadingCustomers')}</p>}
           {!loading && visible.length === 0 && (
@@ -324,12 +366,12 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
             {visible.map((customer) => {
               const cover = covers[customer.id];
               return (
-              <li key={customer.id}>
+              <li key={customer.id} className="flex items-stretch gap-2 rounded-lg border-2 border-black bg-white p-2">
                 <button
                   type="button"
                   disabled={pickingId !== null}
                   onClick={() => void choose(customer)}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-lg border-2 border-black bg-white p-2 text-left disabled:opacity-50"
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left disabled:opacity-50"
                 >
                   <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-200 text-gray-500">
                     {cover?.url && cover.mimeType.startsWith('video/') ? (
@@ -352,12 +394,32 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
                   </span>
                   <ChevronRight className="h-5 w-5 shrink-0" aria-hidden />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setProjectCustomer(customer);
+                    setStep('map');
+                  }}
+                  className="shrink-0 cursor-pointer self-center rounded-full border-2 border-black bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800"
+                >
+                  {t('createProject')}
+                </button>
               </li>
               );
             })}
           </ul>
         </div>
       </Modal>
+      <NewJobCameraFlow
+        open={open && !selected && step === 'map'}
+        customers={customersByName}
+        customer={projectCustomer}
+        saving={creating}
+        error={error}
+        onClose={() => { setStep('list'); setError(null); }}
+        onTakePhoto={takePhotoAtPlace}
+      />
       {selected ? (
         <JobCustomerAlbum
           open={open && !shooting}
@@ -369,7 +431,6 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
             setSelected(null);
             setShooting(false);
             setAfterOf(null);
-            setNotice(null);
             setError(null);
           }}
           onCamera={() => {
@@ -385,45 +446,24 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
           }}
         />
       ) : null}
-      {phone ? (
-        <JobCameraSession
-          open={open && Boolean(selected) && shooting}
-          projectId={selected?.projectId}
-          title={selected?.name ?? ''}
-          subtitle={selected?.address}
-          onBack={() => {
+      <JobCameraSession
+        open={open && Boolean(selected) && shooting}
+        mode="job"
+        projectId={selected?.projectId}
+        title={selected?.name ?? ''}
+        subtitle={selected?.address}
+        onBack={() => {
             setShooting(false);
             setAfterOf(null);
-            setNotice(null);
             setError(null);
           }}
           onFinished={() => {
             setShooting(false);
             setAfterOf(null);
-            setNotice(null);
             setError(null);
           }}
-          onSave={saveFiles}
-        />
-      ) : (
-      <ProCamCaptureSheet
-        isOpen={open && Boolean(selected) && shooting}
-        title={selected?.name}
-        intro={selected?.address}
-        notice={notice}
-        error={error}
-        withLocation={useLocation}
-        closeOnCapture={false}
-        onCameraReady={() => setJobCameraAllowed(true)}
-        onClose={() => {
-          setShooting(false);
-          setAfterOf(null);
-          setNotice(null);
-          setError(null);
-        }}
-        onCapture={({ file, location }) => save(file, location)}
+        onSave={saveFiles}
       />
-      )}
     </>
   );
 }

@@ -8,6 +8,40 @@ export interface ChatAttachment {
   contentType: string;
 }
 
+export type ChatReplyKind = 'text' | 'photo' | 'video' | 'voice' | 'file';
+
+/** Snapshot stored with a message that answers another message. */
+export interface ChatReply {
+  id: string;
+  sender: 'visitor' | 'admin';
+  body: string;
+  kind: ChatReplyKind;
+}
+
+export function chatReplyFromMessage(msg: {
+  id: string;
+  sender: 'visitor' | 'admin';
+  body: string;
+  attachments?: ChatAttachment[];
+}): ChatReply {
+  const text = msg.body.trim();
+  const att = msg.attachments?.[0];
+  const voice = !!att && (att.name.startsWith('voice-note') || att.contentType.startsWith('audio/'));
+  let kind: ChatReplyKind = 'text';
+  if (!text) {
+    if (voice) kind = 'voice';
+    else if (att?.contentType.startsWith('video/')) kind = 'video';
+    else if (att?.contentType.startsWith('image/')) kind = 'photo';
+    else if (att) kind = 'file';
+  }
+  return {
+    id: msg.id,
+    sender: msg.sender,
+    body: text ? text.slice(0, 160) : att?.name ?? '',
+    kind,
+  };
+}
+
 export interface ProAgentProCard {
   id: string;
   name: string;
@@ -48,6 +82,7 @@ export interface ChatMessage {
   business_name?: string;
   read_at?: string;
   attachments?: ChatAttachment[];
+  replyTo?: ChatReply;
   replyLinkUrl?: string;
   replyLinkLabel?: string;
   /** For admin messages: which identity sent (probot, business, hub_agent). Used for display. */

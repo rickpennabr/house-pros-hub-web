@@ -364,6 +364,7 @@ export interface Database {
           business_id: string | null;
           read_at: string | null;
           attachments: Json;
+          reply_to: Json | null;
           admin_sent_as: string | null;
           admin_user_id: string | null;
           payload: Json | null;
@@ -377,6 +378,7 @@ export interface Database {
           business_id?: string | null;
           read_at?: string | null;
           attachments?: Json;
+          reply_to?: Json | null;
           admin_sent_as?: string | null;
           admin_user_id?: string | null;
           payload?: Json | null;
@@ -390,6 +392,7 @@ export interface Database {
           business_id?: string | null;
           read_at?: string | null;
           attachments?: Json;
+          reply_to?: Json | null;
           admin_sent_as?: string | null;
           admin_user_id?: string | null;
           payload?: Json | null;
@@ -1595,6 +1598,7 @@ export interface Database {
           display_id: string;
           customer_id: string;
           amount_cents: number;
+          deposit_cents: number;
           line_items: Json | null;
           status: 'draft' | 'sent' | 'accepted' | 'declined';
           due_date: string | null;
@@ -1608,6 +1612,7 @@ export interface Database {
           display_id?: string;
           customer_id: string;
           amount_cents?: number;
+          deposit_cents?: number;
           line_items?: Json | null;
           status?: 'draft' | 'sent' | 'accepted' | 'declined';
           due_date?: string | null;
@@ -1621,6 +1626,7 @@ export interface Database {
           display_id?: string;
           customer_id?: string;
           amount_cents?: number;
+          deposit_cents?: number;
           line_items?: Json | null;
           status?: 'draft' | 'sent' | 'accepted' | 'declined';
           due_date?: string | null;

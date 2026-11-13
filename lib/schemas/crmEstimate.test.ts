@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {
   crmEstimateCreateSchema,
   crmEstimateUpdateSchema,
+  customerCanAcceptEstimate,
+  depositWithinEstimate,
+  estimateReadyForWork,
   isValidEstimateStatusTransition,
   normalizeEstimateAmountCents,
 } from '@/lib/schemas/crmEstimate';
@@ -41,6 +44,12 @@ describe('crmEstimate transitions and totals', () => {
     assert.equal(isValidEstimateStatusTransition('draft', 'sent'), true);
     assert.equal(isValidEstimateStatusTransition('sent', 'accepted'), true);
     assert.equal(isValidEstimateStatusTransition('accepted', 'draft'), false);
+    assert.equal(customerCanAcceptEstimate('sent'), true);
+    assert.equal(customerCanAcceptEstimate('draft'), false);
+    assert.equal(estimateReadyForWork('accepted'), true);
+    assert.equal(estimateReadyForWork('sent'), false);
+    assert.equal(depositWithinEstimate(5000, 10000), null);
+    assert.equal(depositWithinEstimate(15000, 10000), 'Deposit cannot be more than the estimate');
   });
 
   it('normalizes total amount cents from line items', () => {

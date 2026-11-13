@@ -196,7 +196,7 @@ export default function ProReactions({
   const justifyClass = layout === 'around' ? 'justify-around' : 'justify-between';
   
   return (
-    <div className="procard-reactions h-[70px] px-1 py-2 flex items-center justify-center overflow-hidden">
+    <div className="procard-reactions px-1 py-1 flex items-center justify-center">
       <div className={`w-full flex items-center gap-1 ${justifyClass}`}>
         {reactionConfig.map(({ type, icon: Icon, label, count }) => {
           const isActive = activeReactions.has(type);
@@ -242,14 +242,14 @@ export default function ProReactions({
             <button
               key={type}
               onClick={(e) => handleReaction(e, type)}
-              className={`group flex flex-1 min-w-0 flex-col items-center justify-center gap-2 px-0.5 rounded-lg transition-all font-medium cursor-pointer ${getButtonStyles()}`}
+              className={`group flex flex-1 min-w-0 flex-col items-center justify-center px-0.5 rounded-lg transition-all font-medium cursor-pointer ${getButtonStyles()}`}
               aria-label={`${label}, ${count}`}
             >
-              <div className="flex items-center justify-center gap-1">
+              <div className="flex items-center justify-center gap-1 pb-1">
                 <Icon className={`w-4 h-4 md:w-3 md:h-3 transition-transform md:group-hover:scale-110 ${getIconStyles()}`} />
                 <span className={`text-[10px] font-semibold leading-tight ${getTextColor()}`}>{count}</span>
               </div>
-              <div className={`w-full min-w-0 px-1 py-1.5 rounded border-2 ${getBorderStyles()} bg-white flex items-center justify-center`}>
+              <div className={`w-full min-w-0 px-1 py-0.5 rounded border-2 ${getBorderStyles()} bg-white flex items-center justify-center`}>
                 <span className={`text-[10px] font-semibold leading-tight whitespace-nowrap truncate ${getTextColor()}`}>{label}</span>
               </div>
             </button>

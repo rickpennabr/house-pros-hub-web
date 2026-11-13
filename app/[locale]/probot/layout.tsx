@@ -7,12 +7,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft } from 'lucide-react';
 import ProfileIcon from '@/components/pageslayout/ProfileIcon';
-import ContractorPushButton from '@/components/probot/ContractorPushButton';
+import { HeaderNotificationBell } from '@/components/pageslayout/HeaderNotificationBell';
 import ProBotNevadaMountains from '@/components/probot/ProBotNevadaMountains';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { ProBotHeaderProvider, useProBotHeader } from '@/contexts/ProBotHeaderContext';
 import { useProBotTransition } from '@/contexts/ProBotTransitionContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { DAY_CYCLE_SKY_ENABLED, PROBOT_ASSETS } from '@/lib/constants/probot';
 
 const SHRINK_DURATION_MS = 500;
@@ -43,8 +42,6 @@ export default function ProBotLayout({ children }: ProBotLayoutProps) {
       ? Math.max(1000, parseInt(slowLoadingSec, 10) * 1000) || LOADING_SCREEN_MIN_MS
       : LOADING_SCREEN_MIN_MS;
   const { setTransitioningToProbot } = useProBotTransition();
-  const { user } = useAuth();
-  const isContractor = !!user?.businessId;
   const [revealed, setRevealed] = useState(false);
   const [exiting, setExiting] = useState(false);
   /** Header avatar: 0 = waving (first), 1 = typing (second). Sequence one after the other. */
@@ -105,7 +102,6 @@ export default function ProBotLayout({ children }: ProBotLayoutProps) {
           router={router}
           loadingMinMs={loadingMinMs}
           setTransitioningToProbot={setTransitioningToProbot}
-          isContractor={isContractor}
           revealed={revealed}
           exiting={exiting}
           setExiting={setExiting}
@@ -132,7 +128,6 @@ interface ProBotLayoutContentProps {
   router: ReturnType<typeof useRouter>;
   loadingMinMs: number;
   setTransitioningToProbot: (v: boolean) => void;
-  isContractor: boolean;
   revealed: boolean;
   exiting: boolean;
   setExiting: (v: boolean) => void;
@@ -153,7 +148,6 @@ function ProBotLayoutContent({
   router,
   loadingMinMs,
   setTransitioningToProbot,
-  isContractor,
   revealed,
   exiting,
   setExiting,
@@ -186,7 +180,7 @@ function ProBotLayoutContent({
     <>
       {/* White for now. Day/night sky + mountains return when DAY_CYCLE_SKY_ENABLED is true. */}
       <div
-        className={`fixed inset-0 min-h-screen h-screen min-h-[100dvh] h-[100dvh] w-full overflow-hidden flex flex-col pt-2 box-border relative ${
+        className={`fixed inset-0 min-h-screen h-screen min-h-[100dvh] h-[100dvh] w-full overflow-hidden flex flex-col pt-[max(0.5rem,env(safe-area-inset-top))] box-border relative ${
           DAY_CYCLE_SKY_ENABLED ? 'probot-sky-bg' : 'bg-white'
         }`}
         style={viewportH != null ? { height: `${viewportH}px` } : { height: '100svh' }}
@@ -299,9 +293,9 @@ function ProBotLayoutContent({
                 </span>
               </div>
 
-              {/* Right: Contractor push (when applicable) + Profile Icon */}
+              {/* Right: same notification bell as the business page, then profile */}
               <div className="flex items-center gap-2 flex-shrink-0 z-[100]">
-                {isContractor && <ContractorPushButton />}
+                <HeaderNotificationBell />
                 <ProfileIcon />
               </div>
             </div>

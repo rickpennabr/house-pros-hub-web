@@ -60,7 +60,7 @@ export default function PWAInstallHint() {
   return (
     <div
       role="status"
-      className="fixed top-4 left-3 right-3 z-[100] max-w-md mx-auto rounded-xl bg-gray-900 text-white p-4 shadow-lg border border-gray-700 md:left-4 md:right-auto"
+      className="fixed top-[max(1rem,env(safe-area-inset-top))] left-3 right-3 z-[100] max-w-md mx-auto rounded-xl bg-gray-900 text-white p-4 shadow-lg border border-gray-700 md:left-4 md:right-auto"
       aria-live="polite"
     >
       <div className="flex items-start gap-3">

@@ -281,8 +281,8 @@ export default function AddTaskModal({
                     if (type !== 'other') setOtherLabel('');
                     setStep(2);
                   }}
-                  className={`flex items-center justify-between w-full p-3 rounded-lg border-2 text-left transition-colors cursor-pointer ${
-                    taskType === type ? 'border-black bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+                  className={`flex items-center justify-between w-full p-3 rounded-lg border-2 border-black text-left transition-colors cursor-pointer ${
+                    taskType === type ? 'bg-gray-50' : 'bg-white hover:bg-gray-50'
                   }`}
                 >
                   <span className="font-medium text-gray-900">{TASK_TYPE_LABELS[type]}</span>

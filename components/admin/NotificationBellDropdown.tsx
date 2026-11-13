@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { Bell, User, Briefcase, MessageCircle, ClipboardList, Calendar, Mail } from 'lucide-react';
 import type { AdminNotificationEntityType, AdminNotificationEventType } from '@/lib/types/adminNotification';
@@ -102,6 +103,7 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
   const [markingRead, setMarkingRead] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
   const bellButtonRef = useRef<HTMLButtonElement>(null);
+  const [menuBox, setMenuBox] = useState<{ top: number; right: number } | null>(null);
   const isChat = variant === 'chat';
   const visitorId = useOptionalChat()?.visitorId ?? '';
   const user = useOptionalAuth()?.user;
@@ -123,6 +125,28 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
       setMarkingRead(false);
     }
   };
+
+  useLayoutEffect(() => {
+    if (!notificationOpen) return;
+
+    const update = () => {
+      const button = bellButtonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      setMenuBox({
+        top: rect.bottom + 8,
+        right: Math.max(8, window.innerWidth - rect.right),
+      });
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [notificationOpen]);
 
   useEffect(() => {
     if (!notificationOpen) return;
@@ -184,10 +208,11 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
         )}
       </button>
 
-      {notificationOpen && (
+      {notificationOpen && menuBox && createPortal(
         <div
           ref={notificationRef}
-          className="absolute right-0 top-full mt-2 w-72 bg-white rounded-lg border-2 border-black shadow-lg z-[100] overflow-hidden"
+          className="fixed w-72 bg-white rounded-lg border-2 border-black shadow-lg z-[300] overflow-hidden"
+          style={{ top: menuBox.top, right: menuBox.right }}
         >
           {isChat ? (
             <>
@@ -290,7 +315,8 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
               </div>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

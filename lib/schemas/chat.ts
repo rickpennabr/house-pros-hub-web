@@ -20,6 +20,7 @@ export const sendMessageSchema = z.object({
   displayName: z.string().trim().max(200).optional(),
   userId: z.string().uuid().optional(),
   attachments: z.array(attachmentSchema).max(10).optional(),
+  replyToId: z.string().uuid().optional(),
   locale: z.enum(["en", "pt", "es"]).optional(),
 }).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0, {
   message: 'Message cannot be empty',
@@ -48,6 +49,7 @@ export const adminSendMessageSchema = z.object({
   conversationId: z.string().uuid(),
   body: z.string().trim().max(MAX_MESSAGE_LENGTH),
   attachments: z.array(attachmentSchema).max(10).optional(),
+  replyToId: z.string().uuid().optional(),
   /** Which identity to send as: 'probot' | 'hub_agent' | { businessId }. Defaults to 'probot' */
   sentAs: adminSentAsSchema.optional(),
 }).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0, {

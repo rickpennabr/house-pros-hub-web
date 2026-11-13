@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
       estimateId: row.id,
       estimateNumber: row.display_id,
       amountCents: row.amount_cents,
+      depositCents: row.deposit_cents ?? 0,
       lineItems: row.line_items,
       status: row.status,
       validUntilDate: row.due_date,

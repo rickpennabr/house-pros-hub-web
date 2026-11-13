@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { List, Map, Plus } from 'lucide-react';
+import { ChartColumn, List, Map, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LuIdCard } from 'react-icons/lu';
 import { useBackgroundMode } from '@/contexts/BackgroundModeContext';
 import { DAY_CYCLE_SKY_ENABLED } from '@/lib/constants/probot';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 
-export type ViewType = 'card' | 'list' | 'map';
+export type ViewType = 'card' | 'list' | 'map' | 'chart';
 
 interface ViewToggleProps {
   currentView: ViewType;
@@ -44,6 +44,7 @@ const VIEW_OPTIONS: ViewOption[] = [
   { type: 'card', icon: LuIdCard, labelKey: 'view.card' },
   { type: 'list', icon: List, labelKey: 'view.list' },
   { type: 'map', icon: Map, labelKey: 'view.map' },
+  { type: 'chart', icon: ChartColumn, labelKey: 'view.chart' },
 ];
 
 export default function ViewToggle({

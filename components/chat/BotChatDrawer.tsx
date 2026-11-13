@@ -13,6 +13,7 @@ import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
 import { LeavePageWarningModal } from '@/app/[locale]/(auth)/signup/components/LeavePageWarningModal';
 import ProCard, { type ProCardData } from '@/components/proscard/ProCard';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
+import { hasPushSubscription } from '@/lib/push/has-subscription';
 
 export interface ChatMessage {
   id: string;
@@ -398,7 +399,17 @@ export default function BotChatDrawer() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
-    setVisitorPushEnabled(Notification.permission === 'granted');
+    if (Notification.permission !== 'granted') {
+      setVisitorPushEnabled(false);
+      return;
+    }
+    let cancelled = false;
+    hasPushSubscription().then((subscribed) => {
+      if (!cancelled) setVisitorPushEnabled(subscribed);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

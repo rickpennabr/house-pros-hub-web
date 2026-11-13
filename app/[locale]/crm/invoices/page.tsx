@@ -223,21 +223,6 @@ export default function CRMInvoicesPage() {
         </div>
         {invoiceActions}
       </div>
-      <div className="hidden md:flex md:flex-wrap md:items-center md:gap-4 md:pb-2">
-        <form className="flex gap-2 items-center" onSubmit={(e) => e.preventDefault()}>
-          <label className="text-sm text-gray-600">Status</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="h-9 px-3 border border-gray-300 rounded-md text-sm bg-white text-black"
-          >
-            <option value="">All</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{invoiceStatusLabel(s)}</option>
-            ))}
-          </select>
-        </form>
-      </div>
       <MobileGridActionsModal
         isOpen={filtersOpen}
         onClose={() => setFiltersOpen(false)}
@@ -262,6 +247,27 @@ export default function CRMInvoicesPage() {
       <AdminDataTable
         searchRowClassName="max-md:pt-2"
         searchEndAction={statusFilterButton}
+        searchAside={(
+          <div className="hidden md:flex md:shrink-0 md:flex-wrap md:items-center md:gap-2">
+            <button
+              type="button"
+              onClick={() => applyStatusFilter('')}
+              className={`inline-flex h-11 shrink-0 items-center rounded-lg border-2 border-black px-3 text-sm font-medium cursor-pointer ${statusFilter === '' ? 'bg-black text-white' : 'bg-white text-black'}`}
+            >
+              All
+            </button>
+            {STATUS_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => applyStatusFilter(option)}
+                className={`inline-flex h-11 shrink-0 items-center rounded-lg border-2 border-black px-3 text-sm font-medium cursor-pointer ${statusFilter === option ? 'bg-black text-white' : 'bg-white text-black'}`}
+              >
+                {invoiceStatusLabel(option)}
+              </button>
+            ))}
+          </div>
+        )}
         hideBody={listView === 'map'}
         columnOrderKey="crm-invoices"
         exportName="invoices"

@@ -4,12 +4,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
-import { Send, MessageCircle, Volume2, VolumeX, Bell, BellOff, Trash2, Plus, Paperclip, ImageIcon, Cloud, User, AlertTriangle } from 'lucide-react';
+import { Send, MessageCircle, Volume2, VolumeX, Bell, BellOff, Trash2, Plus, Paperclip, ImageIcon, Cloud, Camera, User, AlertTriangle } from 'lucide-react';
+import { ChatMediaAttachment } from '@/components/chat/ChatMediaAttachment';
 import { playNotificationSound } from '@/lib/utils/notificationSound';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import type { ProAgentPayload } from '@/lib/types/chat';
+import { hasPushSubscription } from '@/lib/push/has-subscription';
 
 interface Conversation {
   id: string;
@@ -36,6 +38,7 @@ interface ChatMessage {
   business_name?: string;
   read_at?: string;
   attachments?: ChatAttachment[];
+  replyTo?: { id: string; body: string; kind: 'text' | 'photo' | 'video' | 'voice' | 'file'; sender: 'visitor' | 'admin' };
   payload?: ProAgentPayload | null;
 }
 
@@ -122,7 +125,13 @@ export default function AdminChatPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
-    setPushEnabled(Notification.permission === 'granted');
+    if (Notification.permission !== 'granted') {
+      setPushEnabled(false);
+    } else {
+      hasPushSubscription().then((subscribed) => {
+        if (subscribed) setPushEnabled(true);
+      });
+    }
     if (
       Notification.permission === 'granted' &&
       vapidPublicKey &&
@@ -537,6 +546,11 @@ export default function AdminChatPage() {
                       <p className="text-xs font-medium opacity-80 mb-1">
                         {m.sender === 'admin' ? 'ProBot' : m.business_name ? `Customer · To: ${m.business_name}` : 'Customer'}
                       </p>
+                      {m.replyTo ? (
+                        <p className="mb-1 truncate border-l-2 border-current/40 pl-2 text-xs opacity-80">
+                          {m.replyTo.kind === 'text' ? m.replyTo.body : m.replyTo.kind === 'photo' ? 'Photo' : m.replyTo.kind === 'video' ? 'Video' : m.replyTo.kind === 'voice' ? 'Voice note' : m.replyTo.body || 'File'}
+                        </p>
+                      ) : null}
                       {m.body.trim() && <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>}
                       {m.payload?.pros?.map((pro) => (
                         <a key={pro.id} href={pro.profileUrl} className="mt-1 block text-xs underline">
@@ -558,18 +572,9 @@ export default function AdminChatPage() {
                       )}
                       {m.attachments?.length ? (
                         <div className="mt-2 space-y-2">
-                          {m.attachments.map((att: ChatAttachment, i: number) =>
-                            att.contentType.startsWith('image/') ? (
-                              <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden max-w-[240px] border border-gray-200">
-                                <img src={att.url} alt={att.name} className="w-full h-auto object-cover" />
-                              </a>
-                            ) : (
-                              <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm underline">
-                                <Paperclip className="w-4 h-4 shrink-0" />
-                                {att.name}
-                              </a>
-                            )
-                          )}
+                          {m.attachments.map((att: ChatAttachment, i: number) => (
+                            <ChatMediaAttachment key={`${att.url}-${i}`} att={att} />
+                          ))}
                         </div>
                       ) : null}
                       <p className="text-xs opacity-70 mt-1">{formatTime(m.created_at)}</p>
@@ -605,7 +610,7 @@ export default function AdminChatPage() {
                     : 'Your reply pauses ProAgent until you hand the chat back.'}
                 </p>
                 <div className="flex gap-0 items-end">
-                  <input ref={fileInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={handleAdminFileSelect} />
+                  <input ref={fileInputRef} type="file" accept="image/*,video/*,application/pdf" multiple className="hidden" onChange={handleAdminFileSelect} />
                   <div className="relative">
                     <button
                       type="button"
@@ -626,8 +631,11 @@ export default function AdminChatPage() {
                           <a href="https://drive.google.com" target="_blank" rel="noopener noreferrer" onClick={() => setAttachMenuOpen(false)} className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">
                             <Cloud className="w-4 h-4" /> Add from Google Drive
                           </a>
-                          <button type="button" onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">
-                            <ImageIcon className="w-4 h-4" /> Photos
+                          <button type="button" onClick={() => { const input = fileInputRef.current; if (!input) return; input.accept = 'image/*,video/*'; input.setAttribute('capture', 'environment'); input.click(); input.removeAttribute('capture'); setAttachMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">
+                            <Camera className="w-4 h-4" /> Camera
+                          </button>
+                          <button type="button" onClick={() => { const input = fileInputRef.current; if (!input) return; input.accept = 'image/*,video/*'; input.removeAttribute('capture'); input.click(); setAttachMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">
+                            <ImageIcon className="w-4 h-4" /> Photos and video
                           </button>
                         </div>
                       </>

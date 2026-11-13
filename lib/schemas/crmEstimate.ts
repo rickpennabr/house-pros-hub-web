@@ -18,6 +18,7 @@ export const crmEstimateCreateSchema = z.object({
   dueDate: z.string().date().nullable().optional(),
   validityDate: z.string().date().nullable().optional(),
   note: z.string().trim().max(5000).nullable().optional(),
+  depositCents: z.coerce.number().int().min(0).optional(),
 });
 
 export const crmEstimateUpdateSchema = z.object({
@@ -27,6 +28,7 @@ export const crmEstimateUpdateSchema = z.object({
   dueDate: z.string().date().nullable().optional(),
   validityDate: z.string().date().nullable().optional(),
   note: z.string().trim().max(5000).nullable().optional(),
+  depositCents: z.coerce.number().int().min(0).optional(),
 });
 
 export function normalizeEstimateAmountCents(
@@ -43,6 +45,22 @@ export function normalizeEstimateAmountCents(
       : Math.round(item.qty * item.rate_cents);
     return sum + Math.max(0, Math.round(amount));
   }, 0);
+}
+
+/** A customer can approve only an estimate that was sent. */
+export function customerCanAcceptEstimate(status: string): boolean {
+  return status === 'sent';
+}
+
+/** Invoices and projects start after the customer has accepted. */
+export function estimateReadyForWork(status: string): boolean {
+  return status === 'accepted';
+}
+
+export function depositWithinEstimate(depositCents: number, estimateCents: number): string | null {
+  if (!Number.isInteger(depositCents) || depositCents < 0) return 'Enter a deposit amount';
+  if (depositCents > Math.max(0, estimateCents)) return 'Deposit cannot be more than the estimate';
+  return null;
 }
 
 export function isValidEstimateStatusTransition(current: string, next: string): boolean {

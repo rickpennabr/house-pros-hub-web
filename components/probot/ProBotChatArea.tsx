@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import Image from 'next/image';
-import { Building2, Trash2, ArrowLeft, Plus, Paperclip, ImageIcon, Cloud, User } from 'lucide-react';
+import { Building2, Trash2, ArrowLeft, User } from 'lucide-react';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import ChatSignupForm from '@/components/chat/ChatSignupForm';
@@ -19,6 +19,10 @@ import ProBotMessageList from './ProBotMessageList';
 import { ProBotCrmViews, type ProBotCrmViewType } from './ProBotCrmViews';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
 import type { ChatMessage, ChatAttachment } from '@/lib/types/chat';
+import { chatReplyFromMessage } from '@/lib/types/chat';
+import { ChatPendingAttachments, type JobProjectOption } from './ChatPendingAttachments';
+import { uploadProDriveFile } from '@/lib/drive/upload-client';
+import { requestCurrentLocation } from '@/lib/media/capture-location';
 import {
   createConversation,
   deleteConversation,
@@ -118,6 +122,11 @@ export default function ProBotChatArea({
   const [hubAgent, setHubAgent] = useState<{ displayName: string; avatarUrl: string | null } | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
+  const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
+  const [jobProjects, setJobProjects] = useState<JobProjectOption[]>([]);
+  const [savedToProject, setSavedToProject] = useState<Record<string, string>>({});
+  const [savingProjectUrl, setSavingProjectUrl] = useState<string | null>(null);
+  const fileByUrl = useRef<Map<string, File>>(new Map());
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [uploadingAttach, setUploadingAttach] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -503,6 +512,7 @@ export default function ProBotChatArea({
           ...(displayName ? { displayName } : {}),
           ...(isAuthenticated && user?.id ? { userId: user.id } : {}),
           ...(pendingAttachments.length > 0 ? { attachments: pendingAttachments } : {}),
+          ...(replyTarget ? { replyToId: replyTarget.id } : {}),
           ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
         });
         if (data.message) {
@@ -535,6 +545,7 @@ export default function ProBotChatArea({
             setConversationId((data as { conversationId?: string }).conversationId ?? null);
           }
           if (pendingAttachments.length > 0) setPendingAttachments([]);
+          setReplyTarget(null);
           // Refetch so read receipts (blue ticks) update if admin read while visitor was typing
           loadMessages();
           // Dismiss welcome so the sent message shows in the chat area; persist so welcome shows only once
@@ -549,7 +560,7 @@ export default function ProBotChatArea({
         setSending(false);
       }
     },
-    [visitorId, conversationId, businessId, setConversationId, sending, selectedContact?.isProBot, t, locale, isAuthenticated, user, pendingAttachments, loadMessages]
+    [visitorId, conversationId, businessId, setConversationId, sending, selectedContact?.isProBot, t, locale, isAuthenticated, user, pendingAttachments, replyTarget, loadMessages]
   );
 
   const sendAdminReply = useCallback(
@@ -573,6 +584,7 @@ export default function ProBotChatArea({
           body,
           sentAs,
           ...(attachments?.length ? { attachments } : {}),
+          ...(replyTarget ? { replyToId: replyTarget.id } : {}),
         });
         if (data.message) {
           const msg = data.message as {
@@ -592,6 +604,7 @@ export default function ProBotChatArea({
               body: msg.body,
               created_at: msg.created_at,
               attachments: msg.attachments ?? [],
+              replyTo: replyTarget ? chatReplyFromMessage(replyTarget) : (msg as { replyTo?: ChatMessage['replyTo'] }).replyTo,
               admin_sent_as: (msg.admin_sent_as as 'probot' | 'business' | 'hub_agent') ?? 'probot',
               business_id: msg.business_id,
               business_name: businessName,
@@ -602,6 +615,7 @@ export default function ProBotChatArea({
           ]);
         }
         if (attachments?.length) setPendingAttachments([]);
+        setReplyTarget(null);
         onAdminReplySent?.();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to send');
@@ -609,7 +623,7 @@ export default function ProBotChatArea({
         setSending(false);
       }
     },
-    [adminViewingConversation, isContractor, contractorBusinessId, selectedContact, sending, onAdminReplySent]
+    [adminViewingConversation, isContractor, contractorBusinessId, selectedContact, sending, onAdminReplySent, replyTarget]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -666,6 +680,11 @@ export default function ProBotChatArea({
           return;
         }
         const list = (data.attachments ?? []) as ChatAttachment[];
+        const chosen = Array.from(files);
+        list.forEach((att, index) => {
+          const file = chosen[index];
+          if (file) fileByUrl.current.set(att.url, file);
+        });
         setPendingAttachments((prev) => [...prev, ...list].slice(0, 10));
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Upload failed');
@@ -680,6 +699,83 @@ export default function ProBotChatArea({
   const removePendingAttachment = useCallback((index: number) => {
     setPendingAttachments((prev) => prev.filter((_, i) => i !== index));
   }, []);
+
+  useEffect(() => {
+    if (!isContractor) return;
+    let cancelled = false;
+    fetch('/api/crm/projects?pageSize=100', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { projects?: { id: string; name: string; status?: string }[] } | null) => {
+        if (cancelled || !data?.projects) return;
+        setJobProjects(
+          data.projects
+            .filter((project) => project.status === 'planned' || project.status === 'in_progress')
+            .map((project) => ({ id: project.id, name: project.name }))
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isContractor]);
+
+  useEffect(() => {
+    setReplyTarget(null);
+  }, [conversationId, adminViewingConversation?.id]);
+
+  const replyPreview = replyTarget
+    ? (() => {
+        const quote = chatReplyFromMessage(replyTarget);
+        if (quote.kind === 'photo') return t('photoPlaceholder');
+        if (quote.kind === 'video') return t('videoLabel');
+        if (quote.kind === 'voice') return t('voiceNote');
+        if (quote.kind === 'file') return quote.body || t('fileLabel');
+        return quote.body;
+      })()
+    : null;
+
+  const saveAttachmentToProject = useCallback(async (att: ChatAttachment, projectId: string) => {
+    const file = fileByUrl.current.get(att.url);
+    const project = jobProjects.find((item) => item.id === projectId);
+    if (!file || !project) return;
+    setSavingProjectUrl(att.url);
+    setError(null);
+    try {
+      const infoResponse = await fetch(`/api/crm/projects/${projectId}/photos`, { credentials: 'include' });
+      const info = (await infoResponse.json()) as { businessId?: string | null; project?: { displayId?: string }; error?: string };
+      if (!infoResponse.ok || !info.businessId || !info.project?.displayId) {
+        throw new Error(info.error || t('saveToProjectFailed'));
+      }
+      const location = await requestCurrentLocation();
+      const saved = await uploadProDriveFile({
+        file,
+        ownerType: 'business',
+        ownerId: info.businessId,
+        ensureFolderNames: ['Jobsites', info.project.displayId],
+      });
+      const response = await fetch(`/api/crm/projects/${projectId}/photos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          driveFileId: saved.id,
+          takenAt: new Date().toISOString(),
+          latitude: location?.latitude ?? null,
+          longitude: location?.longitude ?? null,
+          accuracyM: location?.accuracyM ?? null,
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || t('saveToProjectFailed'));
+      }
+      setSavedToProject((prev) => ({ ...prev, [att.url]: project.name }));
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : t('saveToProjectFailed'));
+    } finally {
+      setSavingProjectUrl(null);
+    }
+  }, [jobProjects, t]);
 
   const performClearMessages = useCallback(async () => {
     if (!conversationId || !visitorId || clearingMessages) return;
@@ -897,31 +993,16 @@ export default function ProBotChatArea({
                     </div>
                     {!showProBotWizardFlow && !showAdminInitialWelcome && (
                       <div className="w-full shrink-0 mt-4">
-                        {pendingAttachments.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-2">
-                            {pendingAttachments.map((att, i) => (
-                              <span
-                                key={i}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm"
-                              >
-                                {att.contentType?.startsWith('image/') ? (
-                                  <ImageIcon className="w-4 h-4 shrink-0" />
-                                ) : (
-                                  <Paperclip className="w-4 h-4 shrink-0" />
-                                )}
-                                <span className="max-w-[120px] truncate">{att.name}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => removePendingAttachment(i)}
-                                  className="shrink-0 text-gray-500 hover:text-red-600"
-                                  aria-label="Remove"
-                                >
-                                  ×
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        <ChatPendingAttachments
+                          attachments={pendingAttachments}
+                          onRemove={removePendingAttachment}
+                          projects={isContractor ? jobProjects : []}
+                          savedToProject={savedToProject}
+                          savingUrl={savingProjectUrl}
+                          onSaveToProject={isContractor ? saveAttachmentToProject : undefined}
+                          saveLabel={t('saveToProject')}
+                          savedLabel={(name) => t('savedToProject', { name })}
+                        />
                         <ChatCamFrame>
                         <form
                           onSubmit={handleSubmit}
@@ -929,6 +1010,9 @@ export default function ProBotChatArea({
                         >
                           <ChatInputBar
                             wrapperClassName="flex items-center gap-0 w-full"
+                            replyPreview={replyPreview}
+                            onCancelReply={() => setReplyTarget(null)}
+                            onRecorderError={setError}
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             placeholder={isAdminView ? t('replyToCustomer') : t('messagePlaceholder')}
@@ -947,6 +1031,12 @@ export default function ProBotChatArea({
                               uploadFiles: t('uploadFiles'),
                               addFromGoogleDrive: t('addFromGoogleDrive'),
                               photos: t('photos'),
+                              camera: t('camera'),
+                              voiceNote: t('voiceNote'),
+                              stopVoice: t('stopVoice'),
+                              voiceDenied: t('voiceDenied'),
+                              replyingTo: t('replyingTo'),
+                              cancelReply: t('cancelReply'),
                               send: t('send'),
                             }}
                           />
@@ -1141,32 +1231,17 @@ export default function ProBotChatArea({
                   </div>
                   )}
                   {!showProBotWizardFlow && !showAdminInitialWelcome && (
-                    <div className="w-full shrink-0">
-                      {pendingAttachments.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {pendingAttachments.map((att, i) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm"
-                            >
-                              {att.contentType?.startsWith('image/') ? (
-                                <ImageIcon className="w-4 h-4 shrink-0" />
-                              ) : (
-                                <Paperclip className="w-4 h-4 shrink-0" />
-                              )}
-                              <span className="max-w-[120px] truncate">{att.name}</span>
-                              <button
-                                type="button"
-                                onClick={() => removePendingAttachment(i)}
-                                className="shrink-0 text-gray-500 hover:text-red-600"
-                                aria-label="Remove"
-                              >
-                                ×
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                    <div className="w-full shrink-0 md:mb-[50px]">
+                      <ChatPendingAttachments
+                        attachments={pendingAttachments}
+                        onRemove={removePendingAttachment}
+                        projects={isContractor ? jobProjects : []}
+                        savedToProject={savedToProject}
+                        savingUrl={savingProjectUrl}
+                        onSaveToProject={isContractor ? saveAttachmentToProject : undefined}
+                        saveLabel={t('saveToProject')}
+                        savedLabel={(name) => t('savedToProject', { name })}
+                      />
                       <ChatCamFrame>
                       <form
                         onSubmit={handleSubmit}
@@ -1174,7 +1249,10 @@ export default function ProBotChatArea({
                       >
                         <ChatInputBar
                           wrapperClassName="flex items-center gap-0 w-full"
-                          value={inputValue}
+                          replyPreview={replyPreview}
+                            onCancelReply={() => setReplyTarget(null)}
+                            onRecorderError={setError}
+                            value={inputValue}
                           onChange={(e) => setInputValue(e.target.value)}
                           placeholder={isAdminView ? t('replyToCustomer') : t('messagePlaceholder')}
                           disabled={sending}
@@ -1192,6 +1270,12 @@ export default function ProBotChatArea({
                             uploadFiles: t('uploadFiles'),
                             addFromGoogleDrive: t('addFromGoogleDrive'),
                             photos: t('photos'),
+                            camera: t('camera'),
+                            voiceNote: t('voiceNote'),
+                            stopVoice: t('stopVoice'),
+                            voiceDenied: t('voiceDenied'),
+                            replyingTo: t('replyingTo'),
+                            cancelReply: t('cancelReply'),
                             send: t('send'),
                           }}
                         />
@@ -1463,34 +1547,22 @@ export default function ProBotChatArea({
                     onSubmit={handleSubmit}
                     className="w-full rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5"
                   >
-                    {pendingAttachments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {pendingAttachments.map((att, i) => (
-                          <span
-                            key={i}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm"
-                          >
-                            {att.contentType?.startsWith('image/') ? (
-                              <ImageIcon className="w-4 h-4 shrink-0" />
-                            ) : (
-                              <Paperclip className="w-4 h-4 shrink-0" />
-                            )}
-                            <span className="max-w-[120px] truncate">{att.name}</span>
-                            <button
-                              type="button"
-                              onClick={() => removePendingAttachment(i)}
-                              className="shrink-0 text-gray-500 hover:text-red-600"
-                              aria-label="Remove"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    <ChatPendingAttachments
+                      attachments={pendingAttachments}
+                      onRemove={removePendingAttachment}
+                      projects={isContractor ? jobProjects : []}
+                      savedToProject={savedToProject}
+                      savingUrl={savingProjectUrl}
+                      onSaveToProject={isContractor ? saveAttachmentToProject : undefined}
+                      saveLabel={t('saveToProject')}
+                      savedLabel={(name) => t('savedToProject', { name })}
+                    />
                     <ChatInputBar
                         wrapperClassName="flex items-center gap-0 w-full"
-                        value={inputValue}
+                        replyPreview={replyPreview}
+                            onCancelReply={() => setReplyTarget(null)}
+                            onRecorderError={setError}
+                            value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder={t('messagePlaceholder')}
                         disabled={sending}
@@ -1508,6 +1580,12 @@ export default function ProBotChatArea({
                           uploadFiles: t('uploadFiles'),
                           addFromGoogleDrive: t('addFromGoogleDrive'),
                           photos: t('photos'),
+                          camera: t('camera'),
+                          voiceNote: t('voiceNote'),
+                          stopVoice: t('stopVoice'),
+                          voiceDenied: t('voiceDenied'),
+                          replyingTo: t('replyingTo'),
+                          cancelReply: t('cancelReply'),
                           send: t('send'),
                         }}
                       />
@@ -1537,6 +1615,10 @@ export default function ProBotChatArea({
                   confirmingStepId={confirmingStepId}
                   onConfirmEstimate={isAdminView ? undefined : confirmEstimate}
                   onEditEstimate={() => messageInputRef.current?.focus()}
+                  onReply={(msg) => {
+                    setReplyTarget(msg);
+                    messageInputRef.current?.focus();
+                  }}
                 />
               </>
             )}
@@ -1561,36 +1643,25 @@ export default function ProBotChatArea({
                 onSubmit={handleSubmit}
                 className="probot-chat-footer shrink-0 w-full px-2 md:px-4 py-3 pb-[10px] md:pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 bg-white md:bg-transparent border-t border-gray-200/90 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] md:shadow-none"
               >
-              {pendingAttachments.length > 0 && (
-                <div className="mx-auto mb-2 flex w-full flex-wrap gap-2 md:w-[70%]">
-                  {pendingAttachments.map((att, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm"
-                    >
-                      {att.contentType?.startsWith('image/') ? (
-                        <ImageIcon className="w-4 h-4 shrink-0" />
-                      ) : (
-                        <Paperclip className="w-4 h-4 shrink-0" />
-                      )}
-                      <span className="max-w-[120px] truncate">{att.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => removePendingAttachment(i)}
-                        className="shrink-0 text-gray-500 hover:text-red-600"
-                        aria-label="Remove"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
+              <ChatPendingAttachments
+                attachments={pendingAttachments}
+                onRemove={removePendingAttachment}
+                className="mx-auto mb-2 flex w-full flex-wrap gap-2 md:w-[70%]"
+                projects={isContractor ? jobProjects : []}
+                savedToProject={savedToProject}
+                savingUrl={savingProjectUrl}
+                onSaveToProject={isContractor ? saveAttachmentToProject : undefined}
+                saveLabel={t('saveToProject')}
+                savedLabel={(name) => t('savedToProject', { name })}
+              />
               <ChatCamFrame>
               <div className="w-full flex items-center gap-0 rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 focus-within:ring-offset-0 transition-all py-1.5 pl-1.5 pr-1.5">
                 <ChatInputBar
                   wrapperClassName="flex items-center gap-0 w-full"
-                  value={inputValue}
+                  replyPreview={replyPreview}
+                            onCancelReply={() => setReplyTarget(null)}
+                            onRecorderError={setError}
+                            value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder={isAdminView ? t('replyToCustomer') : t('messagePlaceholder')}
                   disabled={sending}
@@ -1608,6 +1679,12 @@ export default function ProBotChatArea({
                     uploadFiles: t('uploadFiles'),
                     addFromGoogleDrive: t('addFromGoogleDrive'),
                     photos: t('photos'),
+                    camera: t('camera'),
+                    voiceNote: t('voiceNote'),
+                    stopVoice: t('stopVoice'),
+                    voiceDenied: t('voiceDenied'),
+                    replyingTo: t('replyingTo'),
+                    cancelReply: t('cancelReply'),
                     send: t('send'),
                   }}
                 />

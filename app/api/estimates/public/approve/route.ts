@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { sendEstimateApprovalNotificationEmails } from '@/lib/services/emailService';
 import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
+import { customerCanAcceptEstimate } from '@/lib/schemas/crmEstimate';
+import { issueAcceptanceDeposit } from '@/lib/crm/estimate-deposit';
 
 /**
  * POST /api/estimates/public/approve
@@ -37,8 +39,8 @@ export async function POST(request: NextRequest) {
     if (estimate.status === 'accepted') {
       return NextResponse.json({ ok: true, status: 'already_accepted' });
     }
-    if (estimate.status === 'declined') {
-      return NextResponse.json({ error: 'This estimate is no longer available for approval' }, { status: 400 });
+    if (!customerCanAcceptEstimate(estimate.status)) {
+      return NextResponse.json({ error: 'This estimate has not been sent for approval' }, { status: 400 });
     }
 
     const { error: updateErr } = await supabase
@@ -102,7 +104,14 @@ export async function POST(request: NextRequest) {
       detail: [`Estimate #${estimateNumber}`, businessName, amount].filter(Boolean).join(' · '),
     });
 
-    return NextResponse.json({ ok: true, status: 'approved' });
+    const deposit = await issueAcceptanceDeposit(supabase, estimate.id, estimate.owner_id);
+
+    return NextResponse.json({
+      ok: true,
+      status: 'approved',
+      depositInvoiceId: deposit.invoiceId,
+      depositError: deposit.error ?? null,
+    });
   } catch (err) {
     console.error('POST /api/estimates/public/approve', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

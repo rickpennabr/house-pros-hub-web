@@ -33,12 +33,72 @@ export interface PushPayload {
   icon?: string;
 }
 
+/** A day. Sixty seconds dropped the banner when the phone was locked. */
+const PUSH_TTL_SECONDS = 60 * 60 * 24;
+
+const APP_LOCALES = ['en', 'es', 'pt'] as const;
+type AppLocale = (typeof APP_LOCALES)[number];
+
+type SubscriptionTable =
+  | 'admin_push_subscriptions'
+  | 'business_push_subscriptions'
+  | 'visitor_push_subscriptions';
+
+/** Chat lives under the locale. /probot and / are not real pages. */
+export function chatPushUrl(locale: string | undefined): string {
+  const safe: AppLocale = APP_LOCALES.includes(locale as AppLocale) ? (locale as AppLocale) : 'en';
+  return `/${safe}/probot`;
+}
+
+/** Locale of the page that sent the reply, so the opened chat matches that site. */
+export function pushLocaleFromRequest(request: { headers: { get(name: string): string | null } }): AppLocale {
+  const referer = request.headers.get('referer');
+  if (!referer) return 'en';
+  try {
+    const segment = new URL(referer).pathname.split('/')[1] ?? '';
+    if (APP_LOCALES.includes(segment as AppLocale)) return segment as AppLocale;
+  } catch {
+    /* A bad Referer still opens the English chat. */
+  }
+  return 'en';
+}
+
+function pushStatus(error: unknown): number | null {
+  if (typeof error !== 'object' || error === null || !('statusCode' in error)) return null;
+  const status = (error as { statusCode?: unknown }).statusCode;
+  return typeof status === 'number' ? status : null;
+}
+
 function buildPayload(title: string, body: string, url: string, badge?: number, tag?: string, icon?: string): string {
   const payload: PushPayload = { title, body, url };
   if (typeof badge === 'number' && badge >= 0) payload.badge = Math.min(99, badge);
   if (tag) payload.tag = tag;
   if (icon) payload.icon = icon;
   return JSON.stringify(payload);
+}
+
+async function deliver(table: SubscriptionTable, subs: PushSubscriptionRow[], payload: string): Promise<void> {
+  const supabase = createServiceRoleClient();
+  await Promise.allSettled(
+    subs.map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth },
+          },
+          payload,
+          { TTL: PUSH_TTL_SECONDS }
+        );
+      } catch (error) {
+        const status = pushStatus(error);
+        // 404 and 410 mean the browser dropped the subscription.
+        if (status === 404 || status === 410) {
+          await supabase.from(table).delete().eq('endpoint', sub.endpoint);
+        }
+      }
+    })
+  );
 }
 
 /**
@@ -62,20 +122,7 @@ export async function sendAdminPushNotification(
 
   if (error || !subs?.length) return;
 
-  const payload = buildPayload(title, body, url, badge, tag, icon);
-
-  await Promise.allSettled(
-    subs.map((sub) =>
-      webpush.sendNotification(
-        {
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.p256dh, auth: sub.auth },
-        },
-        payload,
-        { TTL: 60 }
-      )
-    )
-  );
+  await deliver('admin_push_subscriptions', subs, buildPayload(title, body, url, badge, tag, icon));
 }
 
 /**
@@ -87,7 +134,7 @@ export async function sendBusinessPushNotification(
   businessId: string,
   title: string,
   body: string,
-  url: string = '/probot',
+  url: string = '/en/probot',
   badge?: number
 ): Promise<void> {
   if (!ensureVapid()) return;
@@ -108,20 +155,7 @@ export async function sendBusinessPushNotification(
 
   if (error || !subs?.length) return;
 
-  const payload = buildPayload(title, body, url, badge);
-
-  await Promise.allSettled(
-    subs.map((sub) =>
-      webpush.sendNotification(
-        {
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.p256dh, auth: sub.auth },
-        },
-        payload,
-        { TTL: 60 }
-      )
-    )
-  );
+  await deliver('business_push_subscriptions', subs, buildPayload(title, body, url, badge));
 }
 
 /**
@@ -132,7 +166,7 @@ export async function sendVisitorPushNotification(
   conversationId: string,
   title: string,
   body: string,
-  url: string = '/',
+  url: string = '/en/probot',
   badge?: number
 ): Promise<void> {
   if (!ensureVapid()) return;
@@ -145,18 +179,5 @@ export async function sendVisitorPushNotification(
 
   if (error || !subs?.length) return;
 
-  const payload = buildPayload(title, body, url, badge);
-
-  await Promise.allSettled(
-    subs.map((sub) =>
-      webpush.sendNotification(
-        {
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.p256dh, auth: sub.auth },
-        },
-        payload,
-        { TTL: 60 }
-      )
-    )
-  );
+  await deliver('visitor_push_subscriptions', subs, buildPayload(title, body, url, badge));
 }

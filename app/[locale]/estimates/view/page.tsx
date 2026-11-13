@@ -46,7 +46,12 @@ function PublicEstimateViewContent() {
       if (payload.status === 'already_accepted') {
         setApproveMessage('This estimate is already approved.');
       } else {
-        setApproveMessage('Estimate approved successfully. Thank you.');
+        const depositNote = payload.depositError
+          ? `Estimate approved. The deposit invoice could not be created. ${payload.depositError}`
+          : payload.depositInvoiceId
+            ? 'Estimate approved. The deposit is the first invoice on this estimate.'
+            : 'Estimate approved successfully. Thank you.';
+        setApproveMessage(depositNote);
       }
       setData((prev) => (prev ? { ...prev, status: 'accepted' } : prev));
     } catch (err) {

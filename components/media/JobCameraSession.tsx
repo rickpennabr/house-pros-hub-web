@@ -17,18 +17,24 @@ interface Shot {
 
 interface JobCameraSessionProps {
   open: boolean;
+  /** Job is the contractor camera. Fix is the same camera for a repair, without video or ProDrive. */
+  mode?: 'job' | 'fix';
   title: string;
   subtitle?: string;
   projectId?: string;
+  /** Fix stops at the photos already allowed. Job has no cap. */
+  maxShots?: number;
   onBack: () => void;
+  /** Fix only: open the repair form without taking a photo. */
+  onSkip?: () => void;
   onFinished: () => void;
   onSave: (items: { file: File; caption: string }[]) => Promise<void>;
 }
 
-function captureFile(file: File, video: boolean): File {
+function captureFile(file: File, video: boolean, prefix: string): File {
   if (!video) {
     if (file.type.startsWith('image/')) return file;
-    return new File([file], file.name || `job-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    return new File([file], file.name || `${prefix}-${Date.now()}.jpg`, { type: 'image/jpeg' });
   }
   const lower = file.name.toLowerCase();
   const type = file.type === 'video/quicktime' || lower.endsWith('.mov')
@@ -37,15 +43,31 @@ function captureFile(file: File, video: boolean): File {
       ? 'video/webm'
       : 'video/mp4';
   const ext = type === 'video/quicktime' ? 'mov' : type === 'video/webm' ? 'webm' : 'mp4';
-  return new File([file], file.name || `job-${Date.now()}.${ext}`, { type });
+  return new File([file], file.name || `${prefix}-${Date.now()}.${ext}`, { type });
 }
 
 /**
- * Full-screen job camera. A secure page shows a live viewfinder.
- * A phone on plain http uses the system camera, then keeps the shots here until Done.
+ * Shared ProCam frame for Job and Fix.
+ * The stage is the full screen. The live preview shows the whole sensor frame (object-contain, 4:3),
+ * so the photo you keep matches what you framed. The shutter stays centered.
+ * Job adds video, captions, and ProDrive. Fix keeps the same shutter and stops at a few photos.
  */
-export function JobCameraSession({ open, title, subtitle, projectId, onBack, onFinished, onSave }: JobCameraSessionProps) {
+export function JobCameraSession({
+  open,
+  mode = 'job',
+  title,
+  subtitle,
+  projectId,
+  maxShots,
+  onBack,
+  onSkip,
+  onFinished,
+  onSave,
+}: JobCameraSessionProps) {
   const t = useTranslations('jobsite');
+  const fix = useTranslations('procam');
+  const isFix = mode === 'fix';
+  const prefix = isFix ? 'procam' : 'job';
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const facingRef = useRef<'environment' | 'user'>('environment');
@@ -80,7 +102,12 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
     streamRef.current?.getTracks().forEach((track) => track.stop());
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facing } },
+        video: {
+          facingMode: { ideal: facing },
+          aspectRatio: { ideal: 4 / 3 },
+          width: { ideal: 1920 },
+          height: { ideal: 1440 },
+        },
         audio: false,
       });
       facingRef.current = facing;
@@ -94,7 +121,7 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
   useEffect(() => {
     if (!open) return;
     setSaved(false);
-    setError(null);
+    setError(maxShots === 0 ? fix('maxPhotos') : null);
     setDraft((current) => {
       if (current) URL.revokeObjectURL(current.url);
       return null;
@@ -142,8 +169,14 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
     };
   }, [open, projectId]);
 
+  const roomLeft = () => (maxShots == null ? Number.POSITIVE_INFINITY : maxShots - shotsRef.current.length);
+
   const openDraft = (file: File, video: boolean) => {
-    const ready = captureFile(file, video);
+    if (roomLeft() <= 0) {
+      setError(fix('maxPhotos'));
+      return;
+    }
+    const ready = captureFile(file, video, prefix);
     const next = {
       id: `${ready.name}-${ready.size}-${Date.now()}`,
       file: ready,
@@ -157,7 +190,7 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
     });
     setCaption('');
     setSaved(false);
-    window.setTimeout(() => captionRef.current?.focus(), 50);
+    if (!isFix) window.setTimeout(() => captionRef.current?.focus(), 50);
   };
 
   const keepDraft = () => {
@@ -168,13 +201,20 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
   };
 
   const addLibrary = (files: File[]) => {
-    const images = files.filter((file) => !file.type.startsWith('video/'));
-    if (images.length === 1 && files.length === 1) {
-      openDraft(images[0], false);
+    const room = roomLeft();
+    if (room <= 0) {
+      setError(fix('maxPhotos'));
       return;
     }
-    const next = images.map((file) => {
-      const ready = captureFile(file, false);
+    const images = files.filter((file) => !file.type.startsWith('video/'));
+    const take = images.slice(0, room);
+    if (images.length > take.length) setError(fix('maxPhotos'));
+    if (take.length === 1 && files.length === 1) {
+      openDraft(take[0], false);
+      return;
+    }
+    const next = take.map((file) => {
+      const ready = captureFile(file, false, prefix);
       return {
         id: `${ready.name}-${ready.size}-${Date.now()}-${Math.random()}`,
         file: ready,
@@ -199,7 +239,7 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob((blob) => {
       if (!blob) return;
-      openDraft(new File([blob], `job-${Date.now()}.jpg`, { type: 'image/jpeg' }), false);
+      openDraft(new File([blob], `${prefix}-${Date.now()}.jpg`, { type: 'image/jpeg' }), false);
     }, 'image/jpeg', 0.9);
   };
 
@@ -257,7 +297,7 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
   const lastShot = shots[shots.length - 1];
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex flex-col bg-black text-white">
+    <div className="fixed inset-0 z-[120] flex h-[100dvh] max-h-[100dvh] flex-col bg-black text-white">
       <div className="flex items-center gap-3 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <button
           type="button"
@@ -292,20 +332,20 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
         )}
       </div>
 
-      <div className="relative min-h-0 flex-1 bg-black">
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-black">
         {live ? (
-          <video ref={videoRef} className={draft ? 'hidden' : 'h-full w-full object-cover'} playsInline muted autoPlay />
+          <video ref={videoRef} className={draft ? 'hidden' : 'absolute inset-0 h-full w-full object-contain'} playsInline muted autoPlay />
         ) : null}
         {draft ? (
           draft.video ? (
-            <video src={draft.url} controls playsInline className="h-full w-full object-contain" />
+            <video src={draft.url} controls playsInline className="absolute inset-0 h-full w-full object-contain" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={draft.url} alt="" className="h-full w-full object-contain" />
+            <img src={draft.url} alt="" className="absolute inset-0 h-full w-full object-contain" />
           )
         ) : !live ? (
-          <div className="flex h-full items-center justify-center px-8 text-center text-sm text-white/70">
-            {t('shutterHint')}
+          <div className="absolute inset-0 flex items-center justify-center px-8 text-center text-sm text-white/70">
+            {isFix ? fix('captureHint') : t('shutterHint')}
           </div>
         ) : null}
         {error ? <p className="absolute inset-x-4 top-4 rounded-lg bg-red-600 px-3 py-2 text-sm">{error}</p> : null}
@@ -332,15 +372,17 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
         </div>
       ) : draft ? (
         <div className="bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 text-black">
-          <textarea
-            ref={captionRef}
-            value={caption}
-            onChange={(event) => setCaption(event.target.value)}
-            placeholder={t('descriptionPlaceholder')}
-            maxLength={500}
-            rows={3}
-            className="w-full rounded-lg border-2 border-black px-3 py-2 text-sm"
-          />
+          {isFix ? null : (
+            <textarea
+              ref={captionRef}
+              value={caption}
+              onChange={(event) => setCaption(event.target.value)}
+              placeholder={t('descriptionPlaceholder')}
+              maxLength={500}
+              rows={3}
+              className="w-full rounded-lg border-2 border-black px-3 py-2 text-sm"
+            />
+          )}
           <button
             type="button"
             onClick={keepDraft}
@@ -350,12 +392,12 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
           </button>
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-3 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            disabled={saving}
-            className="flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/15 disabled:opacity-50"
+            disabled={saving || (maxShots != null && shots.length >= maxShots)}
+            className="flex shrink-0 items-center justify-center justify-self-start overflow-hidden rounded-lg bg-white/15 disabled:opacity-50"
             style={{ width: 48, height: 48 }}
             aria-label={t('photosFromLibrary')}
           >
@@ -374,30 +416,37 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
               if (live) snapLive();
               else cameraInputRef.current?.click();
             }}
-            disabled={saving}
+            disabled={saving || (maxShots != null && shots.length >= maxShots)}
             aria-label={t('shutter')}
             className="flex shrink-0 items-center justify-center rounded-full border-4 border-white disabled:opacity-50"
             style={{ width: 76, height: 76 }}
           >
             <span className="block rounded-full bg-white" style={{ width: 60, height: 60 }} />
           </button>
-          <div className="flex shrink-0 flex-col items-end gap-2">
+          <div className="flex shrink-0 flex-col items-end gap-2 justify-self-end">
+            {isFix ? null : (
+              <button
+                type="button"
+                onClick={() => videoInputRef.current?.click()}
+                disabled={saving}
+                className="flex items-center gap-1 rounded-full bg-white/15 px-3 py-2 text-xs font-bold disabled:opacity-50"
+              >
+                <Video className="h-4 w-4" />
+                {t('video')}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => videoInputRef.current?.click()}
-              disabled={saving}
-              className="flex items-center gap-1 rounded-full bg-white/15 px-3 py-2 text-xs font-bold disabled:opacity-50"
+              onClick={() => {
+                if (isFix && shots.length === 0) onSkip?.();
+                else void finish();
+              }}
+              disabled={saving || (shots.length === 0 && !(isFix && onSkip))}
+              className={isFix && shots.length === 0
+                ? 'max-w-[7.5rem] rounded-full bg-white px-3 py-2 text-right text-xs font-bold leading-tight text-black disabled:opacity-40'
+                : 'rounded-full bg-white px-4 py-2 text-sm font-bold text-black disabled:opacity-40'}
             >
-              <Video className="h-4 w-4" />
-              {t('video')}
-            </button>
-            <button
-              type="button"
-              onClick={() => void finish()}
-              disabled={saving || shots.length === 0}
-              className="rounded-full bg-white px-4 py-2 text-sm font-bold text-black disabled:opacity-40"
-            >
-              {saving ? t('saving') : t('done')}
+              {saving ? t('saving') : isFix && shots.length === 0 ? fix('skipToUpload') : t('done')}
             </button>
           </div>
         </div>
@@ -448,18 +497,20 @@ export function JobCameraSession({ open, title, subtitle, projectId, onBack, onF
               <ImagePlus className="h-5 w-5" />
               {t('photoLibrary')}
             </button>
-            <button
-              type="button"
-              disabled={!businessId}
-              onClick={() => {
-                setAddOpen(false);
-                setPickerOpen(true);
-              }}
-              className="flex w-full items-center gap-3 py-3 text-left font-medium disabled:opacity-40"
-            >
-              <HardDrive className="h-5 w-5" />
-              {t('fromProDrive')}
-            </button>
+            {isFix ? null : (
+              <button
+                type="button"
+                disabled={!businessId}
+                onClick={() => {
+                  setAddOpen(false);
+                  setPickerOpen(true);
+                }}
+                className="flex w-full items-center gap-3 py-3 text-left font-medium disabled:opacity-40"
+              >
+                <HardDrive className="h-5 w-5" />
+                {t('fromProDrive')}
+              </button>
+            )}
           </div>
         </div>
       ) : null}

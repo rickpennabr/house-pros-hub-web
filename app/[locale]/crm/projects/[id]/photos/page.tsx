@@ -4,13 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { ProCamCaptureSheet } from '@/components/media/ProCamCaptureSheet';
-import { ProDrivePicker } from '@/components/drive/ProDrivePicker';
+import { JobCameraSession } from '@/components/media/JobCameraSession';
 import { ProDriveQuotaModal } from '@/components/drive/ProDriveQuotaModal';
 import { Button } from '@/components/ui/Button';
 import { uploadProDriveFile, ProDriveQuotaClientError } from '@/lib/drive/upload-client';
 import type { DriveUsage } from '@/lib/drive/types';
-import type { CaptureLocation } from '@/lib/media/capture-location';
+import { requestCurrentLocation } from '@/lib/media/capture-location';
 import { jobLocationAllowed, setJobCameraAllowed } from '@/lib/media/job-camera-prefs';
 
 interface JobPhoto {
@@ -35,11 +34,6 @@ export default function JobsitePhotosPage() {
   const [photos, setPhotos] = useState<JobPhoto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pendingFileId, setPendingFileId] = useState<string | null>(null);
-  const [caption, setCaption] = useState('');
-  const [location, setLocation] = useState<CaptureLocation | null>(null);
-  const [saving, setSaving] = useState(false);
   const [quota, setQuota] = useState<DriveUsage | null>(null);
 
   const load = useCallback(async () => {
@@ -64,55 +58,42 @@ export default function JobsitePhotosPage() {
     void load();
   }, [load]);
 
-  const savePhoto = async (driveFileId: string, shot: CaptureLocation | null, text: string) => {
-    setSaving(true);
-    setError(null);
+  const saveCaptured = async (items: { file: File; caption: string }[]) => {
+    if (!businessId || !displayId) throw new Error(t('noBusiness'));
+    setJobCameraAllowed(true);
+    const shot = jobLocationAllowed() ? await requestCurrentLocation() : null;
     try {
-      const response = await fetch(`/api/crm/projects/${projectId}/photos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          driveFileId,
-          caption: text,
-          takenAt: new Date().toISOString(),
-          latitude: shot?.latitude ?? null,
-          longitude: shot?.longitude ?? null,
-          accuracyM: shot?.accuracyM ?? null,
-        }),
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        throw new Error(body.error || t('saveFailed'));
+      for (const item of items) {
+        const saved = await uploadProDriveFile({
+          file: item.file,
+          ownerType: 'business',
+          ownerId: businessId,
+          ensureFolderNames: ['Jobsites', displayId],
+        });
+        const response = await fetch(`/api/crm/projects/${projectId}/photos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            driveFileId: saved.id,
+            caption: item.caption,
+            takenAt: new Date().toISOString(),
+            latitude: shot?.latitude ?? null,
+            longitude: shot?.longitude ?? null,
+            accuracyM: shot?.accuracyM ?? null,
+          }),
+        });
+        if (!response.ok) {
+          const body = (await response.json()) as { error?: string };
+          throw new Error(body.error || t('saveFailed'));
+        }
       }
-      setCaption('');
-      setPendingFileId(null);
-      setLocation(null);
-      await load();
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : t('saveFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const onCaptured = async (file: File, shot: CaptureLocation | null) => {
-    if (!businessId || !displayId) {
-      setError(t('noBusiness'));
-      return;
-    }
-    setLocation(shot);
-    try {
-      const saved = await uploadProDriveFile({
-        file,
-        ownerType: 'business',
-        ownerId: businessId,
-        ensureFolderNames: ['Jobsites', displayId],
-      });
-      setPendingFileId(saved.id);
     } catch (uploadError) {
-      if (uploadError instanceof ProDriveQuotaClientError) setQuota(uploadError.usage);
-      else setError(uploadError instanceof Error ? uploadError.message : t('saveFailed'));
+      if (uploadError instanceof ProDriveQuotaClientError) {
+        setQuota(uploadError.usage);
+        throw new Error(t('saveFailed'));
+      }
+      throw uploadError;
     }
   };
 
@@ -137,20 +118,6 @@ export default function JobsitePhotosPage() {
       </div>
       {!businessId && <p className="text-sm">{t('noBusiness')}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {pendingFileId && (
-        <div className="flex flex-wrap gap-2 items-center">
-          <input
-            value={caption}
-            onChange={(event) => setCaption(event.target.value)}
-            placeholder={t('caption')}
-            className="border-2 border-black rounded-lg px-3 py-2 text-sm"
-          />
-          <Button type="button" disabled={saving} onClick={() => void savePhoto(pendingFileId, location, caption)}>
-            {saving ? t('saving') : t('save')}
-          </Button>
-          {!location && <span className="text-xs">{t('noLocation')}</span>}
-        </div>
-      )}
       {photos.length === 0 && <p className="text-sm">{t('empty')}</p>}
       {[...groups.entries()].map(([day, dayPhotos]) => (
         <section key={day} className="space-y-2">
@@ -185,30 +152,18 @@ export default function JobsitePhotosPage() {
           </div>
         </section>
       ))}
-      <ProCamCaptureSheet
-        isOpen={sheetOpen}
-        withLocation={jobLocationAllowed()}
-        onCameraReady={() => setJobCameraAllowed(true)}
-        onClose={() => setSheetOpen(false)}
-        showDrive={Boolean(businessId)}
-        onPickDrive={() => {
+      <JobCameraSession
+        open={sheetOpen}
+        mode="job"
+        projectId={projectId}
+        title={projectName || t('title')}
+        onBack={() => setSheetOpen(false)}
+        onFinished={() => {
           setSheetOpen(false);
-          setPickerOpen(true);
+          void load();
         }}
-        onCapture={({ file, location: shot }) => void onCaptured(file, shot)}
+        onSave={saveCaptured}
       />
-      {businessId && (
-        <ProDrivePicker
-          isOpen={pickerOpen}
-          onClose={() => setPickerOpen(false)}
-          ownerType="business"
-          ownerId={businessId}
-          onSelect={(file) => {
-            setLocation(null);
-            setPendingFileId(file.id);
-          }}
-        />
-      )}
       <ProDriveQuotaModal usage={quota} onClose={() => setQuota(null)} />
     </div>
   );

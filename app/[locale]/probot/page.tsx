@@ -266,7 +266,7 @@ function ProBotPageContent() {
     }
   }, [conversationId, isAdmin]);
 
-  // When authenticated, load admin status and History Chat in parallel (best practice: avoid waterfall)
+  // Confirm admin first. Only an admin loads the history list, so a normal account never hits that route.
   useEffect(() => {
     if (!isAuthenticated) {
       setRecentConversations(null);
@@ -278,11 +278,10 @@ function ProBotPageContent() {
     setRoleKnown(false);
     let cancelled = false;
     setHistoryChatLoading(true);
-    const conversationsPromise = fetch('/api/chat/admin/conversations').then((res) => (res.ok ? res.json() : null));
-    const isAdminPromise = fetch('/api/auth/is-admin').then((res) => (res.ok ? res.json() : { isAdmin: false }));
 
-    Promise.all([isAdminPromise, conversationsPromise])
-      .then(([adminData, convData]) => {
+    fetch('/api/auth/is-admin')
+      .then((res) => (res.ok ? res.json() : { isAdmin: false }))
+      .then(async (adminData: { isAdmin?: boolean }) => {
         if (cancelled) return;
         setRoleKnown(true);
         const isAdminUser = adminData?.isAdmin === true;
@@ -292,6 +291,9 @@ function ProBotPageContent() {
           if (!user?.businessId) setHistoryChatLoading(false);
           return;
         }
+        const convRes = await fetch('/api/chat/admin/conversations');
+        const convData = convRes.ok ? await convRes.json() : null;
+        if (cancelled) return;
         if (convData?.conversations?.length) {
           const list = (convData.conversations.slice(0, 20) ?? []) as ProBotRecentConversation[];
           setRecentConversations(list);

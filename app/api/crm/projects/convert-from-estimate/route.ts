@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
+import { estimateReadyForWork } from '@/lib/schemas/crmEstimate';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest) {
       .single();
     if (estimateError || !estimate) {
       return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
+    }
+    if (!estimateReadyForWork(estimate.status)) {
+      return NextResponse.json({ error: 'Accept the estimate before creating a project' }, { status: 400 });
     }
 
     const { data: existingProject } = await supabase

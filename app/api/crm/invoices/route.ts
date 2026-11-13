@@ -9,6 +9,7 @@ import { contactDisplayName } from '@/lib/crm/contact-name';
 import { syncBilledExpenses } from '@/lib/crm/job-costs';
 import { parsePaidNow, settleInvoicePaidInFull } from '@/lib/crm/invoice-payments';
 import { buildProgressInvoice, contractBilledCents } from '@/lib/crm/progress-billing';
+import { estimateReadyForWork } from '@/lib/schemas/crmEstimate';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import type { Json } from '@/lib/types/supabase';
 
@@ -158,6 +159,9 @@ export async function POST(request: NextRequest) {
 
       if (estErr || !estimate) {
         return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
+      }
+      if (!estimateReadyForWork(estimate.status)) {
+        return NextResponse.json({ error: 'Accept the estimate before creating an invoice' }, { status: 400 });
       }
       const { data: priorInvoices, error: priorError } = await supabase
         .from('pro_crm_invoices')

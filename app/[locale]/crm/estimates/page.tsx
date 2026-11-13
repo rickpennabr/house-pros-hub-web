@@ -24,6 +24,8 @@ import { DOCUMENT_FORM_LAYOUT } from '@/lib/constants/documentFormLayout';
 import { contactDisplayName, listedCustomerName } from '@/lib/crm/contact-name';
 import { emptyEstimateStatusSummary, type EstimateStatusSummary } from '@/lib/crm/estimate-books';
 import { EstimateStatusCards } from '@/components/crm/EstimateStatusCards';
+import { EstimateChart } from '@/components/crm/EstimateChart';
+import type { EstimateChart as EstimateChartData } from '@/lib/crm/estimate-chart';
 import {
   duplicateEstimateDraftFromGetResponse,
   lineItemsForEstimateForm,
@@ -118,6 +120,7 @@ export default function CRMEstimatesPage() {
   const crmChrome = useCRMChrome();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [statusSummary, setStatusSummary] = useState<EstimateStatusSummary>(emptyEstimateStatusSummary());
+  const [chart, setChart] = useState<EstimateChartData | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [progressEstimateId, setProgressEstimateId] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
@@ -139,7 +142,7 @@ export default function CRMEstimatesPage() {
   const [addItemPanelRowIndex, setAddItemPanelRowIndex] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [savedListView, setSavedListView] = useLocalStorage<string>('crmEstimatesView', 'list');
-  const listView: ViewType = savedListView === 'map' ? 'map' : 'list';
+  const listView: ViewType = savedListView === 'map' || savedListView === 'chart' ? savedListView : 'list';
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<{
     customerId: string;
@@ -157,6 +160,7 @@ export default function CRMEstimatesPage() {
   const [formStatus, setFormStatus] = useState('draft');
   const [formDueDate, setFormDueDate] = useState(getDefaultEstimateValidityDate());
   const [formNote, setFormNote] = useState('');
+  const [formDeposit, setFormDeposit] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const prefillsAppliedRef = useRef(false);
@@ -187,6 +191,10 @@ export default function CRMEstimatesPage() {
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sortBy, sortDir });
       if (search) params.set('search', search);
       if (statusFilter) params.set('status', statusFilter);
+      if (listView === 'chart') {
+        params.set('chart', '1');
+        params.set('timeZone', Intl.DateTimeFormat().resolvedOptions().timeZone);
+      }
       const res = await fetch(`/api/crm/estimates?${params}`, { credentials: 'include' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -196,6 +204,7 @@ export default function CRMEstimatesPage() {
       setEstimates(data.estimates ?? []);
       setTotal(data.total ?? 0);
       if (data.statusSummary) setStatusSummary(data.statusSummary);
+      setChart(data.chart ?? null);
       hasLoadedOnceRef.current = true;
       setHasLoadedOnce(true);
     } catch (err) {
@@ -204,7 +213,7 @@ export default function CRMEstimatesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, sortBy, sortDir, search, statusFilter]);
+  }, [page, sortBy, sortDir, search, statusFilter, listView]);
 
   useEffect(() => { fetchEstimates(); }, [fetchEstimates]);
 
@@ -277,10 +286,12 @@ export default function CRMEstimatesPage() {
         setFormStatus(data.status ?? 'draft');
         setFormDueDate(data.dueDate ? data.dueDate.slice(0, 10) : '');
         setFormNote(data.note ?? '');
+        setFormDeposit(data.depositCents ? (Number(data.depositCents) / 100).toFixed(2) : '');
       })
       .catch(() => {
         if (!cancelled) {
           setEditingData({ customerId: '', amountCents: 0, status: 'draft', dueDate: '', note: '', estimateNumber: '', customerEmail: null });
+          setFormDeposit('');
         }
       });
     return () => { cancelled = true; };
@@ -381,6 +392,7 @@ export default function CRMEstimatesPage() {
       setFormStatus('draft');
       setFormDueDate(getDefaultEstimateValidityDate());
       setFormNote(draft.note);
+      setFormDeposit(data.depositCents ? (Number(data.depositCents) / 100).toFixed(2) : '');
       setViewMode('add');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to duplicate estimate');
@@ -580,6 +592,16 @@ export default function CRMEstimatesPage() {
     }
   };
 
+  const depositPayload = (): { cents: number; error: string | null } => {
+    const trimmed = formDeposit.trim();
+    if (!trimmed) return { cents: 0, error: null };
+    const dollars = Number(trimmed);
+    if (!Number.isFinite(dollars) || dollars < 0) return { cents: 0, error: 'Enter a deposit amount' };
+    const cents = Math.round(dollars * 100);
+    if (cents > totalAmountCents) return { cents, error: 'Deposit cannot be more than the estimate' };
+    return { cents, error: null };
+  };
+
   const getCreateEstimateValidationError = (): string | null => {
     if (!formCustomerId) return 'Select a customer';
     const hasInvalidLine = formLineItems.some((line) => {
@@ -607,6 +629,8 @@ export default function CRMEstimatesPage() {
       if (seen.has(key)) return 'You have a duplicated item on your estimate. Modify one before creating.';
       seen.add(key);
     }
+    const deposit = depositPayload();
+    if (deposit.error) return deposit.error;
     return null;
   };
 
@@ -633,6 +657,7 @@ export default function CRMEstimatesPage() {
           status: formStatus,
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
+          depositCents: depositPayload().cents,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -644,6 +669,7 @@ export default function CRMEstimatesPage() {
       setFormStatus('draft');
       setFormDueDate(getDefaultEstimateValidityDate());
       setFormNote('');
+      setFormDeposit('');
       fetchEstimates();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Request failed');
@@ -674,6 +700,7 @@ export default function CRMEstimatesPage() {
           status: formStatus,
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
+          depositCents: depositPayload().cents,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -732,6 +759,11 @@ export default function CRMEstimatesPage() {
       setFormError('You have a duplicated item on your estimate. Modify one before creating.');
       return;
     }
+    const deposit = depositPayload();
+    if (deposit.error) {
+      setFormError(deposit.error);
+      return;
+    }
     setFormError(null);
     const amountCents = totalAmountCents;
     const lineItemsToSend = lineItemsPayload.length > 0 ? lineItemsPayload : null;
@@ -748,10 +780,12 @@ export default function CRMEstimatesPage() {
           status: formStatus,
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
+          depositCents: depositPayload().cents,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to update estimate');
+      if (typeof data.depositError === 'string' && data.depositError) setError(data.depositError);
       await syncEstimateLinesToReusableItems(lineItemsToSend ?? []);
       setViewMode('table');
       setEditingId(null);
@@ -823,24 +857,9 @@ export default function CRMEstimatesPage() {
               onSelect={applyStatusFilter}
             />
           </div>
-          <div className="hidden md:flex flex-wrap gap-2 pb-3">
-            {['', ...STATUS_OPTIONS].map((option) => {
-              const selected = statusFilter === option;
-              return (
-                <button
-                  key={option || 'all'}
-                  type="button"
-                  onClick={() => applyStatusFilter(option)}
-                  className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${selected ? 'bg-black text-white' : 'bg-white text-black'}`}
-                >
-                  {statusOptionLabel(option)}
-                </button>
-              );
-            })}
-          </div>
-          <div ref={searchRowRef} className="pt-2 pb-2 md:pt-0">
+          <div ref={searchRowRef} className="pt-2 pb-2 md:flex md:items-center md:gap-3 md:pt-0 md:pb-2">
             <CRMSearchField
-              className="min-w-0 md:max-w-md"
+              className="w-full min-w-0 md:flex-1"
               value={searchInput}
               onChange={handleSearchInput}
               placeholder="Search customer..."
@@ -853,6 +872,21 @@ export default function CRMEstimatesPage() {
               }}
               endAction={statusFilterButton}
             />
+            <div className="hidden md:flex md:shrink-0 md:flex-wrap md:items-center md:gap-2">
+              {['', ...STATUS_OPTIONS].map((option) => {
+                const selected = statusFilter === option;
+                return (
+                  <button
+                    key={option || 'all'}
+                    type="button"
+                    onClick={() => applyStatusFilter(option)}
+                    className={`inline-flex h-11 shrink-0 items-center rounded-lg border-2 border-black px-3 text-sm font-medium cursor-pointer ${selected ? 'bg-black text-white' : 'bg-white text-black'}`}
+                  >
+                    {statusOptionLabel(option)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <MobileGridActionsModal
             isOpen={filtersOpen}
@@ -875,7 +909,20 @@ export default function CRMEstimatesPage() {
               })),
             ]}
           />
-          {listView === 'map' ? (
+          {listView === 'chart' ? (
+            chart ? (
+              <EstimateChart
+                chart={chart}
+                filtered={Boolean(search)}
+                activeStatus={statusFilter}
+                onSelectStatus={applyStatusFilter}
+              />
+            ) : (
+              <div className="p-12 text-center text-gray-500 text-sm">
+                {error ? 'Chart could not be loaded.' : 'Loading chart…'}
+              </div>
+            )
+          ) : listView === 'map' ? (
             <AddressPinsMap
               pins={estimates.map((row) => ({
                 id: row.id,
@@ -955,7 +1002,7 @@ export default function CRMEstimatesPage() {
             <ViewToggle
               currentView={listView}
               onViewChange={setSavedListView}
-              views={['list', 'map']}
+              views={['list', 'map', 'chart']}
               hideBackgroundToggle
               onAdd={() => setViewMode('add')}
               addLabel="New estimate"
@@ -1013,6 +1060,8 @@ export default function CRMEstimatesPage() {
               onStatusChange={setFormStatus}
               note={formNote}
               onNoteChange={setFormNote}
+              deposit={formDeposit}
+              onDepositChange={setFormDeposit}
               saving={saving}
               error={formError}
               onSubmit={viewMode === 'add' ? handleSubmitAdd : handleSubmitEdit}
@@ -1103,10 +1152,22 @@ export default function CRMEstimatesPage() {
                 >
                   <Send className="w-3.5 h-3.5" /> Review & Send
                 </button>
-                <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => openProgressInvoice(openActionsId)}>
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={estimates.find((row) => row.id === openActionsId)?.status !== 'accepted'}
+                  title={estimates.find((row) => row.id === openActionsId)?.status === 'accepted' ? undefined : 'Accept the estimate before creating an invoice'}
+                  onClick={() => openProgressInvoice(openActionsId)}
+                >
                   <FileCheck className="w-3.5 h-3.5" /> Create invoice
                 </button>
-                <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => handleConvertToProject(openActionsId)} disabled={convertingId === openActionsId}>
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={convertingId === openActionsId || estimates.find((row) => row.id === openActionsId)?.status !== 'accepted'}
+                  title={estimates.find((row) => row.id === openActionsId)?.status === 'accepted' ? undefined : 'Accept the estimate before creating a project'}
+                  onClick={() => handleConvertToProject(openActionsId)}
+                >
                   <FolderPlus className="w-3.5 h-3.5" /> Convert to project
                 </button>
                 <button type="button" className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { const r = estimates.find((e) => e.id === openActionsId); if (r) setDeleteConfirm({ id: r.id, label: listedCustomerName(r) || 'Estimate' }); setOpenActionsId(null); setMenuPosition(null); }}>

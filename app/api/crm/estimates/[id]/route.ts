@@ -4,9 +4,11 @@ import { hasRole } from '@/lib/utils/roles';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import {
   crmEstimateUpdateSchema,
+  depositWithinEstimate,
   isValidEstimateStatusTransition,
   normalizeEstimateAmountCents,
 } from '@/lib/schemas/crmEstimate';
+import { issueAcceptanceDeposit } from '@/lib/crm/estimate-deposit';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -61,6 +63,7 @@ export async function GET(
       customerDisplayName: customer ? contactDisplayName(customer) : null,
       customerEmail: customer?.email ?? null,
       amountCents: row.amount_cents,
+      depositCents: row.deposit_cents ?? 0,
       lineItems: row.line_items,
       status: row.status,
       dueDate: row.due_date,
@@ -92,6 +95,7 @@ export async function PUT(
       dueDate: bodyRaw.dueDate ?? bodyRaw.due_date,
       validityDate: bodyRaw.validityDate ?? bodyRaw.validity_date ?? bodyRaw.valid_until,
       note: bodyRaw.note,
+      depositCents: bodyRaw.depositCents ?? bodyRaw.deposit_cents,
     });
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid estimate payload' }, { status: 400 });
@@ -101,7 +105,7 @@ export async function PUT(
     const supabase = await createClient();
     const { data: currentEstimate, error: currentEstimateError } = await supabase
       .from('pro_crm_estimates')
-      .select('status')
+      .select('status, amount_cents, deposit_cents')
       .eq('id', id)
       .eq('owner_id', user.id)
       .single();
@@ -127,6 +131,11 @@ export async function PUT(
       updates.due_date = body.validityDate ?? body.dueDate ?? null;
     }
     if (body.note !== undefined) updates.note = typeof body.note === 'string' ? body.note.trim() || null : null;
+    if (body.depositCents !== undefined) updates.deposit_cents = body.depositCents;
+    const nextAmount = typeof updates.amount_cents === 'number' ? updates.amount_cents : currentEstimate.amount_cents;
+    const nextDeposit = typeof updates.deposit_cents === 'number' ? updates.deposit_cents : currentEstimate.deposit_cents ?? 0;
+    const depositError = depositWithinEstimate(nextDeposit, nextAmount);
+    if (depositError) return NextResponse.json({ error: depositError }, { status: 400 });
     if (body.customerId !== undefined) {
       const { data: customer } = await supabase
         .from('pro_crm_customers')
@@ -144,7 +153,12 @@ export async function PUT(
       .eq('owner_id', user.id);
 
     if (error) return NextResponse.json({ error: error.message || 'Failed to update estimate' }, { status: 500 });
-    return NextResponse.json({ ok: true });
+    let depositInvoiceError: string | undefined;
+    if (body.status === 'accepted' && currentEstimate.status !== 'accepted') {
+      const deposit = await issueAcceptanceDeposit(supabase, id, user.id);
+      if (deposit.error) depositInvoiceError = deposit.error;
+    }
+    return NextResponse.json({ ok: true, depositError: depositInvoiceError ?? null });
   } catch (err) {
     console.error('PUT /api/crm/estimates/[id]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

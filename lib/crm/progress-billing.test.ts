@@ -48,6 +48,23 @@ describe('progress billing', () => {
     assert.equal(draft.lineItems?.[0].qty, 2);
   });
 
+  it('writes a deposit as the first slice and leaves the rest on the estimate', () => {
+    const draft = buildProgressInvoice({
+      contractCents: 10000,
+      billedCents: 0,
+      requestedCents: 2500,
+      lineItems: [{ description: 'Roof', amount_cents: 10000 }],
+      note: null,
+      purpose: 'deposit',
+    });
+    assert.ok(!('error' in draft));
+    if ('error' in draft) return;
+    assert.equal(draft.amountCents, 2500);
+    assert.equal(draft.remainingAfterCents, 7500);
+    assert.match(draft.note ?? '', /Deposit of \$25\.00/);
+    assert.match(draft.note ?? '', /\$75\.00 of \$100\.00 remains/);
+  });
+
   it('rejects an amount past the open balance', () => {
     const draft = buildProgressInvoice({
       contractCents: 10000,

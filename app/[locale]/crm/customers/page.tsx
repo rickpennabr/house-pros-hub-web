@@ -422,6 +422,25 @@ export default function CRMCustomersPage() {
     setPage(1);
     setFiltersOpen(false);
   };
+  const rolePillClass = (active: boolean) =>
+    `inline-flex h-11 shrink-0 items-center rounded-lg border-2 border-black px-3 text-sm font-medium cursor-pointer ${active ? 'bg-black text-white' : 'bg-white text-black'}`;
+  const rolePills = roleCatalog.length > 0 ? (
+    <div className="hidden md:flex md:shrink-0 md:flex-wrap md:items-center md:justify-end md:gap-2">
+      <button type="button" onClick={() => { setRoleFilter(''); setPage(1); }} className={rolePillClass(roleFilter === '')}>
+        All
+      </button>
+      {visibleRoles.map((role) => (
+        <button
+          key={role.id}
+          type="button"
+          onClick={() => { setRoleFilter(role.slug); setPage(1); }}
+          className={rolePillClass(roleFilter === role.slug)}
+        >
+          {role.name}
+        </button>
+      ))}
+    </div>
+  ) : null;
   const roleFilterButton = visibleRoles.length > 0 && !crmChrome?.searchOpen ? (
     <button
       type="button"
@@ -518,28 +537,8 @@ export default function CRMCustomersPage() {
               <ContactBooksBar books={books} />
             </div>
           ) : null}
-          {roleCatalog.length > 0 && (
-            <div className="hidden md:flex flex-wrap gap-2 md:pt-0 md:pb-3">
-              <button
-                type="button"
-                onClick={() => { setRoleFilter(''); setPage(1); }}
-                className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${roleFilter === '' ? 'bg-black text-white' : 'bg-white text-black'}`}
-              >
-                All
-              </button>
-              {visibleRoles.map((role) => (
-                <button
-                  key={role.id}
-                  type="button"
-                  onClick={() => { setRoleFilter(role.slug); setPage(1); }}
-                  className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${roleFilter === role.slug ? 'bg-black text-white' : 'bg-white text-black'}`}
-                >
-                  {role.name}
-                </button>
-              ))}
-            </div>
-          )}
           {listView !== 'list' && (
+          <div className="md:flex md:items-center md:gap-3 md:pb-2">
           <CRMSearchField
             formRef={cardSearchRef}
             value={searchInput}
@@ -552,9 +551,11 @@ export default function CRMCustomersPage() {
               crmChrome?.setSearchOpen(false);
               (document.activeElement as HTMLElement | null)?.blur();
             }}
-            className="md:pb-2 md:pt-0 max-w-md"
+            className="w-full min-w-0 md:flex-1 md:pb-0 md:pt-0"
             endAction={roleFilterButton}
           />
+          {rolePills}
+          </div>
           )}
 
           <MobileGridActionsModal
@@ -636,6 +637,7 @@ export default function CRMCustomersPage() {
             <AdminDataTable
               searchRowClassName="md:pt-0"
               searchEndAction={roleFilterButton}
+              searchAside={rolePills}
               columnOrderKey="crm-customers"
               exportName="customers"
               columns={CUSTOMER_COLUMNS}

@@ -43,6 +43,8 @@ interface EstimateDocumentFormProps {
   onStatusChange: (value: string) => void;
   note: string;
   onNoteChange: (value: string) => void;
+  deposit: string;
+  onDepositChange: (value: string) => void;
   saving: boolean;
   error: string | null;
   onSubmit: (event: React.FormEvent) => void;
@@ -75,6 +77,8 @@ export function EstimateDocumentForm({
   onStatusChange,
   note,
   onNoteChange,
+  deposit,
+  onDepositChange,
   saving,
   error,
   onSubmit,
@@ -425,6 +429,18 @@ export function EstimateDocumentForm({
                   <span>Total</span>
                   <span>{formatAmount(totalAmountCents)}</span>
                 </div>
+                <label className="flex items-center justify-between gap-2 pt-3">
+                  <span className="text-gray-600">Deposit</span>
+                  <input
+                    value={deposit}
+                    onChange={(event) => onDepositChange(event.target.value)}
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    aria-label="Deposit due when the customer approves"
+                    className="w-24 rounded-lg border-2 border-black px-2 py-1 text-right text-sm"
+                  />
+                </label>
+                <p className="text-xs text-gray-500">Due when the customer approves. This becomes the first invoice.</p>
               </div>
             </div>
           </div>

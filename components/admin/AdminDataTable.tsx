@@ -93,6 +93,8 @@ export interface AdminDataTableProps<T> {
   searchRowClassName?: string;
   /** Control rendered on the right of the search field. */
   searchEndAction?: React.ReactNode;
+  /** Desktop controls on the right of the search row, outside the field width. */
+  searchAside?: React.ReactNode;
   /**
    * Search, sort, column filters, and pagination run on `data` in the browser.
    * Use this for lists that are already fully loaded.
@@ -157,6 +159,7 @@ export function AdminDataTable<T>({
   hideBody = false,
   searchRowClassName = '',
   searchEndAction,
+  searchAside,
   clientSide = false,
   getCellText,
   columnOrderKey,
@@ -809,9 +812,7 @@ export function AdminDataTable<T>({
     else onPageChange?.(nextPage);
   };
 
-  return (
-    <div ref={wrapperRef} className="flex flex-col">
-      {crmChrome ? (
+  const searchRow = crmChrome ? (
         <CRMSearchField
           formRef={searchFormRef}
           value={clientSide ? internalSearch : searchInput}
@@ -835,7 +836,7 @@ export function AdminDataTable<T>({
             crmChrome.setSearchOpen(false);
             (document.activeElement as HTMLElement | null)?.blur();
           }}
-          className={`pb-2 max-w-md ${searchRowClassName} ${hideSearch ? 'hidden' : ''}`}
+          className={`${searchAside ? 'w-full min-w-0 pb-2 md:flex-1 md:pb-0' : 'max-w-md pb-2'} ${searchRowClassName} ${hideSearch ? 'hidden' : ''}`}
           endAction={searchEndAction}
         />
       ) : (
@@ -849,7 +850,7 @@ export function AdminDataTable<T>({
             }
             onSearchSubmit?.(event);
           }}
-          className={`flex gap-2 pb-2 max-w-md ${searchRowClassName} ${hideSearch ? 'hidden' : ''}`}
+          className={`flex gap-2 ${searchAside ? 'w-full min-w-0 pb-2 md:flex-1 md:pb-0' : 'max-w-md pb-2'} ${searchRowClassName} ${hideSearch ? 'hidden' : ''}`}
         >
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -883,6 +884,17 @@ export function AdminDataTable<T>({
             </button>
           )}
         </form>
+  );
+
+  return (
+    <div ref={wrapperRef} className="flex flex-col">
+      {searchAside ? (
+        <div className={`md:flex md:items-center md:gap-3 md:pb-2 ${hideSearch ? 'hidden' : ''}`}>
+          {searchRow}
+          {searchAside}
+        </div>
+      ) : (
+        searchRow
       )}
 
       {error && (

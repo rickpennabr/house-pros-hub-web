@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Bell, BellOff } from 'lucide-react';
+import { hasPushSubscription } from '@/lib/push/has-subscription';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -53,7 +54,17 @@ export default function ContractorPushButton() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
-    setPushEnabled(Notification.permission === 'granted');
+    if (Notification.permission !== 'granted') {
+      setPushEnabled(false);
+      return;
+    }
+    let cancelled = false;
+    hasPushSubscription().then((subscribed) => {
+      if (!cancelled) setPushEnabled(subscribed);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (!vapidPublicKey) return null;

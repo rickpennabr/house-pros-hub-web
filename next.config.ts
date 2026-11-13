@@ -98,7 +98,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(self), microphone=(), geolocation=(self)',
+            value: 'camera=(self), microphone=(self), geolocation=(self)',
           },
           // Content-Security-Policy with Google Maps support
           {
@@ -111,10 +111,11 @@ const nextConfig: NextConfig = {
               // Allow Google Maps images and tiles
               "img-src 'self' blob: data: https: https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com",
               "font-src 'self' data: https://fonts.gstatic.com",
-              // Allow connections to Google Maps APIs
+              // https: does not allow websockets. Dev needs ws: for the hot-reload socket
+              // (ws://<lan-ip>:3000/_next/hmr). Production only allows the Supabase socket.
               process.env.NODE_ENV === 'development'
-                ? "connect-src 'self' https: http://localhost:* http://127.0.0.1:* http://192.168.0.25:3000 http://192.168.0.26:3000 http://127.0.0.1:7243 https://maps.googleapis.com https://*.googleapis.com"
-                : "connect-src 'self' https: https://maps.googleapis.com https://*.googleapis.com",
+                ? "connect-src 'self' https: ws: wss: http://localhost:* http://127.0.0.1:* http://192.168.0.25:3000 http://192.168.0.26:3000 http://127.0.0.1:7243 https://maps.googleapis.com https://*.googleapis.com"
+                : "connect-src 'self' https: wss://*.supabase.co https://maps.googleapis.com https://*.googleapis.com",
               "base-uri 'self'",
               "object-src 'none'",
               "form-action 'self'",

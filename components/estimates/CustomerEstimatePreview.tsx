@@ -7,6 +7,7 @@ export interface CustomerEstimatePreviewData {
   estimateId: string;
   estimateNumber: string | null;
   amountCents: number;
+  depositCents?: number;
   lineItems: unknown;
   status: 'draft' | 'sent' | 'accepted' | 'declined';
   validUntilDate: string | null;
@@ -95,6 +96,12 @@ export function CustomerEstimatePreview({
             <p className="font-semibold">{data.estimateNumber || data.estimateId.slice(0, 8)}</p>
             <p className="text-xs text-gray-500 mt-2">Total</p>
             <p className="font-bold text-lg">{formatAmount(data.amountCents)}</p>
+            {(data.depositCents ?? 0) > 0 ? (
+              <>
+                <p className="text-xs text-gray-500 mt-2">Deposit due on approval</p>
+                <p className="font-semibold">{formatAmount(data.depositCents ?? 0)}</p>
+              </>
+            ) : null}
           </div>
         </div>
 
@@ -163,11 +170,14 @@ export function CustomerEstimatePreview({
                 <span className={`font-semibold ${data.status === 'accepted' ? 'text-green-700' : 'text-gray-800'}`}>
                   {data.status}
                 </span>
+                {data.status !== 'sent' && data.status !== 'accepted' ? (
+                  <p className="mt-1 text-gray-600">This estimate has not been sent for approval.</p>
+                ) : null}
               </div>
               <button
                 type="button"
                 onClick={onApprove}
-                disabled={approveLoading || alreadyAccepted}
+                disabled={approveLoading || alreadyAccepted || data.status !== 'sent'}
                 className="px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {alreadyAccepted ? 'Approved' : approveLoading ? 'Approving...' : 'Approve Estimate'}
@@ -177,6 +187,7 @@ export function CustomerEstimatePreview({
               <div
                 className={`px-6 pb-6 text-sm ${
                   approveMessage.toLowerCase().includes('failed') ||
+                  approveMessage.toLowerCase().includes('could not') ||
                   approveMessage.toLowerCase().includes('expired') ||
                   approveMessage.toLowerCase().includes('invalid')
                     ? 'text-red-600'

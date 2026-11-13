@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useRef, useState, useCallback } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -11,10 +11,9 @@ import LanguageSwitcher from './LanguageSwitcher';
 import FreeEstimateButton from './FreeEstimateButton';
 import { QuickRepairCameraLink } from './PagesMenu';
 import PhoneButton from './PhoneButton';
-import { NotificationBellDropdown } from '@/components/admin/NotificationBellDropdown';
+import { HeaderNotificationBell } from '@/components/pageslayout/HeaderNotificationBell';
 import { Phone } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useChat } from '@/contexts/ChatContext';
 import { HUB_WHATSAPP_URL } from '@/lib/constants/company';
 import { sendAnalyticsIngest } from '@/lib/utils/analyticsIngest';
 
@@ -67,37 +66,11 @@ function WhatsAppButton() {
   );
 }
 
-const NEW_SIGNUPS_POLL_MS = 60 * 1000;
-
 export default function PageHeader({ children }: PageHeaderProps) {
   const pathname = usePathname();
   const locale = useLocale();
   const headerRef = useRef<HTMLElement>(null);
   const { isAdmin, isAuthenticated, roles } = useAuth();
-  const { chatUnreadCount } = useChat();
-  const [notificationCount, setNotificationCount] = useState(0);
-
-  const fetchNewSignupsCount = useCallback(async () => {
-    if (!isAdmin) return;
-    try {
-      const res = await fetch('/api/admin/notifications/new-signups-count', {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (typeof data.count === 'number') setNotificationCount(data.count);
-    } catch {
-      // ignore
-    }
-  }, [isAdmin]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    fetchNewSignupsCount();
-    const interval = setInterval(fetchNewSignupsCount, NEW_SIGNUPS_POLL_MS);
-    return () => clearInterval(interval);
-  }, [isAdmin, fetchNewSignupsCount]);
 
   const isLegalPage = pathname?.includes('/legal');
   const isHomePage = pathname?.includes('/businesslist') || pathname === `/${locale}` || pathname === `/${locale}/`;
@@ -203,18 +176,7 @@ export default function PageHeader({ children }: PageHeaderProps) {
           )}
           {isAuthenticated && !isLegalPage && (
             <span className="flex items-center h-10 shrink-0">
-              {isAdmin ? (
-                <NotificationBellDropdown
-                  notificationCount={notificationCount}
-                  onMarkAllRead={fetchNewSignupsCount}
-                />
-              ) : (
-                <NotificationBellDropdown
-                  variant="chat"
-                  notificationCount={chatUnreadCount}
-                  locale={locale}
-                />
-              )}
+              <HeaderNotificationBell />
             </span>
           )}
           <span className="flex items-center h-10 shrink-0"><ProfileIcon /></span>

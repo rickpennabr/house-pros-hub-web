@@ -31,6 +31,8 @@ interface ModalProps {
   /** Outer overlay (e.g. `md:p-2` for wider modals on desktop) */
   overlayClassName?: string;
   overlayStyle?: CSSProperties;
+  /** Sits immediately left of the close button, same header row. */
+  headerAction?: ReactNode;
 }
 
 export default function Modal({
@@ -47,6 +49,7 @@ export default function Modal({
   contentClassName = 'p-6',
   overlayClassName = '',
   overlayStyle,
+  headerAction,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -148,18 +151,23 @@ export default function Modal({
             {title && (
               <h2 className="text-xl font-bold text-black">{title}</h2>
             )}
-            {showCloseButton && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  onClose();
-                }}
-                className="w-8 h-8 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5 text-black" />
-              </button>
+            {(headerAction || showCloseButton) && (
+              <div className="flex shrink-0 items-center gap-2">
+                {headerAction}
+                {showCloseButton && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onClose();
+                    }}
+                    className="w-8 h-8 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5 text-black" />
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}

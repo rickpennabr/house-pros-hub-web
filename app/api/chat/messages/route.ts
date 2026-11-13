@@ -5,12 +5,13 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { sendMessageSchema, getMessagesSchema } from '@/lib/schemas/chat';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { filterAllowedAttachments } from '@/lib/utils/chatAttachmentAllowlist';
-import { sendAdminPushNotification, sendBusinessPushNotification } from '@/lib/services/pushNotificationService';
+import { chatPushUrl, sendAdminPushNotification, sendBusinessPushNotification } from '@/lib/services/pushNotificationService';
 import { answerHubThread } from '@/lib/chat/hub-agent-reply';
 import { parseAgentPayload } from '@/lib/chat/proagent-policy';
 import type { ProbotTurn } from '@/lib/chat/probot-ai';
 import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
+import { parseStoredReply, snapshotFromRow } from '@/lib/chat/reply-snapshot';
 
 async function sessionUserId(): Promise<string | undefined> {
   try {
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       const msg = parsed.error.flatten().fieldErrors?.body?.[0] ?? 'Invalid request';
       return NextResponse.json({ error: msg }, { status: 400 });
     }
-    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments, locale } = parsed.data;
+    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments, replyToId, locale } = parsed.data;
     const cookieDenied = visitorCookieDenied(request, visitorId);
     if (cookieDenied) return cookieDenied;
 
@@ -87,12 +88,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let replyTo: ReturnType<typeof snapshotFromRow> = null;
+    if (replyToId) {
+      const { data: target } = await supabase
+        .from('probot_messages')
+        .select('id, conversation_id, sender, body, attachments')
+        .eq('id', replyToId)
+        .maybeSingle();
+      replyTo = target ? snapshotFromRow(target, conversationId) : null;
+      if (!replyTo) {
+        return NextResponse.json({ error: 'That message is not in this chat' }, { status: 400 });
+      }
+    }
+
     const insertPayload: {
       conversation_id: string;
       sender: 'visitor' | 'admin';
       body: string;
       business_id?: string;
       attachments?: unknown;
+      reply_to?: unknown;
     } = {
       conversation_id: conversationId,
       sender: 'visitor',
@@ -100,8 +115,9 @@ export async function POST(request: NextRequest) {
     };
     if (businessId) insertPayload.business_id = businessId;
     if (attachments?.length) insertPayload.attachments = attachments;
+    if (replyTo) insertPayload.reply_to = replyTo;
 
-    const selectCols = 'id, conversation_id, sender, body, created_at, attachments';
+    const selectCols = 'id, conversation_id, sender, body, created_at, attachments, reply_to';
 
     type InsertRow = Database['public']['Tables']['probot_messages']['Insert'];
     let result = await supabase
@@ -111,6 +127,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (result.error && (result.error.code === '42703' || String(result.error.message).includes('does not exist'))) {
+      delete insertPayload.reply_to;
       delete insertPayload.attachments;
       const colsWithoutAttachments = 'id, conversation_id, sender, body, created_at';
       result = await supabase
@@ -170,7 +187,7 @@ export async function POST(request: NextRequest) {
     const badgeCount = typeof adminUnreadCount === 'number' && adminUnreadCount >= 0 ? Math.min(99, adminUnreadCount) : 1;
     await sendAdminPushNotification(pushTitle, pushBody, '/admin/chat', badgeCount);
     if (businessId) {
-      await sendBusinessPushNotification(businessId, pushTitle, pushBody, '/probot', badgeCount);
+      await sendBusinessPushNotification(businessId, pushTitle, pushBody, chatPushUrl(locale), badgeCount);
     }
 
     const msg = message as unknown as { id: string; conversation_id: string; sender: string; body: string; created_at: string; attachments?: unknown };
@@ -211,6 +228,7 @@ export async function POST(request: NextRequest) {
           created_at: msg.created_at,
           businessId: businessId ?? undefined,
           attachments: msg.attachments ?? attachments ?? [],
+          replyTo: replyTo ?? undefined,
         },
         ...(botMessage ? { botMessage } : {}),
       },
@@ -328,10 +346,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null; read_at?: string | null; attachments?: unknown; admin_sent_as?: string | null; admin_user_id?: string | null; payload?: unknown };
+    type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null; read_at?: string | null; attachments?: unknown; reply_to?: unknown; admin_sent_as?: string | null; admin_user_id?: string | null; payload?: unknown };
     let rawMessages: MessageRow[] | null = null;
 
-    const selectCols = 'id, sender, body, created_at, business_id, read_at, attachments, admin_sent_as, admin_user_id, payload';
+    const selectCols = 'id, sender, body, created_at, business_id, read_at, attachments, reply_to, admin_sent_as, admin_user_id, payload';
     const messagesQuery = supabase
       .from('probot_messages')
       .select(selectCols)
@@ -525,6 +543,7 @@ export async function GET(request: NextRequest) {
         business_name: m.business_id ? businessNames[m.business_id] : undefined,
         read_at: readAt ?? undefined,
         attachments: Array.isArray(m.attachments) ? m.attachments : [],
+        replyTo: parseStoredReply(m.reply_to),
         admin_sent_as: m.admin_sent_as ?? undefined,
         admin_user_id: adminUserId,
         admin_avatar_url: adminProfile?.admin_avatar_url ?? undefined,

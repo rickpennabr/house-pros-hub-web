@@ -59,6 +59,7 @@ export interface SendMessagePayload {
   displayName?: string;
   userId?: string;
   attachments?: Array<{ url: string; name: string; contentType: string }>;
+  replyToId?: string;
   locale?: 'en' | 'pt' | 'es';
 }
 
@@ -89,6 +90,7 @@ export async function sendAdminMessage(payload: {
   conversationId: string;
   body: string;
   attachments?: Array<{ url: string; name: string; contentType: string }>;
+  replyToId?: string;
   sentAs?: 'probot' | 'hub_agent' | { businessId: string };
 }): Promise<{ message?: unknown }> {
   const res = await fetch('/api/chat/admin/messages', {

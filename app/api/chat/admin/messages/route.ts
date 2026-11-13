@@ -5,8 +5,9 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { adminSendMessageSchema } from '@/lib/schemas/chat';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { filterAllowedAttachments } from '@/lib/utils/chatAttachmentAllowlist';
-import { sendVisitorPushNotification } from '@/lib/services/pushNotificationService';
+import { chatPushUrl, pushLocaleFromRequest, sendVisitorPushNotification } from '@/lib/services/pushNotificationService';
 import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
+import { snapshotFromRow } from '@/lib/chat/reply-snapshot';
 
 /**
  * POST /api/chat/admin/messages
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
       const msg = parsed.error.flatten().fieldErrors?.body?.[0] ?? 'Invalid request';
       return NextResponse.json({ error: msg }, { status: 400 });
     }
-    let { conversationId, body: messageBody, attachments: rawAttachments, sentAs } = parsed.data;
+    let { conversationId, body: messageBody, attachments: rawAttachments, replyToId, sentAs } = parsed.data;
 
     const attachments = rawAttachments?.length
       ? filterAllowedAttachments(rawAttachments)
@@ -74,11 +75,25 @@ export async function POST(request: NextRequest) {
       sentAs = { businessId: userBusinessId };
     }
 
+    let replyTo: ReturnType<typeof snapshotFromRow> = null;
+    if (replyToId) {
+      const { data: target } = await supabase
+        .from('probot_messages')
+        .select('id, conversation_id, sender, body, attachments')
+        .eq('id', replyToId)
+        .maybeSingle();
+      replyTo = target ? snapshotFromRow(target, conversationId) : null;
+      if (!replyTo) {
+        return NextResponse.json({ error: 'That message is not in this chat' }, { status: 400 });
+      }
+    }
+
     type InsertPayload = {
       conversation_id: string;
       sender: 'visitor' | 'admin';
       body: string;
       attachments?: unknown;
+      reply_to?: unknown;
       admin_sent_as?: 'probot' | 'business' | 'hub_agent';
       business_id?: string;
       admin_user_id?: string;
@@ -89,6 +104,7 @@ export async function POST(request: NextRequest) {
       body: (messageBody ?? '').trim() || ' ',
     };
     if (attachments?.length) insertPayload.attachments = attachments;
+    if (replyTo) insertPayload.reply_to = replyTo;
     if (sentAs !== undefined) {
       if (sentAs === 'probot') {
         insertPayload.admin_sent_as = sentAs;
@@ -125,6 +141,7 @@ export async function POST(request: NextRequest) {
 
     if (result.error && isColumnError) {
       // Retry without optional columns (migrations 028/029/040 may not be applied)
+      delete insertPayload.reply_to;
       delete insertPayload.attachments;
       delete insertPayload.admin_sent_as;
       delete insertPayload.business_id;
@@ -181,7 +198,7 @@ export async function POST(request: NextRequest) {
       conversationId,
       'New reply in ProBot',
       pushBody || 'You have a new message',
-      '/'
+      chatPushUrl(pushLocaleFromRequest(request))
     );
 
     return NextResponse.json(
@@ -193,6 +210,7 @@ export async function POST(request: NextRequest) {
           body: message.body,
           created_at: message.created_at,
           attachments: message.attachments ?? attachments ?? [],
+          replyTo: replyTo ?? undefined,
           admin_sent_as: message.admin_sent_as ?? undefined,
           business_id: message.business_id ?? undefined,
           admin_user_id: message.admin_user_id ?? undefined,
