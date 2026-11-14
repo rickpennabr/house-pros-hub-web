@@ -6,6 +6,7 @@ import { transformBusinessToProCardData } from '@/lib/utils/businessTransform';
 import { normalizeLinks } from '@/lib/utils/normalizeLinks';
 import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
 import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
+import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
 
 interface DbLicenseRow {
   license_number: string | null;
@@ -300,7 +301,7 @@ export async function PUT(
     if (body.mobilePhone !== undefined) updateData.mobile_phone = body.mobilePhone;
     if (body.links !== undefined) updateData.links = body.links;
     if (body.services !== undefined) updateData.services = body.services;
-    if (body.images !== undefined) updateData.images = Array.isArray(body.images) ? body.images.slice(0, 10) : [];
+    if (body.images !== undefined) updateData.images = Array.isArray(body.images) ? body.images.slice(0, MAX_BUSINESS_GALLERY_IMAGES) : [];
     if (body.operatingHours !== undefined) updateData.operating_hours = body.operatingHours;
     if (body.is_active !== undefined) updateData.is_active = body.is_active;
     if (body.is_verified !== undefined) updateData.is_verified = body.is_verified;

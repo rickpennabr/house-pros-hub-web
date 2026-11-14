@@ -24,24 +24,29 @@ export default function BusinessDetailsTabs({ activeTab, onTabChange, showServic
   ];
 
   return (
-    <div className="flex h-full w-full overflow-x-auto border-b-2 border-black">
-      {tabs.map(({ id, label, icon: Icon }) => {
-        const isActive = activeTab === id;
-        return (
-          <button
-            key={id}
-            onClick={() => onTabChange(id)}
-            className={`flex min-w-[4.75rem] flex-1 shrink-0 items-center justify-center gap-1.5 h-full px-2 text-xs font-medium transition-colors cursor-pointer sm:gap-2 sm:px-4 sm:text-sm ${
-              isActive
-                ? 'border-b-4 border-black bg-white'
-                : 'bg-white hover:bg-gray-50'
-            }`}
-          >
-            <Icon className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
-            <span>{label}</span>
-          </button>
-        );
-      })}
+    <div className="flex h-[60px] w-full min-w-0 flex-shrink-0 items-center border-b-2 border-black px-1 md:h-[69px] md:px-[6px]">
+      <div className="scrollbar-category h-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <div className="flex h-full w-max items-center gap-2 md:w-full md:justify-between">
+          {tabs.map(({ id, label, icon: Icon }) => {
+            const isActive = activeTab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onTabChange(id)}
+                className={`group flex h-10 min-w-max shrink-0 cursor-pointer items-center justify-center gap-1 rounded-lg border-2 px-2.5 font-medium transition-all duration-300 hover:scale-[1.02] md:gap-2.5 md:px-4 ${
+                  isActive
+                    ? 'border-black bg-black text-white'
+                    : 'border-transparent bg-transparent text-black hover:border-gray-400'
+                }`}
+              >
+                <Icon className="h-[1.125rem] w-[1.125rem] shrink-0 text-red-500 transition-transform duration-300 group-hover:scale-110 md:h-[1.35rem] md:w-[1.35rem] lg:h-[1.575rem] lg:w-[1.575rem]" />
+                <span className="whitespace-nowrap text-sm md:text-base lg:text-lg">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

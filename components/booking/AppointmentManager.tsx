@@ -6,6 +6,8 @@ import { useLocale, useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
+import AddToCalendar from '@/components/booking/AddToCalendar';
+import { visitCalendarDescription, visitCalendarTitle } from '@/lib/booking/calendarLinks';
 
 interface AppointmentCard {
   businessName: string;
@@ -152,6 +154,24 @@ export default function AppointmentManager({ token }: { token: string }) {
         <p className="mt-1 text-sm text-gray-700">
           <span className="font-medium">{t('status')}:</span> {statusLabel}
         </p>
+        {appointment.status === 'confirmed' && (
+          <div className="mt-4">
+            <AddToCalendar
+              icsHref={`/api/appointments/${encodeURIComponent(token)}/ics`}
+              event={{
+                title: visitCalendarTitle(appointment.businessName, appointment.serviceName),
+                description: visitCalendarDescription([
+                  appointment.businessName,
+                  appointment.visitNote,
+                  typeof window !== 'undefined' ? window.location.href : null,
+                ]),
+                location: appointment.visitAddress ?? '',
+                startAt: appointment.startAt,
+                endAt: appointment.endAt,
+              }}
+            />
+          </div>
+        )}
       </section>
 
       {notice && <p className="rounded-lg border-2 border-black bg-gray-50 p-3 text-sm text-gray-800">{notice}</p>}

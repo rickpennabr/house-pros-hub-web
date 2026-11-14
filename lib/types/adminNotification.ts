@@ -5,7 +5,8 @@ export type AdminNotificationEventType =
   | 'estimate'
   | 'estimate_accepted'
   | 'booking'
-  | 'incoming_email';
+  | 'incoming_email'
+  | 'maintenance';
 
 export type AdminNotificationEntityType =
   | 'customer'
@@ -28,6 +29,7 @@ export interface AdminBellEvent {
 
 export function adminNotificationHref(entityType: string, eventType?: string): string {
   if (eventType === 'estimate') return '/admin/estimates';
+  if (eventType === 'maintenance') return '/admin';
   if (eventType === 'estimate_accepted') return '/admin';
   switch (entityType) {
     case 'customer':

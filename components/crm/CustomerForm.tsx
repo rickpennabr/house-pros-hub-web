@@ -104,6 +104,8 @@ export function CustomerForm({
   const [form, setForm] = useState<CRMCustomerFormData>({ ...emptyForm, ...initial });
   const [roleIds, setRoleIds] = useState<string[]>(initial.roleIds ?? []);
   const [saving, setSaving] = useState(false);
+  const [filling, setFilling] = useState(false);
+  const [hubNote, setHubNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shippingSearch, setShippingSearch] = useState('');
   const { isOpen, toggle: toggleAccordion } = useSingleOpenAccordion(CRM_ACCORDION_KEYS, 'nameAndContact');
@@ -119,6 +121,67 @@ export function CustomerForm({
   const update = (key: keyof CRMCustomerFormData, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setError(null);
+    if (key === 'email') setHubNote(null);
+  };
+
+  const fillFromHub = async () => {
+    setError(null);
+    setHubNote(null);
+    const emailErr = validateCustomerEmail(form.email.trim());
+    if (!form.email.trim() || emailErr) {
+      setError(emailErr ? (tValidation(emailErr) as string) : 'Enter their email first.');
+      return;
+    }
+    setFilling(true);
+    try {
+      const res = await fetch('/api/crm/customers/from-hub', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email.trim(), fillOnly: true }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        contact?: {
+          email: string;
+          firstName: string;
+          lastName: string;
+          phone: string;
+          streetAddress: string;
+          apartment: string;
+          city: string;
+          state: string;
+          zipCode: string;
+        };
+      };
+      if (!res.ok || !data.contact) throw new Error(data.error || 'Could not use that account');
+      const contact = data.contact;
+      setForm((prev) => ({
+        ...prev,
+        email: contact.email,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        displayName: combinedPersonName(contact.firstName, contact.lastName),
+        phone: contact.phone ? formatPhoneNumber(contact.phone) : prev.phone,
+        streetAddress: contact.streetAddress,
+        apartment: contact.apartment,
+        city: contact.city,
+        state: contact.state,
+        zipCode: contact.zipCode,
+        addressSearch: contact.streetAddress,
+        billingStreet1: contact.streetAddress,
+        billingStreet2: contact.apartment,
+        billingCity: contact.city,
+        billingState: contact.state,
+        billingZipCode: contact.zipCode,
+        billingCountry: contact.streetAddress ? prev.billingCountry || 'United States' : prev.billingCountry,
+      }));
+      setHubNote('Name, phone, and address filled from their House Pros account. Review them, then save. This stays in your contacts.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not use that account');
+    } finally {
+      setFilling(false);
+    }
   };
 
   const updatePersonName = (key: 'firstName' | 'lastName', value: string) => {
@@ -293,6 +356,17 @@ export function CustomerForm({
           <FormField label="Email">
             <Input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="email@example.com" />
           </FormField>
+          {mode === 'add' ? (
+            <div className="col-span-2 md:col-span-3 space-y-2">
+              <Button type="button" variant="secondary" size="sm" onClick={() => void fillFromHub()} disabled={filling || saving}>
+                {filling ? 'Looking up…' : 'Fill from their House Pros account'}
+              </Button>
+              <p className="text-xs text-gray-600">
+                If they already signed up, enter that email. This copies their name, phone, and address into your contact. You only see your own customers.
+              </p>
+              {hubNote ? <p className="text-xs text-gray-800">{hubNote}</p> : null}
+            </div>
+          ) : null}
           <FormField label="Website">
             <Input type="url" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://..." />
           </FormField>

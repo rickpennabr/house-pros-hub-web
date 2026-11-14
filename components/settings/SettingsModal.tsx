@@ -207,12 +207,6 @@ export default function SettingsModal({
               >
                 Account Management
               </button>
-              {user?.businessId && (
-                <div className="flex items-center justify-between gap-2 px-4 py-2.5 rounded-lg">
-                  <span className="text-sm font-medium text-black">ProBot visitor messages: push notifications</span>
-                  <ContractorPushButton />
-                </div>
-              )}
             </div>
             )}
           </div>
@@ -340,6 +334,12 @@ export default function SettingsModal({
                   onChange={(event) => void allowLocation(event.target.checked)}
                 />
               </label>
+              {user?.businessId ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg px-4 py-2.5">
+                  <span className="text-sm font-medium text-black">ProBot visitor messages: push notifications</span>
+                  <ContractorPushButton />
+                </div>
+              ) : null}
               <button
                 onClick={() => {
                   onClose();

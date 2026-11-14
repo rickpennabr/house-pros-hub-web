@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Share2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import ShareBusinessModal from './ShareBusinessModal';
 import ProfileIcon from '@/components/pageslayout/ProfileIcon';
 
@@ -14,8 +15,6 @@ interface BusinessDetailsHeaderProps {
   secondaryLogo?: string;
   /** When true, show ProfileIcon (owner's account). When false, show business logo for visitors. */
   isOwner?: boolean;
-  /** When set, the logo returns here instead of the previous page. */
-  backHref?: string;
   /** Share dialog title. Defaults to the business share label. */
   shareTitle?: string;
 }
@@ -38,10 +37,9 @@ export default function BusinessDetailsHeader({
   contractorType = '',
   secondaryLogo,
   isOwner = false,
-  backHref,
   shareTitle,
 }: BusinessDetailsHeaderProps) {
-  const router = useRouter();
+  const locale = useLocale();
   const businessInitials = getInitials(businessName);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareBusinessUrl, setShareBusinessUrl] = useState('');
@@ -57,10 +55,10 @@ export default function BusinessDetailsHeader({
   return (
     <div className="relative flex items-center h-[60px] p-2 md:px-2 md:py-4 border-b-2 border-black bg-white">
       <div className="flex items-center shrink-0">
-        <button
-          onClick={() => (backHref ? router.push(backHref) : router.back())}
+        <Link
+          href={`/${locale}/businesslist`}
           className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center bg-white shrink-0 hover:bg-gray-50 transition-colors overflow-hidden cursor-pointer"
-          aria-label="Go back"
+          aria-label="Go to home page"
         >
           <Image
             src="/house-pros-hub-logo-simble-bot.png"
@@ -69,7 +67,7 @@ export default function BusinessDetailsHeader({
             height={40}
             className="w-full h-full object-contain"
           />
-        </button>
+        </Link>
       </div>
       <div className="flex-1 flex items-center justify-center gap-1 md:gap-1 pr-14 md:pr-16 min-w-0">
         <div className="flex-1 min-w-0 flex flex-col items-center">

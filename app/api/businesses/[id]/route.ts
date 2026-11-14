@@ -8,6 +8,7 @@ import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
+import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
 import {
   DEFAULT_SLOT_MINUTES,
   DEFAULT_TIMEZONE,
@@ -27,6 +28,27 @@ interface LicenseInput {
   trade?: string;
 }
 
+function ownerProfileFields(row: {
+  owner_bio?: string | null;
+  owner_experience?: string | null;
+  owner_degrees?: string | null;
+  owner_certifications?: string | null;
+  owner_years_experience?: number | null;
+}) {
+  return {
+    ownerBio: row.owner_bio || undefined,
+    ownerExperience: row.owner_experience || undefined,
+    ownerDegrees: row.owner_degrees || undefined,
+    ownerCertifications: row.owner_certifications || undefined,
+    ownerYearsExperience: row.owner_years_experience ?? undefined,
+  };
+}
+
+function blankText(value: unknown): string | null {
+  const text = sanitizeText(typeof value === 'string' ? value : '').trim();
+  return text || null;
+}
+
 interface BusinessUpdateBody {
   businessName?: string;
   slug?: string;
@@ -34,6 +56,11 @@ interface BusinessUpdateBody {
   businessBackground?: string;
   businessBackgroundPosition?: string;
   companyDescription?: string;
+  ownerBio?: string;
+  ownerExperience?: string;
+  ownerDegrees?: string;
+  ownerCertifications?: string;
+  ownerYearsExperience?: string | number | null;
   email?: string;
   phone?: string;
   mobilePhone?: string;
@@ -168,6 +195,7 @@ async function handleGetBusiness(
         businessBackgroundPosition: (business as { business_background_position?: string | null }).business_background_position ?? '50% 50%',
         slug: business.slug || undefined,
         companyDescription: business.company_description || undefined,
+        ...ownerProfileFields(business),
         licenses: licensesForTransform,
         services: Array.isArray(businessServices) ? businessServices : [],
         images: Array.isArray(businessImages) ? businessImages : [],
@@ -345,12 +373,28 @@ async function handleUpdateBusiness(
     if (body.businessBackground !== undefined) updateData.business_background = body.businessBackground;
     if (body.businessBackgroundPosition !== undefined) updateData.business_background_position = body.businessBackgroundPosition;
     if (body.companyDescription !== undefined) updateData.company_description = body.companyDescription;
+    if (body.ownerBio !== undefined) updateData.owner_bio = blankText(body.ownerBio);
+    if (body.ownerExperience !== undefined) updateData.owner_experience = blankText(body.ownerExperience);
+    if (body.ownerDegrees !== undefined) updateData.owner_degrees = blankText(body.ownerDegrees);
+    if (body.ownerCertifications !== undefined) updateData.owner_certifications = blankText(body.ownerCertifications);
+    if (body.ownerYearsExperience !== undefined) {
+      const raw = body.ownerYearsExperience;
+      if (raw === '' || raw === null) {
+        updateData.owner_years_experience = null;
+      } else {
+        const years = Number(raw);
+        if (!Number.isInteger(years) || years < 0 || years > 80) {
+          return NextResponse.json({ error: 'Years of experience must be 0 to 80' }, { status: 400 });
+        }
+        updateData.owner_years_experience = years;
+      }
+    }
     if (body.email !== undefined) updateData.email = body.email;
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.mobilePhone !== undefined) updateData.mobile_phone = body.mobilePhone;
     if (body.links !== undefined) updateData.links = body.links;
     if (body.services !== undefined) updateData.services = body.services;
-    if (body.images !== undefined) updateData.images = Array.isArray(body.images) ? body.images.slice(0, 10) : [];
+    if (body.images !== undefined) updateData.images = Array.isArray(body.images) ? body.images.slice(0, MAX_BUSINESS_GALLERY_IMAGES) : [];
     if (body.operatingHours !== undefined) updateData.operating_hours = body.operatingHours;
     if (body.showCalendarOnProCard !== undefined) updateData.show_calendar_on_procard = body.showCalendarOnProCard;
 
@@ -540,6 +584,7 @@ async function handleUpdateBusiness(
         businessBackgroundPosition: (completeBusiness as { business_background_position?: string | null }).business_background_position ?? '50% 50%',
         slug: completeBusiness.slug || undefined,
         companyDescription: completeBusiness.company_description || undefined,
+        ...ownerProfileFields(completeBusiness),
         licenses: licensesForTransform,
         services: Array.isArray(completeBusinessServices) ? completeBusinessServices : [],
         images: Array.isArray(completeBusinessImages) ? completeBusinessImages : [],

@@ -11,6 +11,7 @@ import { JobCustomerAlbum } from '@/components/media/JobCustomerAlbum';
 import { uploadProDriveFile, ProDriveQuotaClientError } from '@/lib/drive/upload-client';
 import { geocodeAddress, locateShot, readCompassHeading, type PhotoSpot } from '@/lib/media/photo-spot';
 import { requestCurrentLocation } from '@/lib/media/capture-location';
+import { primeLiveCamera } from '@/lib/media/prime-camera';
 
 interface CustomerRow extends ProjectFromCustomer {
   address: string;
@@ -180,6 +181,7 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
   };
 
   const takePhotoAtPlace = async (draft: NewJobDraft) => {
+    primeLiveCamera('environment');
     const label = draft.name.trim() || draft.street.trim() || 'New job';
     const address = newJobAddress(draft);
     setCreating(true);
@@ -435,16 +437,19 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
             setError(null);
           }}
           onCamera={() => {
+            primeLiveCamera('environment');
             setAfterOf(null);
             setCapture('photo');
             setShooting(true);
           }}
           onWalkthrough={() => {
+            primeLiveCamera('environment');
             setAfterOf(null);
             setCapture('video');
             setShooting(true);
           }}
           onTakeAfter={(photoId) => {
+            primeLiveCamera('environment');
             setAfterOf(photoId);
             setShooting(true);
           }}

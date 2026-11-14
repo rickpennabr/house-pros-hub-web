@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -19,6 +19,7 @@ import { ProductOrServiceCombobox } from '@/components/invoices/ProductOrService
 import { UnitCombobox } from '@/components/invoices/UnitCombobox';
 import type { CompanyDisplayOverride } from '@/lib/invoices/companyDisplay';
 import { contactDisplayName } from '@/lib/crm/contact-name';
+import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
 import { DOCUMENT_FORM_LAYOUT } from '@/lib/constants/documentFormLayout';
 import { formatAmount } from '@/lib/invoices/format';
@@ -74,6 +75,11 @@ export function InvoiceEditor({
 }: InvoiceEditorProps) {
   const router = useRouter();
   const [customerId, setCustomerId] = useState(initialDraft.customerId);
+  const [importedCustomers, setImportedCustomers] = useState<InvoiceCustomerOption[]>([]);
+  const customerOptions = useMemo(() => {
+    const seen = new Set(customers.map((customer) => customer.id));
+    return [...customers, ...importedCustomers.filter((customer) => !seen.has(customer.id))];
+  }, [customers, importedCustomers]);
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(initialDraft.lineItems);
   const [invoiceDate, setInvoiceDate] = useState(initialDraft.invoiceDate);
   const [dueDate, setDueDate] = useState(initialDraft.dueDate);
@@ -260,12 +266,25 @@ export function InvoiceEditor({
                     className="w-full"
                   >
                     <option value="">Select customer</option>
-                    {customers.map((customer) => (
+                    {customerOptions.map((customer) => (
                       <option key={customer.id} value={customer.id}>
                         {customerLabel(customer)}
                       </option>
                     ))}
                   </Select>
+                  <HubCustomerImport
+                    disabled={saving}
+                    onImported={(customer) => {
+                      setImportedCustomers((current) =>
+                        current.some((row) => row.id === customer.id) ? current : [...current, customer]
+                      );
+                      setCustomerId(customer.id);
+                      setLineItems((current) => {
+                        const kept = current.filter((line) => !line.expense_id);
+                        return kept.length > 0 ? kept : [emptyInvoiceLine()];
+                      });
+                    }}
+                  />
                 </div>
                 <div className="border-t border-gray-300 md:border-t-0 md:border-l md:pl-6 pt-4 md:pt-0 space-y-3">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm items-center">

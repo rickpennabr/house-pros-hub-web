@@ -4,15 +4,19 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { useAutoScroll } from '@/hooks/useAutoScroll';
 import BusinessDetailsHeader from '@/components/businessdetails/BusinessDetailsHeader';
 import BusinessHeroImage from '@/components/businessdetails/BusinessHeroImage';
 import { BackgroundImageEdit } from '@/components/businessdetails/BackgroundImageEdit';
 import ProReactions from '@/components/proscard/ProReactions';
+import ProLinks from '@/components/proscard/ProLinks';
 import BusinessDetailsTabs, { type BusinessDetailsTab } from '@/components/businessdetails/BusinessDetailsTabs';
 import BusinessServicesTab from '@/components/businessdetails/BusinessServicesTab';
-import BusinessContactIcons from '@/components/businessdetails/BusinessContactIcons';
 import BusinessContactInfo from '@/components/businessdetails/BusinessContactInfo';
+import SignInRequiredModal from '@/components/auth/SignInRequiredModal';
+import { HphQrCodeModal } from '@/components/qr/HphQrCodeModal';
+import { publicPageUrl } from '@/lib/qr/public-origin';
+import { createLocalePath } from '@/lib/redirect';
+import type { Locale } from '@/i18n';
 import BusinessHoursList from '@/components/businessdetails/BusinessHoursList';
 import BusinessLinksTab from '@/components/businessdetails/BusinessLinksTab';
 import BusinessAboutTab from '@/components/businessdetails/BusinessAboutTab';
@@ -23,10 +27,51 @@ import { useAuth } from '@/contexts/AuthContext';
 import { parseObjectPosition, formatObjectPosition } from '@/lib/utils/backgroundPosition';
 import { getCsrfToken } from '@/lib/utils/csrf';
 import { ImagePlus, Loader2, X } from 'lucide-react';
+import type { WeekSchedule } from '@/lib/booking/businessHours';
 
 type TabType = BusinessDetailsTab;
 
-import type { WeekSchedule } from '@/lib/booking/businessHours';
+/** Content can sit this far past the visible edge before we treat it as hidden. */
+const TAB_CONTENT_CLIP_TOLERANCE_PX = 24;
+
+function findScrollParent(element: HTMLElement): HTMLElement | null {
+  let node = element.parentElement;
+  while (node) {
+    const { overflowY } = window.getComputedStyle(node);
+    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
+function scrollportBounds(scroller: HTMLElement | null): { top: number; bottom: number } {
+  if (!scroller) {
+    return { top: 0, bottom: window.innerHeight };
+  }
+  const top = scroller.getBoundingClientRect().top + scroller.clientTop;
+  return { top, bottom: top + scroller.clientHeight };
+}
+
+function isTabContentHidden(content: HTMLElement, scroller: HTMLElement | null): boolean {
+  const rect = content.getBoundingClientRect();
+  const port = scrollportBounds(scroller);
+  return rect.top < port.top - 1 || rect.bottom > port.bottom + TAB_CONTENT_CLIP_TOLERANCE_PX;
+}
+
+function scrollTabsToTop(tabs: HTMLElement, scroller: HTMLElement | null) {
+  const portTop = scrollportBounds(scroller).top;
+  const delta = tabs.getBoundingClientRect().top - portTop;
+  if (Math.abs(delta) < 2) return;
+
+  const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+  if (scroller) {
+    scroller.scrollBy({ top: delta, behavior });
+    return;
+  }
+  window.scrollBy({ top: delta, behavior });
+}
 
 interface OwnerProfile {
   first_name?: string | null;
@@ -53,9 +98,12 @@ export default function BusinessDetailsPage() {
   const slug = params.slug as string;
   const locale = useLocale();
   const tHours = useTranslations('businessHours');
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isSignInRequiredOpen, setIsSignInRequiredOpen] = useState(false);
   const [business, setBusiness] = useState<BusinessWithMeta | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('contact');
+  const [tabScrollNonce, setTabScrollNonce] = useState(0);
   const [ownerRoles, setOwnerRoles] = useState<string[]>([]);
   const [bookingSettings, setBookingSettings] = useState<BookingSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,18 +111,12 @@ export default function BusinessDetailsPage() {
   const [bgSaving, setBgSaving] = useState(false);
   const bgInputRef = useRef<HTMLInputElement>(null);
   const heroContainerRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const tabContentRef = useRef<HTMLDivElement>(null);
   const [heroDragStart, setHeroDragStart] = useState<{ clientX: number; clientY: number; posX: number; posY: number } | null>(null);
   const [showAdjustHint, setShowAdjustHint] = useState(false);
   const [savedBgPosition, setSavedBgPosition] = useState('50% 50%');
   const [isAdjustMode, setIsAdjustMode] = useState(false);
-  
-  // Refs for tab content sections for auto-scrolling
-  const contactRef = useRef<HTMLDivElement>(null);
-  const hoursRef = useRef<HTMLDivElement>(null);
-  const servicesRef = useRef<HTMLDivElement>(null);
-  const linksRef = useRef<HTMLDivElement>(null);
-  const aboutRef = useRef<HTMLDivElement>(null);
-  const imagesRef = useRef<HTMLDivElement>(null);
   
   const isOwner = !!user?.id && !!business?.userId && user.id === business.userId;
   const showServices = ownerRoles.includes('contractor') || ownerRoles.includes('realtor');
@@ -116,13 +158,49 @@ export default function BusinessDetailsPage() {
     return () => clearTimeout(t);
   }, [showAdjustHint]);
 
-  // Auto-scroll to active tab content
-  useAutoScroll({ ref: contactRef, shouldScroll: activeTab === 'contact' });
-  useAutoScroll({ ref: hoursRef, shouldScroll: activeTab === 'hours' });
-  useAutoScroll({ ref: servicesRef, shouldScroll: activeTab === 'services' });
-  useAutoScroll({ ref: linksRef, shouldScroll: activeTab === 'links' });
-  useAutoScroll({ ref: aboutRef, shouldScroll: activeTab === 'about' });
-  useAutoScroll({ ref: imagesRef, shouldScroll: activeTab === 'images' });
+  // When a tab's content is cut off, bring the tab bar's top edge to the top of the screen.
+  const skipInitialTabScroll = useRef(true);
+  useEffect(() => {
+    if (skipInitialTabScroll.current) {
+      skipInitialTabScroll.current = false;
+      return;
+    }
+
+    const tabs = tabsRef.current;
+    const content = tabContentRef.current;
+    if (!tabs || !content) return;
+
+    const scroller = findScrollParent(tabs);
+    let cancelled = false;
+    let didScroll = false;
+    let userScrolled = false;
+
+    const alignIfHidden = () => {
+      if (cancelled || didScroll || userScrolled) return;
+      const currentTabs = tabsRef.current;
+      const currentContent = tabContentRef.current;
+      if (!currentTabs || !currentContent) return;
+      if (!isTabContentHidden(currentContent, scroller)) return;
+      didScroll = true;
+      scrollTabsToTop(currentTabs, scroller);
+    };
+
+    const onUserScroll = () => {
+      if (!didScroll) userScrolled = true;
+    };
+    scroller?.addEventListener('scroll', onUserScroll, { passive: true });
+
+    const frame = requestAnimationFrame(alignIfHidden);
+    const observer = new ResizeObserver(alignIfHidden);
+    observer.observe(content);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      scroller?.removeEventListener('scroll', onUserScroll);
+    };
+  }, [tabScrollNonce]);
 
   useEffect(() => {
     let cancelled = false;
@@ -245,8 +323,8 @@ export default function BusinessDetailsPage() {
 
   const phoneLink = business.links.find(l => l.type === 'phone');
   const emailLink = business.links.find(l => l.type === 'email');
-  const websiteLink = business.links.find(l => l.type === 'website');
-  const instagramLink = business.links.find(l => l.type === 'instagram');
+  const profileHref = createLocalePath(locale as Locale, `/business/${business.slug || business.id}`);
+  const qrFileName = `hph-${(business.slug || business.id).replace(/[^a-zA-Z0-9-_]+/g, '-')}-qr.png`;
 
   const handleBackgroundPositionChange = async (position: string) => {
     if (!business?.id || bgSaving) return;
@@ -467,7 +545,7 @@ export default function BusinessDetailsPage() {
         )}
       </div>
       
-      <div className="flex flex-col md:flex-row md:items-center h-auto md:h-[60px] p-2 bg-white border-b-2 border-black">
+      <div className="flex flex-col md:flex-row md:items-center h-auto md:min-h-[60px] p-2 bg-white border-b-2 border-black">
         <div className="w-full md:w-1/2 md:pr-4">
           <ProReactions
             initialReactions={business.reactions}
@@ -475,6 +553,7 @@ export default function BusinessDetailsPage() {
             contractorType={business.contractorType}
             logo={business.logo || business.businessLogo}
             businessId={business.id}
+            businessSlug={business.slug}
             ownerUserId={business.userId}
             layout="around"
             gap="gap-1"
@@ -483,29 +562,30 @@ export default function BusinessDetailsPage() {
         {/* Divider: horizontal on mobile, vertical on desktop */}
         <div className="w-full h-px bg-black my-2 md:hidden"></div>
 
-        {/* On mobile, show icon links under reactions */}
-        <div className="w-full md:w-1/2 flex justify-center md:justify-center md:border-l md:border-black md:pl-4 items-center gap-2">
-          <BusinessContactIcons
-            phone={phoneLink?.value}
-            website={websiteLink?.url}
-            instagram={instagramLink?.url}
-            businessSlug={business?.slug}
-            businessId={business?.id}
+        <div className="w-full min-w-0 md:w-1/2 flex flex-wrap justify-center md:border-l md:border-black md:pl-4 items-center gap-2">
+          <ProLinks
+            links={business.links}
+            bare
+            onSignInRequired={!isAuthenticated ? () => setIsSignInRequiredOpen(true) : undefined}
+            onQrCode={() => setIsQrModalOpen(true)}
           />
         </div>
       </div>
       
-      <div className="flex items-center h-[60px]">
+      <div ref={tabsRef}>
         <BusinessDetailsTabs
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            setTabScrollNonce((n) => n + 1);
+          }}
           showServices={showServices}
         />
       </div>
 
-      <div className="w-full p-2 md:p-2">
+      <div ref={tabContentRef} className="w-full p-2">
         {activeTab === 'contact' && (
-          <div ref={contactRef}>
+          <div>
             <BusinessContactInfo
               phone={phoneLink?.value}
               email={emailLink?.value}
@@ -514,7 +594,7 @@ export default function BusinessDetailsPage() {
         )}
 
         {activeTab === 'hours' && (
-          <div ref={hoursRef}>
+          <div>
             {bookingSettings && (bookingSettings.hoursConfigured || bookingSettings.enabled) && (
               <BusinessHoursList
                 schedule={bookingSettings.schedule}
@@ -538,7 +618,7 @@ export default function BusinessDetailsPage() {
         )}
         
         {activeTab === 'services' && showServices && business.slug && (
-          <div ref={servicesRef}>
+          <div>
             <BusinessServicesTab
               businessId={business.id}
               businessSlug={business.slug}
@@ -550,7 +630,7 @@ export default function BusinessDetailsPage() {
         )}
 
         {activeTab === 'links' && (
-          <div ref={linksRef}>
+          <div>
             <BusinessLinksTab
               links={business.links}
               businessName={business.businessName}
@@ -560,7 +640,7 @@ export default function BusinessDetailsPage() {
         )}
         
         {activeTab === 'about' && (
-          <div ref={aboutRef}>
+          <div>
             <BusinessAboutTab
               businessName={business.businessName}
               contractorType={business.contractorType}
@@ -571,13 +651,18 @@ export default function BusinessDetailsPage() {
               ownerName={business.ownerName}
               ownerTitle={business.ownerTitle}
               ownerDescription={business.ownerDescription}
+              ownerBio={business.ownerBio}
+              ownerExperience={business.ownerExperience}
+              ownerDegrees={business.ownerDegrees}
+              ownerCertifications={business.ownerCertifications}
+              ownerYearsExperience={business.ownerYearsExperience}
               companyDescription={business.companyDescription}
             />
           </div>
         )}
 
         {activeTab === 'images' && (
-          <div ref={imagesRef}>
+          <div>
             <BusinessImagesTab
               images={business.images}
               businessName={business.businessName}
@@ -588,6 +673,15 @@ export default function BusinessDetailsPage() {
           </div>
         )}
       </div>
+      <HphQrCodeModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        url={publicPageUrl(profileHref)}
+        label={business.businessName}
+        logoSrc={business.logo || business.businessLogo}
+        fileName={qrFileName}
+      />
+      <SignInRequiredModal isOpen={isSignInRequiredOpen} onClose={() => setIsSignInRequiredOpen(false)} />
     </div>
   );
 }

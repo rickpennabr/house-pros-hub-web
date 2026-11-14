@@ -1,11 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Send, MessageSquare, User, Reply, CheckCircle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
+import { ImagePlus, Send, Trash2, X } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
-import { feedbackStorage, Comment } from '@/lib/storage/feedbackStorage';
 import Modal from '@/components/ui/Modal';
+import FeedbackPhotos from '@/components/feedback/FeedbackPhotos';
+import { createLocalePath, createSignInUrl } from '@/lib/redirect';
+import type { Locale } from '@/i18n';
+
+interface PublicFeedback {
+  id: string;
+  authorName: string;
+  body: string;
+  imageUrls: string[];
+  proResponse: string | null;
+  proResponseImageUrls: string[];
+  proRespondedAt: string | null;
+  createdAt: string;
+  canDelete: boolean;
+}
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -14,22 +30,20 @@ interface FeedbackModalProps {
   contractorType: string;
   logo?: string;
   businessId: string;
-  ownerUserId?: string;
-  onCommentsChange?: () => void;
+  businessSlug?: string;
+  onCountChange?: (count: number) => void;
 }
 
-function getInitials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(word => word.length > 0);
-  
+const MAX_IMAGES = 5;
+
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter((word) => word.length > 0);
   if (words.length === 0) return '';
-  
-  if (words.length === 1) {
-    return words[0].charAt(0).toUpperCase();
-  } else {
-    return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
-  }
+  if (words.length === 1) return words[0].charAt(0).toUpperCase();
+  return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
 }
 
+/** Reviews saved for this pro. The same list is on the business feedback page. */
 export default function FeedbackModal({
   isOpen,
   onClose,
@@ -37,429 +51,459 @@ export default function FeedbackModal({
   contractorType,
   logo,
   businessId,
-  ownerUserId,
-  onCommentsChange,
+  businessSlug,
+  onCountChange,
 }: FeedbackModalProps) {
-  const { user } = useAuth();
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState('');
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState<Record<string, string>>({});
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const initials = getInitials(businessName);
-  const MAX_COMMENT_LENGTH = 500;
-  
-  const userInitials = user ? getInitials(`${user.firstName} ${user.lastName}`) : 'U';
-  const userName = user ? `${user.firstName} ${user.lastName}` : 'User';
+  const t = useTranslations('businessFeedback');
+  const locale = useLocale() as Locale;
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const [items, setItems] = useState<PublicFeedback[]>([]);
+  const totalRef = useRef(0);
+  const [isOwner, setIsOwner] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [body, setBody] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [posting, setPosting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [replyFor, setReplyFor] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
+  const [replyPreviews, setReplyPreviews] = useState<string[]>([]);
+  const [replyKeptUrls, setReplyKeptUrls] = useState<string[]>([]);
+  const [replying, setReplying] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [photosOpen, setPhotosOpen] = useState(false);
 
-  const isOwner = Boolean(user?.id && ownerUserId && user.id === ownerUserId);
+  const feedbackPath = `/business/${businessSlug || businessId}/feedback`;
 
-
-  // Load comments from storage when modal opens
   useEffect(() => {
-    if (isOpen && businessId) {
-      const storedComments = feedbackStorage.getFeedback(businessId);
-      const timeoutId = window.setTimeout(() => {
-        setComments(storedComments);
-        // Reset confirmation state when modal opens
-        setShowConfirmation(false);
-      }, 0);
+    const urls = files.map((file) => URL.createObjectURL(file));
+    setPreviews(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [files]);
 
-      return () => window.clearTimeout(timeoutId);
-    }
-  }, [isOpen, businessId]);
-
-  // Auto-close modal after 3 seconds when confirmation is shown
   useEffect(() => {
-    if (showConfirmation) {
-      const timer = setTimeout(() => {
-        onClose();
-        setShowConfirmation(false);
-      }, 3000);
+    const urls = replyFiles.map((file) => URL.createObjectURL(file));
+    setReplyPreviews(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [replyFiles]);
 
-      return () => clearTimeout(timer);
-    }
-  }, [showConfirmation, onClose]);
+  useEffect(() => {
+    if (!isOpen || !businessId) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    fetch(`/api/businesses/${encodeURIComponent(businessId)}/feedback`, { credentials: 'include' })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || t('failed'));
+        return data as { isOwner: boolean; count: number; feedback: PublicFeedback[] };
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setItems(data.feedback);
+        setIsOwner(data.isOwner);
+        totalRef.current = data.count;
+        onCountChange?.(data.count);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : t('failed'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, businessId, onCountChange, t]);
 
   if (!isOpen) return null;
 
-  const handleSubmitComment = () => {
-    if (!newComment.trim() || newComment.length > MAX_COMMENT_LENGTH || !user) return;
-
-    const comment: Comment = {
-      id: `comment_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      author: userName,
-      authorId: user.id,
-      authorType: isOwner ? 'business' : 'homeowner',
-      text: newComment,
-      timestamp: new Date(),
-      authorPicture: user?.userPicture,
-      replies: [],
-    };
-
-    const updatedComments = [...comments, comment];
-    setComments(updatedComments);
-    feedbackStorage.addComment(businessId, comment);
-    setNewComment('');
-    
-    // Notify parent component that comments changed
-    if (onCommentsChange) {
-      onCommentsChange();
+  const addFiles = (list: FileList | null) => {
+    if (!list) return;
+    const next = [...files];
+    for (const file of Array.from(list)) {
+      if (next.length >= MAX_IMAGES) break;
+      if (!file.type.startsWith('image/')) continue;
+      next.push(file);
     }
-
-    // Show confirmation
-    setShowConfirmation(true);
+    setFiles(next);
   };
 
-  const handleStartReply = (commentId: string) => {
-    setReplyingTo(commentId);
-    if (!replyText[commentId]) {
-      setReplyText({ ...replyText, [commentId]: '' });
+  const submit = async () => {
+    const text = body.trim();
+    if (!text || posting) return;
+    setPosting(true);
+    setFormError(null);
+    try {
+      const imageUrls = await uploadPhotos(files);
+      const response = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ body: text, imageUrls }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || t('failed'));
+      const created = data.feedback as PublicFeedback;
+      setItems((current) => [created, ...current]);
+      totalRef.current += 1;
+      onCountChange?.(totalRef.current);
+      setBody('');
+      setFiles([]);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : t('failed'));
+    } finally {
+      setPosting(false);
     }
   };
 
-  const handleCancelReply = (commentId: string) => {
-    setReplyingTo(null);
-    setReplyText({ ...replyText, [commentId]: '' });
+  const uploadPhotos = async (list: File[]) => {
+    const imageUrls: string[] = [];
+    for (const file of list) {
+      const form = new FormData();
+      form.append('file', file);
+      const uploaded = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/feedback/images`, {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      });
+      const uploadData = await uploaded.json().catch(() => ({}));
+      if (!uploaded.ok) throw new Error(uploadData.error || t('failed'));
+      imageUrls.push(uploadData.imageUrl as string);
+    }
+    return imageUrls;
   };
 
-  const handleSubmitReply = (parentCommentId: string) => {
-    const reply = replyText[parentCommentId];
-    if (!reply?.trim() || reply.length > MAX_COMMENT_LENGTH || !user) return;
-
-    const replyComment: Comment = {
-      id: `reply_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      author: userName,
-      authorId: user.id,
-      authorType: isOwner ? 'business' : 'homeowner',
-      text: reply,
-      timestamp: new Date(),
-      authorPicture: user?.userPicture,
-      parentId: parentCommentId,
-    };
-
-    // Update local state
-    const updatedComments = comments.map(comment => {
-      if (comment.id === parentCommentId) {
-        return {
-          ...comment,
-          replies: [...(comment.replies || []), replyComment],
-        };
-      }
-      return comment;
-    });
-    setComments(updatedComments);
-
-    // Save to storage
-    feedbackStorage.addReply(businessId, parentCommentId, replyComment);
-    
-    // Clear reply
-    setReplyingTo(null);
-    setReplyText({ ...replyText, [parentCommentId]: '' });
-    
-    // Note: We don't call onCommentsChange for replies since they don't affect the top-level comment count
+  const saveReply = async (feedbackId: string) => {
+    const text = replyText.trim();
+    if (replying || (!text && replyFiles.length === 0 && replyKeptUrls.length === 0)) return;
+    setReplying(true);
+    setFormError(null);
+    try {
+      const uploaded = await uploadPhotos(replyFiles);
+      const imageUrls = [...replyKeptUrls, ...uploaded].slice(0, MAX_IMAGES);
+      const response = await fetch(
+        `/api/businesses/${encodeURIComponent(businessId)}/feedback/${feedbackId}/reply`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ response: text, imageUrls }),
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || t('replyFailed'));
+      setItems((current) =>
+        current.map((item) =>
+          item.id === feedbackId
+            ? {
+                ...item,
+                proResponse: (data.proResponse as string | null) ?? null,
+                proResponseImageUrls: (data.proResponseImageUrls as string[]) || [],
+                proRespondedAt: data.proRespondedAt as string,
+              }
+            : item
+        )
+      );
+      setReplyFor(null);
+      setReplyText('');
+      setReplyFiles([]);
+      setReplyKeptUrls([]);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : t('replyFailed'));
+    } finally {
+      setReplying(false);
+    }
   };
 
-  const formatTime = (date: Date) => {
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days < 7) return `${days}d ago`;
-    if (days < 30) return `${days}d ago`;
-    return date.toLocaleDateString();
+  const removeFeedback = async (feedbackId: string) => {
+    if (deletingId) return;
+    setDeletingId(feedbackId);
+    setFormError(null);
+    try {
+      const response = await fetch(
+        `/api/businesses/${encodeURIComponent(businessId)}/feedback/${feedbackId}`,
+        { method: 'DELETE', credentials: 'include' }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || t('deleteFailed'));
+      setItems((current) => current.filter((item) => item.id !== feedbackId));
+      totalRef.current = Math.max(0, totalRef.current - 1);
+      onCountChange?.(totalRef.current);
+      setConfirmDeleteId(null);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : t('deleteFailed'));
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Feedback & Comments"
-      showHeader={true}
+      title={t('title')}
+      showHeader
       maxWidth="md"
+      contentClassName="p-0"
+      preventCloseOnOverlayClick={photosOpen}
     >
-        <div className="relative flex flex-col flex-1">
-          {/* Confirmation Overlay */}
-          {showConfirmation && (
-            <div className="absolute inset-0 bg-white/95 z-50 flex items-center justify-center rounded-lg">
-              <div className="text-center px-6">
-                <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-black mb-2">Feedback Sent!</h3>
-                <p className="text-gray-600">Thank you for your feedback. This window will close automatically.</p>
-              </div>
-            </div>
-          )}
-
-          {/* Business Info */}
-          <div className="p-4 border-b-2 border-black">
-          <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden relative aspect-square ${logo ? 'bg-white' : 'bg-black'}`}>
-              {logo ? (
-                <Image
-                  src={logo}
-                  alt={businessName}
-                  fill
-                  className="object-cover"
-                  sizes="48px"
-                />
-              ) : (
-                <span className="text-lg font-bold text-white">{initials}</span>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-bold text-black truncate">{businessName}</h3>
-              <p className="text-sm text-gray-600 truncate">{contractorType}</p>
-            </div>
+      <div className="flex max-h-[70vh] flex-col">
+        <div className="flex items-center gap-3 border-b-2 border-black p-4">
+          <div className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border-2 border-black ${logo ? 'bg-white' : 'bg-black'}`}>
+            {logo ? (
+              <Image src={logo} alt={businessName} fill className="object-cover" sizes="48px" />
+            ) : (
+              <span className="text-lg font-bold text-white">{initials(businessName)}</span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-lg font-bold text-black">{businessName}</h3>
+            <p className="truncate text-sm text-gray-600">{contractorType}</p>
           </div>
         </div>
 
-        {/* Add Comment Section */}
-        {user && (
-          <div className="px-4 py-4 bg-gray-50">
-            <div className="flex items-center gap-2 mb-3">
-              <User className="w-5 h-5 text-gray-500" />
-              <h3 className="text-base font-semibold text-black">
-                {isOwner ? 'Add Response' : 'Add Comment'}
-              </h3>
-            </div>
-            <div className="bg-white border-2 border-black rounded-lg p-3">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
-                  {user.userPicture ? (
-                    user.userPicture.startsWith('data:') ? (
-                      <Image
-                        src={user.userPicture}
-                        alt={userName}
-                        fill
-                        className="object-cover"
-                        sizes="40px"
-                        unoptimized
-                      />
-                    ) : (
-                      <Image
-                        src={user.userPicture}
-                        alt={userName}
-                        fill
-                        className="object-cover"
-                        sizes="40px"
-                      />
-                    )
-                  ) : (
-                    <span className="text-sm font-bold text-white">{userInitials}</span>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm text-gray-600 mb-2">
-                    {isOwner ? `Respond as ${businessName}` : `Add a comment as ${userName}`}
-                  </p>
-                  <div className="relative">
-                    <textarea
-                      value={newComment}
-                      onChange={(e) => {
-                        if (e.target.value.length <= MAX_COMMENT_LENGTH) {
-                          setNewComment(e.target.value);
-                        }
-                      }}
-                      placeholder={isOwner ? "Write a response..." : "Write a comment..."}
-                      className="w-full px-3 py-2 border-2 border-black rounded-lg text-sm min-h-[100px] resize-none focus:outline-none"
-                      rows={4}
-                    />
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-gray-500">
-                        {newComment.length}/{MAX_COMMENT_LENGTH}
-                      </span>
-                      <button
-                        onClick={handleSubmitComment}
-                        disabled={!newComment.trim() || newComment.length > MAX_COMMENT_LENGTH}
-                        className="w-10 h-10 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Send className="w-4 h-4 text-black" />
-                      </button>
-                    </div>
+        <div className="border-b-2 border-black bg-gray-50 px-4 py-4">
+          {isOwner ? (
+            <p className="rounded-lg border-2 border-black bg-yellow-100 px-3 py-2 text-sm text-black">{t('ownBusiness')}</p>
+          ) : !authLoading && !isAuthenticated ? (
+            <Link
+              href={createSignInUrl(locale, feedbackPath)}
+              className="inline-flex rounded-lg border-2 border-black bg-black px-4 py-2 text-sm font-medium text-white"
+            >
+              {t('signIn')}
+            </Link>
+          ) : isAuthenticated ? (
+            <div className="space-y-3">
+              <textarea
+                value={body}
+                onChange={(event) => setBody(event.target.value)}
+                maxLength={2000}
+                rows={3}
+                placeholder={t('placeholder')}
+                className="w-full rounded-lg border-2 border-black px-3 py-2 text-sm text-black outline-none"
+              />
+              <div className="flex flex-wrap gap-2">
+                {previews.map((src, index) => (
+                  <div key={src} className="relative h-16 w-16 overflow-hidden rounded-lg border-2 border-black">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                      className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-black bg-white"
+                      aria-label={t('removePhoto')}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   </div>
-                </div>
+                ))}
+                {files.length < MAX_IMAGES && (
+                  <label className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-black bg-white text-[10px] font-medium text-black hover:bg-gray-50">
+                    <ImagePlus className="mb-0.5 h-4 w-4" />
+                    {t('addPhotos')}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      className="hidden"
+                      onChange={(event) => {
+                        addFiles(event.target.files);
+                        event.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
               </div>
+              {formError && <p className="text-sm text-red-600">{formError}</p>}
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={posting || !body.trim()}
+                className="inline-flex items-center gap-2 rounded-lg border-2 border-black bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+                {t('submit')}
+              </button>
             </div>
-          </div>
-        )}
+          ) : null}
+        </div>
 
-        {/* Comments Section */}
-        <div className="flex-1 px-4 py-4 overflow-y-auto">
-          <div className="flex items-center gap-2 mb-4">
-            <MessageSquare className="w-5 h-5 text-black" />
-            <h3 className="text-base font-semibold text-black">Comments</h3>
-          </div>
-          {comments.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p>No comments yet. Be the first to leave feedback!</p>
-            </div>
+        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+          {loading ? (
+            <p className="text-sm text-gray-600">{t('title')}…</p>
+          ) : loadError ? (
+            <p className="text-sm text-red-600">{loadError}</p>
+          ) : items.length === 0 ? (
+            <p className="text-sm text-gray-600">{t('empty')}</p>
           ) : (
-            <div className="space-y-4">
-              {comments.map((comment) => {
-                const canReply = user && (
-                  (comment.authorType === 'homeowner' && isOwner) ||
-                  (comment.authorType === 'business' && !isOwner)
-                );
-                const isReplying = replyingTo === comment.id;
-
-                return (
-                  <div key={comment.id} className="space-y-3">
-                    {/* Main Comment */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
-                        {comment.authorPicture ? (
-                          <Image
-                            src={comment.authorPicture}
-                            alt={comment.author}
-                            fill
-                            className="object-cover"
-                            sizes="40px"
-                          />
-                        ) : (
-                          <span className="text-sm font-bold text-white">
-                            {getInitials(comment.author)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-bold text-black">{comment.author}</span>
-                          {comment.authorType === 'business' && (
-                            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full font-semibold">
-                              Business
-                            </span>
-                          )}
-                          <span className="text-xs text-gray-500">{formatTime(comment.timestamp)}</span>
-                        </div>
-                        <p className="text-sm text-black mb-2">{comment.text}</p>
-                        {canReply && !isReplying && (
-                          <button
-                            onClick={() => handleStartReply(comment.id)}
-                            className="flex items-center gap-1 text-xs text-gray-600 hover:text-black transition-colors cursor-pointer"
-                          >
-                            <Reply className="w-3 h-3" />
-                            Reply
-                          </button>
-                        )}
-                      </div>
+            items.map((item) => {
+              const posted = new Date(item.createdAt).toLocaleDateString(locale, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              });
+              return (
+                <article key={item.id} className="rounded-lg border-2 border-black p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-600">{t('from')}</p>
+                      <p className="font-semibold text-black">{item.authorName}</p>
                     </div>
-
-                    {/* Reply Input */}
-                    {isReplying && user && (
-                      <div className="ml-14 bg-gray-50 border-2 border-gray-300 rounded-lg p-3">
-                        <div className="flex items-start gap-2 mb-2">
-                          <div className="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
-                            {user.userPicture ? (
-                              user.userPicture.startsWith('data:') ? (
-                                <Image
-                                  src={user.userPicture}
-                                  alt={userName}
-                                  fill
-                                  className="object-cover"
-                                  sizes="32px"
-                                  unoptimized
-                                />
-                              ) : (
-                                <Image
-                                  src={user.userPicture}
-                                  alt={userName}
-                                  fill
-                                  className="object-cover"
-                                  sizes="32px"
-                                />
-                              )
-                            ) : (
-                              <span className="text-xs font-bold text-white">{userInitials}</span>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <textarea
-                              value={replyText[comment.id] || ''}
-                              onChange={(e) => {
-                                const text = e.target.value;
-                                if (text.length <= MAX_COMMENT_LENGTH) {
-                                  setReplyText({ ...replyText, [comment.id]: text });
-                                }
-                              }}
-                              placeholder="Write a reply..."
-                              className="w-full px-3 py-2 border-2 border-black rounded-lg text-sm min-h-[80px] resize-none focus:outline-none"
-                              rows={3}
-                            />
-                            <div className="flex items-center justify-between mt-2">
-                              <span className="text-xs text-gray-500">
-                                {(replyText[comment.id] || '').length}/{MAX_COMMENT_LENGTH}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => handleCancelReply(comment.id)}
-                                  className="px-3 py-1 text-xs border-2 border-gray-400 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={() => handleSubmitReply(comment.id)}
-                                  disabled={!replyText[comment.id]?.trim() || (replyText[comment.id]?.length || 0) > MAX_COMMENT_LENGTH}
-                                  className="px-3 py-1 text-xs bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Send className="w-3 h-3" />
-                                  Reply
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Replies */}
-                    {comment.replies && comment.replies.length > 0 && (
-                      <div className="ml-14 space-y-3">
-                        {comment.replies.map((reply) => (
-                          <div key={reply.id} className="flex items-start gap-3 bg-gray-50 p-3 rounded-lg border border-gray-300">
-                            <div className="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-black relative aspect-square">
-                              {reply.authorPicture ? (
-                                <Image
-                                  src={reply.authorPicture}
-                                  alt={reply.author}
-                                  fill
-                                  className="object-cover"
-                                  sizes="32px"
-                                />
-                              ) : (
-                                <span className="text-xs font-bold text-white">
-                                  {getInitials(reply.author)}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-bold text-black">{reply.author}</span>
-                                {reply.authorType === 'business' && (
-                                  <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded-full font-semibold">
-                                    Business
-                                  </span>
-                                )}
-                                <span className="text-xs text-gray-500">{formatTime(reply.timestamp)}</span>
-                              </div>
-                              <p className="text-xs text-black">{reply.text}</p>
-                            </div>
+                    <p className="shrink-0 text-xs text-gray-600">{posted}</p>
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-black">{item.body}</p>
+                  {item.imageUrls.length > 0 && (
+                    <FeedbackPhotos urls={item.imageUrls} onOpenChange={setPhotosOpen} />
+                  )}
+                  {(item.proResponse || (item.proResponseImageUrls || []).length > 0) && replyFor !== item.id && (
+                    <div className="mt-3 rounded-lg border-2 border-black bg-gray-50 p-3">
+                      <p className="text-xs font-semibold text-black">{t('proReply')}</p>
+                      {item.proResponse && (
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-black">{item.proResponse}</p>
+                      )}
+                      {(item.proResponseImageUrls || []).length > 0 && (
+                        <FeedbackPhotos urls={item.proResponseImageUrls} onOpenChange={setPhotosOpen} />
+                      )}
+                    </div>
+                  )}
+                  {isOwner && replyFor === item.id && (
+                    <div className="mt-3 space-y-2">
+                      <textarea
+                        value={replyText}
+                        onChange={(event) => setReplyText(event.target.value)}
+                        maxLength={2000}
+                        rows={3}
+                        placeholder={t('replyPlaceholder')}
+                        className="w-full rounded-lg border-2 border-black px-3 py-2 text-sm text-black outline-none"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {replyKeptUrls.map((src) => (
+                          <div key={src} className="relative h-16 w-16 overflow-hidden rounded-lg border-2 border-black">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={src} alt="" className="h-full w-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setReplyKeptUrls((current) => current.filter((url) => url !== src))}
+                              className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-black bg-white"
+                              aria-label={t('removePhoto')}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </div>
                         ))}
+                        {replyPreviews.map((src, index) => (
+                          <div key={src} className="relative h-16 w-16 overflow-hidden rounded-lg border-2 border-black">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={src} alt="" className="h-full w-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setReplyFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                              className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-black bg-white"
+                              aria-label={t('removePhoto')}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                        {replyKeptUrls.length + replyFiles.length < MAX_IMAGES && (
+                          <label className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-black bg-white text-[10px] font-medium text-black hover:bg-gray-50">
+                            <ImagePlus className="mb-0.5 h-4 w-4" />
+                            {t('addPhotos')}
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              multiple
+                              className="hidden"
+                              onChange={(event) => {
+                                const list = event.target.files;
+                                if (list) {
+                                  setReplyFiles((current) => {
+                                    const next = [...current];
+                                    for (const file of Array.from(list)) {
+                                      if (replyKeptUrls.length + next.length >= MAX_IMAGES) break;
+                                      if (!file.type.startsWith('image/')) continue;
+                                      next.push(file);
+                                    }
+                                    return next;
+                                  });
+                                }
+                                event.target.value = '';
+                              }}
+                            />
+                          </label>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      <button
+                        type="button"
+                        onClick={() => void saveReply(item.id)}
+                        disabled={replying || (!replyText.trim() && replyFiles.length === 0 && replyKeptUrls.length === 0)}
+                        className="rounded-lg border-2 border-black bg-black px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                      >
+                        {t('saveReply')}
+                      </button>
+                    </div>
+                  )}
+                  {isOwner && replyFor !== item.id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplyFor(item.id);
+                        setReplyText(item.proResponse || '');
+                        setReplyKeptUrls(item.proResponseImageUrls || []);
+                        setReplyFiles([]);
+                        setConfirmDeleteId(null);
+                      }}
+                      className="mt-2 text-xs font-medium text-black underline"
+                    >
+                      {t('proReply')}
+                    </button>
+                  )}
+                  {item.canDelete && confirmDeleteId === item.id && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-sm text-black">{t('confirmDelete')}</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void removeFeedback(item.id)}
+                          disabled={deletingId === item.id}
+                          className="rounded-lg border-2 border-black bg-black px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                        >
+                          {t('delete')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="rounded-lg border-2 border-black bg-white px-3 py-1.5 text-sm font-medium text-black"
+                        >
+                          {t('keep')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {item.canDelete && confirmDeleteId !== item.id && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(item.id)}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-black underline"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {t('delete')}
+                    </button>
+                  )}
+                </article>
+              );
+            })
           )}
+          <Link href={createLocalePath(locale, feedbackPath)} className="inline-block text-sm font-medium text-black underline">
+            {t('shareFeedback')}
+          </Link>
         </div>
-        </div>
+      </div>
     </Modal>
   );
 }
-

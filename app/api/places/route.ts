@@ -43,6 +43,12 @@ export async function POST(request: NextRequest) {
 
     const split = splitUnit(cleanText(body.street, 160));
     const street = joinMailLine(split.street, cleanText(body.unit, 40) || split.unit).slice(0, 160);
+    const city = cleanText(body.city, 80);
+    const state = cleanText(body.state, 2).toUpperCase();
+    const zipCode = cleanText(body.zipCode, 12);
+    if (!street || !city || state.length !== 2 || !/^\d{5}(-\d{4})?$/.test(zipCode)) {
+      return NextResponse.json({ error: 'A street, city, 2-letter state, and ZIP code are required.' }, { status: 400 });
+    }
 
     const { data, error: insertError } = await supabase
       .from('customer_places')
@@ -50,10 +56,10 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         kind,
         name,
-        street: street || null,
-        city: cleanText(body.city, 80) || null,
-        state: cleanText(body.state, 2).toUpperCase() || null,
-        zip_code: cleanText(body.zipCode, 12) || null,
+        street,
+        city,
+        state,
+        zip_code: zipCode,
       })
       .select('id')
       .single();
@@ -61,6 +67,7 @@ export async function POST(request: NextRequest) {
     if (insertError || !data) {
       return NextResponse.json({ error: insertError?.message || 'Could not add the place' }, { status: 500 });
     }
+    await claimPortalCustomers(user);
     return NextResponse.json({ id: data.id }, { status: 201 });
   } catch (err) {
     console.error('POST /api/places', err);

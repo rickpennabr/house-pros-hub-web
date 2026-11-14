@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import type { Database } from '@/lib/types/supabase';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { ChartLoading, ContactListChart } from '@/components/crm/ListCharts';
+import { isContactChart } from '@/lib/crm/list-charts';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -221,7 +223,8 @@ export default function CRMCustomersPage() {
   const [taskCustomerContext, setTaskCustomerContext] = useState<{ id: string; name: string } | null>(null);
 
   const [savedListView, setSavedListView] = useLocalStorage<string>('crmCustomersView', 'card');
-  const listView: ViewType = savedListView === 'card' || savedListView === 'list' || savedListView === 'map' ? savedListView : 'card';
+  const listView: ViewType = savedListView === 'card' || savedListView === 'list' || savedListView === 'map' || savedListView === 'chart' ? savedListView : 'card';
+  const [contactChart, setContactChart] = useState<unknown>(null);
   const setListView = (v: ViewType) => setSavedListView(v);
   const { isAtBottom } = useScrollPosition({ threshold: 50 });
   const { isMobile } = useWindowDimensions();
@@ -249,6 +252,10 @@ export default function CRMCustomersPage() {
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sortBy, sortDir });
       if (search) params.set('search', search);
       if (roleFilter) params.set('role', roleFilter);
+      if (listView === 'chart') {
+        params.set('chart', '1');
+        params.set('timeZone', Intl.DateTimeFormat().resolvedOptions().timeZone);
+      }
       const [res, booksRes] = await Promise.all([
         fetch(`/api/crm/customers?${params}`, { credentials: 'include' }),
         fetch('/api/crm/customers/books', { credentials: 'include' }),
@@ -260,6 +267,7 @@ export default function CRMCustomersPage() {
       const data = await res.json();
       setCustomers(data.customers ?? []);
       setTotal(data.total ?? 0);
+      setContactChart(data.chart ?? null);
       if (booksRes.ok) {
         const booksData = await booksRes.json();
         setBooks(booksData);
@@ -273,7 +281,7 @@ export default function CRMCustomersPage() {
       setIsLoading(false);
       setIsRefetching(false);
     }
-  }, [page, sortBy, sortDir, search, roleFilter]);
+  }, [page, sortBy, sortDir, search, roleFilter, listView]);
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
@@ -584,7 +592,18 @@ export default function CRMCustomersPage() {
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>
           )}
 
-          {listView === 'map' ? (
+          {listView === 'chart' ? (
+            isContactChart(contactChart) ? (
+              <ContactListChart
+                chart={contactChart}
+                filtered={Boolean(search)}
+                activeRole={roleFilter}
+                onSelectRole={applyRoleFilter}
+              />
+            ) : (
+              <ChartLoading error={error} />
+            )
+          ) : listView === 'map' ? (
             <AddressPinsMap
               pins={customers.map((row) => ({
                 id: row.id,
@@ -958,7 +977,7 @@ export default function CRMCustomersPage() {
         <ViewToggle
           currentView={listView}
           onViewChange={setListView}
-          views={['card', 'list', 'map']}
+          views={['card', 'list', 'map', 'chart']}
           hideBackgroundToggle
           onAdd={() => setViewMode('add')}
           addLabel="New contact"

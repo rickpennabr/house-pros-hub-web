@@ -53,7 +53,7 @@ async function persistCapturedPhoto(file: File): Promise<'full' | 'saved'> {
 }
 
 /**
- * Fix camera. Same full-screen ProCam as a job, without video, captions, or ProDrive.
+ * Fix camera. Same full-screen ProCam as a job, without captions or ProDrive.
  * Photos land on the repair form, up to five.
  */
 export function QuickRepairCameraHost() {
@@ -72,24 +72,18 @@ export function QuickRepairCameraHost() {
     const onOpen = (event: Event) => {
       const detail = (event as CustomEvent<QuickRepairCameraOpenDetail>).detail;
       const known = detail?.existingCount;
-      if (typeof known === 'number') {
-        setMaxShots(Math.max(0, MAX_PHOTOS - known));
-        setOpen(true);
-        return;
+      if (typeof known === 'number') setMaxShots(Math.max(0, MAX_PHOTOS - known));
+      else {
+        setMaxShots(MAX_PHOTOS);
+        void loadQuickRepairDraft().then((draft) => {
+          setMaxShots(Math.max(0, MAX_PHOTOS - (draft?.photos.length ?? 0)));
+        });
       }
-      void loadQuickRepairDraft().then((draft) => {
-        setMaxShots(Math.max(0, MAX_PHOTOS - (draft?.photos.length ?? 0)));
-        setOpen(true);
-      });
+      setOpen(true);
     };
     window.addEventListener(QUICK_REPAIR_CAMERA_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(QUICK_REPAIR_CAMERA_OPEN_EVENT, onOpen);
   }, []);
-
-  const goToForm = () => {
-    setOpen(false);
-    if (!onRepair) router.push(`/${locale}/quick-repair`);
-  };
 
   return (
     <JobCameraSession
@@ -99,7 +93,6 @@ export function QuickRepairCameraHost() {
       subtitle={t('captureHint')}
       maxShots={maxShots}
       onBack={() => setOpen(false)}
-      onSkip={goToForm}
       onFinished={() => {
         setOpen(false);
         if (didSave.current && !handedToPage.current && !onRepair) {

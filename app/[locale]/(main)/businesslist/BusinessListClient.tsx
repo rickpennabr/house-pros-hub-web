@@ -147,6 +147,7 @@ export default function BusinessListClient({
           currentView={view}
           onViewChange={setView}
           showProAdd={isPro}
+          signedIn={isAuthenticated}
           addOpen={addOpen}
           onAdd={() => setAddOpen(true)}
           addLabel={tCommon('view.add')}

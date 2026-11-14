@@ -2,10 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, HardDrive, ImagePlus, Square, SwitchCamera, Video, X } from 'lucide-react';
+import { Camera, Check, HardDrive, ImagePlus, Pause, Play, SwitchCamera, Video, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ProDrivePicker } from '@/components/drive/ProDrivePicker';
+import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import type { DriveFile } from '@/lib/drive/types';
+import { canUseLiveCamera, clearPrimedCamera, liveCameraConstraints, readPrimedCamera, releasePrimedCamera, widenDesktopTrack } from '@/lib/media/prime-camera';
+import { playCameraShutter, primeCameraShutter } from '@/lib/media/camera-shutter';
+import { revealVideoDuration, webmWithDuration } from '@/lib/media/webm-duration';
 
 interface Shot {
   id: string;
@@ -13,6 +17,8 @@ interface Shot {
   url: string;
   caption: string;
   video: boolean;
+  /** Wall-clock length. Chrome's player reports 0:00 for a fresh recording. */
+  durationMs?: number;
 }
 
 interface JobCameraSessionProps {
@@ -27,8 +33,6 @@ interface JobCameraSessionProps {
   /** Fix stops at the photos already allowed. Job has no cap. */
   maxShots?: number;
   onBack: () => void;
-  /** Fix only: open the repair form without taking a photo. */
-  onSkip?: () => void;
   onFinished: () => void;
   onSave: (items: { file: File; caption: string }[]) => Promise<void>;
 }
@@ -48,6 +52,24 @@ function captureFile(file: File, video: boolean, prefix: string): File {
   return new File([file], file.name || `${prefix}-${Date.now()}.${ext}`, { type });
 }
 
+/** The part of the sensor that object-cover is showing in the video element. */
+function coverSource(video: HTMLVideoElement): { sx: number; sy: number; sw: number; sh: number } {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  const box = video.getBoundingClientRect();
+  if (!vw || !vh || !box.width || !box.height) {
+    return { sx: 0, sy: 0, sw: vw || 1280, sh: vh || 720 };
+  }
+  const videoRatio = vw / vh;
+  const boxRatio = box.width / box.height;
+  if (videoRatio > boxRatio) {
+    const sw = vh * boxRatio;
+    return { sx: (vw - sw) / 2, sy: 0, sw, sh: vh };
+  }
+  const sh = vw / boxRatio;
+  return { sx: 0, sy: (vh - sh) / 2, sw: vw, sh };
+}
+
 function recorderChoice(): { mime: string; ext: string } {
   const options = [
     { mime: 'video/webm;codecs=vp8,opus', ext: 'webm' },
@@ -58,11 +80,106 @@ function recorderChoice(): { mime: string; ext: string } {
   return options.find((option) => MediaRecorder.isTypeSupported(option.mime)) ?? { mime: '', ext: 'webm' };
 }
 
+function formatClock(seconds: number): string {
+  const total = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
+  const minutes = Math.floor(total / 60);
+  const remain = total % 60;
+  return `${minutes}:${String(remain).padStart(2, '0')}`;
+}
+
+function RecordedPreview({ url, durationMs }: { url: string; durationMs?: number }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const known = durationMs && durationMs > 0 ? durationMs / 1000 : 0;
+  const [current, setCurrent] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [mediaDuration, setMediaDuration] = useState(0);
+  const total = known || mediaDuration;
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const onTime = () => {
+      if (known && node.currentTime > known + 0.5) return;
+      setCurrent(node.currentTime);
+    };
+    const onMeta = () => {
+      if (Number.isFinite(node.duration) && node.duration > 0) setMediaDuration(node.duration);
+      else revealVideoDuration(node);
+    };
+    const onDuration = () => {
+      if (Number.isFinite(node.duration) && node.duration > 0) setMediaDuration(node.duration);
+    };
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    node.addEventListener('timeupdate', onTime);
+    node.addEventListener('loadedmetadata', onMeta);
+    node.addEventListener('durationchange', onDuration);
+    node.addEventListener('play', onPlay);
+    node.addEventListener('pause', onPause);
+    node.addEventListener('ended', onPause);
+    if (node.readyState >= 1) onMeta();
+    return () => {
+      node.removeEventListener('timeupdate', onTime);
+      node.removeEventListener('loadedmetadata', onMeta);
+      node.removeEventListener('durationchange', onDuration);
+      node.removeEventListener('play', onPlay);
+      node.removeEventListener('pause', onPause);
+      node.removeEventListener('ended', onPause);
+    };
+  }, [url, known]);
+
+  const toggle = () => {
+    const node = ref.current;
+    if (!node) return;
+    if (node.paused) void node.play();
+    else node.pause();
+  };
+
+  return (
+    <>
+      <video
+        ref={ref}
+        src={url}
+        playsInline
+        preload="auto"
+        className="absolute inset-0 h-full w-full object-contain"
+        onClick={toggle}
+      />
+      <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-2 rounded-full bg-black/75 px-3 py-2 text-xs font-medium text-white">
+        <button type="button" onClick={toggle} className="flex h-7 w-7 shrink-0 items-center justify-center" aria-label={playing ? 'Pause' : 'Play'}>
+          {playing ? <Pause className="h-4 w-4 fill-white" /> : <Play className="h-4 w-4 fill-white" />}
+        </button>
+        <span className="shrink-0 tabular-nums">{formatClock(current)}</span>
+        <input
+          type="range"
+          min={0}
+          max={total || 0}
+          step={0.1}
+          value={Math.min(current, total || 0)}
+          onChange={(event) => {
+            const node = ref.current;
+            const next = Number(event.target.value);
+            if (node) node.currentTime = next;
+            setCurrent(next);
+          }}
+          className="h-1 min-w-0 flex-1 accent-white"
+          aria-label={formatClock(total)}
+          aria-valuemin={0}
+          aria-valuemax={Math.round(total)}
+          aria-valuenow={Math.round(Math.min(current, total || 0))}
+          aria-valuetext={`${formatClock(current)} / ${formatClock(total)}`}
+        />
+        <span className="shrink-0 tabular-nums">{formatClock(total)}</span>
+      </div>
+    </>
+  );
+}
+
 /**
  * Shared ProCam frame for Job and Fix.
- * The stage is the full screen. The live preview shows the whole sensor frame (object-contain, 4:3),
- * so the photo you keep matches what you framed. The shutter stays centered.
- * Job adds video, captions, and ProDrive. Fix keeps the same shutter and stops at a few photos.
+ * Both fill the same bordered frame and save the crop you see.
+ * The shutter stays centered. Video mode turns that center red.
+ * Job still adds a caption and can pick from ProDrive. Fix stops at a few clips.
  */
 export function JobCameraSession({
   open,
@@ -73,7 +190,6 @@ export function JobCameraSession({
   begin = 'photo',
   maxShots,
   onBack,
-  onSkip,
   onFinished,
   onSave,
 }: JobCameraSessionProps) {
@@ -104,13 +220,15 @@ export function JobCameraSession({
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [captureMode, setCaptureMode] = useState<'photo' | 'video'>(begin === 'video' ? 'video' : 'photo');
   const [elapsed, setElapsed] = useState(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<MediaStream | null>(null);
   const discardRecording = useRef(false);
   const sessionRef = useRef(0);
-  const recordRef = useRef<() => void>(() => undefined);
-  const walkthroughStarted = useRef(false);
+  const startingRef = useRef<Promise<boolean> | null>(null);
+  const liveRequest = useRef(0);
+  const openWatch = useRef(0);
 
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -118,35 +236,93 @@ export function JobCameraSession({
     setLive(false);
   };
 
-  const startLive = async (facing: 'environment' | 'user') => {
-    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) return;
-    const previous = streamRef.current;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: facing },
-          aspectRatio: { ideal: 4 / 3 },
-          width: { ideal: 1920 },
-          height: { ideal: 1440 },
-        },
-        audio: false,
-      });
+  const attachStream = (stream: MediaStream) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = true;
+    video.setAttribute('playsinline', 'true');
+    video.setAttribute('webkit-playsinline', 'true');
+    video.srcObject = stream;
+    void video.play().catch(() => undefined);
+  };
+
+  const startLive = (facing: 'environment' | 'user', options?: { quiet?: boolean; fresh?: boolean }): Promise<boolean> => {
+    if (startingRef.current && facingRef.current === facing) return startingRef.current;
+    const generation = sessionRef.current;
+    const requestId = liveRequest.current + 1;
+    liveRequest.current = requestId;
+    const run = (async (): Promise<boolean> => {
+      if (!window.isSecureContext || !canUseLiveCamera()) {
+        setError(fix('cameraUnavailable'));
+        return false;
+      }
+      const previous = streamRef.current;
+      if (options?.fresh) releasePrimedCamera();
+      const primed = options?.fresh ? null : readPrimedCamera(facing);
+      let stream: MediaStream | null = null;
+      try {
+        stream = primed
+          ? await primed
+          : await navigator.mediaDevices.getUserMedia(liveCameraConstraints(facing));
+      } catch {
+        stream = null;
+      }
+      if (requestId !== liveRequest.current || generation !== sessionRef.current) {
+        const orphan = stream;
+        queueMicrotask(() => {
+          if (orphan && streamRef.current !== orphan) orphan.getTracks().forEach((track) => track.stop());
+        });
+        return false;
+      }
+      if (!stream) {
+        if (previous?.getVideoTracks().some((track) => track.readyState === 'live')) {
+          streamRef.current = previous;
+          setLive(true);
+          return true;
+        }
+        setLive(false);
+        if (!options?.quiet) setError(fix('cameraDenied'));
+        return false;
+      }
+      clearPrimedCamera();
+      await widenDesktopTrack(stream.getVideoTracks()[0]);
+      if (requestId !== liveRequest.current || generation !== sessionRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return false;
+      }
       previous?.getTracks().forEach((track) => track.stop());
       facingRef.current = facing;
       streamRef.current = stream;
+      attachStream(stream);
       setLive(true);
-    } catch {
-      if (previous?.getVideoTracks().some((track) => track.readyState === 'live')) {
-        streamRef.current = previous;
-        setLive(true);
-        return;
-      }
-      setLive(false);
-    }
+      setError((current) => (
+        current === fix('cameraDenied') || current === fix('cameraUnavailable') ? null : current
+      ));
+      return true;
+    })();
+    startingRef.current = run;
+    void run.finally(() => {
+      if (startingRef.current === run) startingRef.current = null;
+    });
+    return run;
   };
 
   useEffect(() => {
-    if (!open) return;
+    openWatch.current += 1;
+    const watch = openWatch.current;
+    if (!open) {
+      sessionRef.current += 1;
+      liveRequest.current += 1;
+      startingRef.current = null;
+      discardRecording.current = true;
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
+      audioRef.current?.getTracks().forEach((track) => track.stop());
+      audioRef.current = null;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      releasePrimedCamera();
+      return;
+    }
     setSaved(false);
     setError(maxShots === 0 ? fix('maxPhotos') : null);
     setDraft((current) => {
@@ -155,20 +331,27 @@ export function JobCameraSession({
     });
     setCaption('');
     setRecording(false);
+    setCaptureMode(begin === 'video' ? 'video' : 'photo');
     setElapsed(0);
     setShots((current) => {
       current.forEach((shot) => URL.revokeObjectURL(shot.url));
       return [];
     });
-    void startLive('environment');
+    void startLive('environment', { quiet: true });
     return () => {
-      sessionRef.current += 1;
-      discardRecording.current = true;
-      if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
-      audioRef.current?.getTracks().forEach((track) => track.stop());
-      audioRef.current = null;
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+      queueMicrotask(() => {
+        if (openWatch.current !== watch) return;
+        sessionRef.current += 1;
+        liveRequest.current += 1;
+        startingRef.current = null;
+        discardRecording.current = true;
+        if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
+        audioRef.current?.getTracks().forEach((track) => track.stop());
+        audioRef.current = null;
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        releasePrimedCamera();
+      });
     };
   }, [open]);
 
@@ -177,16 +360,6 @@ export function JobCameraSession({
     const id = window.setInterval(() => setElapsed((value) => value + 1), 1000);
     return () => window.clearInterval(id);
   }, [recording]);
-
-  useEffect(() => {
-    if (!open) {
-      walkthroughStarted.current = false;
-      return;
-    }
-    if (begin !== 'video' || !live || isFix || walkthroughStarted.current) return;
-    walkthroughStarted.current = true;
-    recordRef.current();
-  }, [open, begin, live, isFix]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -221,7 +394,7 @@ export function JobCameraSession({
 
   const roomLeft = () => (maxShots == null ? Number.POSITIVE_INFINITY : maxShots - shotsRef.current.length);
 
-  const openDraft = (file: File, video: boolean) => {
+  const openDraft = (file: File, video: boolean, durationMs?: number) => {
     if (roomLeft() <= 0) {
       setError(fix('maxPhotos'));
       return;
@@ -233,6 +406,7 @@ export function JobCameraSession({
       url: URL.createObjectURL(ready),
       caption: '',
       video,
+      durationMs,
     };
     setDraft((current) => {
       if (current) URL.revokeObjectURL(current.url);
@@ -256,7 +430,7 @@ export function JobCameraSession({
       setError(fix('maxPhotos'));
       return;
     }
-    const usable = files.filter((file) => file.type.startsWith('image/') || (!isFix && file.type.startsWith('video/')));
+    const usable = files.filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'));
     const take = usable.slice(0, room);
     if (usable.length > take.length) setError(fix('maxPhotos'));
     if (take.length === 1) {
@@ -283,11 +457,12 @@ export function JobCameraSession({
     const video = videoRef.current;
     if (!video || saving) return;
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    const crop = coverSource(video);
+    canvas.width = Math.max(1, Math.round(crop.sw));
+    canvas.height = Math.max(1, Math.round(crop.sh));
     const context = canvas.getContext('2d');
     if (!context) return;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    context.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, canvas.width, canvas.height);
     canvas.toBlob((blob) => {
       if (!blob) return;
       openDraft(new File([blob], `${prefix}-${Date.now()}.jpg`, { type: 'image/jpeg' }), false);
@@ -295,23 +470,44 @@ export function JobCameraSession({
   };
 
   const startRecording = async () => {
-    if (isFix || saving) return;
+    if (saving) return;
     if (recorderRef.current && recorderRef.current.state === 'recording') {
+      playCameraShutter();
       recorderRef.current.stop();
       return;
     }
+    primeCameraShutter();
+    const session = sessionRef.current;
+    const audioPromise = canUseLiveCamera()
+      ? navigator.mediaDevices.getUserMedia({ audio: true, video: false }).catch(() => null)
+      : Promise.resolve(null);
+    const stopAudio = () => {
+      void audioPromise.then((audio) => audio?.getTracks().forEach((track) => track.stop()));
+    };
+    if (!live || !streamRef.current) {
+      const started = await startLive(facingRef.current, { fresh: true });
+      if (!started || session !== sessionRef.current) {
+        stopAudio();
+        return;
+      }
+    }
     const videoStream = streamRef.current;
-    if (!live || !videoStream || typeof MediaRecorder === 'undefined') {
+    if (!videoStream || typeof MediaRecorder === 'undefined') {
       videoInputRef.current?.click();
+      stopAudio();
       return;
     }
     const chosen = recorderChoice();
     let mixed: MediaStream = videoStream;
-    try {
-      const audio = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const audio = await audioPromise;
+    if (session !== sessionRef.current) {
+      audio?.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    if (audio) {
       audioRef.current = audio;
       mixed = new MediaStream([...videoStream.getVideoTracks(), ...audio.getAudioTracks()]);
-    } catch {
+    } else {
       audioRef.current = null;
     }
     let recorder: MediaRecorder;
@@ -326,7 +522,7 @@ export function JobCameraSession({
       return;
     }
     const chunks: Blob[] = [];
-    const session = sessionRef.current;
+    const startedAt = Date.now();
     recorderRef.current = recorder;
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) chunks.push(event.data);
@@ -341,18 +537,21 @@ export function JobCameraSession({
       const ext = type.includes('mp4') ? 'mp4' : 'webm';
       const blob = new Blob(chunks, { type });
       if (blob.size === 0) return;
-      openDraft(new File([blob], `${prefix}-${Date.now()}.${ext}`, { type }), true);
+      const durationMs = Math.max(1, Date.now() - startedAt);
+      void webmWithDuration(blob, durationMs).then((timed) => {
+        openDraft(new File([timed], `${prefix}-${Date.now()}.${ext}`, { type }), true, durationMs);
+      });
     };
     discardRecording.current = false;
-    recorder.start(1000);
+    recorder.start();
+    playCameraShutter();
     setElapsed(0);
     setRecording(true);
     window.setTimeout(() => {
-      if (recorder.state === 'recording') recorder.stop();
+      if (recorder.state !== 'recording') return;
+      playCameraShutter();
+      recorder.stop();
     }, 120_000);
-  };
-  recordRef.current = () => {
-    void startRecording();
   };
 
   const finish = async () => {
@@ -406,11 +605,9 @@ export function JobCameraSession({
 
   if (!open || typeof document === 'undefined') return null;
 
-  const lastShot = shots[shots.length - 1];
-
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex h-[100dvh] max-h-[100dvh] flex-col bg-black text-white">
-      <div className="flex items-center gap-3 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <div className="fixed inset-0 z-[120] flex flex-col overflow-hidden bg-black text-white">
+      <div className="relative flex items-center justify-between gap-3 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <button
           type="button"
           onClick={() => {
@@ -421,37 +618,53 @@ export function JobCameraSession({
               setCaption('');
             } else onBack();
           }}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15"
+          className="relative z-10 flex h-12 w-12 items-center justify-center rounded-lg bg-white/15"
           aria-label={t('back')}
         >
           <X className="h-5 w-5" />
         </button>
-        <div className="min-w-0 flex-1 text-center">
-          <p className="truncate font-bold">{title}</p>
-          {subtitle ? <p className="truncate text-xs text-white/70">{subtitle}</p> : null}
-        </div>
+        {isFix ? (
+          <div className="pointer-events-none absolute inset-x-14 flex flex-col items-center justify-center">
+            <div className="flex items-center gap-2">
+              <span className="block h-6 w-[1.8rem] shrink-0 sm:h-7 sm:w-8">
+                <RepairCameraMark line="white" />
+              </span>
+              <p className="truncate text-base font-bold leading-none tracking-tight sm:text-2xl">{title}</p>
+            </div>
+            {subtitle ? <p className="mt-0.5 max-w-full truncate text-xs text-white/80">{subtitle}</p> : null}
+          </div>
+        ) : (
+          <div className="min-w-0 flex-1 text-center">
+            <p className="truncate font-bold">{title}</p>
+            {subtitle ? <p className="truncate text-xs text-white/70">{subtitle}</p> : null}
+          </div>
+        )}
         {live ? (
           <button
             type="button"
             onClick={() => void startLive(facingRef.current === 'environment' ? 'user' : 'environment')}
             disabled={recording}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 disabled:opacity-40"
+            className="relative z-10 flex h-12 w-12 items-center justify-center rounded-lg bg-white/15 disabled:opacity-40"
             aria-label={t('flipCamera')}
           >
             <SwitchCamera className="h-5 w-5" />
           </button>
         ) : (
-          <span className="h-10 w-10" />
+          <span className="h-12 w-12" />
         )}
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-black">
-        {live ? (
-          <video ref={videoRef} className={draft ? 'hidden' : 'absolute inset-0 h-full w-full object-contain'} playsInline muted autoPlay />
-        ) : null}
+      <div className="relative mx-2 my-2 min-h-0 flex-1 overflow-hidden rounded-2xl border-4 border-white bg-black md:mx-auto md:w-[80%] md:rounded-[2rem]">
+        <video
+          ref={videoRef}
+          className={!live || draft ? 'hidden' : 'absolute inset-0 h-full w-full object-cover'}
+          playsInline
+          muted
+          autoPlay
+        />
         {draft ? (
           draft.video ? (
-            <video src={draft.url} controls playsInline className="absolute inset-0 h-full w-full object-contain" />
+            <RecordedPreview url={draft.url} durationMs={draft.durationMs} />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={draft.url} alt="" className="absolute inset-0 h-full w-full object-contain" />
@@ -511,64 +724,125 @@ export function JobCameraSession({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
-            className="flex shrink-0 items-center justify-center justify-self-start overflow-hidden rounded-lg bg-white/15 disabled:opacity-50"
-            style={{ width: 48, height: 48 }}
-            aria-label={t('photosFromLibrary')}
-          >
-            {lastShot && !lastShot.video ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={lastShot.url} alt="" className="h-full w-full object-cover" />
-            ) : lastShot?.video ? (
-              <Video className="h-5 w-5" />
-            ) : (
-              <ImagePlus className="h-5 w-5" />
-            )}
-          </button>
+        <div className="shrink-0 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3">
+          {shots.length > 0 ? (
+            <div className="mb-2 flex items-center justify-center gap-3 text-[11px] font-bold uppercase tracking-wide">
+              <button
+                type="button"
+                onClick={() => setCaptureMode('video')}
+                disabled={saving || recording}
+                className={`uppercase disabled:opacity-40 ${captureMode === 'video' ? 'text-red-500' : 'text-white/45'}`}
+              >
+                {t('video')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCaptureMode('photo')}
+                disabled={saving || recording}
+                className={`uppercase disabled:opacity-40 ${captureMode === 'photo' ? 'text-white' : 'text-white/45'}`}
+              >
+                {t('photoMode')}
+              </button>
+            </div>
+          ) : null}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <div className="relative justify-self-start" style={{ width: 48, height: 48 }}>
           <button
             type="button"
             onClick={() => {
-              if (live) snapLive();
-              else cameraInputRef.current?.click();
+              if (isFix) {
+                libraryInputRef.current?.click();
+                return;
+              }
+              setAddOpen(true);
             }}
             disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
-            aria-label={t('shutter')}
+            className="relative flex h-full w-full items-center justify-center overflow-visible rounded-lg disabled:opacity-50"
+            aria-label={t('photosFromLibrary')}
+          >
+            {shots.length === 0 ? (
+              <span className="flex h-full w-full items-center justify-center rounded-lg bg-white/15">
+                <ImagePlus className="h-5 w-5" />
+              </span>
+            ) : (
+              shots.slice(-5).map((shot, index, stack) => {
+                const fromNewest = stack.length - 1 - index;
+                const step = Math.ceil(fromNewest / 2);
+                const side = fromNewest === 0 ? 0 : (fromNewest % 2 === 1 ? -1 : 1);
+                return (
+                  <span
+                    key={shot.id}
+                    className="absolute bottom-0 overflow-hidden rounded-md border-2 border-white bg-black shadow-md"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      left: 4,
+                      transform: `translateX(${side * step * 8}px) rotate(${side * step * 8}deg)`,
+                      transformOrigin: 'center bottom',
+                      zIndex: stack.length - fromNewest,
+                    }}
+                  >
+                    {shot.video ? (
+                      <video src={shot.url} muted playsInline className="h-full w-full object-cover" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={shot.url} alt="" className="h-full w-full object-cover" />
+                    )}
+                  </span>
+                );
+              })
+            )}
+          </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (captureMode === 'video') {
+                void startRecording();
+                return;
+              }
+              if (live) snapLive();
+              else void startLive(facingRef.current, { fresh: true });
+            }}
+            disabled={saving || (maxShots != null && shots.length >= maxShots && !recording)}
+            aria-label={captureMode === 'video' ? (recording ? t('stopVideo') : t('video')) : t('shutter')}
             className="flex shrink-0 items-center justify-center rounded-full border-4 border-white disabled:opacity-50"
             style={{ width: 76, height: 76 }}
           >
-            <span className="block rounded-full bg-white" style={{ width: 60, height: 60 }} />
+            <span
+              className={`block rounded-full transition-transform duration-150 ${captureMode === 'video' ? 'bg-red-600' : 'bg-white'}`}
+              style={{
+                width: 60,
+                height: 60,
+                transform: captureMode === 'video' && recording ? 'scale(0.72)' : 'scale(1)',
+              }}
+            />
           </button>
           <div className="flex shrink-0 flex-col items-end gap-2 justify-self-end">
-            {isFix ? null : (
-              <button
-                type="button"
-                onClick={() => void startRecording()}
-                disabled={saving}
-                className={`flex items-center gap-1 rounded-full px-3 py-2 text-xs font-bold disabled:opacity-50 ${recording ? 'bg-red-600 text-white' : 'bg-white/15'}`}
-                aria-label={recording ? t('stopVideo') : t('video')}
-              >
-                {recording ? <Square className="h-4 w-4 fill-current" /> : <Video className="h-4 w-4" />}
-                {recording ? t('stopVideo') : t('video')}
-              </button>
-            )}
+            {shots.length > 0 ? null : (
             <button
               type="button"
-              onClick={() => {
-                if (isFix && shots.length === 0) onSkip?.();
-                else void finish();
-              }}
-              disabled={saving || recording || (shots.length === 0 && !(isFix && onSkip))}
-              className={isFix && shots.length === 0
-                ? 'max-w-[7.5rem] rounded-full bg-white px-3 py-2 text-right text-xs font-bold leading-tight text-black disabled:opacity-40'
-                : 'rounded-full bg-white px-4 py-2 text-sm font-bold text-black disabled:opacity-40'}
+              onClick={() => setCaptureMode((mode) => (mode === 'video' ? 'photo' : 'video'))}
+              disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
+              className="flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/15 disabled:opacity-50"
+              style={{ width: 48, height: 48 }}
+              aria-label={captureMode === 'video' ? t('shutter') : t('video')}
             >
-              {saving ? t('saving') : isFix && shots.length === 0 ? fix('skipToUpload') : t('done')}
+              {captureMode === 'video' ? <Camera className="h-5 w-5" /> : <Video className="h-5 w-5" />}
             </button>
+            )}
+            {shots.length === 0 ? null : (
+              <button
+                type="button"
+                onClick={() => void finish()}
+                disabled={saving || recording || shots.length === 0}
+                className="flex h-12 items-center justify-center rounded-lg bg-white/15 px-3 text-sm font-bold uppercase text-white disabled:opacity-40"
+              >
+                {saving ? t('saving') : t('done')}
+              </button>
+            )}
           </div>
+        </div>
         </div>
       )}
 
@@ -603,9 +877,9 @@ export function JobCameraSession({
         </p>
       ) : null}
       {addOpen ? (
-        <div className="absolute inset-0 z-20 flex flex-col justify-end bg-black/40">
+        <div className="absolute inset-0 z-30 flex flex-col justify-end bg-black/40">
           <button type="button" className="min-h-0 flex-1" aria-label={t('closePhoto')} onClick={() => setAddOpen(false)} />
-          <div className="rounded-t-3xl bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 text-black">
+          <div className="rounded-t-3xl bg-white px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-2 text-black">
             <button
               type="button"
               onClick={() => {
@@ -650,7 +924,7 @@ export function JobCameraSession({
       <input
         ref={libraryInputRef}
         type="file"
-        accept={isFix ? 'image/*' : 'image/*,video/*'}
+        accept="image/*,video/*"
         multiple
         className="hidden"
         onChange={(event) => {

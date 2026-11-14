@@ -48,6 +48,8 @@ function eventSummary(item: NewSignupItem): string {
       return 'booked an appointment';
     case 'incoming_email':
       return 'emailed the platform';
+    case 'maintenance':
+      return 'stopped a maintenance service';
     default:
       return who === 'Business' ? 'was added' : `${who || 'Account'} signed up`;
   }

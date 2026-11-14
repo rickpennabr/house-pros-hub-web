@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Heart, MessageSquare, Link, Bookmark } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,7 +8,6 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { createSignInUrl } from '@/lib/redirect';
 import { readReactionCounts, writeReactionCounts } from '@/lib/storage/reactionCounts';
-import { feedbackStorage } from '@/lib/storage/feedbackStorage';
 import { savedBusinessStorage } from '@/lib/storage/savedBusinessStorage';
 import Modal from '@/components/ui/Modal';
 
@@ -29,7 +28,9 @@ interface ProReactionsProps {
   contractorType?: string;
   logo?: string;
   businessId?: string;
-  /** Owner of the business, used so the feedback thread can mark replies. */
+  /** Public slug, used so the feedback page matches this card. */
+  businessSlug?: string;
+  /** Owner of the business. The feedback list also checks this on the server. */
   ownerUserId?: string;
   layout?: 'between' | 'around';
   gap?: string;
@@ -44,7 +45,7 @@ export default function ProReactions({
   contractorType = '',
   logo,
   businessId = '',
-  ownerUserId,
+  businessSlug,
   layout = 'between',
   gap = 'gap-0.5',
   onSignInRequired,
@@ -59,11 +60,28 @@ export default function ProReactions({
   const locale = useLocale();
   const t = useTranslations('reactions');
 
-  // Check if business is saved by current user on mount
   useEffect(() => {
     if (!businessId) return;
     const stored = readReactionCounts(businessId);
-    if (stored) setReactions((prev) => ({ ...prev, ...stored }));
+    if (stored) {
+      setReactions((prev) => ({
+        ...prev,
+        love: stored.love ?? prev.love,
+        link: stored.link ?? prev.link,
+        save: stored.save ?? prev.save,
+      }));
+    }
+    let cancelled = false;
+    fetch(`/api/businesses/${encodeURIComponent(businessId)}/feedback?summary=1`, { credentials: 'include' })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || cancelled || typeof data.count !== 'number') return;
+        setReactions((prev) => ({ ...prev, feedback: data.count }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [businessId]);
 
   useEffect(() => {
@@ -75,40 +93,9 @@ export default function ProReactions({
     }
   }, [user?.id, businessId]);
 
-  // Update feedback count from actual comments
-  const updateFeedbackCount = () => {
-    if (!businessId || typeof window === 'undefined') return;
-    
-    const comments = feedbackStorage.getFeedback(businessId);
-    const feedbackCount = comments.length;
-    
-    setReactions(prevReactions => {
-      const updatedReactions = {
-        ...prevReactions,
-        feedback: feedbackCount
-      };
-      
-      writeReactionCounts(businessId, updatedReactions);
-      
-      return updatedReactions;
-    });
-  };
-
-  // Load feedback count on mount and when businessId changes
-  useEffect(() => {
-    if (businessId) {
-      updateFeedbackCount();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [businessId]);
-
-  // Update feedback count when modal closes (comments may have changed)
-  useEffect(() => {
-    if (!isFeedbackModalOpen && businessId) {
-      updateFeedbackCount();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFeedbackModalOpen, businessId]);
+  const applyFeedbackCount = useCallback((count: number) => {
+    setReactions((prev) => ({ ...prev, feedback: count }));
+  }, []);
 
   // Auto-close coming soon modal after 3 seconds
   useEffect(() => {
@@ -159,10 +146,10 @@ export default function ProReactions({
 
     const updatedReactions = {
       ...reactions,
-      [type]: newCount
+      [type]: newCount,
     };
-    
-    setReactions(updatedReactions);
+
+    setReactions((prev) => ({ ...prev, [type]: newCount }));
 
     if (businessId) writeReactionCounts(businessId, updatedReactions);
 
@@ -173,6 +160,10 @@ export default function ProReactions({
 
   const handleReaction = (e: React.MouseEvent, type: 'love' | 'feedback' | 'link' | 'save') => {
     e.stopPropagation();
+    if (type === 'feedback') {
+      setIsFeedbackModalOpen(true);
+      return;
+    }
     if (isLoading) return;
     if (!isAuthenticated) {
       if (onSignInRequired) {
@@ -249,7 +240,7 @@ export default function ProReactions({
                 <Icon className={`w-4 h-4 md:w-3 md:h-3 transition-transform md:group-hover:scale-110 ${getIconStyles()}`} />
                 <span className={`text-[10px] font-semibold leading-tight ${getTextColor()}`}>{count}</span>
               </div>
-              <div className={`w-full min-w-0 px-1 py-0.5 rounded border-2 ${getBorderStyles()} bg-white flex items-center justify-center`}>
+              <div className={`w-full min-w-0 px-1 py-1 rounded border-2 ${getBorderStyles()} bg-white flex items-center justify-center`}>
                 <span className={`text-[10px] font-semibold leading-tight whitespace-nowrap truncate ${getTextColor()}`}>{label}</span>
               </div>
             </button>
@@ -264,8 +255,8 @@ export default function ProReactions({
         contractorType={contractorType}
         logo={logo}
         businessId={businessId}
-        ownerUserId={ownerUserId}
-        onCommentsChange={updateFeedbackCount}
+        businessSlug={businessSlug}
+        onCountChange={applyFeedbackCount}
       />
 
       <Modal

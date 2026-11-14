@@ -4,6 +4,7 @@
 
 import { ProCardData } from '@/components/proscard/ProCard';
 import { LinkItem } from '@/components/proscard/ProLinks';
+import { cardLinks } from '@/lib/utils/cardLinks';
 import { RESIDENTIAL_CONTRACTOR_LICENSES, HANDYMAN_LICENSE_CODE } from '@/lib/constants/contractorLicenses';
 
 /**
@@ -139,6 +140,11 @@ export function transformBusinessToProCardData(
     slug?: string;
     reactions?: ProCardData['reactions'];
     companyDescription?: string;
+    ownerBio?: string;
+    ownerExperience?: string;
+    ownerDegrees?: string;
+    ownerCertifications?: string;
+    ownerYearsExperience?: number;
     licenses: Array<{ license: string; trade?: string; licenseNumber?: string }>;
     services?: string[] | Array<{ name: string }>;
     images?: string[];
@@ -206,50 +212,31 @@ export function transformBusinessToProCardData(
     };
   });
 
-  // Build links array
-  const links: LinkItem[] = [...(businessData.links || [])];
-
-  // Sync phone in links
-  // We prioritize land phone, then mobile phone for the primary phone link
-  const contactPhone = businessData.phone || businessData.mobilePhone;
-  if (contactPhone) {
-    const existingPhoneIndex = links.findIndex(l => l.type === 'phone');
-    if (existingPhoneIndex >= 0) {
-      links[existingPhoneIndex] = { ...links[existingPhoneIndex], value: contactPhone };
-    } else {
-      links.push({
-        type: 'phone',
-        value: contactPhone,
-      });
-    }
-  }
-
-  // Sync email in links
-  if (businessData.email) {
-    const existingEmailIndex = links.findIndex(l => l.type === 'email');
-    if (existingEmailIndex >= 0) {
-      links[existingEmailIndex] = { ...links[existingEmailIndex], value: businessData.email };
-    } else {
-      links.push({
-        type: 'email',
-        value: businessData.email,
-      });
-    }
-  }
-
   // Generate a better slug from the business name if not provided
   // Append a short random string or ID part to ensure uniqueness ONLY if slug is not provided
   const baseSlug = generateSlug(businessData.businessName);
   const shortId = businessData.id.split('_').pop() || Math.random().toString(36).substring(7);
   const slug = businessData.slug?.trim() || `${baseSlug}-${shortId}`;
 
-  // Show calendar icon on ProCard only when pro has "Show on ProCard" checked in CRM calendar
-  if (businessData.showCalendarOnProCard && slug) {
-    const existingCalendarIndex = links.findIndex(l => l.type === 'calendar' && l.url?.startsWith('/book/'));
-    if (existingCalendarIndex >= 0) {
-      links[existingCalendarIndex] = { type: 'calendar', url: `/book/${slug}` };
-    } else {
-      links.push({ type: 'calendar', url: `/book/${slug}` });
+  // Same list the edit screen starts from: saved order, plus QR and the booking calendar when missing.
+  const links = cardLinks(
+    [...(businessData.links || [])],
+    slug,
+    businessData.showCalendarOnProCard === true
+  );
+
+  const contactPhone = businessData.phone || businessData.mobilePhone;
+  if (contactPhone) {
+    const existingPhoneIndex = links.findIndex(l => l.type === 'phone');
+    if (existingPhoneIndex >= 0) {
+      links[existingPhoneIndex] = { ...links[existingPhoneIndex], value: contactPhone };
+    }
+  }
+
+  if (businessData.email) {
+    const existingEmailIndex = links.findIndex(l => l.type === 'email');
+    if (existingEmailIndex >= 0) {
+      links[existingEmailIndex] = { ...links[existingEmailIndex], value: businessData.email };
     }
   }
 
@@ -284,6 +271,11 @@ export function transformBusinessToProCardData(
     links,
     slug,
     companyDescription: businessData.companyDescription,
+    ownerBio: businessData.ownerBio,
+    ownerExperience: businessData.ownerExperience,
+    ownerDegrees: businessData.ownerDegrees,
+    ownerCertifications: businessData.ownerCertifications,
+    ownerYearsExperience: businessData.ownerYearsExperience,
     reactions: businessData.reactions ?? {
       love: 0,
       feedback: 0,

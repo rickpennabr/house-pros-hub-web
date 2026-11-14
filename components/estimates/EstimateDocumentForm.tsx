@@ -11,6 +11,7 @@ import type { ProCrmItem } from '@/components/invoices/AddProductServicePanel';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
 import { DOCUMENT_FORM_LAYOUT } from '@/lib/constants/documentFormLayout';
 import { contactDisplayName } from '@/lib/crm/contact-name';
+import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
 
 export interface EstimateLineItemFormValue {
   product_or_service?: string;
@@ -63,6 +64,14 @@ function formatAmount(cents: number) {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(cents / 100);
 }
 
+function nevadaDepositWarning(deposit: string, totalCents: number): boolean {
+  const dollars = Number(deposit);
+  if (!Number.isFinite(dollars) || dollars <= 0 || totalCents <= 0) return false;
+  const depositCents = Math.round(dollars * 100);
+  const cap = Math.min(100_000, Math.round(totalCents * 0.1));
+  return depositCents > cap;
+}
+
 export function EstimateDocumentForm({
   mode,
   estimateNumber,
@@ -91,10 +100,15 @@ export function EstimateDocumentForm({
 }: EstimateDocumentFormProps) {
   const [editingRateRowIndex, setEditingRateRowIndex] = useState<number | null>(null);
   const [editingRateValue, setEditingRateValue] = useState('');
+  const [importedCustomers, setImportedCustomers] = useState<EstimateCustomerOption[]>([]);
   const [openRowMenuIndex, setOpenRowMenuIndex] = useState<number | null>(null);
   const [rowMenuPosition, setRowMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const rowMenuRef = useRef<HTMLDivElement | null>(null);
   const rowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const customerOptions = useMemo(() => {
+    const seen = new Set(customers.map((customer) => customer.id));
+    return [...customers, ...importedCustomers.filter((customer) => !seen.has(customer.id))];
+  }, [customers, importedCustomers]);
   const duplicateRowIndices = useMemo(() => {
     const keyToIndices = new Map<string, number[]>();
     lineItems.forEach((line, index) => {
@@ -199,13 +213,26 @@ export function EstimateDocumentForm({
                     disabled={mode === 'edit'}
                   >
                     <option value="">Select customer</option>
-                    {customers.map((customer) => (
+                    {customerOptions.map((customer) => (
                       <option key={customer.id} value={customer.id}>
                         {contactDisplayName(customer)}
                       </option>
                     ))}
                   </Select>
                 </div>
+                {mode === 'create' ? (
+                  <div>
+                    <HubCustomerImport
+                      disabled={saving}
+                      onImported={(customer) => {
+                        setImportedCustomers((current) =>
+                          current.some((row) => row.id === customer.id) ? current : [...current, customer]
+                        );
+                        onCustomerIdChange(customer.id);
+                      }}
+                    />
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
                   <label className="text-gray-600">Estimate number</label>
                   <Input
@@ -431,16 +458,32 @@ export function EstimateDocumentForm({
                 </div>
                 <label className="flex items-center justify-between gap-2 pt-3">
                   <span className="text-gray-600">Deposit</span>
-                  <input
-                    value={deposit}
-                    onChange={(event) => onDepositChange(event.target.value)}
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    aria-label="Deposit due when the customer approves"
-                    className="w-24 rounded-lg border-2 border-black px-2 py-1 text-right text-sm"
-                  />
+                  <span className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onDepositChange((Math.round(totalAmountCents / 2) / 100).toFixed(2))}
+                      className="rounded-lg border-2 border-black px-2 py-1 text-xs font-medium"
+                    >
+                      50%
+                    </button>
+                    <input
+                      value={deposit}
+                      onChange={(event) => onDepositChange(event.target.value)}
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      aria-label="Deposit due when the customer approves"
+                      className="w-24 rounded-lg border-2 border-black px-2 py-1 text-right text-sm"
+                    />
+                  </span>
                 </label>
-                <p className="text-xs text-gray-500">Due when the customer approves. This becomes the first invoice.</p>
+                <p className="text-xs text-gray-500">
+                  Due when the customer approves. A 50% deposit covers materials, delivery, and labor to start. The rest is billed when the job is done, or in stages on a larger job.
+                </p>
+                {nevadaDepositWarning(deposit, totalAmountCents) ? (
+                  <p className="text-xs text-amber-800">
+                    Nevada residential jobs usually limit the first deposit to the lesser of $1,000 or 10% unless you have the $100,000 consumer-protection bond or Board bond relief.
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>

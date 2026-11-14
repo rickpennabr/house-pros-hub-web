@@ -23,13 +23,19 @@ export interface AppointmentCard {
 export interface ManagedAppointment extends AppointmentCard {
   id: string;
   businessId: string;
+  /** Locale used on the customer's manage link. */
+  customerLocale: string;
+  /** Matches the confirmation email so a new download replaces the same event. */
+  icsSequence: number;
 }
 
 export async function loadManageBooking(service: ServiceClient, token: string): Promise<ManagedAppointment | null> {
   if (!isManageToken(token)) return null;
   const { data: booking, error } = await service
     .from('pro_estimate_bookings')
-    .select('id, business_id, service_name, slot_start_at, slot_end_at, status, visit_street, visit_city, visit_state, visit_zip, visit_note')
+    .select(
+      'id, business_id, service_name, slot_start_at, slot_end_at, status, visit_street, visit_city, visit_state, visit_zip, visit_note, customer_locale, ics_sequence'
+    )
     .eq('manage_token', token)
     .maybeSingle();
   if (error || !booking) return null;
@@ -44,6 +50,8 @@ export async function loadManageBooking(service: ServiceClient, token: string): 
   return {
     id: booking.id,
     businessId: booking.business_id,
+    customerLocale: booking.customer_locale,
+    icsSequence: booking.ics_sequence ?? 0,
     businessName: business?.business_name?.trim() || 'Pro',
     businessEmail: business?.email?.trim() || null,
     businessPhone: business?.phone?.trim() || null,

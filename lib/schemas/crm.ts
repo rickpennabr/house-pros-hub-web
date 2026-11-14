@@ -42,3 +42,9 @@ export function validateCustomerPhone(
   const toTest = tenDigits.length === 10 ? tenDigits : trimmed;
   return US_PHONE_REGEX.test(toTest) ? null : 'phone.invalid';
 }
+
+/** Exact email a pro types to copy a hub customer's own contact details. */
+export const hubCustomerLookupSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(320),
+  fillOnly: z.boolean().optional(),
+});

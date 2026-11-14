@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import { formatCatalogPrice, type CatalogService, type ServiceUnit } from '@/lib/booking/catalogService';
+import { icsPathFromManagePath, visitCalendarDescription, visitCalendarTitle } from '@/lib/booking/calendarLinks';
+import { formatVisitAddress } from '@/lib/booking/visitAddress';
+import AddToCalendar from '@/components/booking/AddToCalendar';
 
 export interface GuestContactData {
   firstName: string;
@@ -285,6 +288,30 @@ export default function ProEstimateBookingFlow({
           <h2 className="text-xl font-semibold mb-2 text-black">{t('successTitle')}</h2>
           <p className="text-gray-700 text-sm">{t('successMessage')}</p>
           <p className="mt-2 text-sm text-gray-600">{t('manageHint')}</p>
+          {selectedSlot && (
+            <div className="mt-4">
+              <AddToCalendar
+                align="center"
+                icsHref={icsPathFromManagePath(managePath)}
+                event={{
+                  title: visitCalendarTitle(businessName, selectionLabel),
+                  description: visitCalendarDescription([
+                    businessName,
+                    visit.note,
+                    managePath && typeof window !== 'undefined' ? `${window.location.origin}${managePath}` : null,
+                  ]),
+                  location: formatVisitAddress({
+                    street: visit.streetAddress,
+                    city: visit.city,
+                    state: visit.state,
+                    zip: visit.zipCode,
+                  }),
+                  startAt: selectedSlot.start,
+                  endAt: selectedSlot.end,
+                }}
+              />
+            </div>
+          )}
           <div className="mt-4 flex flex-col items-center gap-2">
             {managePath && (
               <Link href={managePath} className="inline-flex rounded-lg border-2 border-black bg-black px-3 py-1.5 text-sm font-medium text-white">
@@ -329,9 +356,9 @@ export default function ProEstimateBookingFlow({
               type="button"
               onClick={() => setGeneralEstimate((current) => !current)}
               aria-pressed={generalEstimate}
-              className={`w-full rounded-lg border-2 border-black p-3 text-left font-medium cursor-pointer ${generalEstimate ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+              className={`w-full rounded-lg border-2 border-black p-3 text-left cursor-pointer ${generalEstimate ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
             >
-              {t('generalEstimate')}
+              <p className="font-semibold">{t('generalEstimate')}</p>
             </button>
             {services.map((service) => {
               const selected = selectedServiceIds.includes(service.id);

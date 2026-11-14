@@ -13,6 +13,10 @@ interface MailPack {
   note: string;
   manage: string;
   policy: string;
+  addToCalendar: string;
+  googleCalendar: string;
+  outlookCalendar: string;
+  otherCalendar: string;
   confirmSubjectCustomer: string;
   confirmSubjectPro: string;
   confirmGreetingCustomer: string;
@@ -51,6 +55,10 @@ const packs: Record<Lang, MailPack> = {
     note: 'Note',
     manage: 'Manage appointment',
     policy: 'You can reschedule or cancel up to 2 hours before the visit.',
+    addToCalendar: 'Add it to your calendar',
+    googleCalendar: 'Google Calendar',
+    outlookCalendar: 'Outlook',
+    otherCalendar: 'Apple and other calendars',
     confirmSubjectCustomer: 'Your appointment is confirmed',
     confirmSubjectPro: 'New appointment',
     confirmGreetingCustomer: 'Your visit is confirmed.',
@@ -92,6 +100,10 @@ const packs: Record<Lang, MailPack> = {
     note: 'Nota',
     manage: 'Administrar cita',
     policy: 'Puedes cambiar o cancelar hasta 2 horas antes de la visita.',
+    addToCalendar: 'Agrégala a tu calendario',
+    googleCalendar: 'Google Calendar',
+    outlookCalendar: 'Outlook',
+    otherCalendar: 'Apple y otros calendarios',
     confirmSubjectCustomer: 'Tu cita está confirmada',
     confirmSubjectPro: 'Nueva cita',
     confirmGreetingCustomer: 'Tu visita está confirmada.',
@@ -133,6 +145,10 @@ const packs: Record<Lang, MailPack> = {
     note: 'Nota',
     manage: 'Gerenciar horário',
     policy: 'Você pode remarcar ou cancelar até 2 horas antes da visita.',
+    addToCalendar: 'Adicione ao seu calendário',
+    googleCalendar: 'Google Calendar',
+    outlookCalendar: 'Outlook',
+    otherCalendar: 'Apple e outros calendários',
     confirmSubjectCustomer: 'Seu horário está confirmado',
     confirmSubjectPro: 'Novo horário',
     confirmGreetingCustomer: 'Sua visita está confirmada.',
@@ -173,7 +189,20 @@ function packFor(locale: string): MailPack {
 
 function labels(pack: MailPack, lang: Lang): Pick<
   ProEstimateBookingEmailTranslations,
-  'detailsLabel' | 'dateTimeLabel' | 'withLabel' | 'serviceLabel' | 'locationLabel' | 'noteLabel' | 'manageLabel' | 'policyNote' | 'footer' | 'lang'
+  | 'detailsLabel'
+  | 'dateTimeLabel'
+  | 'withLabel'
+  | 'serviceLabel'
+  | 'locationLabel'
+  | 'noteLabel'
+  | 'manageLabel'
+  | 'policyNote'
+  | 'addToCalendar'
+  | 'googleCalendar'
+  | 'outlookCalendar'
+  | 'otherCalendar'
+  | 'footer'
+  | 'lang'
 > {
   return {
     lang,
@@ -185,6 +214,10 @@ function labels(pack: MailPack, lang: Lang): Pick<
     noteLabel: pack.note,
     manageLabel: pack.manage,
     policyNote: pack.policy,
+    addToCalendar: pack.addToCalendar,
+    googleCalendar: pack.googleCalendar,
+    outlookCalendar: pack.outlookCalendar,
+    otherCalendar: pack.otherCalendar,
     footer: { companyName: COMPANY_INFO.name, contactInfo: COMPANY_INFO.email.contact },
   };
 }

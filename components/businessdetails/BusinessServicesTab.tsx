@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { Loader2, Pencil, Tag, Trash2, Calendar } from 'lucide-react';
+import { Loader2, Pencil, Search, Tag, Trash2, X, Calendar } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { getCsrfToken } from '@/lib/utils/csrf';
@@ -84,6 +84,7 @@ export default function BusinessServicesTab({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const unitLabels: Record<ServiceUnit, string> = {
     job: t('job'),
@@ -91,6 +92,18 @@ export default function BusinessServicesTab({
     sqft: t('sqft'),
     each: t('each'),
   };
+
+  const needle = query.trim().toLowerCase();
+  const visibleServices = useMemo(() => {
+    if (!needle) return services;
+    return services.filter((service) =>
+      [service.name, service.description, service.category].join(' ').toLowerCase().includes(needle)
+    );
+  }, [needle, services]);
+  const visibleFallback = useMemo(() => {
+    if (!needle) return fallbackNames;
+    return fallbackNames.filter((name) => name.toLowerCase().includes(needle));
+  }, [fallbackNames, needle]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -210,9 +223,29 @@ export default function BusinessServicesTab({
   }
 
   return (
-    <div className="space-y-4 bg-white p-2">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-black">{t('heading')}</h2>
+    <div className="space-y-4 bg-white md:p-2">
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-red-500" size={20} />
+          <input
+            type="text"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t('search')}
+            aria-label={t('search')}
+            className="h-10 w-full rounded-lg border-2 border-black bg-white pl-10 pr-8 text-base text-black placeholder:text-gray-500 focus:outline-none"
+          />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-gray-600 hover:text-black"
+              aria-label={t('cancel')}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
         {isOwner && ready && !showForm && (
           <Button type="button" variant="primary" size="sm" onClick={openCreate}>
             {t('add')}
@@ -346,10 +379,14 @@ export default function BusinessServicesTab({
         </form>
       )}
 
-      {services.length === 0 && !showForm && fallbackNames.length > 0 && (
+      {services.length === 0 && !showForm && fallbackNames.length > 0 && visibleFallback.length === 0 && (
+        <p className="text-sm text-gray-600">{t('noResults')}</p>
+      )}
+
+      {services.length === 0 && !showForm && visibleFallback.length > 0 && (
         <div className="space-y-3">
           <ul className="flex flex-wrap gap-2">
-            {fallbackNames.map((name) => (
+            {visibleFallback.map((name) => (
               <li key={name} className="rounded-lg border-2 border-black px-3 py-1.5 text-sm font-medium">
                 {name}
               </li>
@@ -371,8 +408,12 @@ export default function BusinessServicesTab({
         <p className="text-sm text-gray-600">{isOwner ? t('emptyOwner') : t('empty')}</p>
       )}
 
+      {services.length > 0 && visibleServices.length === 0 && (
+        <p className="text-sm text-gray-600">{t('noResults')}</p>
+      )}
+
       <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {services.map((service) => {
+        {visibleServices.map((service) => {
           const price = formatCatalogPrice(service, locale, {
             requestPrice: t('requestPrice'),
             from: t('from'),

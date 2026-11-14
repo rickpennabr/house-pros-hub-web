@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
 import { LINK_TYPES } from '@/lib/constants/linkTypes';
 import { HANDYMAN_LICENSE_CODE } from '@/lib/constants/contractorLicenses';
 
@@ -42,6 +43,14 @@ export const businessSchema = z.object({
     .min(3, 'Slug must be at least 3 characters')
     .regex(/^[a-z0-9-]+$/, 'Slug can only contain lowercase letters, numbers, and hyphens'),
   companyDescription: z.string().trim().optional(),
+  ownerBio: z.string().trim().max(1500, 'Bio must be 1500 characters or less').optional(),
+  ownerExperience: z.string().trim().max(600, 'Experience must be 600 characters or less').optional(),
+  ownerDegrees: z.string().trim().max(800, 'Degrees must be 800 characters or less').optional(),
+  ownerCertifications: z.string().trim().max(800, 'Certifications must be 800 characters or less').optional(),
+  ownerYearsExperience: z.string().trim().optional().refine(
+    (value) => value === undefined || value === '' || (/^\d{1,2}$/.test(value) && Number(value) <= 80),
+    'Years of experience must be 0 to 80'
+  ),
   businessLogo: z.string().optional(),
   businessBackground: z.string().optional(),
   businessBackgroundPosition: z.string().optional(),
@@ -49,7 +58,7 @@ export const businessSchema = z.object({
   services: z.array(z.object({
     name: z.string().trim().min(1, 'Service name is required'),
   })).optional().default([]),
-  images: z.array(z.string()).max(10, 'Maximum 10 images allowed').optional().default([]),
+  images: z.array(z.string()).max(MAX_BUSINESS_GALLERY_IMAGES, `Maximum ${MAX_BUSINESS_GALLERY_IMAGES} images allowed`).optional().default([]),
   streetAddress: z.string().trim().min(1, 'Street address is required'),
   city: z.string().trim().min(1, 'City is required'),
   state: z.string().trim().length(2, 'Use 2-letter state code').default('NV'),

@@ -19,6 +19,8 @@ import { invoiceStatusLabel } from '@/lib/crm/invoice-books';
 import { listedCustomerName } from '@/lib/crm/contact-name';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { ChartLoading, InvoiceListChart } from '@/components/crm/ListCharts';
+import { isInvoiceChart } from '@/lib/crm/list-charts';
 
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Created' },
@@ -102,7 +104,8 @@ export default function CRMInvoicesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [savedListView, setSavedListView] = useLocalStorage<string>('crmInvoicesView', 'list');
-  const listView: ViewType = savedListView === 'map' ? 'map' : 'list';
+  const listView: ViewType = savedListView === 'map' || savedListView === 'chart' ? savedListView : 'list';
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const crmChrome = useCRMChrome();
   const {
     rows: invoices,
@@ -120,11 +123,16 @@ export default function CRMInvoicesPage() {
     handleSort,
     handleSearchInput,
     handleSearchSubmit,
+    chart,
+    search,
   } = useCrmListQuery<InvoiceRow>({
     endpoint: '/api/crm/invoices',
     rowsKey: 'invoices',
     defaultSort: 'created_at',
-    extraParams: { status: statusFilter },
+    extraParams: {
+      status: statusFilter,
+      ...(listView === 'chart' ? { chart: '1', timeZone } : {}),
+    },
     loadError: 'Failed to load invoices',
   });
   const rowActions = useCrmRowActions();
@@ -268,7 +276,7 @@ export default function CRMInvoicesPage() {
             ))}
           </div>
         )}
-        hideBody={listView === 'map'}
+        hideBody={listView !== 'list'}
         columnOrderKey="crm-invoices"
         exportName="invoices"
         columns={INVOICE_COLUMNS}
@@ -307,6 +315,18 @@ export default function CRMInvoicesPage() {
         itemLabel="invoices"
         primaryColumnId="invoice_number"
       />
+      {listView === 'chart' && (
+        isInvoiceChart(chart) ? (
+          <InvoiceListChart
+            chart={chart}
+            filtered={Boolean(search)}
+            activeStatus={statusFilter}
+            onSelectStatus={applyStatusFilter}
+          />
+        ) : (
+          <ChartLoading error={error} />
+        )
+      )}
       {listView === 'map' && (
         <AddressPinsMap
           pins={invoices.map((row) => ({
@@ -334,7 +354,7 @@ export default function CRMInvoicesPage() {
         <ViewToggle
           currentView={listView}
           onViewChange={setSavedListView}
-          views={['list', 'map']}
+          views={['list', 'map', 'chart']}
           hideBackgroundToggle
           onAdd={() => router.push(`/${locale}/crm/invoices/new`)}
           addLabel="New invoice"

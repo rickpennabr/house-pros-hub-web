@@ -6,6 +6,10 @@ import { Plus, Pencil, Trash2, ArrowLeft, AlertTriangle, ChevronDown, Printer } 
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { CrmRowActionsButton, CrmRowActionsPortal, useCrmRowActions } from '@/components/crm/CrmRowActionsMenu';
 import { CRM_LIST_PAGE_SIZE, useCrmListQuery } from '@/hooks/useCrmListQuery';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { ChartLoading, ExpenseListChart } from '@/components/crm/ListCharts';
+import { isExpenseChart } from '@/lib/crm/list-charts';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -317,6 +321,9 @@ function DescriptionField({
 
 export default function CRMExpensesPage() {
   const searchParams = useSearchParams();
+  const [savedListView, setSavedListView] = useLocalStorage<string>('crmExpensesView', 'list');
+  const listView: ViewType = savedListView === 'chart' ? 'chart' : 'list';
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const {
     rows: expenses,
     total,
@@ -333,11 +340,14 @@ export default function CRMExpensesPage() {
     handleSort,
     handleSearchInput,
     handleSearchSubmit,
+    chart,
+    search,
   } = useCrmListQuery<ExpenseRow>({
     endpoint: '/api/crm/expenses',
     rowsKey: 'expenses',
     defaultSort: 'expense_date',
     loadError: 'Failed to load expenses',
+    extraParams: listView === 'chart' ? { chart: '1', timeZone } : undefined,
   });
   const rowActions = useCrmRowActions();
 
@@ -815,6 +825,7 @@ export default function CRMExpensesPage() {
             onSearchInput={handleSearchInput}
             onSearchSubmit={handleSearchSubmit}
             searchPlaceholder="Search PO, material, category, or note…"
+            hideBody={listView === 'chart'}
             isLoading={isLoading}
             hasLoadedOnce={hasLoadedOnce}
             error={error}
@@ -834,15 +845,22 @@ export default function CRMExpensesPage() {
             itemLabel="expenses"
             primaryColumnId="amount"
           />
+          {listView === 'chart' && (
+            isExpenseChart(chart) ? (
+              <ExpenseListChart chart={chart} filtered={Boolean(search)} />
+            ) : (
+              <ChartLoading error={error} />
+            )
+          )}
           {viewMode === 'table' && !isLoading && (
-            <button
-              type="button"
-              onClick={openNewExpense}
-              className="md:hidden fixed bottom-[100px] right-[50px] z-50 h-12 w-12 rounded-lg bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-all shadow-lg"
-              aria-label="New expense"
-            >
-              <Plus className="w-6 h-6 text-white" />
-            </button>
+            <ViewToggle
+              currentView={listView}
+              onViewChange={setSavedListView}
+              views={['list', 'chart']}
+              hideBackgroundToggle
+              onAdd={openNewExpense}
+              addLabel="New expense"
+            />
           )}
           </div>
         </>

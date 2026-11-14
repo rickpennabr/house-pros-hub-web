@@ -44,15 +44,18 @@ function SignUpForm() {
   // Get role from URL if coming from Free Estimate button
   const urlRole = searchParams.get('role') as 'customer' | 'contractor' | 'realtor' | 'installer' | null;
   const skipRoleSelection = searchParams.get('skipRoleSelection') === 'true';
+  const fromQuickRepair = (searchParams.get('returnUrl') ?? '').includes('/quick-repair');
   
   // Customers pick form or Google before the form. Pros with a role in the URL enter an invitation code first.
+  // Quick Repair already offered that choice, so its form button opens the form.
   const [currentStep, setCurrentStep] = useState<SignupStep>(() => {
+    if (fromQuickRepair) return 'form';
     if (skipRoleSelection || urlRole === 'customer') return 'customer-signup-choice';
     if (urlRole === 'contractor' || urlRole === 'realtor' || urlRole === 'installer') return 'invitation-code';
     return 'role-selection';
   });
   const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | 'realtor' | 'installer' | null>(
-    skipRoleSelection ? 'customer' : urlRole
+    fromQuickRepair || skipRoleSelection ? 'customer' : urlRole
   );
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -97,14 +100,14 @@ function SignUpForm() {
 
   const returnUrl = searchParams.get('returnUrl');
   const continueToEstimate = Boolean(returnUrl?.includes('/estimate'));
+  const returnToQuickRepair = Boolean(returnUrl?.includes('/quick-repair'));
 
-  // The header Free Estimate button is the only signup that should skip the thanks
-  // screen. Profile sign-up has no estimate return path, so it keeps that screen.
+  // Estimate and Quick Repair skip the thanks screen and return to the page that started signup.
   useEffect(() => {
-    if (!formState.successMessage || !continueToEstimate || !returnUrl) return;
-    sessionStorage.setItem('estimate_post_signup', '1');
+    if (!formState.successMessage || !returnUrl || (!continueToEstimate && !returnToQuickRepair)) return;
+    if (continueToEstimate) sessionStorage.setItem('estimate_post_signup', '1');
     router.replace(returnUrl);
-  }, [formState.successMessage, continueToEstimate, returnUrl, router]);
+  }, [formState.successMessage, continueToEstimate, returnToQuickRepair, returnUrl, router]);
 
   const appliedOauthError = useRef(false);
   useEffect(() => {
@@ -362,7 +365,7 @@ function SignUpForm() {
                 <p className="text-lg font-semibold text-black">{t('navigation.estimatePreparingJustASecond')}</p>
                 <p className="text-base text-gray-700">{t('navigation.estimatePreparingMessage')}</p>
               </div>
-            ) : formState.successMessage ? (
+            ) : formState.successMessage && returnToQuickRepair ? null : formState.successMessage ? (
               <>
                 <SignupHeader isLoading={false} />
                 <SignupSuccessMessage

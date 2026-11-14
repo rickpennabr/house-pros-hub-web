@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
 import { contactDisplayName } from '@/lib/crm/contact-name';
+import { safeTimeZone } from '@/lib/crm/estimate-chart';
+import { buildProjectChart, type ProjectChart } from '@/lib/crm/list-charts';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -90,6 +92,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', statusFilter as 'planned' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled');
     }
 
+    let projectSearch: string | null = null;
     if (search) {
       const { data: matchingCustomers } = await supabase
         .from('pro_crm_customers')
@@ -99,7 +102,8 @@ export async function GET(request: NextRequest) {
       const ids = (matchingCustomers ?? []).map((customer) => customer.id);
       const parts = [`name.ilike.%${search}%`];
       if (ids.length > 0) parts.push(`customer_id.in.(${ids.join(',')})`);
-      query = query.or(parts.join(','));
+      projectSearch = parts.join(',');
+      query = query.or(projectSearch);
     }
 
     const from = (page - 1) * pageSize;
@@ -193,7 +197,42 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ projects: withCustomer, total: count ?? 0, page, pageSize });
+    let chart: ProjectChart | null = null;
+    if (searchParams.get('chart') === '1') {
+      const timeZone = safeTimeZone(searchParams.get('timeZone'));
+      let chartQuery = supabase
+        .from('pro_crm_projects')
+        .select('id, status, estimate_id, start_date, created_at')
+        .eq('owner_id', user.id)
+        .limit(2000);
+      if (projectSearch) chartQuery = chartQuery.or(projectSearch);
+      const { data: chartRows, error: chartError } = await chartQuery;
+      if (chartError) return NextResponse.json({ error: chartError.message || 'Failed to load project chart' }, { status: 500 });
+      const rows = chartRows ?? [];
+      const chartEstimateIds = [...new Set(rows.map((row) => row.estimate_id).filter((id): id is string => Boolean(id)))];
+      const [chartEstimates, chartCosts] = await Promise.all([
+        chartEstimateIds.length
+          ? supabase.from('pro_crm_estimates').select('id, amount_cents').eq('owner_id', user.id).in('id', chartEstimateIds)
+          : Promise.resolve({ data: [] as { id: string; amount_cents: number }[], error: null }),
+        sumExpenseCentsByProject(supabase, user.id, rows.map((row) => row.id)),
+      ]);
+      if (chartEstimates.error) {
+        return NextResponse.json({ error: chartEstimates.error.message || 'Failed to load contract amounts' }, { status: 500 });
+      }
+      const contractByEstimate = new Map<string, number>();
+      chartEstimates.data?.forEach((estimate) => contractByEstimate.set(estimate.id, estimate.amount_cents ?? 0));
+      chart = buildProjectChart(
+        rows.map((row) => ({
+          status: row.status,
+          contractCents: row.estimate_id ? contractByEstimate.get(row.estimate_id) ?? null : null,
+          costCents: chartCosts.get(row.id) ?? 0,
+          startedOn: row.start_date || row.created_at,
+        })),
+        { timeZone }
+      );
+    }
+
+    return NextResponse.json({ projects: withCustomer, total: count ?? 0, page, pageSize, chart });
   } catch (err) {
     console.error('GET /api/crm/projects', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

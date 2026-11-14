@@ -11,6 +11,7 @@ import { uploadProDriveFile, ProDriveQuotaClientError } from '@/lib/drive/upload
 import type { DriveUsage } from '@/lib/drive/types';
 import { requestCurrentLocation } from '@/lib/media/capture-location';
 import { jobLocationAllowed, setJobCameraAllowed } from '@/lib/media/job-camera-prefs';
+import { primeLiveCamera } from '@/lib/media/prime-camera';
 
 interface JobPhoto {
   id: string;
@@ -114,7 +115,7 @@ export default function JobsitePhotosPage() {
           <Link href={`/${locale}/crm/jobsite`} className="text-sm underline">{t('back')}</Link>
           <h1 className="text-xl font-bold">{projectName || t('title')}</h1>
         </div>
-        <Button type="button" onClick={() => setSheetOpen(true)} disabled={!businessId}>{t('addPhoto')}</Button>
+        <Button type="button" onClick={() => { primeLiveCamera('environment'); setSheetOpen(true); }} disabled={!businessId}>{t('addPhoto')}</Button>
       </div>
       {!businessId && <p className="text-sm">{t('noBusiness')}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}

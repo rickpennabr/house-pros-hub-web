@@ -13,6 +13,7 @@ import { Select } from '@/components/ui/Select';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import type { ProCardData } from '@/components/proscard/ProCard';
 import type { LinkItem } from '@/components/proscard/ProLinks';
+import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
 import { normalizeLinks } from '@/lib/utils/normalizeLinks';
 import { parseObjectPosition, formatObjectPosition } from '@/lib/utils/backgroundPosition';
 import { BackgroundImageEdit } from '@/components/businessdetails/BackgroundImageEdit';
@@ -668,7 +669,7 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
         onToggle={() => toggleAccordion('images')}
       >
         <div className="space-y-2">
-          <FormField label="Image URLs (one per line, max 10)">
+          <FormField label={`Image URLs (one per line, max ${MAX_BUSINESS_GALLERY_IMAGES})`}>
             <textarea
               value={form.images.join('\n')}
               onChange={(e) =>
@@ -678,7 +679,7 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
                     .split('\n')
                     .map((s) => s.trim())
                     .filter(Boolean)
-                    .slice(0, 10)
+                    .slice(0, MAX_BUSINESS_GALLERY_IMAGES)
                 )
               }
               placeholder="https://…"

@@ -6,6 +6,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { contactDisplayName } from '@/lib/crm/contact-name';
+import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
 
 interface CustomerRow {
   id: string;
@@ -174,6 +175,17 @@ export default function CustomerPortalPage() {
             </option>
           ))}
         </Select>
+        <HubCustomerImport
+          disabled={busy}
+          onImported={async (customer) => {
+            try {
+              await load();
+              setCustomerId(customer.id);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Could not refresh customers');
+            }
+          }}
+        />
       </FormField>
 
       {customer ? (

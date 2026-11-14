@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Camera, ImagePlus, HardDrive } from 'lucide-react';
+import { Camera, ClipboardList, HardDrive, ImagePlus, Play, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
@@ -10,7 +11,9 @@ import { ProDrivePicker } from '@/components/drive/ProDrivePicker';
 import { ProDriveQuotaModal } from '@/components/drive/ProDriveQuotaModal';
 import { Button } from '@/components/ui/Button';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
+import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
+import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { createSignInUrl, createSignUpUrl } from '@/lib/redirect';
 import { reverseGeocode, requestCurrentLocation, type CaptureLocation } from '@/lib/media/capture-location';
 import {
@@ -56,6 +59,33 @@ const DEFAULT_TRADE = 'Handyman';
 const STEPS = ['upload', 'details', 'submit'] as const;
 type Step = (typeof STEPS)[number];
 
+const CONTACT_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'streetAddress', 'city', 'state', 'zipCode'] as const;
+type ContactField = (typeof CONTACT_FIELDS)[number];
+
+/** Empty values use a "required" message. A filled value that still fails uses the schema's format message. */
+const REQUIRED_MESSAGE: Record<ContactField, string> = {
+  firstName: 'firstNameRequired',
+  lastName: 'lastNameRequired',
+  email: 'emailRequired',
+  phone: 'phoneRequired',
+  streetAddress: 'streetAddressRequired',
+  city: 'cityRequired',
+  state: 'stateRequired',
+  zipCode: 'zipRequired',
+};
+
+/** ZIP is 5 digits, or 5 plus 4. Letters and extra digits are dropped. */
+function maskZip(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 9);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
+/** State is a 2-letter code. */
+function maskState(value: string): string {
+  return value.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase();
+}
+
 interface LocalPhoto {
   key: string;
   name: string;
@@ -67,8 +97,7 @@ interface LocalPhoto {
 export default function QuickRepairPage() {
   const t = useTranslations('procam');
   const tHandoff = useTranslations('auth.googleHandoff');
-  const labels = useTranslations('common.label');
-  const address = useTranslations('profileEdit.fields');
+  const tValidation = useTranslations('estimate.validation');
   const locale = useLocale() as Locale;
   const router = useRouter();
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -79,6 +108,7 @@ export default function QuickRepairPage() {
   const [quota, setQuota] = useState<DriveUsage | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<ContactField, string>>>({});
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -139,14 +169,14 @@ export default function QuickRepairPage() {
         setFirstName((current) => keep(draft.firstName, current));
         setLastName((current) => keep(draft.lastName, current));
         setEmail((current) => keep(draft.email, current));
-        setPhone((current) => keep(draft.phone, current));
+        setPhone((current) => formatPhoneNumber(keep(draft.phone, current)));
         setTrade((current) => keep(draft.trade, current));
         setDescription((current) => keep(draft.description, current));
         setStreetAddress((current) => keep(draft.streetAddress, current));
         setApartment((current) => keep(draft.apartment ?? '', current));
         setCity((current) => keep(draft.city, current));
-        setState((current) => keep(draft.state, current));
-        setZipCode((current) => keep(draft.zipCode, current));
+        setState((current) => maskState(keep(draft.state, current)));
+        setZipCode((current) => maskZip(keep(draft.zipCode, current)));
         if (draft.latitude != null && draft.longitude != null) {
           located.current = true;
           setLocation({ latitude: draft.latitude, longitude: draft.longitude, accuracyM: draft.accuracyM });
@@ -185,13 +215,18 @@ export default function QuickRepairPage() {
     setFirstName((current) => current || user.firstName || '');
     setLastName((current) => current || user.lastName || '');
     setEmail((current) => current || user.email || '');
-    setPhone((current) => current || user.phone || '');
+    setPhone((current) => formatPhoneNumber(current || user.phone || ''));
     setStreetAddress((current) => current || user.streetAddress || '');
     setApartment((current) => current || user.apartment || '');
     setCity((current) => current || user.city || '');
-    setState((current) => current || user.state || '');
-    setZipCode((current) => current || user.zipCode || '');
+    setState((current) => maskState(current || user.state || ''));
+    setZipCode((current) => maskZip(current || user.zipCode || ''));
   }, [user]);
+
+  useEffect(() => {
+    const masked = formatPhoneNumber(phone);
+    if (phone !== masked) setPhone(masked);
+  }, [phone]);
 
   const currentDraft = (): QuickRepairDraft => ({
     firstName,
@@ -242,26 +277,50 @@ export default function QuickRepairPage() {
     zipCode,
   ]);
 
-  const detailsAreValid = () => estimateSchema.safeParse({
-    firstName,
-    lastName,
-    email,
-    phone,
-    streetAddress,
-    apartment,
-    city,
-    state,
-    zipCode,
-    projectType: 'repair',
-    requiresHoaApproval: false,
-    wants3D: false,
-    trades: [trade || DEFAULT_TRADE],
-    projectDescription: description,
-    budgetRange: 'not_sure',
-    timeline: 'asap',
-    preferredContactMethod: 'phone',
-    source: 'quick_repair',
-  }).success;
+  const clearFieldError = (field: ContactField) => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const contactFieldErrors = () => {
+    const values = {
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim(),
+      phone: formatPhoneNumber(phone),
+      streetAddress: streetAddress.trim(),
+      apartment: apartment.trim(),
+      city: city.trim(),
+      state: maskState(state),
+      zipCode: maskZip(zipCode),
+    };
+    const parsed = estimateSchema.safeParse({
+      ...values,
+      projectType: 'repair',
+      requiresHoaApproval: false,
+      wants3D: false,
+      trades: [trade || DEFAULT_TRADE],
+      projectDescription: description,
+      budgetRange: 'not_sure',
+      timeline: 'asap',
+      preferredContactMethod: 'phone',
+      source: 'quick_repair',
+    });
+    if (parsed.success) return {};
+    const flat = parsed.error.flatten().fieldErrors;
+    const next: Partial<Record<ContactField, string>> = {};
+    for (const field of CONTACT_FIELDS) {
+      const code = flat[field]?.[0];
+      if (!code) continue;
+      const key = values[field] ? code : REQUIRED_MESSAGE[field];
+      next[field] = tValidation(key as 'firstNameRequired');
+    }
+    return next;
+  };
 
   const rememberPlace = async () => {
     if (located.current) return;
@@ -311,7 +370,7 @@ export default function QuickRepairPage() {
 
   const onPickFiles = async (list: FileList | null) => {
     if (!list) return;
-    const incoming = Array.from(list).filter((file) => file.type.startsWith('image/'));
+    const incoming = Array.from(list).filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'));
     for (const file of incoming) {
       if (photosRef.current.length >= MAX_PHOTOS) break;
       await addLocalFile(file);
@@ -382,10 +441,13 @@ export default function QuickRepairPage() {
       setStep('details');
       return;
     }
-    if (!detailsAreValid()) {
-      setError(t('checkDetails'));
+    const missing = contactFieldErrors();
+    if (Object.keys(missing).length > 0) {
+      setFieldErrors(missing);
+      setError(null);
       return;
     }
+    setFieldErrors({});
     setSaving(true);
     setError(null);
     try {
@@ -418,12 +480,12 @@ export default function QuickRepairPage() {
           firstName,
           lastName,
           email,
-          phone,
+          phone: formatPhoneNumber(phone),
           streetAddress,
           apartment,
           city,
-          state,
-          zipCode,
+          state: maskState(state),
+          zipCode: maskZip(zipCode),
           projectType: 'repair',
           requiresHoaApproval: false,
           wants3D: false,
@@ -534,7 +596,7 @@ export default function QuickRepairPage() {
               <input
                 ref={inputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,video/*"
                 multiple
                 className="hidden"
                 onChange={(event) => void onPickFiles(event.target.files)}
@@ -573,14 +635,36 @@ export default function QuickRepairPage() {
                 <div className="space-y-3 border-t-2 border-black pt-3">
                   <h2 className="text-lg font-bold">{t('accountTitle')}</h2>
                   <p className="text-sm">{t('accountBody')}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" disabled={googleLoading} onClick={() => void continueWithGoogle()}>
+                  <div className="flex flex-col gap-3">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={googleLoading}
+                      onClick={() => void continueWithGoogle()}
+                      className="flex w-full items-center justify-center gap-2"
+                    >
+                      <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                      </svg>
                       {googleLoading ? t('googleWorking') : t('google')}
                     </Button>
-                    <Button type="button" variant="secondary" onClick={() => void leaveForAccount(createSignUpUrl(locale, returnPath))}>
+                    <Button
+                      type="button"
+                      onClick={() => void leaveForAccount(createSignUpUrl(locale, returnPath))}
+                      className="flex w-full items-center justify-center gap-2"
+                    >
+                      <ClipboardList className="h-5 w-5 shrink-0" aria-hidden="true" />
                       {t('signUp')}
                     </Button>
-                    <Button type="button" variant="ghost" onClick={() => void leaveForAccount(createSignInUrl(locale, returnPath))}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => void leaveForAccount(createSignInUrl(locale, returnPath))}
+                      className="w-full"
+                    >
                       {t('signIn')}
                     </Button>
                   </div>
@@ -609,15 +693,8 @@ export default function QuickRepairPage() {
                 city={city}
                 state={state}
                 zipCode={zipCode}
-                firstNameLabel={labels('firstName')}
-                lastNameLabel={labels('lastName')}
-                emailLabel={labels('email')}
-                phoneLabel={labels('phone')}
-                streetLabel={address('streetAddress')}
-                unitLabel={address('apartment')}
-                cityLabel={address('city')}
-                stateLabel={address('state')}
-                zipLabel={address('zipCode')}
+                errors={fieldErrors}
+                onClear={clearFieldError}
                 onFirstName={setFirstName}
                 onLastName={setLastName}
                 onEmail={setEmail}
@@ -703,17 +780,143 @@ function RepairSentThanks({ name, thanks, soon }: { name: string; thanks: string
   );
 }
 
+function isRepairVideo(photo: LocalPhoto): boolean {
+  if (photo.file?.type.startsWith('video/')) return true;
+  return /\.(mp4|webm|mov|m4v|3gp)$/i.test(photo.name);
+}
+
+/** A recorded file often has a blank first frame, so the tile stays white until we seek. */
+function frameTime(duration: number): number {
+  if (!Number.isFinite(duration) || duration <= 0) return 0.1;
+  return Math.min(0.5, Math.max(0.1, duration * 0.1));
+}
+
+function RepairVideoTile({ url, name }: { url: string; name: string }) {
+  const t = useTranslations('procam');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [poster, setPoster] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [unplayable, setUnplayable] = useState(false);
+
+  const showFrame = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    try {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      setPoster(canvas.toDataURL('image/jpeg', 0.85));
+    } catch {
+      // A cross-origin clip can refuse a still. The video element still shows the frame.
+    }
+  };
+
+  const seekToFrame = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const target = frameTime(video.duration);
+    if (Math.abs(video.currentTime - target) < 0.05 && video.videoWidth) {
+      showFrame();
+      return;
+    }
+    const onSeeked = () => {
+      video.removeEventListener('seeked', onSeeked);
+      showFrame();
+    };
+    video.addEventListener('seeked', onSeeked);
+    try {
+      video.currentTime = target;
+    } catch {
+      showFrame();
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  return (
+    <>
+      <video
+        ref={videoRef}
+        src={url}
+        muted
+        playsInline
+        preload="auto"
+        className="absolute inset-0 h-full w-full object-cover"
+        onLoadedData={seekToFrame}
+        onError={() => setUnplayable(true)}
+      />
+      {poster ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={poster} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+      ) : null}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="absolute inset-0 flex items-center justify-center"
+        aria-label={t('playVideo', { name })}
+      >
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/75 text-white">
+          <Play className="h-5 w-5 fill-white" />
+        </span>
+      </button>
+      {open
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[400] flex items-center justify-center bg-black/90 p-4"
+              onClick={() => setOpen(false)}
+            >
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white text-black"
+                aria-label={t('closeVideo')}
+              >
+                <X className="h-5 w-5" />
+              </button>
+              {unplayable ? (
+                <p className="max-w-sm text-center text-base text-white">{t('videoUnsupported')}</p>
+              ) : (
+                <video
+                  src={url}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="max-h-[85vh] max-w-full"
+                  onClick={(event) => event.stopPropagation()}
+                  onError={() => setUnplayable(true)}
+                />
+              )}
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  );
+}
+
 function PhotoGrid({ photos, onRemove, removeLabel }: { photos: LocalPhoto[]; onRemove: (key: string) => void; removeLabel: string }) {
   if (photos.length === 0) return null;
   return (
     <div className={photos.length === 1 ? 'w-48 max-w-full' : 'grid grid-cols-3 gap-3'}>
       {photos.map((photo) => (
         <div key={photo.key} className="min-w-0">
-          <div className="aspect-square overflow-hidden rounded-lg border-2 border-black bg-neutral-100">
-            {photo.previewUrl && (
+          <div className="relative aspect-square overflow-hidden rounded-lg border-2 border-black bg-black">
+            {photo.previewUrl && isRepairVideo(photo) ? (
+              <RepairVideoTile url={photo.previewUrl} name={photo.name} />
+            ) : photo.previewUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={photo.previewUrl} alt={photo.name} className="h-full w-full object-cover" />
-            )}
+              <img src={photo.previewUrl} alt={photo.name} className="absolute inset-0 h-full w-full object-cover" />
+            ) : null}
           </div>
           <button type="button" className="mt-1 cursor-pointer text-xs underline" onClick={() => onRemove(photo.key)}>
             {removeLabel}
@@ -734,15 +937,8 @@ interface ContactFieldsProps {
   city: string;
   state: string;
   zipCode: string;
-  firstNameLabel: string;
-  lastNameLabel: string;
-  emailLabel: string;
-  phoneLabel: string;
-  streetLabel: string;
-  unitLabel: string;
-  cityLabel: string;
-  stateLabel: string;
-  zipLabel: string;
+  errors: Partial<Record<ContactField, string>>;
+  onClear: (field: ContactField) => void;
   onFirstName: (value: string) => void;
   onLastName: (value: string) => void;
   onEmail: (value: string) => void;
@@ -755,31 +951,150 @@ interface ContactFieldsProps {
 }
 
 function ContactFields(props: ContactFieldsProps) {
+  const tFields = useTranslations('estimate.fields');
+  const invalid = (field: ContactField) => (props.errors[field] ? true : undefined);
+
   return (
-      <div className="grid grid-cols-2 gap-2">
-        <Input value={props.firstName} onChange={(event) => props.onFirstName(event.target.value)} placeholder={props.firstNameLabel} />
-        <Input value={props.lastName} onChange={(event) => props.onLastName(event.target.value)} placeholder={props.lastNameLabel} />
-        <Input value={props.email} onChange={(event) => props.onEmail(event.target.value)} placeholder={props.emailLabel} />
-        <Input value={props.phone} onChange={(event) => props.onPhone(event.target.value)} placeholder={props.phoneLabel} />
-        <div className="col-span-2">
-          <AddressAutocomplete
-            id="quick-repair-street"
-            value={props.streetAddress}
-            onChange={props.onStreet}
-            onAddressSelect={(addr: AddressData) => {
-              props.onStreet(addr.streetAddress);
-              if (addr.apartment) props.onApartment(addr.apartment);
-              if (addr.city) props.onCity(addr.city);
-              if (addr.state) props.onState(addr.state);
-              if (addr.zipCode) props.onZip(addr.zipCode);
+    <div className="grid grid-cols-2 gap-3">
+      <FormField label={tFields('firstNameLabel')} required error={props.errors.firstName}>
+        <Input
+          value={props.firstName}
+          onChange={(event) => {
+            props.onFirstName(event.target.value);
+            props.onClear('firstName');
+          }}
+          placeholder={tFields('firstNamePlaceholder')}
+          autoComplete="given-name"
+          error={props.errors.firstName}
+          aria-invalid={invalid('firstName')}
+        />
+      </FormField>
+      <FormField label={tFields('lastNameLabel')} required error={props.errors.lastName}>
+        <Input
+          value={props.lastName}
+          onChange={(event) => {
+            props.onLastName(event.target.value);
+            props.onClear('lastName');
+          }}
+          placeholder={tFields('lastNamePlaceholder')}
+          autoComplete="family-name"
+          error={props.errors.lastName}
+          aria-invalid={invalid('lastName')}
+        />
+      </FormField>
+      <FormField label={tFields('emailLabel')} required error={props.errors.email}>
+        <Input
+          value={props.email}
+          onChange={(event) => {
+            props.onEmail(event.target.value.replace(/\s/g, ''));
+            props.onClear('email');
+          }}
+          type="email"
+          inputMode="email"
+          placeholder={tFields('emailPlaceholder')}
+          autoComplete="email"
+          error={props.errors.email}
+          aria-invalid={invalid('email')}
+        />
+      </FormField>
+      <FormField label={tFields('phoneLabel')} required error={props.errors.phone}>
+        <Input
+          value={formatPhoneNumber(props.phone)}
+          onChange={(event) => {
+            props.onPhone(formatPhoneNumber(event.target.value));
+            props.onClear('phone');
+          }}
+          type="tel"
+          inputMode="tel"
+          maxLength={14}
+          placeholder={tFields('phonePlaceholder')}
+          autoComplete="tel"
+          error={props.errors.phone}
+          aria-invalid={invalid('phone')}
+        />
+      </FormField>
+      <FormField className="col-span-2" label={tFields('streetAddressLabel')} required error={props.errors.streetAddress}>
+        <AddressAutocomplete
+          id="quick-repair-street"
+          value={props.streetAddress}
+          onChange={(value) => {
+            props.onStreet(value);
+            props.onClear('streetAddress');
+          }}
+          onAddressSelect={(addr: AddressData) => {
+            props.onStreet(addr.streetAddress);
+            props.onClear('streetAddress');
+            if (addr.apartment) props.onApartment(addr.apartment);
+            if (addr.city) {
+              props.onCity(addr.city);
+              props.onClear('city');
+            }
+            if (addr.state) {
+              props.onState(maskState(addr.state));
+              props.onClear('state');
+            }
+            if (addr.zipCode) {
+              props.onZip(maskZip(addr.zipCode));
+              props.onClear('zipCode');
+            }
+          }}
+          placeholder={tFields('streetAddressPlaceholder')}
+          error={props.errors.streetAddress}
+          required
+        />
+      </FormField>
+      <FormField className="col-span-2" label={tFields('apartmentLabel')}>
+        <Input
+          value={props.apartment}
+          onChange={(event) => props.onApartment(event.target.value)}
+          placeholder={tFields('apartmentPlaceholder')}
+          autoComplete="address-line2"
+        />
+      </FormField>
+      <div className="col-span-2 grid grid-cols-2 gap-3 md:grid-cols-3">
+        <FormField label={tFields('cityLabel')} required error={props.errors.city}>
+          <Input
+            value={props.city}
+            onChange={(event) => {
+              props.onCity(event.target.value);
+              props.onClear('city');
             }}
-            placeholder={props.streetLabel}
+            placeholder={tFields('cityPlaceholder')}
+            autoComplete="address-level2"
+            error={props.errors.city}
+            aria-invalid={invalid('city')}
           />
-        </div>
-        <Input className="col-span-2" value={props.apartment} onChange={(event) => props.onApartment(event.target.value)} placeholder={props.unitLabel} />
-        <Input value={props.city} onChange={(event) => props.onCity(event.target.value)} placeholder={props.cityLabel} />
-        <Input value={props.state} onChange={(event) => props.onState(event.target.value)} placeholder={props.stateLabel} maxLength={2} />
-        <Input value={props.zipCode} onChange={(event) => props.onZip(event.target.value)} placeholder={props.zipLabel} />
+        </FormField>
+        <FormField label={tFields('stateLabel')} required error={props.errors.state}>
+          <Input
+            value={props.state}
+          onChange={(event) => {
+            props.onState(maskState(event.target.value));
+            props.onClear('state');
+          }}
+            placeholder={tFields('statePlaceholder')}
+            autoComplete="address-level1"
+            maxLength={2}
+            error={props.errors.state}
+            aria-invalid={invalid('state')}
+          />
+        </FormField>
+        <FormField label={tFields('zipCodeLabel')} required error={props.errors.zipCode}>
+          <Input
+            value={props.zipCode}
+          onChange={(event) => {
+            props.onZip(maskZip(event.target.value));
+            props.onClear('zipCode');
+          }}
+          placeholder={tFields('zipCodePlaceholder')}
+          autoComplete="postal-code"
+          inputMode="numeric"
+          maxLength={10}
+            error={props.errors.zipCode}
+            aria-invalid={invalid('zipCode')}
+          />
+        </FormField>
       </div>
+    </div>
   );
 }

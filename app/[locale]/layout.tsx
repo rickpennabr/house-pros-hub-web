@@ -12,7 +12,6 @@ import { RecoveryHashRedirect } from '@/components/auth/RecoveryHashRedirect';
 import ContractorPresenceHeartbeat from '@/components/presence/ContractorPresenceHeartbeat';
 import UserPresenceHeartbeat from '@/components/presence/UserPresenceHeartbeat';
 import ServiceWorkerRegister from '@/components/notifications/ServiceWorkerRegister';
-import PWAInstallHint from '@/components/notifications/PWAInstallHint';
 import { ProBotTransitionProvider } from '@/contexts/ProBotTransitionContext';
 import { QuickRepairCameraHost } from '@/components/media/QuickRepairCameraModal';
 import {
@@ -214,7 +213,6 @@ export default async function RootLayout({
         <AuthProviderWrapper>
           <ProBotTransitionProvider>
             <ServiceWorkerRegister />
-            <PWAInstallHint />
             <UserPresenceHeartbeat />
             <ContractorPresenceHeartbeat />
             <GlobalHashHandler />

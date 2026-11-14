@@ -12,6 +12,8 @@ import { buildProgressInvoice, contractBilledCents } from '@/lib/crm/progress-bi
 import { estimateReadyForWork } from '@/lib/schemas/crmEstimate';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import type { Json } from '@/lib/types/supabase';
+import { safeTimeZone } from '@/lib/crm/estimate-chart';
+import { buildInvoiceChart, type InvoiceChart } from '@/lib/crm/list-charts';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -60,6 +62,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', statusFilter as ProInvoiceStatus);
     }
 
+    let invoiceSearch: string | null = null;
     if (search) {
       const { data: matchingCustomers } = await supabase
         .from('pro_crm_customers')
@@ -69,7 +72,8 @@ export async function GET(request: NextRequest) {
       const ids = (matchingCustomers ?? []).map((customer) => customer.id);
       const parts = [`invoice_number.ilike.%${search}%`];
       if (ids.length > 0) parts.push(`customer_id.in.(${ids.join(',')})`);
-      query = query.or(parts.join(','));
+      invoiceSearch = parts.join(',');
+      query = query.or(invoiceSearch);
     }
 
     const from = (page - 1) * pageSize;
@@ -131,7 +135,45 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ invoices: withCustomers, total: count ?? 0, page, pageSize });
+    let chart: InvoiceChart | null = null;
+    if (searchParams.get('chart') === '1') {
+      const timeZone = safeTimeZone(searchParams.get('timeZone'));
+      let chartQuery = supabase
+        .from('pro_crm_invoices')
+        .select('id, status, amount_cents, payment_applied_cents, due_date, invoice_date')
+        .eq('owner_id', user.id)
+        .limit(2000);
+      if (invoiceSearch) chartQuery = chartQuery.or(invoiceSearch);
+      const { data: chartRows, error: chartError } = await chartQuery;
+      if (chartError) return NextResponse.json({ error: chartError.message || 'Failed to load invoice chart' }, { status: 500 });
+      const invoiceIds = (chartRows ?? []).map((row) => row.id);
+      const { data: paymentRows, error: paymentError } = invoiceIds.length
+        ? await supabase
+            .from('pro_crm_invoice_payments')
+            .select('amount_cents, payment_date, voided_at')
+            .eq('owner_id', user.id)
+            .in('invoice_id', invoiceIds)
+            .limit(2000)
+        : { data: [], error: null };
+      if (paymentError) return NextResponse.json({ error: paymentError.message || 'Failed to load payments' }, { status: 500 });
+      chart = buildInvoiceChart(
+        (chartRows ?? []).map((row) => ({
+          status: row.status,
+          amountCents: row.amount_cents,
+          paymentAppliedCents: row.payment_applied_cents,
+          dueDate: row.due_date,
+          invoiceDate: row.invoice_date,
+        })),
+        (paymentRows ?? []).map((row) => ({
+          amountCents: row.amount_cents,
+          paymentDate: row.payment_date,
+          voided: Boolean(row.voided_at),
+        })),
+        { timeZone }
+      );
+    }
+
+    return NextResponse.json({ invoices: withCustomers, total: count ?? 0, page, pageSize, chart });
   } catch (err) {
     console.error('GET /api/crm/invoices', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

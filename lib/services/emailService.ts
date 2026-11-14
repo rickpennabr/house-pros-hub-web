@@ -786,3 +786,22 @@ export async function sendEstimateApprovalNotificationEmails(
   return results;
 }
 
+/** Tell one recipient that a customer stopped a repeating service. */
+export async function sendMaintenanceStoppedEmail(
+  to: string,
+  subject: string,
+  paragraphs: string[]
+): Promise<void> {
+  try {
+    const resend = getResendClient();
+    const fromEmail = getResendFromEmail();
+    const html = paragraphs
+      .map((line) => `<p style="font-family:sans-serif;font-size:15px;color:#111">${line}</p>`)
+      .join('');
+    const { error } = await resend.emails.send({ from: fromEmail, to, subject, html });
+    if (error) logger.error('Maintenance stop email failed', { to, error: error.message }, error as Error);
+  } catch (err) {
+    logger.error('Maintenance stop email error', { to }, err as Error);
+  }
+}
+

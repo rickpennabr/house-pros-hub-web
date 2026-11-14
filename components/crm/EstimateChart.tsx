@@ -68,30 +68,30 @@ export function EstimateChart({ chart, filtered, activeStatus, onSelectStatus }:
   return (
     <div className="space-y-4 pb-28">
       {filtered && (
-        <p className="text-xs text-gray-500">This chart uses the current customer search. Status highlights a slice.</p>
+        <p className="text-xs text-gray-500">Showing estimates for this customer search.</p>
       )}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <RateCard
           label="Still open"
           value={formatAmount(chart.open.cents)}
-          detail={`${chart.open.count} ${chart.open.count === 1 ? 'quote' : 'quotes'} not closed`}
+          detail={`${chart.open.count} ${chart.open.count === 1 ? 'estimate' : 'estimates'} still open`}
         />
         <RateCard
           label="Win rate"
           value={formatRate(chart.winRateCents)}
           detail={
             chart.winRateCents == null
-              ? 'No closed quote amounts yet'
+              ? 'No closed estimate amounts yet'
               : `${formatAmount(summary.accepted.cents)} of ${formatAmount(chart.closedCents)} closed`
           }
         />
         <RateCard
-          label="Quotes won"
+          label="Estimates won"
           value={formatRate(chart.winRateCount)}
           detail={
             chart.winRateCount == null
-              ? 'No closed quotes yet'
-              : `${summary.accepted.count} of ${chart.closedCount} closed quotes`
+              ? 'No closed estimates yet'
+              : `${summary.accepted.count} of ${chart.closedCount} closed estimates`
           }
         />
       </div>
@@ -100,7 +100,7 @@ export function EstimateChart({ chart, filtered, activeStatus, onSelectStatus }:
         <section className="rounded-lg border-2 border-black bg-white p-4">
           <h2 className="text-base font-semibold text-gray-900">By status</h2>
           <p className="mt-0.5 text-xs text-gray-500">
-            {sizeByCount ? 'Sized by number of quotes. Amounts are zero.' : 'Sized by dollars.'}
+            {sizeByCount ? 'Sized by number of estimates. Amounts are zero.' : 'Sized by dollars.'}
           </p>
           <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row sm:items-center">
             <StatusDonut summary={summary} total={donutTotal} totalCents={totalCents} totalCount={totalCount} byCount={sizeByCount} />
@@ -216,7 +216,7 @@ function StatusDonut({
         {formatAmount(totalCents)}
       </text>
       <text x={center} y={center + 14} textAnchor="middle" fill="#6b7280" fontSize="11">
-        {totalCount} {totalCount === 1 ? 'quote' : 'quotes'}
+        {totalCount} {totalCount === 1 ? 'estimate' : 'estimates'}
       </text>
     </svg>
   );

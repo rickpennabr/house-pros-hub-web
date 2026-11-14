@@ -12,6 +12,9 @@ import {
 } from '@/lib/crm/contact-role';
 import { DISPLAY_NAME_TAKEN, displayNameTaken, resolveContactDisplayName } from '@/lib/crm/display-name';
 import { openBalanceByCustomer } from '@/lib/crm/contact-books';
+import { safeTimeZone } from '@/lib/crm/estimate-chart';
+import { buildContactChart, type ContactChart } from '@/lib/crm/list-charts';
+import { attachHubLogin } from '@/lib/crm/hub-customer';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -53,6 +56,37 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient();
     const orderColumn = VALID_SORT.includes(sortBy) ? sortBy : 'created_at';
+    const includeChart = searchParams.get('chart') === '1';
+    const timeZone = safeTimeZone(searchParams.get('timeZone'));
+
+    const loadContactChart = async (): Promise<ContactChart | null> => {
+      if (!includeChart) return null;
+      let chartQuery = supabase
+        .from('pro_crm_customers')
+        .select('id, created_at')
+        .eq('owner_id', user.id)
+        .limit(2000);
+      if (search) {
+        const safe = search.replace(/[%,"\\]/g, '').trim();
+        if (safe) {
+          const term = `%${safe}%`;
+          chartQuery = chartQuery.or(
+            `display_id.ilike.${term},first_name.ilike.${term},last_name.ilike.${term},company_name.ilike.${term},display_name.ilike.${term},email.ilike.${term},city.ilike.${term},state.ilike.${term},phone.ilike.${term},mobile_number.ilike.${term}`
+          );
+        }
+      }
+      const { data: chartRows, error: chartError } = await chartQuery;
+      if (chartError) throw new Error(chartError.message || 'Failed to load contact chart');
+      const chartIds = (chartRows ?? []).map((row) => row.id);
+      const chartRoles = await rolesByContactId(supabase, chartIds);
+      return buildContactChart(
+        (chartRows ?? []).map((row) => ({
+          createdAt: row.created_at,
+          roles: (chartRoles.get(row.id) ?? []).map((role) => ({ key: role.slug, label: role.name })),
+        })),
+        { timeZone }
+      );
+    };
 
     let query = supabase
       .from('pro_crm_customers')
@@ -69,7 +103,7 @@ export async function GET(request: NextRequest) {
         return true;
       });
       if (filtered.length === 0) {
-        return NextResponse.json({ customers: [], total: 0, page, pageSize });
+        return NextResponse.json({ customers: [], total: 0, page, pageSize, chart: await loadContactChart() });
       }
       query = query.in('id', filtered);
     }
@@ -120,6 +154,7 @@ export async function GET(request: NextRequest) {
       total: count ?? 0,
       page,
       pageSize,
+      chart: await loadContactChart(),
     });
   } catch (err) {
     console.error('GET /api/crm/customers', err);
@@ -218,6 +253,14 @@ export async function POST(request: NextRequest) {
     if (roleResult) {
       await supabase.from('pro_crm_customers').delete().eq('id', row.id).eq('owner_id', user.id);
       return NextResponse.json({ error: roleResult.error }, { status: roleResult.status });
+    }
+
+    if (insertPayload.email) {
+      try {
+        await attachHubLogin(row.id, user.id, insertPayload.email);
+      } catch (linkError) {
+        console.error('POST /api/crm/customers link hub account', linkError instanceof Error ? linkError.message : linkError);
+      }
     }
 
     return NextResponse.json({ id: row.id, display_id: row.display_id, created_at: row.created_at }, { status: 201 });

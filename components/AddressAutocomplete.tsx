@@ -26,6 +26,8 @@ interface AddressAutocompleteProps {
   disabled?: boolean;
   required?: boolean;
   id?: string;
+  /** When set, the field border turns red. The message itself is shown by FormField. */
+  error?: string;
 }
 
 function keepTypedUnit(address: AddressData, typed: string): AddressData {
@@ -43,6 +45,7 @@ export default function AddressAutocomplete({
   disabled = false,
   required = false,
   id = 'address',
+  error,
 }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
@@ -255,7 +258,10 @@ export default function AddressAutocomplete({
           }
         }}
         required={required}
-        className="w-full px-2 py-3 pr-8 border-2 border-black dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a1a] text-black dark:text-gray-100 placeholder:dark:placeholder-gray-400 focus:outline-none transition-all"
+        aria-invalid={error ? true : undefined}
+        className={`w-full px-2 py-3 pr-8 border-2 rounded-lg bg-white dark:bg-[#1a1a1a] text-black dark:text-gray-100 placeholder:dark:placeholder-gray-400 focus:outline-none transition-all ${
+          error ? 'border-red-500 focus:border-red-500' : 'border-black dark:border-gray-600'
+        }`}
         placeholder={placeholder}
         disabled={disabled}
       />

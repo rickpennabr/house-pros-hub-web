@@ -20,6 +20,8 @@ import Pagination from '@/components/ui/Pagination';
 import { contactDisplayName, listedCustomerName } from '@/lib/crm/contact-name';
 import Modal from '@/components/ui/Modal';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { ChartLoading, ProjectListChart } from '@/components/crm/ListCharts';
+import { isProjectChart } from '@/lib/crm/list-charts';
 
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Created' },
@@ -142,7 +144,8 @@ export default function CRMProjectsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [savedListView, setSavedListView] = useLocalStorage<string>('crmProjectsView', 'list');
-  const listView: ViewType = savedListView === 'map' ? 'map' : 'list';
+  const listView: ViewType = savedListView === 'map' || savedListView === 'chart' ? savedListView : 'list';
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const crmChrome = useCRMChrome();
   const {
     rows: projects,
@@ -160,11 +163,16 @@ export default function CRMProjectsPage() {
     handleSort,
     handleSearchInput,
     handleSearchSubmit,
+    chart,
+    search,
   } = useCrmListQuery<ProjectRow>({
     endpoint: '/api/crm/projects',
     rowsKey: 'projects',
     defaultSort: 'created_at',
-    extraParams: { status: statusFilter },
+    extraParams: {
+      status: statusFilter,
+      ...(listView === 'chart' ? { chart: '1', timeZone } : {}),
+    },
     loadError: 'Failed to load projects',
   });
   const rowActions = useCrmRowActions();
@@ -412,7 +420,7 @@ export default function CRMProjectsPage() {
                 ))}
               </div>
             )}
-            hideBody={listView === 'map'}
+            hideBody={listView !== 'list'}
             columnOrderKey="crm-projects"
             exportName="projects"
             columns={PROJECT_COLUMNS}
@@ -462,6 +470,18 @@ export default function CRMProjectsPage() {
             itemLabel="projects"
             primaryColumnId="name"
           />
+          {listView === 'chart' && (
+            isProjectChart(chart) ? (
+              <ProjectListChart
+                chart={chart}
+                filtered={Boolean(search)}
+                activeStatus={statusFilter}
+                onSelectStatus={applyStatusFilter}
+              />
+            ) : (
+              <ChartLoading error={error} />
+            )
+          )}
           {listView === 'map' && (
             <AddressPinsMap
               pins={projects.map((row) => ({
@@ -489,7 +509,7 @@ export default function CRMProjectsPage() {
             <ViewToggle
               currentView={listView}
               onViewChange={setSavedListView}
-              views={['list', 'map']}
+              views={['list', 'map', 'chart']}
               hideBackgroundToggle
               onAdd={() => setViewMode('add')}
               addLabel="New project"

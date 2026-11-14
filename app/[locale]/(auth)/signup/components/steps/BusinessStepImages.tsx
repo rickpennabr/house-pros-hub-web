@@ -6,8 +6,9 @@ import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { X, ImagePlus, ChevronDown } from 'lucide-react';
 import type { BusinessFormValues } from '@/lib/schemas/business';
+import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
 
-const MAX_IMAGES = 10;
+const MAX_IMAGES = MAX_BUSINESS_GALLERY_IMAGES;
 const GALLERY_INPUT_ID = 'gallery-images-input';
 
 export function BusinessStepImages() {

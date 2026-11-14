@@ -210,10 +210,12 @@ export async function checkCsrfToken(
   }
 
   // Get token from header (preferred) or body. Headers are often lowercased by the server.
-  const headerToken =
+  const rawHeaderToken =
     request.headers.get('x-csrf-token') ||
     request.headers.get('X-CSRF-Token') ||
     null;
+  // A duplicated header name arrives as "token, token" and must not fail the lookup.
+  const headerToken = rawHeaderToken?.split(',')[0]?.trim() || null;
   let bodyToken: string | null = null;
 
   if (process.env.NODE_ENV === 'development' && !headerToken) {

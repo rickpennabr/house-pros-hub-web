@@ -37,6 +37,24 @@ export function safeTimeZone(value: string | null | undefined): string {
   }
 }
 
+/**
+ * Month key for a stored value.
+ * A calendar date (YYYY-MM-DD) keeps its own month. A timestamp uses the time zone.
+ */
+export function monthKeyOf(value: string, timeZone: string): string | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.slice(0, 7);
+  return monthKeyInZone(value, timeZone);
+}
+
+export function todayKeyInZone(timeZone: string, now = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: safeTimeZone(timeZone),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
 /** YYYY-MM for an instant in a time zone. Returns null when the date is invalid. */
 export function monthKeyInZone(iso: string, timeZone: string): string | null {
   const date = new Date(iso);

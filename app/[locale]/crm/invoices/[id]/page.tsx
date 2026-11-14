@@ -26,6 +26,8 @@ export default function CRMInvoiceDetailPage() {
   const [sendMessage, setSendMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [linkNote, setLinkNote] = useState<string | null>(null);
+  const [linking, setLinking] = useState(false);
   const [companyEditorOpen, setCompanyEditorOpen] = useState(false);
   const [companySaving, setCompanySaving] = useState(false);
   const [data, setData] = useState<{
@@ -239,6 +241,30 @@ export default function CRMInvoiceDetailPage() {
               </Button>
             </>
           )}
+          {invoice.status !== 'cancelled' && invoice.amount_cents - (invoice.payment_applied_cents ?? 0) > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={linking}
+              onClick={() => {
+                setLinking(true);
+                setLinkNote(null);
+                void fetch(`/api/crm/invoices/${id}/payment-link`, { method: 'POST', credentials: 'include' })
+                  .then(async (res) => {
+                    const payload = (await res.json()) as { url?: string; error?: string };
+                    if (!res.ok || !payload.url) throw new Error(payload.error || 'Could not create a payment link');
+                    await navigator.clipboard.writeText(payload.url);
+                    setLinkNote('Payment link copied');
+                  })
+                  .catch((err: unknown) => {
+                    setLinkNote(err instanceof Error ? err.message : 'Could not create a payment link');
+                  })
+                  .finally(() => setLinking(false));
+              }}
+            >
+              {linking ? 'Creating link…' : 'Payment link'}
+            </Button>
+          )}
           <Button variant="secondary" size="sm" onClick={handlePrint} className="flex items-center gap-2">
             <Printer className="w-4 h-4" />
             Print
@@ -263,6 +289,7 @@ export default function CRMInvoiceDetailPage() {
           </Button>
           )}
         </div>
+        {linkNote ? <p className="mt-2 text-sm text-gray-700">{linkNote}</p> : null}
       </div>
 
       <Modal

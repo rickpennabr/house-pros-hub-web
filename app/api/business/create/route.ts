@@ -11,6 +11,7 @@ import { requireRole } from '@/lib/middleware/requireRole';
 import { sendNewSignupAdminNotification } from '@/lib/services/emailService';
 import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
+import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
 
 /**
  * Convert base64 string to Buffer for server-side file handling
@@ -406,9 +407,9 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
         .eq('id', businessData.id);
     }
 
-    // Upload gallery images (max 10) to business-images bucket
+    // Upload gallery images to the business-images bucket
     const imageUrls: string[] = [];
-    const rawImages = Array.isArray(images) ? images.slice(0, 10) : [];
+    const rawImages = Array.isArray(images) ? images.slice(0, MAX_BUSINESS_GALLERY_IMAGES) : [];
     for (let i = 0; i < rawImages.length; i++) {
       const dataUrl = rawImages[i];
       if (typeof dataUrl === 'string' && dataUrl.startsWith('data:image')) {

@@ -91,7 +91,9 @@ export default function BusinessLinksTab({ links, businessName, logoSrc }: Busin
     }
   };
 
-  if (links.length === 0) {
+  const visibleLinks = links.filter((link) => link.type !== 'phone');
+
+  if (visibleLinks.length === 0) {
     return (
       <div className="p-4 bg-white">
         <p className="text-gray-600">No links available.</p>
@@ -101,9 +103,8 @@ export default function BusinessLinksTab({ links, businessName, logoSrc }: Busin
 
   return (
     <div className="p-4 bg-white">
-      <h2 className="text-xl font-bold text-black mb-4">Links</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {links.map((link, index) => {
+        {visibleLinks.map((link, index) => {
           const Icon = iconMap[link.type] || Globe;
 
           const displayValue = link.value || link.url || '';

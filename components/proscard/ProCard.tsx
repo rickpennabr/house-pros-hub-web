@@ -42,6 +42,11 @@ export interface ProCardData {
   ownerName?: string;
   ownerTitle?: string;
   ownerDescription?: string;
+  ownerBio?: string;
+  ownerExperience?: string;
+  ownerDegrees?: string;
+  ownerCertifications?: string;
+  ownerYearsExperience?: number;
   companyDescription?: string;
   services?: string[];
   images?: string[];
@@ -133,7 +138,6 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
             }
           }}
           onPhoneClick={!isAuthenticated ? handlePhoneClick : undefined}
-          onQrCode={openQrCode}
         />
         </div>
         <ShareBusinessModal
@@ -143,14 +147,6 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
           contractorType={data.contractorType}
           logo={data.logo}
           businessUrl={shareBusinessUrl}
-        />
-        <HphQrCodeModal
-          isOpen={isQrModalOpen}
-          onClose={() => setIsQrModalOpen(false)}
-          url={qrUrl}
-          label={data.businessName}
-          logoSrc={data.logo}
-          fileName={qrFileName}
         />
         <SignInRequiredModal isOpen={isSignInRequiredOpen} onClose={() => setIsSignInRequiredOpen(false)} />
       </div>
@@ -192,6 +188,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
         contractorType={data.contractorType}
         logo={data.logo}
         businessId={data.id}
+        businessSlug={data.slug}
         ownerUserId={(data as { userId?: string }).userId}
         onSignInRequired={!isAuthenticated ? showSignInRequired : undefined}
       />

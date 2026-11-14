@@ -14,12 +14,6 @@ import { logger } from '@/lib/utils/logger';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Check rate limit for upload endpoints (same as background)
-    const rateLimitResponse = await checkRateLimit(request, 'upload');
-    if (rateLimitResponse) {
-      return rateLimitResponse;
-    }
-
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const businessId = formData.get('businessId') as string;
@@ -68,7 +62,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Gallery-specific rate limit (20/hour) so multiple images can be added
+    // Gallery quota only. The shared upload limit (10/hour) blocks a full gallery.
     const userRateLimitResponse = await checkRateLimit(request, 'businessGalleryUpload', user.id);
     if (userRateLimitResponse) {
       return userRateLimitResponse;

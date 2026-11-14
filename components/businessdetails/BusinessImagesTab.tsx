@@ -6,8 +6,9 @@ import { useTranslations } from 'next-intl';
 import { Minus, Pencil, Plus, Loader2 } from 'lucide-react';
 import { validateFileSize } from '@/lib/utils/fileValidation';
 import { getCsrfToken } from '@/lib/utils/csrf';
+import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
 
-const MAX_IMAGES = 10;
+const MAX_IMAGES = MAX_BUSINESS_GALLERY_IMAGES;
 
 interface BusinessImagesTabProps {
   images?: string[];
@@ -32,10 +33,21 @@ export default function BusinessImagesTab({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const readApiError = async (res: Response, fallback: string) => {
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (typeof body.error === 'string' && body.error.trim()) return body.error;
+    } catch {
+      // Response body was not JSON.
+    }
+    return fallback;
+  };
+
   const handleRemoveImage = async (index: number) => {
     if (!businessId || !onImagesChange || list.length <= 0) return;
     const newList = list.filter((_, i) => i !== index);
     setDeletingIndex(index);
+    setUploadError(null);
     try {
       const csrfToken = await getCsrfToken();
       const res = await fetch(`/api/businesses/${businessId}`, {
@@ -47,12 +59,15 @@ export default function BusinessImagesTab({
         credentials: 'include',
         body: JSON.stringify({ images: newList }),
       });
-      if (res.ok) {
-        onImagesChange(newList);
-        if (newList.length === 0) setEditMode(false);
+      if (!res.ok) {
+        setUploadError(await readApiError(res, t('removeError')));
+        return;
       }
+      onImagesChange(newList);
+      if (newList.length === 0) setEditMode(false);
     } catch (e) {
       console.error('Failed to remove image', e);
+      setUploadError(t('removeError'));
     } finally {
       setDeletingIndex(null);
     }
@@ -115,11 +130,14 @@ export default function BusinessImagesTab({
             credentials: 'include',
             body: JSON.stringify({ images: current }),
           });
-          if (updateRes.ok) onImagesChange(current);
+          if (!updateRes.ok) {
+            throw new Error(await readApiError(updateRes, t('saveError')));
+          }
+          onImagesChange(current);
         }
       }
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Failed to upload image');
+      setUploadError(err instanceof Error ? err.message : t('saveError'));
     } finally {
       setUploading(false);
       e.target.value = '';

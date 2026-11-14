@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { sendEstimateApprovalNotificationEmails } from '@/lib/services/emailService';
-import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
-import { customerCanAcceptEstimate } from '@/lib/schemas/crmEstimate';
-import { issueAcceptanceDeposit } from '@/lib/crm/estimate-deposit';
+import { acceptSentEstimate } from '@/lib/crm/accept-estimate';
+import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 
 /**
  * POST /api/estimates/public/approve
@@ -27,90 +25,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'This link has expired' }, { status: 404 });
     }
 
-    const { data: estimate, error: estimateErr } = await supabase
-      .from('pro_crm_estimates')
-      .select('id, status, display_id, amount_cents, owner_id, customer_id')
-      .eq('id', tokenRow.estimate_id)
-      .single();
-    if (estimateErr || !estimate) {
-      return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
-    }
-
-    if (estimate.status === 'accepted') {
-      return NextResponse.json({ ok: true, status: 'already_accepted' });
-    }
-    if (!customerCanAcceptEstimate(estimate.status)) {
-      return NextResponse.json({ error: 'This estimate has not been sent for approval' }, { status: 400 });
-    }
-
-    const { error: updateErr } = await supabase
-      .from('pro_crm_estimates')
-      .update({ status: 'accepted' })
-      .eq('id', estimate.id);
-    if (updateErr) {
-      return NextResponse.json({ error: updateErr.message || 'Failed to approve estimate' }, { status: 500 });
-    }
-
-    const estimateNumber = String(estimate.display_id ?? estimate.id.slice(0, 8));
-
-    const { data: customer } = await supabase
-      .from('pro_crm_customers')
-      .select('first_name, last_name, email')
-      .eq('id', estimate.customer_id)
-      .single();
-
-    const customerName =
-      [customer?.first_name, customer?.last_name].filter(Boolean).join(' ').trim() || 'Customer';
-    const customerEmail =
-      typeof customer?.email === 'string' && customer.email.trim() ? customer.email.trim() : null;
-
-    const { data: biz } = await supabase
-      .from('businesses')
-      .select('business_name, email')
-      .eq('owner_id', estimate.owner_id)
-      .eq('is_active', true)
-      .limit(1)
-      .maybeSingle();
-
-    const businessName = biz?.business_name ?? 'Your contractor';
-
-    let contractorEmail: string | null = null;
-    const { data: ownerUser, error: ownerErr } = await supabase.auth.admin.getUserById(estimate.owner_id);
-    if (!ownerErr && ownerUser?.user?.email) {
-      contractorEmail = ownerUser.user.email.trim();
-    }
-    if (!contractorEmail && typeof biz?.email === 'string' && biz.email.trim()) {
-      contractorEmail = biz.email.trim();
-    }
-
-    void sendEstimateApprovalNotificationEmails({
-      businessName,
-      estimateNumber,
-      amountCents: estimate.amount_cents ?? 0,
-      customerName,
-      customerEmail,
-      contractorEmail,
-    }).catch((e) => console.error('[POST /api/estimates/public/approve] approval emails failed', e));
-
-    const amount = ((estimate.amount_cents ?? 0) / 100).toLocaleString('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    const locale = request.headers.get('x-next-intl-locale') || 'en';
+    const result = await acceptSentEstimate(supabase, tokenRow.estimate_id, {
+      baseUrl: getPublicSiteUrlForEmail(request),
+      locale,
     });
-    await recordAdminBellEvent({
-      eventType: 'estimate_accepted',
-      entityType: 'estimate',
-      entityId: estimate.id,
-      displayName: customerName,
-      detail: [`Estimate #${estimateNumber}`, businessName, amount].filter(Boolean).join(' · '),
-    });
-
-    const deposit = await issueAcceptanceDeposit(supabase, estimate.id, estimate.owner_id);
-
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
     return NextResponse.json({
       ok: true,
-      status: 'approved',
-      depositInvoiceId: deposit.invoiceId,
-      depositError: deposit.error ?? null,
+      status: result.status,
+      depositInvoiceId: result.depositInvoiceId,
+      depositError: result.depositError,
     });
   } catch (err) {
     console.error('POST /api/estimates/public/approve', err);

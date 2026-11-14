@@ -382,31 +382,48 @@ export default function ChatEstimateForm({
     }
   }, [user, guestContact, values, locale, onSuccess]);
 
+  const requiredStepError = useCallback((): string | null => {
+    if (!currentStep) return null;
+    // Same required fields as the estimate form. HOA, 3D, images, and notes stay optional.
+    if (currentStep.id === 'projectType' && !values.projectType) {
+      return tValidation('projectTypeRequired');
+    }
+    if (currentStep.id === 'projectTypeOther' && !(values.projectTypeOther ?? '').trim()) {
+      return tValidation('projectTypeOtherRequired');
+    }
+    if (currentStep.id === 'trades' && ((values.trades ?? []) as string[]).length === 0) {
+      return tValidation('tradesMin');
+    }
+    if (currentStep.id === 'projectDescription' && (values.projectDescription ?? '').trim().length < 10) {
+      return tValidation('projectDescriptionMin');
+    }
+    if (currentStep.id === 'budgetRange' && !values.budgetRange) {
+      return tValidation('budgetRangeRequired');
+    }
+    if (currentStep.id === 'timeline' && !values.timeline) {
+      return tValidation('timelineRequired');
+    }
+    if (currentStep.id === 'preferredContactMethod' && !values.preferredContactMethod) {
+      return tValidation('preferredContactRequired');
+    }
+    if (currentStep.id === 'streetAddress') {
+      if (!(values.streetAddress ?? '').trim()) return tValidation('streetAddressRequired');
+      if (!(values.city ?? '').trim()) return tValidation('cityRequired');
+      if ((values.state ?? '').trim().length !== 2) return tValidation('stateLength');
+      if (!/^\d{5}(-\d{4})?$/.test((values.zipCode ?? '').trim())) return tValidation('zipInvalid');
+    }
+    return null;
+  }, [currentStep, values, tValidation]);
+
   const handleStepSubmit = useCallback(
     (e?: React.FormEvent) => {
       e?.preventDefault();
       if (!currentStep) return;
 
-      if (currentStep.id === 'trades') {
-        const trades = (values.trades ?? []) as string[];
-        if (trades.length === 0) {
-          setError('Select at least one trade.');
-          return;
-        }
-      }
-      if (currentStep.id === 'projectTypeOther') {
-        const other = (values.projectTypeOther ?? '').trim();
-        if (!other) {
-          setError('Please specify your project type.');
-          return;
-        }
-      }
-      if (currentStep.id === 'streetAddress') {
-        const addr = (values.streetAddress ?? '').trim();
-        if (!addr) {
-          setError(tValidation('streetAddressRequired'));
-          return;
-        }
+      const stepError = requiredStepError();
+      if (stepError) {
+        setError(stepError);
+        return;
       }
 
       setError(null);
@@ -416,7 +433,7 @@ export default function ChatEstimateForm({
       }
       goNext();
     },
-    [currentStep, values, isLastStep, goNext, validateAndSubmit, tValidation]
+    [currentStep, isLastStep, goNext, validateAndSubmit, requiredStepError]
   );
 
   const toggleTrade = useCallback((label: string) => {

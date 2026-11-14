@@ -111,14 +111,24 @@ export async function claimPortalCustomers(user: PortalUser): Promise<void> {
     }
   }
 
+  await relinkPortalPlaces(user.id);
+}
+
+/**
+ * Point this person's CRM records at a place with the same street and ZIP.
+ * Removing a place clears the link. Adding that address again runs this, so
+ * the professional's documents, projects, and invoices show up as before.
+ */
+export async function relinkPortalPlaces(userId: string): Promise<void> {
+  const admin = createServiceRoleClient();
   const { data: unplaced } = await admin
     .from('pro_crm_customers')
     .select(CUSTOMER_FIELDS)
-    .eq('portal_user_id', user.id)
+    .eq('portal_user_id', userId)
     .is('place_id', null);
 
   for (const row of unplaced ?? []) {
-    const placeId = await ensurePlace(admin, user.id, row);
+    const placeId = await ensurePlace(admin, userId, row);
     await admin.from('pro_crm_customers').update({ place_id: placeId }).eq('id', row.id);
   }
 }
@@ -208,6 +218,14 @@ export async function portalBriefForUser(userId: string): Promise<string> {
   return lines.join('\n').slice(0, 3500);
 }
 
+export function placePhotoUrl(path: string | null | undefined, version?: string | null): string | null {
+  if (!path) return null;
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '');
+  if (!base) return null;
+  const url = `${base}/storage/v1/object/public/place-photos/${path}`;
+  return version ? `${url}?v=${encodeURIComponent(version)}` : url;
+}
+
 export interface PlaceCard {
   id: string;
   kind: PlaceKind;
@@ -216,6 +234,7 @@ export interface PlaceCard {
   city: string | null;
   state: string | null;
   zipCode: string | null;
+  photoUrl: string | null;
   projectCount: number;
   maintenanceCount: number;
 }
@@ -224,7 +243,7 @@ export async function listPortalPlaces(userId: string): Promise<PlaceCard[]> {
   const admin = createServiceRoleClient();
   const { data: places, error } = await admin
     .from('customer_places')
-    .select('id, kind, name, street, city, state, zip_code')
+    .select('id, kind, name, street, city, state, zip_code, photo_path, updated_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw new Error(error.message);
@@ -252,6 +271,7 @@ export async function listPortalPlaces(userId: string): Promise<PlaceCard[]> {
       city: place.city,
       state: place.state,
       zipCode: place.zip_code,
+      photoUrl: placePhotoUrl(place.photo_path, place.updated_at),
       projectCount: (projects ?? []).filter((row) => ids.includes(row.customer_id)).length,
       maintenanceCount: (plans ?? []).filter((row) => ids.includes(row.customer_id)).length,
     };
@@ -305,17 +325,20 @@ export interface PlaceBundle {
   }>;
   estimates: Array<{
     id: string;
+    number: string;
     status: string;
     amountCents: number;
+    depositCents: number;
     dueDate: string | null;
   }>;
 }
 
 export async function loadPlaceBundle(userId: string, placeId: string): Promise<PlaceBundle | null> {
+  await relinkPortalPlaces(userId);
   const admin = createServiceRoleClient();
   const { data: place } = await admin
     .from('customer_places')
-    .select('id, kind, name, street, city, state, zip_code')
+    .select('id, kind, name, street, city, state, zip_code, photo_path, updated_at')
     .eq('id', placeId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -349,6 +372,7 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
         city: place.city,
         state: place.state,
         zipCode: place.zip_code,
+        photoUrl: placePhotoUrl(place.photo_path, place.updated_at),
         projectCount: 0,
         maintenanceCount: 0,
       },
@@ -387,7 +411,7 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
       .order('invoice_date', { ascending: false }),
     admin
       .from('pro_crm_estimates')
-      .select('id, status, amount_cents, due_date')
+      .select('id, display_id, status, amount_cents, deposit_cents, due_date')
       .in('customer_id', customerIds)
       .neq('status', 'draft')
       .order('created_at', { ascending: false }),
@@ -411,6 +435,7 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
       city: place.city,
       state: place.state,
       zipCode: place.zip_code,
+      photoUrl: placePhotoUrl(place.photo_path, place.updated_at),
       projectCount: projects?.length ?? 0,
       maintenanceCount: plans?.length ?? 0,
     },
@@ -461,8 +486,10 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
     })),
     estimates: (estimates ?? []).map((estimate) => ({
       id: estimate.id,
+      number: String(estimate.display_id ?? estimate.id.slice(0, 8)),
       status: estimate.status,
       amountCents: estimate.amount_cents,
+      depositCents: estimate.deposit_cents ?? 0,
       dueDate: estimate.due_date,
     })),
   };

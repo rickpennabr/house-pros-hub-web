@@ -65,7 +65,9 @@ export async function PATCH(
 
 /**
  * DELETE /api/places/[id]
- * Remove a place the customer added. Published work stays on the contractor's CRM.
+ * Remove the property from My Places. The professional's documents, projects,
+ * invoices, and estimates stay on the CRM customer. Adding the same address
+ * again links them back.
  */
 export async function DELETE(
   _request: NextRequest,

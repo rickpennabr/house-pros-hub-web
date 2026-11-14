@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { parseRoleIds, replaceContactRoles, rolesByContactId } from '@/lib/crm/contact-role';
 import { DISPLAY_NAME_TAKEN, displayNameTaken, resolveContactDisplayName } from '@/lib/crm/display-name';
+import { attachHubLogin } from '@/lib/crm/hub-customer';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -145,6 +146,15 @@ export async function PUT(
     if (roleIds) {
       const roleResult = await replaceContactRoles(supabase, user.id, id, roleIds);
       if (roleResult) return NextResponse.json({ error: roleResult.error }, { status: roleResult.status });
+    }
+
+    const linkedEmail = typeof updatePayload.email === 'string' ? updatePayload.email : null;
+    if (linkedEmail) {
+      try {
+        await attachHubLogin(id, user.id, linkedEmail);
+      } catch (linkError) {
+        console.error('PUT /api/crm/customers link hub account', linkError instanceof Error ? linkError.message : linkError);
+      }
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

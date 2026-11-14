@@ -30,10 +30,10 @@ export const RATE_LIMIT_CONFIGS = {
     message: 'Upload limit exceeded. Please try again later.',
   } as RateLimitConfig,
 
-  // Business gallery images (up to 10 per business) - separate from logo/background so adding multiple photos is allowed
+  // Business gallery images (up to 30 per business). Room to fill the gallery and replace a few in the same hour.
   businessGalleryUpload: {
     windowMs: 60 * 60 * 1000, // 1 hour
-    maxRequests: 20,
+    maxRequests: 60,
     message: 'Upload limit exceeded. Please try again later.',
   } as RateLimitConfig,
 
@@ -104,6 +104,13 @@ export const RATE_LIMIT_CONFIGS = {
     windowMs: 60 * 60 * 1000,
     maxRequests: 20,
     message: 'Agent estimate limit exceeded. Please try again later.',
+  } as RateLimitConfig,
+
+  // Exact-email copy of a hub customer's own profile into the caller's CRM.
+  hubCustomerLookup: {
+    windowMs: 60 * 60 * 1000,
+    maxRequests: 15,
+    message: 'Too many account lookups. Wait a while and try again.',
   } as RateLimitConfig,
 
   // Push subscription (admin, contractor, visitor) - prevent subscription spam

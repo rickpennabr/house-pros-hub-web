@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { DAY_KEYS, formatHm, weekdayLabel, type WeekSchedule } from '@/lib/booking/businessHours';
 
 interface BusinessHoursListProps {
@@ -10,12 +11,24 @@ interface BusinessHoursListProps {
   closedLabel: string;
 }
 
+function timeZoneName(timeZone: string, locale: string): string {
+  try {
+    const part = new Intl.DateTimeFormat(locale, { timeZone, timeZoneName: 'longGeneric' })
+      .formatToParts(new Date())
+      .find((item) => item.type === 'timeZoneName');
+    return part?.value || timeZone;
+  } catch {
+    return timeZone.replace(/_/g, ' ');
+  }
+}
+
 export default function BusinessHoursList({ schedule, timezone, locale, heading, closedLabel }: BusinessHoursListProps) {
-  const zoneLabel = timezone.replace(/_/g, ' ').replace('America/', '').replace('Pacific/', '');
+  const t = useTranslations('businessHours');
+  const zone = timeZoneName(timezone, locale);
   return (
     <section className="mb-4 rounded-lg border-2 border-black p-3">
       <h2 className="text-lg font-bold text-black">{heading}</h2>
-      <p className="mb-2 text-xs text-gray-500">{zoneLabel}</p>
+      <p className="mb-2 text-xs text-gray-500">{t('timesIn', { zone })}</p>
       <ul className="space-y-1">
         {DAY_KEYS.map((day) => {
           const row = schedule[day];

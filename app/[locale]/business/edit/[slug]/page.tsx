@@ -12,6 +12,7 @@ import { SiNextdoor, SiWhatsapp, SiYelp, SiInstagram, SiFacebook, SiLinkedin, Si
 import { AngiIcon } from '@/components/ui/icons/AngiIcon';
 
 import { businessSchema, type BusinessFormValues } from '@/lib/schemas/business';
+import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
 import { transformBusinessToProCardData } from '@/lib/utils/businessTransform';
 import { normalizeLinks } from '@/lib/utils/normalizeLinks';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,6 +29,7 @@ import { BackgroundImageEdit } from '@/components/businessdetails/BackgroundImag
 import { parseObjectPosition, formatObjectPosition } from '@/lib/utils/backgroundPosition';
 import { createSignInUrl } from '@/lib/redirect';
 import type { Locale } from '@/i18n';
+import { cardLinks } from '@/lib/utils/cardLinks';
 
 interface SocialMediaOption {
   key: LinkItem['type'];
@@ -90,6 +92,7 @@ export default function EditBusinessPage() {
   const tSearch = useTranslations('common.search');
   const tBusinessForm = useTranslations('businessForm');
   const tBrand = useTranslations('businessForm.brand');
+  const tOwner = useTranslations('businessForm.owner');
   const slug = params.slug as string;
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -104,6 +107,7 @@ export default function EditBusinessPage() {
   const [isImagesOpen, setIsImagesOpen] = useState(false);
   const [isContactInfoOpen, setIsContactInfoOpen] = useState(false);
   const [isLinksOpen, setIsLinksOpen] = useState(false);
+  const [isOwnerOpen, setIsOwnerOpen] = useState(false);
   const [previewLogo, setPreviewLogo] = useState<string | null>(null);
   const [previewBg, setPreviewBg] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
@@ -161,6 +165,11 @@ export default function EditBusinessPage() {
       phone: '',
       mobilePhone: '',
       links: [],
+      ownerBio: '',
+      ownerExperience: '',
+      ownerDegrees: '',
+      ownerCertifications: '',
+      ownerYearsExperience: '',
     },
   });
 
@@ -447,6 +456,11 @@ export default function EditBusinessPage() {
             businessName: business.businessName || '',
             slug: business.slug || '',
             companyDescription: business.companyDescription || '',
+            ownerBio: business.ownerBio || '',
+            ownerExperience: business.ownerExperience || '',
+            ownerDegrees: business.ownerDegrees || '',
+            ownerCertifications: business.ownerCertifications || '',
+            ownerYearsExperience: business.ownerYearsExperience != null ? String(business.ownerYearsExperience) : '',
             businessLogo: business.businessLogo || business.logo || '',
             businessBackground: business.businessBackground || '',
             businessBackgroundPosition: (business as { businessBackgroundPosition?: string }).businessBackgroundPosition ?? '50% 50%',
@@ -462,7 +476,7 @@ export default function EditBusinessPage() {
             email: business.email || '',
             phone: business.phone || '',
             mobilePhone: business.mobilePhone || '',
-            links: normalizeLinks(business.links),
+            links: cardLinks(normalizeLinks(business.links), business.slug || '', true),
           };
           
           reset(formData);
@@ -698,12 +712,12 @@ export default function EditBusinessPage() {
     }
 
     let current = watch('images') ?? [];
-    if (current.length >= 10) {
-      setGalleryUploadError('Maximum 10 images allowed.');
+    if (current.length >= MAX_BUSINESS_GALLERY_IMAGES) {
+      setGalleryUploadError(`Maximum ${MAX_BUSINESS_GALLERY_IMAGES} images allowed.`);
       return;
     }
 
-    const remaining = 10 - current.length;
+    const remaining = MAX_BUSINESS_GALLERY_IMAGES - current.length;
     const imageFiles = Array.from(fileList)
       .filter((f) => f.type.startsWith('image/'))
       .slice(0, remaining);
@@ -840,6 +854,11 @@ export default function EditBusinessPage() {
         businessBackground: data.businessBackground || undefined,
         businessBackgroundPosition: data.businessBackgroundPosition || undefined,
         companyDescription: data.companyDescription || undefined,
+        ownerBio: data.ownerBio || '',
+        ownerExperience: data.ownerExperience || '',
+        ownerDegrees: data.ownerDegrees || '',
+        ownerCertifications: data.ownerCertifications || '',
+        ownerYearsExperience: data.ownerYearsExperience || '',
         email: data.email || undefined,
         phone: data.phone || undefined,
         mobilePhone: data.mobilePhone || undefined,
@@ -860,7 +879,6 @@ export default function EditBusinessPage() {
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrfToken,
-          'x-csrf-token': csrfToken,
         },
         credentials: 'include',
         body: JSON.stringify(putBody),
@@ -882,6 +900,7 @@ export default function EditBusinessPage() {
       setIsImagesOpen(false);
       setIsContactInfoOpen(false);
       setIsLinksOpen(false);
+      setIsOwnerOpen(false);
       
       // Scroll to top to show success message
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -932,6 +951,7 @@ export default function EditBusinessPage() {
                     setIsImagesOpen(false);
                     setIsContactInfoOpen(false);
                     setIsLinksOpen(false);
+                    setIsOwnerOpen(false);
                   }
                 }}
                 className="w-full flex items-center justify-between p-4 text-left cursor-pointer"
@@ -1357,6 +1377,83 @@ export default function EditBusinessPage() {
               )}
             </div>
 
+            {/* About the owner */}
+            <div className="border-2 border-black rounded-lg bg-white">
+              <button
+                type="button"
+                onClick={() => {
+                  const newValue = !isOwnerOpen;
+                  setIsOwnerOpen(newValue);
+                  if (newValue) {
+                    setIsBusinessInfoOpen(false);
+                    setIsAddressInfoOpen(false);
+                    setIsServicesOpen(false);
+                    setIsImagesOpen(false);
+                    setIsContactInfoOpen(false);
+                    setIsLinksOpen(false);
+                  }
+                }}
+                className="w-full flex items-center justify-between p-4 text-left cursor-pointer"
+              >
+                <h2 className="text-xl font-bold text-black">{tOwner('sectionTitle')}</h2>
+                {isOwnerOpen ? (
+                  <ChevronUp className="w-5 h-5 text-black shrink-0 ml-4" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-black shrink-0 ml-4" />
+                )}
+              </button>
+              {isOwnerOpen && (
+                <div className="px-4 pb-4 border-t-2 border-black space-y-4 pt-6">
+                  <p className="text-sm text-gray-600">{tOwner('intro')}</p>
+                  <FormField label={tOwner('yearsLabel')} error={errors.ownerYearsExperience?.message}>
+                    <Input
+                      {...register('ownerYearsExperience')}
+                      inputMode="numeric"
+                      placeholder={tOwner('yearsPlaceholder')}
+                      disabled={isSubmitting}
+                      error={errors.ownerYearsExperience?.message}
+                    />
+                  </FormField>
+                  <FormField label={tOwner('experienceLabel')} error={errors.ownerExperience?.message}>
+                    <textarea
+                      {...register('ownerExperience')}
+                      rows={3}
+                      placeholder={tOwner('experiencePlaceholder')}
+                      disabled={isSubmitting}
+                      className="w-full p-2 border-2 border-black rounded-lg bg-white text-black focus:outline-none"
+                    />
+                  </FormField>
+                  <FormField label={tOwner('bioLabel')} error={errors.ownerBio?.message}>
+                    <textarea
+                      {...register('ownerBio')}
+                      rows={6}
+                      placeholder={tOwner('bioPlaceholder')}
+                      disabled={isSubmitting}
+                      className="w-full p-2 border-2 border-black rounded-lg bg-white text-black focus:outline-none"
+                    />
+                  </FormField>
+                  <FormField label={tOwner('degreesLabel')} error={errors.ownerDegrees?.message}>
+                    <textarea
+                      {...register('ownerDegrees')}
+                      rows={3}
+                      placeholder={tOwner('degreesPlaceholder')}
+                      disabled={isSubmitting}
+                      className="w-full p-2 border-2 border-black rounded-lg bg-white text-black focus:outline-none"
+                    />
+                  </FormField>
+                  <FormField label={tOwner('certificationsLabel')} error={errors.ownerCertifications?.message}>
+                    <textarea
+                      {...register('ownerCertifications')}
+                      rows={3}
+                      placeholder={tOwner('certificationsPlaceholder')}
+                      disabled={isSubmitting}
+                      className="w-full p-2 border-2 border-black rounded-lg bg-white text-black focus:outline-none"
+                    />
+                  </FormField>
+                </div>
+              )}
+            </div>
+
             {/* Address Information */}
             <div className="border-2 border-black rounded-lg bg-white">
               <button
@@ -1370,6 +1467,7 @@ export default function EditBusinessPage() {
                     setIsImagesOpen(false);
                     setIsContactInfoOpen(false);
                     setIsLinksOpen(false);
+                    setIsOwnerOpen(false);
                   }
                 }}
                 className="w-full flex items-center justify-between p-4 text-left cursor-pointer"
@@ -1455,6 +1553,7 @@ export default function EditBusinessPage() {
                     setIsImagesOpen(false);
                     setIsContactInfoOpen(false);
                     setIsLinksOpen(false);
+                    setIsOwnerOpen(false);
                   }
                 }}
                 className="w-full flex items-center justify-between p-4 text-left cursor-pointer"
@@ -1527,6 +1626,7 @@ export default function EditBusinessPage() {
                     setIsServicesOpen(false);
                     setIsContactInfoOpen(false);
                     setIsLinksOpen(false);
+                    setIsOwnerOpen(false);
                   }
                 }}
                 className="w-full flex items-center justify-between p-4 text-left cursor-pointer"
@@ -1542,7 +1642,7 @@ export default function EditBusinessPage() {
               {isImagesOpen && (
                 <div className="px-4 pb-4 border-t-2 border-black space-y-4 pt-4">
                   <p className="text-sm text-gray-600">
-                    {tBusinessForm('images.imagesHelp', { max: 10 })}
+                    {tBusinessForm('images.imagesHelp', { max: MAX_BUSINESS_GALLERY_IMAGES })}
                   </p>
                   {galleryUploadError && (
                     <p className="text-sm text-red-600" role="alert">
@@ -1567,7 +1667,7 @@ export default function EditBusinessPage() {
                     <button
                       type="button"
                       onClick={() => galleryImageInputRef.current?.click()}
-                      disabled={(watch('images') ?? []).length >= 10 || !businessId || galleryUploading}
+                      disabled={(watch('images') ?? []).length >= MAX_BUSINESS_GALLERY_IMAGES || !businessId || galleryUploading}
                       className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-black bg-white text-black font-medium hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
                     >
                       <ImagePlus className="w-4 h-4 shrink-0" />
@@ -1618,6 +1718,7 @@ export default function EditBusinessPage() {
                     setIsServicesOpen(false);
                     setIsImagesOpen(false);
                     setIsLinksOpen(false);
+                    setIsOwnerOpen(false);
                   }
                 }}
                 className="w-full flex items-center justify-between p-4 text-left cursor-pointer"
@@ -1689,6 +1790,7 @@ export default function EditBusinessPage() {
                     setIsServicesOpen(false);
                     setIsImagesOpen(false);
                     setIsContactInfoOpen(false);
+                    setIsOwnerOpen(false);
                   }
                 }}
                 className="w-full flex items-center justify-between p-4 text-left cursor-pointer"
@@ -1711,9 +1813,9 @@ export default function EditBusinessPage() {
                   <div className="bg-white border-2 border-gray-300 rounded-lg p-4 mb-4 text-xs text-gray-700">
                     <h4 className="font-medium text-gray-800 mb-2">Link Visibility:</h4>
                     <ul className="space-y-1 list-disc list-inside">
-                      <li>Add and drag links to position them in the card</li>
-                      <li>The first {MAX_VISIBLE_LINKS} links will be visible on your business card</li>
-                      <li>Additional links will only be shown on your business detail page</li>
+                      <li>Drag links to choose their order. The top of the list shows first.</li>
+                      <li>The first {MAX_VISIBLE_LINKS} links show on your card and on your details page.</li>
+                      <li>Links after that stay saved and stay hidden.</li>
                     </ul>
                   </div>
 

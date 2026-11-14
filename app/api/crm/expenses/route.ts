@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { categoryNeedsSupplier, cleanExpenseText, parseExpenseOrderFields, resolveOwnedSupplierId, supplierNamesById } from '@/lib/crm/expense-supplier';
+import { safeTimeZone } from '@/lib/crm/estimate-chart';
+import { buildExpenseChart, type ExpenseChart } from '@/lib/crm/list-charts';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -82,7 +84,42 @@ export async function GET(request: NextRequest) {
       supplier_name: row.supplier_id ? names.get(row.supplier_id) ?? null : null,
     }));
 
-    return NextResponse.json({ expenses: rows, total: count ?? 0, page, pageSize });
+    let chart: ExpenseChart | null = null;
+    if (searchParams.get('chart') === '1') {
+      const timeZone = safeTimeZone(searchParams.get('timeZone'));
+      let chartQuery = supabase
+        .from('pro_crm_expenses')
+        .select('amount_cents, expense_date, category')
+        .eq('owner_id', user.id)
+        .limit(2000);
+      if (projectId) chartQuery = chartQuery.eq('project_id', projectId);
+      if (search) chartQuery = chartQuery.or(`note.ilike.%${search}%,category.ilike.%${search}%,description.ilike.%${search}%,po_number.ilike.%${search}%`);
+      const [{ data: chartRows, error: chartError }, { data: paymentRows, error: paymentError }] = await Promise.all([
+        chartQuery,
+        supabase
+          .from('pro_crm_invoice_payments')
+          .select('amount_cents, payment_date, voided_at')
+          .eq('owner_id', user.id)
+          .limit(2000),
+      ]);
+      if (chartError) return NextResponse.json({ error: chartError.message || 'Failed to load expense chart' }, { status: 500 });
+      if (paymentError) return NextResponse.json({ error: paymentError.message || 'Failed to load payments' }, { status: 500 });
+      chart = buildExpenseChart(
+        (chartRows ?? []).map((row) => ({
+          amountCents: row.amount_cents,
+          expenseDate: row.expense_date,
+          category: row.category ?? '',
+        })),
+        (paymentRows ?? []).map((row) => ({
+          amountCents: row.amount_cents,
+          paymentDate: row.payment_date,
+          voided: Boolean(row.voided_at),
+        })),
+        { timeZone }
+      );
+    }
+
+    return NextResponse.json({ expenses: rows, total: count ?? 0, page, pageSize, chart });
   } catch (err) {
     console.error('GET /api/crm/expenses', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

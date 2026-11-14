@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Copy, MessageSquare, Mail } from 'lucide-react';
 import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 import Modal from '@/components/ui/Modal';
 
 interface ShareBusinessModalProps {
@@ -14,6 +15,24 @@ interface ShareBusinessModalProps {
   businessUrl: string;
   /** Header title. Defaults to the business share label. */
   title?: string;
+}
+
+type ShareTarget = 'booking' | 'details' | 'feedback';
+
+function shareTargets(businessUrl: string): Record<ShareTarget, string> | null {
+  try {
+    const url = new URL(businessUrl);
+    const match = url.pathname.match(/^\/(en|es|pt)\/(?:business|book)\/([^/]+)/);
+    if (!match) return null;
+    const [, locale, slug] = match;
+    return {
+      booking: `${url.origin}/${locale}/book/${slug}`,
+      details: `${url.origin}/${locale}/business/${slug}`,
+      feedback: `${url.origin}/${locale}/business/${slug}/feedback`,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function getInitials(name: string): string {
@@ -37,12 +56,16 @@ export default function ShareBusinessModal({
   businessUrl,
   title = 'Share Business',
 }: ShareBusinessModalProps) {
+  const t = useTranslations('businessFeedback');
   const [copied, setCopied] = useState(false);
+  const [target, setTarget] = useState<ShareTarget>('booking');
+  const targets = shareTargets(businessUrl);
+  const activeUrl = targets ? targets[target] : businessUrl;
   const initials = getInitials(businessName);
 
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(businessUrl);
+      await navigator.clipboard.writeText(activeUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -51,7 +74,7 @@ export default function ShareBusinessModal({
   };
 
   const handleShare = (platform: string) => {
-    const encodedUrl = encodeURIComponent(businessUrl);
+    const encodedUrl = encodeURIComponent(activeUrl);
     const encodedText = encodeURIComponent(`Check out ${businessName} - ${contractorType}`);
     
     const shareUrls: Record<string, string> = {
@@ -77,6 +100,7 @@ export default function ShareBusinessModal({
       title={title}
       showHeader={true}
       maxWidth="md"
+      contentClassName="p-0"
     >
 
         {/* Business Info */}
@@ -104,8 +128,31 @@ export default function ShareBusinessModal({
 
         {/* Business URL */}
         <div className="p-4 border-b-2 border-black">
+          {targets && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {([
+                ['booking', t('appointment')],
+                ['details', t('businessPage')],
+                ['feedback', t('shareFeedback')],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setTarget(id);
+                    setCopied(false);
+                  }}
+                  className={`rounded-lg border-2 border-black px-2 py-2 text-xs font-semibold cursor-pointer ${
+                    target === id ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="bg-yellow-100 border-2 border-black rounded-lg p-3 flex items-center justify-between gap-2">
-            <p className="text-sm font-medium text-black truncate flex-1">{businessUrl}</p>
+            <p className="text-sm font-medium text-black truncate flex-1">{activeUrl}</p>
             <button
               onClick={handleCopyLink}
               className="w-8 h-8 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"

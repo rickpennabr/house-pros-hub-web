@@ -234,8 +234,8 @@ export function BusinessStep4({ updateLink, reorderLinks, personalData }: Busine
               <div className="bg-white rounded-lg mt-4 text-xs md:text-base text-red-500">
                 <ul className="space-y-1 list-disc list-inside">
                   <li>{t('instructionsLine1') || 'Add and drag links to position them in the card'}</li>
-                  <li>{t('instructionsLine2') || 'The first 7 links will be visible on your business card'}</li>
-                  <li>{t('instructionsLine3') || 'Additional links will only be shown on your business detail page'}</li>
+                  <li>{t('instructionsLine2') || 'The first 7 links show on your card and on your details page.'}</li>
+                  <li>{t('instructionsLine3') || 'Links after that stay saved and stay hidden.'}</li>
                 </ul>
               </div>
             </div>

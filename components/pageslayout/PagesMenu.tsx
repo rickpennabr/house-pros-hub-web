@@ -38,12 +38,13 @@ function scrollMenuToEnd(container: HTMLDivElement | null) {
 const CAMERA_OUTLINE =
   "M10.5 13 H27 V9 C27 7 28.4 5.8 30.6 5.8 H49.4 C51.6 5.8 53 7 53 9 V13 H69.5 A8 8 0 0 1 77.5 21 V53.5 A8 8 0 0 1 69.5 61.5 H10.5 A8 8 0 0 1 2.5 53.5 V21 A8 8 0 0 1 10.5 13 Z";
 
-/** Camera mark. The lens label is FIX for Quick Repair and JOB for Jobsite. */
-export function RepairCameraMark({ label = 'FIX' }: { label?: string }) {
+/** Camera mark. The lens label is FIX for Quick Repair and JOB for Jobsite. White lines are for a black camera screen. */
+export function RepairCameraMark({ label = 'FIX', line = 'black' }: { label?: string; line?: 'black' | 'white' }) {
+  const ink = line === 'white' ? '#fff' : '#000';
   return (
-    <span className="relative block h-full w-full overflow-visible text-black">
+    <span className={`relative block h-full w-full overflow-visible ${line === 'white' ? 'text-white' : 'text-black'}`}>
       <svg viewBox="0 3 80 61" className="h-full w-full overflow-visible" aria-hidden>
-        <path d={CAMERA_OUTLINE} fill="none" stroke="#000" strokeWidth="3" strokeLinejoin="round" pathLength="2" strokeDasharray="1 1" className="repair-cam-border repair-cam-border-black" />
+        <path d={CAMERA_OUTLINE} fill="none" stroke={ink} strokeWidth="3" strokeLinejoin="round" pathLength="2" strokeDasharray="1 1" className="repair-cam-border repair-cam-border-black" />
         <path d={CAMERA_OUTLINE} fill="none" stroke="#ef4444" strokeWidth="3" strokeLinejoin="round" pathLength="2" strokeDasharray="1 1" className="repair-cam-border repair-cam-border-red" />
         <circle cx="40" cy="38" r="18.2" fill="none" stroke="currentColor" strokeWidth="2.4" />
         <circle cx="40" cy="38" r="15.4" fill="none" stroke="#ef4444" strokeWidth="2.3" />
@@ -137,8 +138,8 @@ export default function PagesMenu({ children }: PagesMenuProps) {
   };
 
   return (
-    <div className="flex h-[60px] w-full min-w-0 flex-shrink-0 border-b-2 border-black px-1 pt-1 pb-0 md:h-[69px] md:px-[6px] md:pt-[6px]">
-      <div ref={scrollRef} className="scrollbar-category h-[52px] min-w-0 flex-1 overflow-x-auto overflow-y-hidden md:h-[63px]">
+    <div className="flex h-[60px] w-full min-w-0 flex-shrink-0 items-center border-b-2 border-black px-1 md:h-[69px] md:px-[6px]">
+      <div ref={scrollRef} className="scrollbar-category h-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
         <div className="flex h-full w-max items-center gap-2 md:w-full md:justify-between">
           {menuItems.map((item) => {
             const Icon = item.icon;

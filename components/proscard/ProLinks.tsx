@@ -45,28 +45,17 @@ interface ProLinksProps {
   onSignInRequired?: () => void;
   /** Opens the HPH QRcode for this pro. The icon is always shown, like BrazaLink cards. */
   onQrCode?: () => void;
+  /** Sit inside another bar. Skips the card row border and fixed height. */
+  bare?: boolean;
 }
 
 function isBookingCalendarLink(link: LinkItem) {
   return link.type === 'calendar' && Boolean(link.url?.startsWith('/book/'));
 }
 
-/** Every card shows HPH QRcode. Saved links keep their order; missing ones sit right after phone. */
-function ensureQrCodeLink(links: LinkItem[]): LinkItem[] {
-  if (links.some((link) => link.type === 'qrcode')) return links;
-  const qrCode: LinkItem = { type: 'qrcode', value: 'HPH QRcode' };
-  const phoneIndex = links.findIndex((link) => link.type === 'phone');
-  if (phoneIndex === -1) return [qrCode, ...links];
-  return [...links.slice(0, phoneIndex + 1), qrCode, ...links.slice(phoneIndex + 1)];
-}
-
-/** Keep HPH QRcode and Book visible when the row is full. */
-function limitCardLinks(links: LinkItem[], maxLinks: number): LinkItem[] {
-  if (links.length <= maxLinks) return links;
-  const pinned = links.filter((link) => link.type === 'qrcode' || isBookingCalendarLink(link));
-  const rest = links.filter((link) => link.type !== 'qrcode' && !isBookingCalendarLink(link));
-  const kept = new Set<LinkItem>([...rest.slice(0, Math.max(0, maxLinks - pinned.length)), ...pinned]);
-  return links.filter((link) => kept.has(link));
+/** The edit-business list is the order. Show that order, up to the row limit. */
+function visibleLinkList(links: LinkItem[], maxLinks: number): LinkItem[] {
+  return links.slice(0, maxLinks);
 }
 
 // Type for icon components (both lucide-react and react-icons)
@@ -96,12 +85,8 @@ const iconMap: Partial<Record<LinkItem['type'], IconComponent>> = {
   angi: AngiIcon,
 };
 
-export default function ProLinks({ links, maxLinks = 7, onSignInRequired, onQrCode }: ProLinksProps) {
-  const orderedLinks = ensureQrCodeLink(links);
-  const cappedLinks = limitCardLinks(orderedLinks, maxLinks);
-  const bookingCalendarLink = cappedLinks.find(isBookingCalendarLink);
-  const otherLinks = cappedLinks.filter((link) => !isBookingCalendarLink(link));
-  const visibleLinks = bookingCalendarLink ? [...otherLinks, bookingCalendarLink] : otherLinks;
+export default function ProLinks({ links, maxLinks = 7, onSignInRequired, onQrCode, bare = false }: ProLinksProps) {
+  const visibleLinks = visibleLinkList(links, maxLinks);
   const linkCount = visibleLinks.length;
   const shouldSpaceBetween = linkCount === 7;
   const { isAuthenticated, isLoading } = useAuth();
@@ -222,8 +207,8 @@ export default function ProLinks({ links, maxLinks = 7, onSignInRequired, onQrCo
       : 'gap-4';
 
   return (
-    <div className={`h-[50px] flex items-center p-2 border-b border-black`}>
-      <div className={`flex items-center flex-wrap w-full ${gapClass}`}>
+    <div className={bare ? 'flex max-w-full items-center' : 'h-[50px] flex items-center p-2 border-b border-black'}>
+      <div className={`flex items-center flex-wrap ${bare ? 'justify-center gap-2' : `w-full ${gapClass}`}`}>
         {visibleLinks.map((link, index) => renderLinkButton(link, index))}
       </div>
 

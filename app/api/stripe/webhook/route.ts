@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { applyInvoiceCheckoutSession } from '@/lib/billing/invoice-checkout';
 import { getStripe, subscriptionPeriodEnd } from '@/lib/billing/stripe';
 import { logger } from '@/lib/utils/logger';
 
@@ -33,6 +34,10 @@ export async function POST(request: NextRequest) {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.user_id;
       const kind = session.metadata?.product_kind;
+      if (kind === 'invoice_payment') {
+        const applied = await applyInvoiceCheckoutSession(service, session);
+        if ('error' in applied) throw new Error(applied.error);
+      }
       const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
       if (userId && subscriptionId && (kind === 'hub_pro' || kind === 'prodrive_overage')) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);

@@ -577,6 +577,11 @@ export interface Database {
           business_background: string | null;
           business_background_position: string | null;
           company_description: string | null;
+          owner_bio: string | null;
+          owner_experience: string | null;
+          owner_degrees: string | null;
+          owner_certifications: string | null;
+          owner_years_experience: number | null;
           email: string | null;
           phone: string | null;
           mobile_phone: string | null;
@@ -604,6 +609,11 @@ export interface Database {
           business_background?: string | null;
           business_background_position?: string | null;
           company_description?: string | null;
+          owner_bio?: string | null;
+          owner_experience?: string | null;
+          owner_degrees?: string | null;
+          owner_certifications?: string | null;
+          owner_years_experience?: number | null;
           email?: string | null;
           phone?: string | null;
           mobile_phone?: string | null;
@@ -631,6 +641,11 @@ export interface Database {
           business_background?: string | null;
           business_background_position?: string | null;
           company_description?: string | null;
+          owner_bio?: string | null;
+          owner_experience?: string | null;
+          owner_degrees?: string | null;
+          owner_certifications?: string | null;
+          owner_years_experience?: number | null;
           email?: string | null;
           phone?: string | null;
           mobile_phone?: string | null;
@@ -1381,6 +1396,7 @@ export interface Database {
           city: string | null;
           state: string | null;
           zip_code: string | null;
+          photo_path: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1393,6 +1409,7 @@ export interface Database {
           city?: string | null;
           state?: string | null;
           zip_code?: string | null;
+          photo_path?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1405,6 +1422,7 @@ export interface Database {
           city?: string | null;
           state?: string | null;
           zip_code?: string | null;
+          photo_path?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -2213,7 +2231,7 @@ export interface Database {
       admin_notification_events: {
         Row: {
           id: string;
-          event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email';
+          event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance';
           entity_type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id: string;
           display_name: string;
@@ -2222,7 +2240,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email';
+          event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance';
           entity_type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id: string;
           display_name: string;
@@ -2231,7 +2249,7 @@ export interface Database {
         };
         Update: {
           id?: string;
-          event_type?: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email';
+          event_type?: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance';
           entity_type?: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id?: string;
           display_name?: string;
@@ -3297,6 +3315,45 @@ export interface Database {
         };
         Relationships: [];
       };
+      business_feedback: {
+        Row: {
+          id: string;
+          business_id: string;
+          author_user_id: string | null;
+          author_name: string;
+          body: string;
+          image_urls: string[];
+          pro_response: string | null;
+          pro_response_image_urls: string[];
+          pro_responded_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          author_user_id?: string | null;
+          author_name: string;
+          body: string;
+          image_urls?: string[];
+          pro_response?: string | null;
+          pro_response_image_urls?: string[];
+          pro_responded_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          author_user_id?: string | null;
+          author_name?: string;
+          body?: string;
+          image_urls?: string[];
+          pro_response?: string | null;
+          pro_response_image_urls?: string[];
+          pro_responded_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -3331,6 +3388,10 @@ export interface Database {
           p_max: number;
         };
         Returns: { allowed: boolean; retry_after_seconds: number };
+      };
+      hub_customer_contact_by_email: {
+        Args: { p_email: string };
+        Returns: Json;
       };
     };
     Enums: {

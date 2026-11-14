@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
-import { Phone, Plus } from 'lucide-react';
+import { Phone, Plus, Settings } from 'lucide-react';
 import ViewToggle, { ViewType } from '@/components/pageslayout/ViewToggle';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import { useProBotTransition } from '@/contexts/ProBotTransitionContext';
@@ -19,6 +19,8 @@ interface BusinessListMobileBottomBarProps {
   onViewChange: (view: ViewType) => void;
   /** Signed-in contractor, realtor, or installer: ProBot, job camera, then Add. */
   showProAdd?: boolean;
+  /** Signed-in users get a settings button that opens Account Management. */
+  signedIn?: boolean;
   addOpen?: boolean;
   onAdd?: () => void;
   addLabel?: string;
@@ -28,13 +30,15 @@ interface BusinessListMobileBottomBarProps {
 
 /**
  * Mobile-only bottom bar on the business list (HousePros) page.
- * Guests: five equal slots, two view buttons then the divider, then ProBot, WhatsApp, and Phone.
- * Signed-in pros: two view buttons, a divider, then ProBot, call, camera, and Add.
+ * Guests: two view buttons, then ProBot, WhatsApp, and Phone.
+ * Signed-in users also get a settings button that opens Account Management.
+ * Signed-in pros: two view buttons, then ProBot, call, camera, Add, and settings.
  */
 export default function BusinessListMobileBottomBar({
   currentView,
   onViewChange,
   showProAdd = false,
+  signedIn = false,
   addOpen = false,
   onAdd,
   addLabel = 'Add',
@@ -43,6 +47,7 @@ export default function BusinessListMobileBottomBar({
 }: BusinessListMobileBottomBarProps) {
   const router = useRouter();
   const locale = useLocale();
+  const tAccount = useTranslations('common.account');
   const { setTransitioningToProbot } = useProBotTransition();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -57,6 +62,17 @@ export default function BusinessListMobileBottomBar({
   const handlePhoneClick = () => {
     window.location.href = `tel:${PHONE_NUMBER.replace(/-/g, '')}`;
   };
+
+  const settingsButton = signedIn ? (
+    <button
+      type="button"
+      onClick={() => router.push(`/${locale}/account-management`)}
+      className="flex h-11 w-11 min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-black transition-colors hover:bg-gray-50"
+      aria-label={tAccount('accountManagement')}
+    >
+      <Settings className="h-5 w-5" />
+    </button>
+  ) : null;
 
   const barEl = (
     <div
@@ -134,9 +150,10 @@ export default function BusinessListMobileBottomBar({
           >
             <Plus className={`h-5 w-5 transition-transform duration-200 ${addOpen ? 'rotate-45' : ''}`} />
           </button>
+          {settingsButton}
         </div>
       ) : (
-      <div className="grid min-w-0 flex-[3] grid-cols-3 place-items-center overflow-visible">
+      <div className={`grid min-w-0 flex-[3] place-items-center overflow-visible ${signedIn ? 'grid-cols-4' : 'grid-cols-3'}`}>
         <div className="relative flex shrink-0 items-center justify-center">
           <span
             className="beta-badge-dynamic absolute -top-[10px] -right-2 z-10 rounded border border-black px-0.5 text-[9px] font-bold text-black shadow"
@@ -182,8 +199,9 @@ export default function BusinessListMobileBottomBar({
           className="flex h-11 w-11 min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-black transition-colors hover:bg-gray-50"
           aria-label={`Call ${PHONE_NUMBER}`}
         >
-          <Phone className="h-5 w-5" />
-        </button>
+            <Phone className="h-5 w-5" />
+          </button>
+        {settingsButton}
       </div>
       )}
     </div>

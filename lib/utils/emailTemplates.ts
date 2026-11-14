@@ -1,3 +1,9 @@
+import {
+  calendarEmailButtons,
+  icsUrlFromManageUrl,
+  visitCalendarDescription,
+  visitCalendarTitle,
+} from '@/lib/booking/calendarLinks';
 import { COMPANY_INFO, COMPANY_WHATSAPP_URL } from '@/lib/constants/company';
 import { EstimateSchema } from '@/lib/schemas/estimate';
 
@@ -966,6 +972,10 @@ export interface ProEstimateBookingEmailTranslations {
   noteLabel?: string;
   manageLabel?: string;
   policyNote?: string;
+  addToCalendar?: string;
+  googleCalendar?: string;
+  outlookCalendar?: string;
+  otherCalendar?: string;
   lang?: string;
   footer: { companyName: string; contactInfo: string };
 }
@@ -1028,6 +1038,25 @@ export function generateProEstimateBookingEmail(
                   <td style="padding: 12px 16px;">${translations.withLabel}: ${withLabel}</td>
                 </tr>
               </table>
+              ${calendarEmailButtons({
+                title: visitCalendarTitle(data.businessName, data.serviceName),
+                description: visitCalendarDescription([
+                  isPro ? data.customerName : data.businessName,
+                  data.visitNote,
+                  data.manageUrl,
+                ]),
+                location: data.locationAddress ?? '',
+                startAt: data.slotStartAt,
+                endAt: data.slotEndAt,
+                icsUrl: icsUrlFromManageUrl(data.manageUrl),
+                cancelled: data.calendarMethod === 'CANCEL',
+                labels: {
+                  addToCalendar: translations.addToCalendar ?? 'Add it to your calendar',
+                  googleCalendar: translations.googleCalendar ?? 'Google Calendar',
+                  outlookCalendar: translations.outlookCalendar ?? 'Outlook',
+                  otherCalendar: translations.otherCalendar ?? 'Apple and other calendars',
+                },
+              })}
               ${!isPro && data.manageUrl ? `<p style="margin: 20px 0 0 0;"><a href="${escapeHtml(data.manageUrl)}" style="display: inline-block; padding: 12px 24px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">${escapeHtml(translations.manageLabel ?? 'Manage appointment')}</a></p>` : ''}
               ${!isPro && translations.policyNote ? `<p style="margin: 12px 0 0 0; font-size: 13px; color: #666;">${escapeHtml(translations.policyNote)}</p>` : ''}
             </td>
@@ -1073,7 +1102,8 @@ export function generateInvoiceEmail(data: InvoiceEmailData): string {
         <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Invoice #${data.invoiceNumber}</p>
         <p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
         ${data.message ? `<p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">${data.message}</p>` : ''}
-        <p style="margin: 0 0 24px 0;"><a href="${data.viewUrl}" style="display: inline-block; padding: 12px 24px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">View invoice</a></p>
+        <p style="margin: 0 0 24px 0;"><a href="${data.viewUrl}" style="display: inline-block; padding: 12px 24px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">View and pay</a></p>
+        <p style="margin: 0 0 16px 0; font-size: 13px; color: #374151;">Open the invoice to pay the balance by card, or download it from My Places.</p>
         <p style="margin: 0; font-size: 12px; color: #6b7280;">If the button doesn't work, copy and paste this link into your browser:</p>
         <p style="margin: 4px 0 0 0; font-size: 12px; word-break: break-all;"><a href="${data.viewUrl}" style="color: #2563eb;">${data.viewUrl}</a></p>
       </td>

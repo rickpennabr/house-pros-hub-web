@@ -113,8 +113,8 @@ export function buildProgressInvoice(input: {
   const depositCoversEstimate = input.purpose === 'deposit' && remainingAfterCents === 0;
   const billingLine = input.purpose === 'deposit'
     ? depositCoversEstimate
-      ? `Deposit of ${usd(amountCents)} covers this estimate.`
-      : `Deposit of ${usd(amountCents)} due on acceptance. ${usd(remainingAfterCents)} of ${usd(contractCents)} remains on the estimate.`
+      ? `Deposit of ${usd(amountCents)} covers this estimate, including materials, delivery, and labor.`
+      : `Deposit of ${usd(amountCents)} is due now to cover materials, delivery, and labor. ${usd(remainingAfterCents)} of ${usd(contractCents)} remains and is billed when the work is finished, or in stages on a larger job.`
     : `Progress billing of ${usd(amountCents)}. ${usd(remainingAfterCents)} of ${usd(contractCents)} remains on the estimate.`;
   const note = fullFirstInvoice && input.purpose !== 'deposit'
     ? input.note

@@ -26,6 +26,10 @@ interface UseCrmListQueryResult<T> {
   error: string | null;
   setError: (error: string | null) => void;
   hasLoadedOnce: boolean;
+  /** Chart payload when the request asked for `chart=1`. Null on list and map loads. */
+  chart: unknown;
+  /** Debounced search currently applied to the request. */
+  search: string;
   reload: () => Promise<void>;
   handleSort: (key: string, dir: 'asc' | 'desc') => void;
   handleSearchInput: (value: string) => void;
@@ -55,6 +59,7 @@ export function useCrmListQuery<T>({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [chart, setChart] = useState<unknown>(null);
   const hasLoadedOnceRef = useRef(false);
   const extraKey = JSON.stringify(extraParams ?? {});
 
@@ -83,6 +88,7 @@ export function useCrmListQuery<T>({
       const list = data[rowsKey];
       setRows(Array.isArray(list) ? (list as T[]) : []);
       setTotal(typeof data.total === 'number' ? data.total : 0);
+      setChart(data.chart ?? null);
       hasLoadedOnceRef.current = true;
       setHasLoadedOnce(true);
     } catch (err) {
@@ -90,6 +96,7 @@ export function useCrmListQuery<T>({
       if (isFirst) {
         setRows([]);
         setTotal(0);
+        setChart(null);
       }
     } finally {
       setIsLoading(false);
@@ -146,6 +153,8 @@ export function useCrmListQuery<T>({
     error,
     setError,
     hasLoadedOnce,
+    chart,
+    search,
     reload,
     handleSort,
     handleSearchInput,

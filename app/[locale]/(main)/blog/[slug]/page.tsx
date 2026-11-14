@@ -72,7 +72,6 @@ export default async function BlogArticlePage({
       <BusinessDetailsHeader
         businessName={post.title}
         contractorType={t(post.category)}
-        backHref={`/${locale}/blog`}
         shareTitle={t('share')}
       />
       <article className="mx-auto w-full max-w-3xl px-3 py-4 md:px-4 md:pb-8">

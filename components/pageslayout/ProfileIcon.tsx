@@ -18,7 +18,6 @@ import {
   LogIn, 
   LogOut, 
   HelpCircle,
-  Users,
   LayoutDashboard,
   MessageCircle,
   Briefcase,
@@ -237,7 +236,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   onClick={() => handleMenuItemClick('/account-management')}
                   className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
                 >
-                  <Users className="w-4 h-4" />
+                  <Settings className="w-4 h-4" />
                   <span>{t('accountManagement')}</span>
                 </button>
                 {activeIsBusiness && !isAdmin && (

@@ -21,16 +21,14 @@ export default function BusinessContactInfo({ phone, email }: BusinessContactInf
   };
 
   return (
-    <div className="p-4 bg-white">
-      <h2 className="text-xl font-bold text-black mb-4">Contact Information</h2>
-      
+    <div className="bg-white md:p-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {phone && (
           <div 
-            className="border-2 border-black rounded-lg bg-white p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+            className="border-2 border-black rounded-lg bg-white p-2 md:p-4 cursor-pointer hover:bg-gray-50 transition-colors"
             onClick={handlePhoneClick}
           >
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-4">
               <div className="w-12 h-12 rounded-lg bg-white border-2 border-black flex items-center justify-center shrink-0">
                 <Phone className="w-6 h-6 text-black" />
               </div>
@@ -44,10 +42,10 @@ export default function BusinessContactInfo({ phone, email }: BusinessContactInf
 
         {email && (
           <div 
-            className="border-2 border-black rounded-lg bg-white p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+            className="border-2 border-black rounded-lg bg-white p-2 md:p-4 cursor-pointer hover:bg-gray-50 transition-colors"
             onClick={handleEmailClick}
           >
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-4">
               <div className="w-12 h-12 rounded-lg bg-white border-2 border-black flex items-center justify-center shrink-0">
                 <Mail className="w-6 h-6 text-black" />
               </div>

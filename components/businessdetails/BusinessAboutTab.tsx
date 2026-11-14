@@ -23,7 +23,16 @@ interface BusinessAboutTabProps {
   ownerName?: string;
   ownerTitle?: string;
   ownerDescription?: string;
+  ownerBio?: string;
+  ownerExperience?: string;
+  ownerDegrees?: string;
+  ownerCertifications?: string;
+  ownerYearsExperience?: number;
   companyDescription?: string;
+}
+
+function lines(value?: string): string[] {
+  return (value ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 }
 
 function getInitials(name: string): string {
@@ -147,13 +156,26 @@ export default function BusinessAboutTab({
   ownerName,
   ownerTitle,
   ownerDescription,
+  ownerBio,
+  ownerExperience,
+  ownerDegrees,
+  ownerCertifications,
+  ownerYearsExperience,
   companyDescription
 }: BusinessAboutTabProps) {
   const t = useTranslations('estimate.options.trades');
+  const tOwner = useTranslations('businessForm.owner');
   const [logoError, setLogoError] = useState(false);
   const [ownerImageError, setOwnerImageError] = useState(false);
   const businessInitials = getInitials(businessName);
   const ownerInitials = ownerName ? getInitials(ownerName) : '';
+  const bio = (ownerBio || ownerDescription || '').trim();
+  const experience = (ownerExperience || '').trim();
+  const degrees = lines(ownerDegrees);
+  const certifications = lines(ownerCertifications);
+  const hasOwnerStory = Boolean(
+    bio || experience || degrees.length || certifications.length || ownerYearsExperience != null
+  );
   
   return (
     <div className="bg-white space-y-8">
@@ -258,16 +280,16 @@ export default function BusinessAboutTab({
       </section>
 
       {/* Individuals / Owner */}
-      {(ownerImage || ownerName || ownerDescription) && (
+      {(ownerImage || ownerName || hasOwnerStory) && (
         <section className="pt-8 border-t-2 border-black/10">
           <div className="flex flex-col md:flex-row-reverse gap-6">
             <div className="w-full md:w-1/3 flex-shrink-0">
-              <h2 className="text-xl font-bold text-black mb-2">About the Owner</h2>
+              <h2 className="text-xl font-bold text-black mb-2">{tOwner('publicTitle')}</h2>
               <div className={`aspect-square relative rounded-lg border-2 border-black overflow-hidden flex items-center justify-center ${ownerImage && !ownerImageError ? 'bg-gray-50' : 'bg-black'}`}>
                 {ownerImage && !ownerImageError ? (
                   <Image
                     src={ownerImage}
-                    alt={ownerName || 'Owner'}
+                    alt={ownerName || tOwner('publicTitle')}
                     fill
                     className="object-cover"
                     sizes="(max-width: 768px) 100vw, 33vw"
@@ -278,24 +300,57 @@ export default function BusinessAboutTab({
                 )}
               </div>
             </div>
-            
+
             <div className="flex-1 space-y-4 md:pt-[calc(1.5rem+0.5rem)]">
               {ownerName && (
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Owner&apos;s Name</p>
+                  <p className="text-sm text-gray-600 mb-1">{tOwner('nameLabel')}</p>
                   <p className="text-lg font-semibold text-black">{ownerName}</p>
                   {ownerTitle && (
                     <p className="text-md text-gray-700 font-medium">{ownerTitle}</p>
                   )}
                 </div>
               )}
-              
-              {ownerDescription && (
+
+              {ownerYearsExperience != null && (
+                <p className="inline-flex rounded-full border-2 border-black px-3 py-1 text-sm font-semibold text-black">
+                  {tOwner('yearsValue', { years: ownerYearsExperience })}
+                </p>
+              )}
+
+              {experience && (
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">About</p>
-                  <p className="text-base text-black leading-relaxed">
-                    {ownerDescription}
-                  </p>
+                  <p className="text-sm text-gray-600 mb-1">{tOwner('experienceLabel')}</p>
+                  <p className="text-base text-black leading-relaxed whitespace-pre-wrap">{experience}</p>
+                </div>
+              )}
+
+              {bio && (
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">{tOwner('bioLabel')}</p>
+                  <p className="text-base text-black leading-relaxed whitespace-pre-wrap">{bio}</p>
+                </div>
+              )}
+
+              {degrees.length > 0 && (
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">{tOwner('degreesLabel')}</p>
+                  <ul className="space-y-1">
+                    {degrees.map((item, index) => (
+                      <li key={`${item}-${index}`} className="text-base text-black">{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {certifications.length > 0 && (
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">{tOwner('certificationsLabel')}</p>
+                  <ul className="space-y-1">
+                    {certifications.map((item, index) => (
+                      <li key={`${item}-${index}`} className="text-base text-black">{item}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>

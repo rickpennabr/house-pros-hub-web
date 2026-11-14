@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { Building2, Home, Building } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,7 +10,9 @@ import { Button } from '@/components/ui/Button';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
+import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
+import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 import type { PlaceCard, PlaceKind } from '@/lib/places/portal';
 
 const KINDS: PlaceKind[] = ['house', 'business', 'building'];
@@ -20,11 +23,17 @@ function KindIcon({ kind }: { kind: PlaceKind }) {
   return <Home className="w-5 h-5 text-red-600" />;
 }
 
+function placeAddress(place: PlaceCard): string {
+  return [place.street, place.city, place.state, place.zipCode].filter(Boolean).join(', ');
+}
+
 export function PlacesHome() {
   const t = useTranslations('places');
   const tAccount = useTranslations('common.account');
   const locale = useLocale();
+  const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
+  const [listView, setListView] = useState<ViewType>('list');
   const [places, setPlaces] = useState<PlaceCard[]>([]);
   const [emailConfirmed, setEmailConfirmed] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -37,6 +46,27 @@ export function PlacesHome() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zip, setZip] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<'name' | 'street' | 'city' | 'state' | 'zip', string>>>({});
+  const namePlaceholderText = t('namePlaceholder');
+  const streetPlaceholderText = t('streetPlaceholder');
+  const unitPlaceholderText = t('unitPlaceholder');
+  const cityPlaceholderText = t('cityPlaceholder');
+  const statePlaceholderText = t('statePlaceholder');
+  const zipPlaceholderText = t('zipPlaceholder');
+  const placeholders = useMemo(
+    () =>
+      adding
+        ? [namePlaceholderText, streetPlaceholderText, unitPlaceholderText, cityPlaceholderText, statePlaceholderText, zipPlaceholderText]
+        : ['', '', '', '', '', ''],
+    [adding, namePlaceholderText, streetPlaceholderText, unitPlaceholderText, cityPlaceholderText, statePlaceholderText, zipPlaceholderText]
+  );
+  const [namePlaceholder, streetPlaceholder, unitPlaceholder, cityPlaceholder, statePlaceholder, zipPlaceholder] = useTypingPlaceholder({
+    placeholders,
+    typingSpeed: 50,
+    delayBetweenFields: 300,
+    startDelay: 400,
+  });
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -54,8 +84,26 @@ export function PlacesHome() {
       .finally(() => setLoading(false));
   }, [isAuthenticated, t]);
 
+  const clearFieldError = (field: 'name' | 'street' | 'city' | 'state' | 'zip') => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    const nextErrors: Partial<Record<'name' | 'street' | 'city' | 'state' | 'zip', string>> = {};
+    if (!name.trim()) nextErrors.name = t('nameRequired');
+    if (!street.trim()) nextErrors.street = t('streetRequired');
+    if (!city.trim()) nextErrors.city = t('cityRequired');
+    if (state.trim().length !== 2) nextErrors.state = t('stateLength');
+    if (!/^\d{5}(-\d{4})?$/.test(zip.trim())) nextErrors.zip = t('zipInvalid');
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
     setSaving(true);
     setError(null);
     try {
@@ -90,7 +138,7 @@ export function PlacesHome() {
   }
 
   return (
-    <div className="p-4 space-y-3">
+    <div className="px-2 pt-4 pb-28 space-y-3 md:px-4">
       <div>
         <p className="text-sm text-gray-700">{t('subtitle')}</p>
         {!emailConfirmed ? <p className="mt-1 text-sm text-red-600">{t('confirmEmail')}</p> : null}
@@ -98,10 +146,20 @@ export function PlacesHome() {
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-      {places.length === 0 ? (
-        <p className="text-sm text-gray-600">{t('empty')}</p>
+      {adding ? null : listView === 'map' ? (
+        <AddressPinsMap
+          pins={places.map((place) => ({
+            id: place.id,
+            title: place.name,
+            detail: t(`kind.${place.kind}`),
+            address: placeAddress(place),
+          }))}
+          onOpen={(id) => router.push(`/${locale}/myplaces/${id}`)}
+        />
+      ) : places.length === 0 ? (
+        <p className="border-2 border-black rounded-lg p-4 text-sm text-gray-600">{t('empty')}</p>
       ) : (
-        <div className="grid gap-2">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
           {places.map((place) => (
             <Link
               key={place.id}
@@ -125,53 +183,138 @@ export function PlacesHome() {
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="border-2 border-black rounded-lg p-4 space-y-3">
+      {adding ? <form onSubmit={onSubmit} className="border-2 border-black rounded-lg p-4 space-y-3">
         <h2 className="font-semibold">{t('add')}</h2>
-        <FormField label={t('kind.house')}>
-          <Select value={kind} onChange={(event) => setKind(event.target.value as PlaceKind)}>
-            {KINDS.map((item) => (
-              <option key={item} value={item}>
-                {t(`kind.${item}`)}
-              </option>
-            ))}
-          </Select>
+        <FormField label={t('selectType')}>
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label={t('selectType')}>
+            {KINDS.map((item) => {
+              const selected = kind === item;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setKind(item)}
+                  className={`rounded-lg border-2 border-black px-2 py-2 text-sm font-medium cursor-pointer ${
+                    selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
+                  }`}
+                >
+                  {t(`kind.${item}`)}
+                </button>
+              );
+            })}
+          </div>
         </FormField>
-        <FormField label={t('name')}>
-          <Input value={name} onChange={(event) => setName(event.target.value)} required />
+        <FormField label={t('name')} required error={fieldErrors.name}>
+          <Input
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              clearFieldError('name');
+            }}
+            placeholder={namePlaceholder}
+            disabled={saving}
+            error={fieldErrors.name}
+            required
+          />
         </FormField>
-        <FormField label={t('street')}>
+        <FormField label={t('street')} required error={fieldErrors.street}>
           <AddressAutocomplete
             id="place-street"
             value={street}
-            onChange={setStreet}
+            onChange={(value) => {
+              setStreet(value);
+              clearFieldError('street');
+            }}
             onAddressSelect={(address: AddressData) => {
               setStreet(address.streetAddress);
               if (address.apartment) setUnit(address.apartment);
               if (address.city) setCity(address.city);
               if (address.state) setState(address.state);
               if (address.zipCode) setZip(address.zipCode);
+              setFieldErrors((current) => {
+                const next = { ...current };
+                delete next.street;
+                if (address.city) delete next.city;
+                if (address.state) delete next.state;
+                if (address.zipCode) delete next.zip;
+                return next;
+              });
             }}
-            placeholder={t('streetPlaceholder')}
+            placeholder={streetPlaceholder}
+            disabled={saving}
+            required
           />
         </FormField>
         <FormField label={t('unit')}>
-          <Input value={unit} onChange={(event) => setUnit(event.target.value)} placeholder={t('unitPlaceholder')} />
+          <Input
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
+            placeholder={unitPlaceholder}
+            disabled={saving}
+          />
         </FormField>
-        <div className="grid grid-cols-3 gap-2">
-          <FormField label={t('city')}>
-            <Input value={city} onChange={(event) => setCity(event.target.value)} />
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <FormField label={t('city')} required error={fieldErrors.city}>
+            <Input
+              value={city}
+              onChange={(event) => {
+                setCity(event.target.value);
+                clearFieldError('city');
+              }}
+              placeholder={cityPlaceholder}
+              disabled={saving}
+              error={fieldErrors.city}
+              required
+            />
           </FormField>
-          <FormField label={t('state')}>
-            <Input value={state} onChange={(event) => setState(event.target.value)} maxLength={2} />
+          <FormField label={t('state')} required error={fieldErrors.state}>
+            <Input
+              value={state}
+              onChange={(event) => {
+                setState(event.target.value);
+                clearFieldError('state');
+              }}
+              placeholder={statePlaceholder}
+              maxLength={2}
+              disabled={saving}
+              error={fieldErrors.state}
+              required
+            />
           </FormField>
-          <FormField label={t('zip')}>
-            <Input value={zip} onChange={(event) => setZip(event.target.value)} />
+          <FormField label={t('zip')} required error={fieldErrors.zip}>
+            <Input
+              value={zip}
+              onChange={(event) => {
+                setZip(event.target.value);
+                clearFieldError('zip');
+              }}
+              placeholder={zipPlaceholder}
+              maxLength={10}
+              disabled={saving}
+              error={fieldErrors.zip}
+              required
+            />
           </FormField>
         </div>
         <Button type="submit" disabled={saving}>
           {saving ? t('saving') : t('save')}
         </Button>
-      </form>
+      </form> : null}
+
+      <ViewToggle
+        currentView={listView}
+        onViewChange={(view) => {
+          setListView(view);
+          setAdding(false);
+        }}
+        views={['list', 'map']}
+        hideBackgroundToggle
+        onAdd={() => setAdding((open) => !open)}
+        addOpen={adding}
+        addLabel={t('add')}
+        showAddOnDesktop
+      />
     </div>
   );
 }
