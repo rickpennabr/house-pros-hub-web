@@ -31,8 +31,8 @@ import type { WeekSchedule } from '@/lib/booking/businessHours';
 
 type TabType = BusinessDetailsTab;
 
-/** Content can sit this far past the visible edge before we treat it as hidden. */
-const TAB_CONTENT_CLIP_TOLERANCE_PX = 24;
+/** Keep the last boxes this far inside the scrollport so their borders are fully visible. */
+const TAB_CONTENT_BOTTOM_INSET_PX = 12;
 
 function findScrollParent(element: HTMLElement): HTMLElement | null {
   let node = element.parentElement;
@@ -54,23 +54,39 @@ function scrollportBounds(scroller: HTMLElement | null): { top: number; bottom: 
   return { top, bottom: top + scroller.clientHeight };
 }
 
-function isTabContentHidden(content: HTMLElement, scroller: HTMLElement | null): boolean {
+function bottomOverflow(content: HTMLElement, scroller: HTMLElement | null): number {
   const rect = content.getBoundingClientRect();
   const port = scrollportBounds(scroller);
-  return rect.top < port.top - 1 || rect.bottom > port.bottom + TAB_CONTENT_CLIP_TOLERANCE_PX;
+  return rect.bottom - (port.bottom - TAB_CONTENT_BOTTOM_INSET_PX);
 }
 
-function scrollTabsToTop(tabs: HTMLElement, scroller: HTMLElement | null) {
-  const portTop = scrollportBounds(scroller).top;
-  const delta = tabs.getBoundingClientRect().top - portTop;
-  if (Math.abs(delta) < 2) return;
-
+function scrollByAmount(amount: number, scroller: HTMLElement | null) {
+  if (amount <= 1) return;
   const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
   if (scroller) {
-    scroller.scrollBy({ top: delta, behavior });
+    scroller.scrollBy({ top: amount, behavior });
     return;
   }
-  window.scrollBy({ top: delta, behavior });
+  window.scrollBy({ top: amount, behavior });
+}
+
+/**
+ * Short tabs: scroll only until the last boxes are fully on screen.
+ * Tall tabs: show the first boxes. Never pin the tab bar by adding blank space.
+ */
+function scrollUntilLastBoxesVisible(content: HTMLElement, scroller: HTMLElement | null) {
+  content.style.paddingBottom = '';
+  const rect = content.getBoundingClientRect();
+  const port = scrollportBounds(scroller);
+  const portHeight = port.bottom - port.top;
+  const overflow = bottomOverflow(content, scroller);
+
+  if (rect.height <= portHeight) {
+    scrollByAmount(overflow, scroller);
+    return;
+  }
+
+  scrollByAmount(rect.top - port.top, scroller);
 }
 
 interface OwnerProfile {
@@ -111,7 +127,6 @@ export default function BusinessDetailsPage() {
   const [bgSaving, setBgSaving] = useState(false);
   const bgInputRef = useRef<HTMLInputElement>(null);
   const heroContainerRef = useRef<HTMLDivElement>(null);
-  const tabsRef = useRef<HTMLDivElement>(null);
   const tabContentRef = useRef<HTMLDivElement>(null);
   const [heroDragStart, setHeroDragStart] = useState<{ clientX: number; clientY: number; posX: number; posY: number } | null>(null);
   const [showAdjustHint, setShowAdjustHint] = useState(false);
@@ -158,7 +173,7 @@ export default function BusinessDetailsPage() {
     return () => clearTimeout(t);
   }, [showAdjustHint]);
 
-  // When a tab's content is cut off, bring the tab bar's top edge to the top of the screen.
+  // When a tab's last boxes are cut off, scroll just enough to show them. Leave short tabs where they are.
   const skipInitialTabScroll = useRef(true);
   useEffect(() => {
     if (skipInitialTabScroll.current) {
@@ -166,23 +181,22 @@ export default function BusinessDetailsPage() {
       return;
     }
 
-    const tabs = tabsRef.current;
     const content = tabContentRef.current;
-    if (!tabs || !content) return;
+    if (!content) return;
 
-    const scroller = findScrollParent(tabs);
+    const scroller = findScrollParent(content);
     let cancelled = false;
     let didScroll = false;
     let userScrolled = false;
+    content.style.paddingBottom = '';
 
     const alignIfHidden = () => {
       if (cancelled || didScroll || userScrolled) return;
-      const currentTabs = tabsRef.current;
       const currentContent = tabContentRef.current;
-      if (!currentTabs || !currentContent) return;
-      if (!isTabContentHidden(currentContent, scroller)) return;
+      if (!currentContent) return;
+      if (bottomOverflow(currentContent, scroller) <= 1) return;
       didScroll = true;
-      scrollTabsToTop(currentTabs, scroller);
+      scrollUntilLastBoxesVisible(currentContent, scroller);
     };
 
     const onUserScroll = () => {
@@ -572,7 +586,7 @@ export default function BusinessDetailsPage() {
         </div>
       </div>
       
-      <div ref={tabsRef}>
+      <div>
         <BusinessDetailsTabs
           activeTab={activeTab}
           onTabChange={(tab) => {

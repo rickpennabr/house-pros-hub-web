@@ -1678,7 +1678,7 @@ export default function EditBusinessPage() {
                     </button>
                   </div>
                   {(watch('images') ?? []).length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
                       {(watch('images') ?? []).map((url: string, index: number) => (
                         <div key={`${url}-${index}`} className="relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-100">
                           <Image
@@ -1686,7 +1686,7 @@ export default function EditBusinessPage() {
                             alt=""
                             fill
                             className="object-cover"
-                            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                            sizes="(max-width: 1024px) 50vw, 25vw"
                             unoptimized
                           />
                           <button

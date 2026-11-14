@@ -227,7 +227,7 @@ export default function BusinessImagesTab({
         </div>
       )}
       {uploadError && <p className="mb-3 text-sm text-red-600">{uploadError}</p>}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {list.map((url, index) => (
           <div
             key={`${url}-${index}`}
@@ -238,7 +238,7 @@ export default function BusinessImagesTab({
               alt={`${businessName} gallery image ${index + 1}`}
               fill
               className="object-cover"
-              sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
+              sizes="(max-width: 1024px) 50vw, 25vw"
               unoptimized={url.startsWith('data:')}
             />
             {isOwner && editMode && (
