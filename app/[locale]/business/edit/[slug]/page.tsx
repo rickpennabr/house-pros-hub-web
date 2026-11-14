@@ -805,12 +805,15 @@ export default function EditBusinessPage() {
       }
 
       const links = normalizeLinks(data.links);
+      const yearsText = data.ownerYearsExperience?.trim() ?? '';
+      const ownerYearsExperience = yearsText === '' ? undefined : Number(yearsText);
 
       const transformedData = transformBusinessToProCardData({
         ...data,
         id: businessId,
         userId,
         links,
+        ownerYearsExperience,
       });
 
       let slugValue = data.slug || transformedData.slug || '';

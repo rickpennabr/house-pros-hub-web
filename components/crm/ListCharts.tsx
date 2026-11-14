@@ -302,6 +302,8 @@ function SliceBody({
   activeKey,
   onSelect,
   valueLabel,
+  centerLabel,
+  centerDetail,
 }: {
   slices: ChartSlice[];
   colorFor: (slice: ChartSlice, index: number) => string;

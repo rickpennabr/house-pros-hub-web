@@ -247,7 +247,9 @@ export async function webmWithDuration(blob: Blob, durationMs: number): Promise<
   try {
     const fixed = fixWebmDurationBytes(new Uint8Array(await blob.arrayBuffer()), durationMs);
     if (!fixed) return blob;
-    return new Blob([fixed], { type: blob.type });
+    const bytes = new ArrayBuffer(fixed.byteLength);
+    new Uint8Array(bytes).set(fixed);
+    return new Blob([bytes], { type: blob.type });
   } catch {
     return blob;
   }

@@ -133,7 +133,7 @@ export async function applyInvoiceCheckoutSession(
       .is('voided_at', null)
       .maybeSingle();
     if (raced) return { ok: true };
-    return { error: result.error };
+    return { error: result.error ?? 'Could not record payment' };
   }
   return { ok: true };
 }
