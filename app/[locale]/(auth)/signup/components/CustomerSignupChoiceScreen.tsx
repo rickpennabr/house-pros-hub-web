@@ -27,7 +27,10 @@ export function CustomerSignupChoiceScreen({
   const tNav = useTranslations('auth.signup.navigation');
   const locale = useLocale();
   const searchParams = useSearchParams();
-  const forEstimate = (searchParams.get('returnUrl') ?? '').includes('/estimate');
+  const returnUrl = searchParams.get('returnUrl') ?? '';
+  const forEstimate = returnUrl.includes('/estimate');
+  const forBooking = returnUrl.includes('/book/');
+  const hint = forBooking ? t('bookingHint') : forEstimate ? t('estimateHint') : null;
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col text-black md:pt-12">
@@ -44,9 +47,9 @@ export function CustomerSignupChoiceScreen({
 
       <div className="mb-6 flex flex-col items-center justify-center gap-2 md:mb-8 md:pt-4 animate-slide-in-right">
         <h2 className="text-3xl font-semibold text-center">
-          {forEstimate ? t('estimateHint') : t('title')}
+          {hint || t('title')}
         </h2>
-        {forEstimate && (
+        {hint && (
           <p className="text-center text-sm text-gray-600">{t('title')}</p>
         )}
       </div>

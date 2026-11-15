@@ -92,8 +92,9 @@ async function keepProfileName(
  * same role, phone, business, and name. Google is only an extra way to sign in.
  *
  * A brand-new Google customer is marked pending. The Hub stays closed until
- * they add how they heard about us, a phone number, and the terms. The admin
- * email waits for that step. Leaving the screen keeps the account.
+ * they finish the missing customer 3-step fields (referral, phone, address,
+ * terms). The admin email waits for that step. Leaving the finish screen
+ * discards the unfinished Google signup.
  */
 export async function provisionGoogleCustomer(user: User): Promise<GoogleCustomerProvision> {
   const service = createServiceRoleClient();

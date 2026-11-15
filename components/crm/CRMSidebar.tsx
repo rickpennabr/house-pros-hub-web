@@ -220,6 +220,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
         title="Menu"
         items={mobileMenuItems}
         onReorder={moveNavItem}
+        dragHint={t('crmMenuDragHint')}
       />
 
       {/* Desktop: vertical sidebar */}

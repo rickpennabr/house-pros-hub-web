@@ -1,16 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
+import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
+import { SignupStepsIndicator } from '@/app/[locale]/(auth)/signup/components/SignupStepsIndicator';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatCatalogPrice, type CatalogService, type ServiceUnit } from '@/lib/booking/catalogService';
+import {
+  clearBookingDraft,
+  dateFromDraftDay,
+  draftDayFromDate,
+  readBookingDraft,
+  saveBookingDraft,
+} from '@/lib/booking/bookingDraft';
 import { icsPathFromManagePath, visitCalendarDescription, visitCalendarTitle } from '@/lib/booking/calendarLinks';
 import { formatVisitAddress } from '@/lib/booking/visitAddress';
+import { startGoogleOAuth } from '@/lib/auth/googleOAuth';
+import { createSignUpUrl } from '@/lib/redirect';
 import AddToCalendar from '@/components/booking/AddToCalendar';
 
 export interface GuestContactData {
@@ -32,6 +43,10 @@ interface ProEstimateBookingFlowProps {
   guestContact?: GuestContactData | null;
   /** Catalog service chosen from the business page, when the link includes ?service= */
   initialServiceId?: string | null;
+  /** After signup, return here on the confirm step */
+  bookingReturnPath?: string | null;
+  /** Restore a saved draft and open confirm (from ?step=confirm) */
+  resumeConfirm?: boolean;
   onSuccess: () => void;
   onCancel: () => void;
 }
@@ -44,12 +59,17 @@ export default function ProEstimateBookingFlow({
   isAuthenticated,
   guestContact,
   initialServiceId,
+  bookingReturnPath,
+  resumeConfirm = false,
   onSuccess,
   onCancel,
 }: ProEstimateBookingFlowProps) {
   const t = useTranslations('probot.booking');
   const tServices = useTranslations('businessServices');
+  const tHandoff = useTranslations('auth.googleHandoff');
   const locale = useLocale();
+  const router = useRouter();
+  const { user } = useAuth();
   const [step, setStep] = useState<Step>('calendar');
   const [managePath, setManagePath] = useState<string | null>(null);
   const [services, setServices] = useState<CatalogService[]>([]);
@@ -72,7 +92,25 @@ export default function ProEstimateBookingFlow({
     note: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // Account address (signup / Google finish) is the visit location — no address form on confirm.
+  useEffect(() => {
+    const street = user?.streetAddress?.trim() || guestContact?.streetAddress?.trim() || '';
+    const city = user?.city?.trim() || guestContact?.city?.trim() || '';
+    const state = user?.state?.trim() || guestContact?.state?.trim() || '';
+    const zipCode = user?.zipCode?.trim() || guestContact?.zipCode?.trim() || '';
+    if (!street && !city && !state && !zipCode) return;
+    setVisit((current) => ({
+      streetAddress: current.streetAddress || street,
+      city: current.city || city,
+      state: current.state || state,
+      zipCode: current.zipCode || zipCode,
+      note: current.note,
+    }));
+  }, [user, guestContact]);
 
   const monthLabel = new Date(year, month).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const firstDay = new Date(year, month, 1).getDay();
@@ -101,17 +139,46 @@ export default function ProEstimateBookingFlow({
   const selectionLabel = selectionItems.join(', ');
   const selectionLabelKey = selectionItems.length > 1 ? 'services' : 'service';
   const stepTitleClass =
-    'text-left text-[1.8rem] font-bold leading-tight text-gray-900 md:text-[1.2rem] md:font-medium md:leading-normal';
+    'text-left text-[1.26rem] font-bold leading-tight text-gray-900 md:text-[1.2rem] md:font-medium md:leading-normal';
+  const progressSteps = useMemo(
+    () => (services.length > 0 ? (['service', 'calendar', 'slots', 'confirm'] as const) : (['calendar', 'slots', 'confirm'] as const)),
+    [services.length]
+  );
+  const progressIndex = Math.max(1, progressSteps.indexOf(step as (typeof progressSteps)[number]) + 1);
+  const progressLabel =
+    step === 'service' || step === 'calendar' || step === 'slots' || step === 'confirm'
+      ? t(`stepLabels.${step}`)
+      : t('stepLabels.confirm');
 
   useEffect(() => {
     let cancelled = false;
     setServicesReady(false);
+    setDraftRestored(false);
     fetch(`/api/businesses/${encodeURIComponent(businessId)}/services`)
       .then((res) => (res.ok ? res.json() : { services: [] }))
       .then((data: { services?: CatalogService[] }) => {
         if (cancelled) return;
         const list = (data.services ?? []).filter((service) => service.isActive !== false);
         setServices(list);
+
+        const draft = resumeConfirm ? readBookingDraft(businessId) : null;
+        if (draft?.selectedSlot) {
+          const allowedIds = new Set(list.map((service) => service.id));
+          setSelectedServiceIds(draft.selectedServiceIds.filter((id) => allowedIds.has(id)));
+          setGeneralEstimate(draft.generalEstimate);
+          const restoredDate = dateFromDraftDay(draft.selectedDate);
+          if (restoredDate) {
+            setSelectedDate(restoredDate);
+            setYear(restoredDate.getFullYear());
+            setMonth(restoredDate.getMonth());
+          }
+          setSelectedSlot(draft.selectedSlot);
+          setVisit(draft.visit);
+          setStep('confirm');
+          setDraftRestored(true);
+          return;
+        }
+
         const initialOk = !!initialServiceId && list.some((service) => service.id === initialServiceId);
         setSelectedServiceIds(initialOk && initialServiceId ? [initialServiceId] : []);
         setGeneralEstimate(false);
@@ -128,7 +195,52 @@ export default function ProEstimateBookingFlow({
     return () => {
       cancelled = true;
     };
-  }, [businessId, initialServiceId]);
+  }, [businessId, initialServiceId, resumeConfirm]);
+
+  useEffect(() => {
+    if (isAuthenticated && draftRestored) {
+      clearBookingDraft(businessId);
+    }
+  }, [isAuthenticated, draftRestored, businessId]);
+
+  const persistDraftForSignup = useCallback(() => {
+    if (!selectedSlot) return;
+    saveBookingDraft({
+      businessId,
+      selectedServiceIds,
+      generalEstimate,
+      selectedDate: selectedDate ? draftDayFromDate(selectedDate) : null,
+      selectedSlot,
+      visit,
+      step: 'confirm',
+    });
+  }, [businessId, selectedServiceIds, generalEstimate, selectedDate, selectedSlot, visit]);
+
+  const returnPathForAuth =
+    bookingReturnPath ||
+    `/${locale}/book/${encodeURIComponent(businessId)}?step=confirm`;
+
+  const continueWithGoogle = async () => {
+    if (googleLoading) return;
+    setGoogleLoading(true);
+    setError(null);
+    persistDraftForSignup();
+    const result = await startGoogleOAuth({
+      flow: 'customer',
+      locale,
+      returnUrl: returnPathForAuth,
+    });
+    if (result.ok) return;
+    if (result.error === 'redirect_to_lan') return;
+    setError(result.error === 'redirect_not_allowlisted' ? result.message : t('googleFailed'));
+    setGoogleLoading(false);
+  };
+
+  const leaveForSignUp = () => {
+    setError(null);
+    persistDraftForSignup();
+    router.push(createSignUpUrl(locale as 'en' | 'es' | 'pt', returnPathForAuth));
+  };
 
   const fetchSlots = useCallback(async (date: Date) => {
     const y = date.getFullYear();
@@ -177,9 +289,28 @@ export default function ProEstimateBookingFlow({
     setStep('confirm');
   };
 
+  const needsAccountToSubmit = !isAuthenticated && !guestContact;
+
+  const resolveVisitAddress = () => {
+    const street =
+      visit.streetAddress.trim() ||
+      user?.streetAddress?.trim() ||
+      guestContact?.streetAddress?.trim() ||
+      '';
+    const city = visit.city.trim() || user?.city?.trim() || guestContact?.city?.trim() || '';
+    const state = visit.state.trim() || user?.state?.trim() || guestContact?.state?.trim() || '';
+    const zip = visit.zipCode.trim() || user?.zipCode?.trim() || guestContact?.zipCode?.trim() || '';
+    return { street, city, state, zip, note: visit.note.trim() };
+  };
+
   const handleConfirm = async () => {
+    if (needsAccountToSubmit) {
+      setError(t('accountRequired'));
+      return;
+    }
     if (!selectedSlot || !selectedDate) return;
-    if (!visit.streetAddress.trim() || !visit.city.trim() || !visit.state.trim() || !visit.zipCode.trim()) {
+    const resolvedVisit = resolveVisitAddress();
+    if (!resolvedVisit.street || !resolvedVisit.city || !resolvedVisit.state || !resolvedVisit.zip) {
       setError(t('addressRequired'));
       return;
     }
@@ -214,11 +345,11 @@ export default function ProEstimateBookingFlow({
       if (chosenServices.length > 0) body.serviceIds = chosenServices.map((service) => service.id);
       if (generalEstimate) body.generalEstimate = true;
       body.locale = locale;
-      body.visitStreet = visit.streetAddress.trim();
-      body.visitCity = visit.city.trim();
-      body.visitState = visit.state.trim();
-      body.visitZip = visit.zipCode.trim();
-      if (visit.note.trim()) body.visitNote = visit.note.trim();
+      body.visitStreet = resolvedVisit.street;
+      body.visitCity = resolvedVisit.city;
+      body.visitState = resolvedVisit.state;
+      body.visitZip = resolvedVisit.zip;
+      if (resolvedVisit.note) body.visitNote = resolvedVisit.note;
       if (!isAuthenticated && guestContact) {
         body.guestEmail = guestContact.email;
         body.guestFirstName = guestContact.firstName;
@@ -233,6 +364,7 @@ export default function ProEstimateBookingFlow({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Booking failed');
+      clearBookingDraft(businessId);
       setManagePath(typeof data.managePath === 'string' ? data.managePath : null);
       setStep('done');
     } catch (e) {
@@ -268,17 +400,15 @@ export default function ProEstimateBookingFlow({
     const end = new Date(endIso);
     return `${formatSlotTime(startIso)} – ${formatSlotTime(endIso)}`;
   };
-  const formatConfirmDateTime = () => {
-    if (!selectedDate || !selectedSlot) return '';
-    const start = new Date(selectedSlot.start);
-    const dayPart = start.toLocaleDateString(undefined, {
+  const formatConfirmDay = () => {
+    if (!selectedSlot) return '';
+    return new Date(selectedSlot.start).toLocaleDateString(undefined, {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
       year: 'numeric',
       timeZone: slotTimeZone,
     });
-    return `${dayPart}, ${formatSlotRange(selectedSlot.start, selectedSlot.end)}`;
   };
 
   if (step === 'done') {
@@ -302,15 +432,10 @@ export default function ProEstimateBookingFlow({
                   title: visitCalendarTitle(businessName, selectionLabel),
                   description: visitCalendarDescription([
                     businessName,
-                    visit.note,
+                    resolveVisitAddress().note,
                     managePath && typeof window !== 'undefined' ? `${window.location.origin}${managePath}` : null,
                   ]),
-                  location: formatVisitAddress({
-                    street: visit.streetAddress,
-                    city: visit.city,
-                    state: visit.state,
-                    zip: visit.zipCode,
-                  }),
+                  location: formatVisitAddress(resolveVisitAddress()),
                   startAt: selectedSlot.start,
                   endAt: selectedSlot.end,
                 }}
@@ -347,6 +472,18 @@ export default function ProEstimateBookingFlow({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-y-auto px-2 md:py-4">
+      <GoogleHandoffOverlay
+        open={googleLoading}
+        title={tHandoff('title')}
+        subtitle={tHandoff('subtitle')}
+      />
+      <div className="mb-4">
+        <SignupStepsIndicator
+          currentStep={progressIndex}
+          totalSteps={progressSteps.length}
+          stepLabel={progressLabel}
+        />
+      </div>
       {error && (
         <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
           {error}
@@ -355,11 +492,17 @@ export default function ProEstimateBookingFlow({
 
       {step === 'service' && (
         <>
-          <p className="mb-3 text-center text-[1.48rem] font-bold leading-tight text-gray-900 md:text-left md:text-[1.2rem] md:font-medium md:leading-normal">{t('pickService')}</p>
+          <p className="mb-3 text-center text-[1.04rem] font-bold leading-tight text-gray-900 md:text-left md:text-[1.2rem] md:font-medium md:leading-normal">{t('pickService')}</p>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
             <button
               type="button"
-              onClick={() => setGeneralEstimate((current) => !current)}
+              onClick={() => {
+                setGeneralEstimate((current) => {
+                  const next = !current;
+                  if (next) setSelectedServiceIds([]);
+                  return next;
+                });
+              }}
               aria-pressed={generalEstimate}
               className={`w-full cursor-pointer rounded-lg border-2 border-black p-2 text-center md:p-3 ${generalEstimate ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
             >
@@ -367,19 +510,22 @@ export default function ProEstimateBookingFlow({
             </button>
             {services.map((service) => {
               const selected = selectedServiceIds.includes(service.id);
+              const blockedByGeneral = generalEstimate;
               const thumb = service.imageUrl || service.imageUrls?.[0] || null;
               const price = formatCatalogPrice(service, locale, {
                 requestPrice: tServices('requestPrice'),
                 from: tServices('from'),
                 units: unitLabels,
               });
-              const priceClass = `text-sm font-bold ${selected ? 'text-white' : 'text-green-600'}`;
+              const priceClass = `text-sm font-bold ${selected ? 'text-white' : blockedByGeneral ? 'text-gray-400' : 'text-green-600'}`;
               const thumbRing = selected ? 'ring-1 ring-white/70' : 'ring-1 ring-black/20';
               return (
                 <button
                   key={service.id}
                   type="button"
+                  disabled={blockedByGeneral}
                   onClick={() => {
+                    if (generalEstimate) return;
                     setSelectedServiceIds((current) => (
                       current.includes(service.id)
                         ? current.filter((id) => id !== service.id)
@@ -387,7 +533,14 @@ export default function ProEstimateBookingFlow({
                     ));
                   }}
                   aria-pressed={selected}
-                  className={`w-full cursor-pointer rounded-lg border-2 border-black p-2 text-left md:self-start md:p-3 ${selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+                  aria-disabled={blockedByGeneral}
+                  className={`w-full rounded-lg border-2 border-black p-2 text-left md:self-start md:p-3 ${
+                    selected
+                      ? 'cursor-pointer bg-black text-white'
+                      : blockedByGeneral
+                        ? 'cursor-not-allowed bg-gray-100 text-gray-400 opacity-60'
+                        : 'cursor-pointer bg-white text-black hover:bg-gray-50'
+                  }`}
                 >
                   {/* Mobile: thumb + name on top, price under */}
                   <div className="md:hidden">
@@ -419,7 +572,7 @@ export default function ProEstimateBookingFlow({
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
                       <p className="font-semibold leading-tight">{service.name}</p>
                       {service.description?.trim() ? (
-                        <p className={`line-clamp-2 text-xs leading-snug ${selected ? 'text-white/80' : 'text-gray-600'}`}>
+                        <p className={`line-clamp-2 text-xs leading-snug ${selected ? 'text-white/80' : blockedByGeneral ? 'text-gray-400' : 'text-gray-600'}`}>
                           {service.description.trim()}
                         </p>
                       ) : null}
@@ -569,10 +722,13 @@ export default function ProEstimateBookingFlow({
           <p className={`mb-3 ${stepTitleClass}`}>
             {t('confirmAppointment')}
           </p>
-          <div className="space-y-2 rounded-lg border-2 border-gray-200 bg-gray-50 p-4">
-            <p className={stepTitleClass}>
-              <span className="font-bold md:font-medium">{t('dateTime')}:</span> {formatConfirmDateTime()}
-            </p>
+          <div className="space-y-2 rounded-lg border-2 border-gray-200 bg-gray-50 p-0 md:p-4">
+            <div className={stepTitleClass}>
+              <p>
+                <span className="font-bold md:font-medium">{t('dateTime')}:</span> {formatConfirmDay()}
+              </p>
+              <p>{formatSlotRange(selectedSlot.start, selectedSlot.end)}</p>
+            </div>
             {selectionLabel && (
               <p className={stepTitleClass}>
                 <span className="font-bold md:font-medium">{t(selectionLabelKey)}:</span> {selectionLabel}
@@ -585,47 +741,64 @@ export default function ProEstimateBookingFlow({
               {t('timesIn', { zone: timeZoneLabel(slotTimeZone, locale) })}
             </p>
           </div>
-          <div className="mt-4 space-y-3">
-            <p className={stepTitleClass}>
-              {t('visitAddress')}
-            </p>
-            <AddressAutocomplete
-              id="visit-address"
-              value={visit.streetAddress}
-              placeholder={t('addressPlaceholder')}
-              onChange={(streetAddress) => setVisit((current) => ({ ...current, streetAddress }))}
-              onAddressSelect={(address: AddressData) =>
-                setVisit((current) => ({
-                  ...current,
-                  streetAddress: address.streetAddress,
-                  city: address.city,
-                  state: address.state,
-                  zipCode: address.zipCode,
-                }))
-              }
-            />
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Input value={visit.city} placeholder={t('city')} onChange={(event) => setVisit((current) => ({ ...current, city: event.target.value }))} />
-              <Input value={visit.state} placeholder={t('state')} onChange={(event) => setVisit((current) => ({ ...current, state: event.target.value }))} />
-              <Input value={visit.zipCode} placeholder={t('zip')} onChange={(event) => setVisit((current) => ({ ...current, zipCode: event.target.value }))} />
+          {needsAccountToSubmit ? (
+            <div className="mt-4 space-y-3 border-t-2 border-black pt-4">
+              <h2 className="text-lg font-bold text-black">{t('accountTitle')}</h2>
+              <p className="text-sm text-gray-700">{t('accountBody')}</p>
+              <div className="flex flex-col gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={googleLoading}
+                  onClick={() => void continueWithGoogle()}
+                  className="flex w-full items-center justify-center gap-2"
+                >
+                  <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                  {googleLoading ? t('googleWorking') : t('google')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={leaveForSignUp}
+                  className="flex w-full items-center justify-center gap-2"
+                >
+                  <ClipboardList className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  {t('signUp')}
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="inline-flex items-center gap-2"
+                onClick={() => setStep('slots')}
+              >
+                <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
+                {t('back')}
+              </Button>
             </div>
-            <Input value={visit.note} placeholder={t('notePlaceholder')} onChange={(event) => setVisit((current) => ({ ...current, note: event.target.value }))} />
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" size="sm" className="inline-flex items-center gap-2" onClick={() => setStep('slots')}>
-              <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
-              {t('back')}
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={handleConfirm}
-              disabled={submitting}
-            >
-              {submitting ? t('confirming') : t('confirm')}
-            </Button>
-          </div>
+          ) : (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" className="inline-flex items-center gap-2" onClick={() => setStep('slots')}>
+                <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
+                {t('back')}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleConfirm}
+                disabled={submitting}
+              >
+                {submitting ? t('confirming') : t('confirm')}
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>

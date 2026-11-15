@@ -30,7 +30,7 @@ export interface User {
   companyRoleOther?: string;
   userPicture?: string;
   preferredLocale?: string;
-  /** New Google customer still needs referral, phone, and terms. */
+  /** New Google customer still needs the missing 3-step signup fields. */
   accountSetupPending?: boolean;
 }
 
@@ -50,7 +50,21 @@ interface AuthContextType {
   refreshRoles: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
   /** Local update after the Google finish screen is saved. */
-  applyAccountSetup: (patch: { phone: string; referral: string; referralOther?: string }) => void;
+  applyAccountSetup: (patch: {
+    phone: string;
+    referral: string;
+    referralOther?: string;
+    firstName?: string;
+    lastName?: string;
+    userPicture?: string;
+    streetAddress?: string;
+    apartment?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    gateCode?: string;
+    addressNote?: string;
+  }) => void;
 }
 
 interface SignupData {
@@ -799,7 +813,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const applyAccountSetup = useCallback(
-    (patch: { phone: string; referral: string; referralOther?: string }) => {
+    (patch: {
+      phone: string;
+      referral: string;
+      referralOther?: string;
+      firstName?: string;
+      lastName?: string;
+      userPicture?: string;
+      streetAddress?: string;
+      apartment?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+      gateCode?: string;
+      addressNote?: string;
+    }) => {
       setUser((current) =>
         current
           ? {
@@ -807,6 +835,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               phone: patch.phone,
               referral: patch.referral,
               referralOther: patch.referralOther,
+              firstName: patch.firstName || current.firstName,
+              lastName: patch.lastName || current.lastName,
+              userPicture: patch.userPicture || current.userPicture,
+              streetAddress: patch.streetAddress || current.streetAddress,
+              apartment: patch.apartment || current.apartment,
+              city: patch.city || current.city,
+              state: patch.state || current.state,
+              zipCode: patch.zipCode || current.zipCode,
+              gateCode: patch.gateCode || current.gateCode,
+              addressNote: patch.addressNote || current.addressNote,
               accountSetupPending: false,
             }
           : current

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
 import Modal from '@/components/ui/Modal';
 
 export interface MobileGridActionItem {
@@ -23,9 +22,15 @@ interface MobileGridActionsModalProps {
   items: MobileGridActionItem[];
   /** Drop a tile on another tile to move it. Same order the sidebar already saves. */
   onReorder?: (fromId: string, toId: string) => void;
+  /**
+   * Hint when reorder is on. Pass a translated string under [locale].
+   * Admin has no NextIntlClientProvider, so the English default is used there.
+   */
+  dragHint?: string;
 }
 
 const DRAG_SLOP_PX = 8;
+const DEFAULT_DRAG_HINT = 'Drag a tile to change the order';
 
 export function MobileGridActionsModal({
   isOpen,
@@ -33,8 +38,8 @@ export function MobileGridActionsModal({
   title,
   items,
   onReorder,
+  dragHint = DEFAULT_DRAG_HINT,
 }: MobileGridActionsModalProps) {
-  const t = useTranslations('bot');
   const cleanupRef = useRef<(() => void) | null>(null);
   const didDrag = useRef(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -113,7 +118,7 @@ export function MobileGridActionsModal({
       contentClassName="p-0 md:p-6"
     >
       {reorderEnabled ? (
-        <p className="px-3 pt-3 text-center text-sm text-gray-600">{t('crmMenuDragHint')}</p>
+        <p className="px-3 pt-3 text-center text-sm text-gray-600">{dragHint}</p>
       ) : null}
       <div className={`grid grid-cols-3 gap-3 p-2 md:p-4 ${draggingId ? 'touch-none' : ''}`}>
         {items.map((item) => {
@@ -129,7 +134,7 @@ export function MobileGridActionsModal({
             ? {
                 'data-menu-id': item.id,
                 draggable: false as const,
-                title: t('crmMenuDragHint'),
+                title: dragHint,
                 onPointerDown: (event: React.PointerEvent) => beginDrag(event, item.id),
               }
             : {};

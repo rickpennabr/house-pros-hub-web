@@ -84,13 +84,18 @@ export function SignupSuccessMessage({ userType, onAddBusiness, returnUrl }: Sig
     void ensureAuthAndNavigate('/');
   };
 
-  const estimatePath = returnUrl
+  const continuePath = returnUrl
     ? getRedirectPath(returnUrl, locale)
     : createLocalePath(locale, '/estimate');
+  const returnToBooking = Boolean(returnUrl?.includes('/book/'));
 
   const handleGetEstimate = () => {
     setIsNavigatingToEstimate(true);
-    void ensureAuthAndNavigate(estimatePath, () => setIsNavigatingToEstimate(false));
+    void ensureAuthAndNavigate(continuePath, () => setIsNavigatingToEstimate(false));
+  };
+
+  const handleContinueBooking = () => {
+    void ensureAuthAndNavigate(continuePath);
   };
 
   // While navigating to estimate: show bot typing (same idea as account/business creating)
@@ -134,17 +139,29 @@ export function SignupSuccessMessage({ userType, onAddBusiness, returnUrl }: Sig
             />
           </svg>
           <h2 className="text-2xl font-semibold mb-4">
-            Thanks for signing up for House Pros Hub!
+            {returnToBooking ? 'Congratulations!' : 'Thanks for signing up for House Pros Hub!'}
           </h2>
           <p className="text-gray-700">
             {isBusinessSignup
               ? "Welcome to House Pros Hub! Your business account has been created. You can now manage your business profile and connect with customers."
-              : "Now you can contact your pro or request your free estimate."}
+              : returnToBooking
+                ? 'Your account is ready. Continue to submit your appointment.'
+                : 'Now you can contact your pro or request your free estimate.'}
           </p>
         </div>
       </div>
       <div className="flex flex-col sm:flex-row gap-4 w-full">
-        {isCustomerSignup ? (
+        {isCustomerSignup && returnToBooking ? (
+          <Button
+            type="button"
+            variant="primary"
+            onClick={handleContinueBooking}
+            disabled={isNavigating}
+            className="flex-1 whitespace-nowrap px-2 md:px-4 py-2 md:py-3"
+          >
+            {isNavigating ? 'Loading...' : 'Continue to appointment'}
+          </Button>
+        ) : isCustomerSignup ? (
           <>
             <Button
               type="button"

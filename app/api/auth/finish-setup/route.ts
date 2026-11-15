@@ -11,11 +11,23 @@ import { sendWelcomeEmail, sendNewSignupAdminNotification } from '@/lib/services
 import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import type { WelcomeEmailTranslations } from '@/lib/utils/emailTemplates';
 
+const zipRegex = /^\d{5}(-\d{4})?$/;
+
 const finishSchema = z
   .object({
     referral: z.string().trim().min(1).max(200),
     referralOther: z.string().trim().max(200).optional(),
     phone: z.string().trim().regex(US_PHONE_REGEX),
+    firstName: z.string().trim().min(1).max(80).optional(),
+    lastName: z.string().trim().min(1).max(80).optional(),
+    userPicture: z.string().trim().max(2_000_000).optional(),
+    streetAddress: z.string().trim().min(1).max(200),
+    apartment: z.string().trim().max(50).optional(),
+    city: z.string().trim().min(1).max(100),
+    state: z.string().trim().length(2),
+    zipCode: z.string().trim().regex(zipRegex),
+    gateCode: z.string().trim().max(50).optional(),
+    addressNote: z.string().trim().max(500).optional(),
     agreeToTerms: z.literal(true),
     locale: z.enum(locales).optional(),
   })
@@ -31,9 +43,9 @@ const finishSchema = z
 
 /**
  * POST /api/auth/finish-setup
- * Saves how a Google customer heard about the Hub, their phone, and their
- * acceptance of the terms. Clears the pending flag so they can enter.
- * The account already exists; this is the step that finishes it.
+ * Saves the missing customer 3-step fields after Google OAuth (referral, phone,
+ * address, terms; names only when Google did not send them). Clears pending
+ * only after this succeeds — that is when the Hub account is finished.
  */
 export async function POST(request: NextRequest) {
   const rateLimitResponse = await checkRateLimit(request, 'auth');
@@ -50,24 +62,65 @@ export async function POST(request: NextRequest) {
 
     const parsed = finishSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Check the phone, referral, and terms.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Check your phone, referral, address, and terms.' },
+        { status: 400 }
+      );
     }
 
-    const { referral, referralOther, phone, locale: requestedLocale } = parsed.data;
+    const {
+      referral,
+      referralOther,
+      phone,
+      firstName,
+      lastName,
+      userPicture,
+      streetAddress,
+      apartment,
+      city,
+      state,
+      zipCode,
+      gateCode,
+      addressNote,
+      locale: requestedLocale,
+    } = parsed.data;
     const locale: Locale = requestedLocale ?? 'en';
     const service = createServiceRoleClient();
+
+    const { data: existing } = await service
+      .from('profiles')
+      .select('first_name, last_name, account_setup_pending')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (!existing?.account_setup_pending) {
+      return NextResponse.json({ alreadyComplete: true });
+    }
+
+    const resolvedFirst =
+      firstName?.trim() || existing.first_name?.trim() || 'Customer';
+    const resolvedLast = lastName?.trim() || existing.last_name?.trim() || '';
+
+    const picture =
+      userPicture?.trim() &&
+      (userPicture.startsWith('data:image/') || userPicture.startsWith('http'))
+        ? userPicture.trim()
+        : undefined;
 
     const { data: saved, error: saveError } = await service
       .from('profiles')
       .update({
+        first_name: resolvedFirst,
+        last_name: resolvedLast || null,
         phone,
         referral,
         referral_other: referralOther?.trim() || null,
+        ...(picture ? { user_picture: picture } : {}),
         account_setup_pending: false,
       })
       .eq('id', user.id)
       .eq('account_setup_pending', true)
-      .select('first_name, last_name')
+      .select('first_name, last_name, user_picture')
       .maybeSingle();
 
     if (saveError) {
@@ -79,10 +132,54 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ alreadyComplete: true });
     }
 
+    const addressPayload = {
+      user_id: user.id,
+      address_type: 'personal' as const,
+      street_address: streetAddress.trim(),
+      apartment: apartment?.trim() || null,
+      city: city.trim(),
+      state: state.trim().toUpperCase(),
+      zip_code: zipCode.trim(),
+      gate_code: gateCode?.trim() || null,
+      address_note: addressNote?.trim() || null,
+      is_public: false,
+      is_verified: false,
+    };
+
+    const { data: existingAddress } = await service
+      .from('addresses')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('address_type', 'personal')
+      .maybeSingle();
+
+    if (existingAddress?.id) {
+      const { error: addressError } = await service
+        .from('addresses')
+        .update(addressPayload)
+        .eq('id', existingAddress.id);
+      if (addressError) {
+        logger.error('[Finish setup] address update failed', {
+          userId: user.id,
+          error: addressError.message,
+        });
+        return NextResponse.json({ error: 'Could not save your address. Please try again.' }, { status: 500 });
+      }
+    } else {
+      const { error: addressError } = await service.from('addresses').insert(addressPayload);
+      if (addressError) {
+        logger.error('[Finish setup] address insert failed', {
+          userId: user.id,
+          error: addressError.message,
+        });
+        return NextResponse.json({ error: 'Could not save your address. Please try again.' }, { status: 500 });
+      }
+    }
+
     const email = user.email?.trim().toLowerCase() ?? '';
-    const firstName = saved.first_name?.trim() || 'Customer';
-    const lastName = saved.last_name?.trim() || '';
-    const displayName = `${firstName} ${lastName}`.trim();
+    const displayFirst = saved.first_name?.trim() || 'Customer';
+    const displayLast = saved.last_name?.trim() || '';
+    const displayName = `${displayFirst} ${displayLast}`.trim();
 
     await recordAdminBellEvent({
       eventType: 'signup',
@@ -102,13 +199,28 @@ export async function POST(request: NextRequest) {
       if (!adminNotify.success) {
         logger.warn('[Finish setup] failed to email admin', { userId: user.id, error: adminNotify.error });
       }
-      await sendCustomerWelcome(locale, { firstName, lastName, email, userId: user.id });
+      await sendCustomerWelcome(locale, {
+        firstName: displayFirst,
+        lastName: displayLast,
+        email,
+        userId: user.id,
+      });
     }
 
     return NextResponse.json({
       phone,
       referral,
       referralOther: referralOther?.trim() || null,
+      firstName: displayFirst,
+      lastName: displayLast,
+      userPicture: saved.user_picture || picture || null,
+      streetAddress: streetAddress.trim(),
+      apartment: apartment?.trim() || null,
+      city: city.trim(),
+      state: state.trim().toUpperCase(),
+      zipCode: zipCode.trim(),
+      gateCode: gateCode?.trim() || null,
+      addressNote: addressNote?.trim() || null,
     });
   } catch (error) {
     logger.error('[Finish setup] unhandled', {}, error as Error);

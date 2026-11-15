@@ -27,7 +27,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { createSignInUrl, createSignUpUrl, createLocalePath } from '@/lib/redirect';
+import { createSignInUrl, createLocalePath } from '@/lib/redirect';
 import { LeaveExternalWarningModal } from './LeaveExternalWarningModal';
 import { AngiIcon } from '@/components/ui/icons/AngiIcon';
 import type { LinkType } from '@/lib/constants/linkTypes';
@@ -98,12 +98,9 @@ export default function ProLinks({ links, maxLinks = 7, onSignInRequired, onQrCo
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
 
-  // Link types that require auth: phone, email, and in-app booking (calendar → sign-up then book)
+  // Phone and email stay behind sign-in. Booking calendar uses the same public /book path for guests.
   const protectedLinkTypes: LinkItem['type'][] = ['phone', 'email'];
-  const isProtectedLink = (link: LinkItem) => {
-    if (isBookingCalendarLink(link)) return true; // booking: require sign-up, then go to pro calendar
-    return protectedLinkTypes.includes(link.type);
-  };
+  const isProtectedLink = (link: LinkItem) => protectedLinkTypes.includes(link.type);
 
   const performLinkClick = (link: LinkItem) => {
     if (link.type === 'phone' && link.value) {
@@ -154,11 +151,6 @@ export default function ProLinks({ links, maxLinks = 7, onSignInRequired, onQrCo
     if (isProtectedLink(link)) {
       if (isLoading) return;
       if (!isAuthenticated) {
-        if (isBookingCalendarLink(link) && link.url) {
-          // Take to sign-up page so after sign-up user lands on the pro's booking page
-          router.push(createSignUpUrl(locale as 'en' | 'es' | 'pt', link.url));
-          return;
-        }
         if (onSignInRequired) {
           onSignInRequired();
           return;

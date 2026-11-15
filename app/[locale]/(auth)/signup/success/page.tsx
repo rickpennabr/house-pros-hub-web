@@ -54,7 +54,10 @@ function SignupSuccessPage() {
     <AuthPageLayout>
       <div className="w-full max-w-md mx-auto flex flex-col text-black pt-3 md:pt-0">
         <SignupHeader isLoading={false} />
-        <SignupSuccessMessage userType={userType} />
+        <SignupSuccessMessage
+          userType={userType}
+          returnUrl={searchParams.get('returnUrl')}
+        />
       </div>
     </AuthPageLayout>
   );

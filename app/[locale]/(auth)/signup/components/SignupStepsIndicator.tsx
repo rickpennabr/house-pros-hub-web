@@ -11,7 +11,7 @@ export function SignupStepsIndicator({ currentStep, totalSteps, stepLabel }: Sig
     <section className="flex flex-col">
       <div className="flex items-center justify-between pb-2">
         {/* Progress Bar Label */}
-        <span className="text-base font-bold text-black">
+        <span className="text-[1.2rem] font-bold text-black md:text-base">
           {stepLabel}
         </span>
         {/* Progress Bar */}

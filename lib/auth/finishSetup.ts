@@ -34,6 +34,10 @@ export function safeFinishNext(value: string | null, locale: string): string | n
 export function afterFinishDestination(locale: string, nextPath: string | null, welcome: boolean): string {
   const next = safeFinishNext(nextPath, locale);
   if (next && (next.includes('/estimate') || next.includes('/quick-repair'))) return next;
+  // Booking: show congratulations first, then continue back to confirm/submit.
+  if (welcome && next?.includes('/book/')) {
+    return `/${locale}/signup/success?role=customer&returnUrl=${encodeURIComponent(next)}`;
+  }
   if (welcome) return `/${locale}/signup/success?role=customer`;
   if (next) return next;
   return `/${locale}`;

@@ -19,6 +19,10 @@ test('a returning unfinished Google sign-in opens the same screen without the th
 test('the first finished visit goes to the thanks screen unless they came from an estimate', () => {
   assert.equal(afterFinishDestination('en', null, true), '/en/signup/success?role=customer');
   assert.equal(afterFinishDestination('en', '/en/quick-repair?step=3', true), '/en/quick-repair?step=3');
+  assert.equal(
+    afterFinishDestination('en', '/en/book/the-paver-pro?step=confirm', true),
+    '/en/signup/success?role=customer&returnUrl=%2Fen%2Fbook%2Fthe-paver-pro%3Fstep%3Dconfirm'
+  );
   assert.equal(afterFinishDestination('pt', '/pt/businesslist', false), '/pt/businesslist');
 });
 

@@ -8,10 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createLocalePath } from '@/lib/redirect';
 import { useTranslations } from 'next-intl';
 import BusinessDetailsHeader from '@/components/businessdetails/BusinessDetailsHeader';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import ProEstimateBookingFlow from '@/components/probot/ProEstimateBookingFlow';
-import type { GuestContactData } from '@/components/probot/ProEstimateBookingFlow';
 
 export default function BookBySlugPage() {
   const params = useParams();
@@ -20,6 +17,7 @@ export default function BookBySlugPage() {
   const slug = typeof params.slug === 'string' ? params.slug : '';
   const searchParams = useSearchParams();
   const initialServiceId = searchParams.get('service');
+  const resumeConfirm = searchParams.get('step') === 'confirm';
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const t = useTranslations('probot.booking');
   const [business, setBusiness] = useState<{
@@ -33,10 +31,6 @@ export default function BookBySlugPage() {
   const [bookingEnabled, setBookingEnabled] = useState(false);
   const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
   const [businessEmail, setBusinessEmail] = useState<string | null>(null);
-  /** For guests: collect name/email before showing calendar */
-  const [guestContact, setGuestContact] = useState<GuestContactData | null>(null);
-  const [showBookingFlow, setShowBookingFlow] = useState(false);
-  const [guestForm, setGuestForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
 
   useEffect(() => {
     if (!slug) {
@@ -82,7 +76,7 @@ export default function BookBySlugPage() {
           contractorType: b.contractorType,
         });
         setError(null);
-      } catch (e) {
+      } catch {
         if (!cancelled) {
           setError('Failed to load');
           setBusiness(null);
@@ -93,32 +87,6 @@ export default function BookBySlugPage() {
     })();
     return () => { cancelled = true; };
   }, [slug]);
-
-  const handleGuestContinue = () => {
-    const firstName = guestForm.firstName.trim();
-    const lastName = guestForm.lastName.trim();
-    const email = guestForm.email.trim().toLowerCase();
-    if (!firstName || !lastName || !email) {
-      setError('Please enter your first name, last name, and email.');
-      return;
-    }
-    if (businessEmail && email === businessEmail) {
-      setError(t('ownService'));
-      return;
-    }
-    setGuestContact({
-      firstName,
-      lastName,
-      email,
-      phone: guestForm.phone.trim(),
-      streetAddress: '',
-      city: '',
-      state: '',
-      zipCode: '',
-    });
-    setShowBookingFlow(true);
-    setError(null);
-  };
 
   if (authLoading || loading) {
     return (
@@ -182,65 +150,7 @@ export default function BookBySlugPage() {
     );
   }
 
-  if (!isAuthenticated && !showBookingFlow) {
-    return (
-      <BookPageLayout>
-        <p className="text-gray-600 mb-6">{t('guestFormSubtitle')}</p>
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
-            {error}
-          </div>
-        )}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
-            <Input
-              type="text"
-              value={guestForm.firstName}
-              onChange={(e) => setGuestForm((f) => ({ ...f, firstName: e.target.value }))}
-              placeholder="First name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
-            <Input
-              type="text"
-              value={guestForm.lastName}
-              onChange={(e) => setGuestForm((f) => ({ ...f, lastName: e.target.value }))}
-              placeholder="Last name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <Input
-              type="email"
-              value={guestForm.email}
-              onChange={(e) => setGuestForm((f) => ({ ...f, email: e.target.value }))}
-              placeholder="you@example.com"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
-            <Input
-              type="tel"
-              value={guestForm.phone}
-              onChange={(e) => setGuestForm((f) => ({ ...f, phone: e.target.value }))}
-              placeholder="Phone"
-            />
-          </div>
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            className="w-full"
-            onClick={handleGuestContinue}
-          >
-            {t('continueToCalendar')}
-          </Button>
-        </div>
-      </BookPageLayout>
-    );
-  }
+  const bookingReturnPath = createLocalePath(locale as 'en' | 'es' | 'pt', `/book/${slug}?step=confirm`);
 
   return (
     <BookPageLayout>
@@ -248,11 +158,12 @@ export default function BookBySlugPage() {
         businessId={business.id}
         businessName={business.businessName}
         isAuthenticated={!!isAuthenticated}
-        guestContact={guestContact}
         initialServiceId={initialServiceId}
+        resumeConfirm={resumeConfirm}
+        bookingReturnPath={bookingReturnPath}
         onSuccess={() => router.push(createLocalePath(locale as 'en' | 'es' | 'pt', '/'))}
         onCancel={() => {
-          if (!isAuthenticated) setShowBookingFlow(false);
+          router.push(createLocalePath(locale as 'en' | 'es' | 'pt', `/business/${slug}`));
         }}
       />
     </BookPageLayout>
