@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
@@ -93,10 +94,12 @@ export default function ProEstimateBookingFlow({
     each: tServices('each'),
   };
   const chosenServices = services.filter((service) => selectedServiceIds.includes(service.id));
-  const selectionLabel = [
+  const selectionItems = [
     ...(generalEstimate ? [t('generalEstimate')] : []),
     ...chosenServices.map((service) => service.name),
-  ].join(', ');
+  ];
+  const selectionLabel = selectionItems.join(', ');
+  const selectionLabelKey = selectionItems.length > 1 ? 'services' : 'service';
 
   useEffect(() => {
     let cancelled = false;
@@ -334,14 +337,14 @@ export default function ProEstimateBookingFlow({
 
   if (!servicesReady) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 overflow-y-auto py-4 px-2">
+      <div className="flex flex-col flex-1 min-h-0 overflow-y-auto px-2 md:py-4">
         <p className="text-sm text-gray-500">{t('loadingSlots')}</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-y-auto py-4 px-2">
+    <div className="flex flex-col flex-1 min-h-0 overflow-y-auto px-2 md:py-4">
       {error && (
         <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
           {error}
@@ -350,18 +353,19 @@ export default function ProEstimateBookingFlow({
 
       {step === 'service' && (
         <>
-          <p className="text-base font-medium text-gray-900 mb-3">{t('pickService')}</p>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+          <p className="mb-3 text-center text-[1.48rem] font-bold leading-tight text-gray-900 md:text-left md:text-[1.2rem] md:font-medium md:leading-normal">{t('pickService')}</p>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
             <button
               type="button"
               onClick={() => setGeneralEstimate((current) => !current)}
               aria-pressed={generalEstimate}
-              className={`w-full rounded-lg border-2 border-black p-3 text-left cursor-pointer ${generalEstimate ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+              className={`w-full cursor-pointer rounded-lg border-2 border-black p-2 text-center md:p-3 ${generalEstimate ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
             >
               <p className="font-semibold">{t('generalEstimate')}</p>
             </button>
             {services.map((service) => {
               const selected = selectedServiceIds.includes(service.id);
+              const thumb = service.imageUrl || service.imageUrls?.[0] || null;
               return (
                 <button
                   key={service.id}
@@ -374,10 +378,21 @@ export default function ProEstimateBookingFlow({
                     ));
                   }}
                   aria-pressed={selected}
-                  className={`w-full rounded-lg border-2 border-black p-3 text-left cursor-pointer ${selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+                  className={`w-full rounded-lg border-2 border-black p-2 text-left cursor-pointer md:p-3 ${selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
                 >
-                  <p className="font-semibold">{service.name}</p>
-                  <p className={`text-sm ${selected ? 'text-white' : 'text-gray-700'}`}>
+                  <div className="flex items-start gap-2">
+                    {thumb ? (
+                      <Image
+                        src={thumb}
+                        alt=""
+                        width={40}
+                        height={40}
+                        className={`h-10 w-10 shrink-0 rounded object-cover md:h-6 md:w-6 ${selected ? 'ring-1 ring-white/70' : 'ring-1 ring-black/20'}`}
+                      />
+                    ) : null}
+                    <p className="min-w-0 flex-1 font-semibold leading-tight">{service.name}</p>
+                  </div>
+                  <p className={`mt-1 text-center text-sm font-bold ${selected ? 'text-white' : 'text-green-600'}`}>
                     {formatCatalogPrice(service, locale, {
                       requestPrice: tServices('requestPrice'),
                       from: tServices('from'),
@@ -389,7 +404,8 @@ export default function ProEstimateBookingFlow({
             })}
           </div>
           <div className="mt-3 flex justify-between gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
+            <Button type="button" variant="secondary" size="sm" onClick={onCancel} className="inline-flex items-center gap-2">
+              <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
               {t('back')}
             </Button>
             <Button
@@ -408,11 +424,13 @@ export default function ProEstimateBookingFlow({
       {step === 'calendar' && (
         <>
           {selectionLabel && (
-            <p className="mb-2 text-sm text-gray-700">
-              <span className="font-medium">{t('service')}:</span> {selectionLabel}
+            <p className="mb-2 text-left text-[1.2rem] font-bold leading-tight text-gray-900 md:text-sm md:font-medium md:leading-normal md:text-gray-700">
+              <span className="font-bold md:font-medium">{t(selectionLabelKey)}:</span> {selectionLabel}
             </p>
           )}
-          <p className="text-base font-medium text-gray-900 mb-3">{t('pickYourDay')}</p>
+          <p className="mb-3 text-center text-[1.48rem] font-bold leading-tight text-gray-900 md:text-left md:text-base md:font-medium md:leading-normal">
+            {t('pickYourDay')}
+          </p>
           <div className="border-2 border-black rounded-lg overflow-hidden bg-white shadow-sm">
             <div className="flex items-center justify-between px-4 py-3 border-b-2 border-black bg-gray-50">
               <button
@@ -469,11 +487,13 @@ export default function ProEstimateBookingFlow({
               type="button"
               variant="secondary"
               size="sm"
+              className="inline-flex items-center gap-2"
               onClick={() => {
                 if (services.length > 0) setStep('service');
                 else onCancel();
               }}
             >
+              <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
               {t('back')}
             </Button>
           </div>
@@ -482,33 +502,38 @@ export default function ProEstimateBookingFlow({
 
       {step === 'slots' && (
         <>
-          <button
-            type="button"
-            onClick={() => setStep('calendar')}
-            className="text-sm font-medium text-gray-700 hover:text-black mb-3 flex items-center gap-1"
-          >
-            <ChevronLeft className="w-4 h-4" /> {t('back')}
-          </button>
-          <p className="text-base font-medium text-gray-900 mb-1">{t('pickTime')}</p>
-          <p className="mb-3 text-sm text-gray-600">{t('timesIn', { zone: timeZoneLabel(slotTimeZone, locale) })}</p>
-          {slotsLoading ? (
-            <p className="text-sm text-gray-500">{t('loadingSlots')}</p>
-          ) : slots.length === 0 ? (
-            <p className="text-sm text-gray-500">{slotsNote || t('noSlots')}</p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {slots.map((slot) => (
-                <button
-                  key={slot.start}
-                  type="button"
-                  onClick={() => handleSlotSelect(slot)}
-                  className="py-2.5 px-3 rounded-lg border-2 border-black bg-white text-sm font-medium hover:bg-gray-50 cursor-pointer"
-                >
-                  {formatSlotRange(slot.start, slot.end)}
-                </button>
-              ))}
-            </div>
-          )}
+          <p className="mb-1 text-center text-[1.8rem] font-bold leading-tight text-gray-900 md:mb-1 md:text-left md:text-[1.2rem] md:font-medium md:leading-normal">
+            {t('pickTime')}
+          </p>
+          <p className="mb-3 text-center text-[1.8rem] font-bold leading-tight text-gray-900 md:text-left md:text-[1.2rem] md:font-medium md:leading-normal">
+            {t('timesIn', { zone: timeZoneLabel(slotTimeZone, locale) })}
+          </p>
+          <div className="border-2 border-black rounded-lg overflow-hidden bg-white p-2">
+            {slotsLoading ? (
+              <p className="text-sm text-gray-500">{t('loadingSlots')}</p>
+            ) : slots.length === 0 ? (
+              <p className="text-sm text-gray-500">{slotsNote || t('noSlots')}</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {slots.map((slot) => (
+                  <button
+                    key={slot.start}
+                    type="button"
+                    onClick={() => handleSlotSelect(slot)}
+                    className="cursor-pointer rounded-lg border-2 border-black bg-white px-3 py-2.5 text-sm font-medium hover:bg-gray-50"
+                  >
+                    {formatSlotRange(slot.start, slot.end)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="mt-3 flex justify-start">
+            <Button type="button" variant="secondary" size="sm" className="inline-flex items-center gap-2" onClick={() => setStep('calendar')}>
+              <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
+              {t('back')}
+            </Button>
+          </div>
         </>
       )}
 
@@ -517,9 +542,10 @@ export default function ProEstimateBookingFlow({
           <button
             type="button"
             onClick={() => setStep('slots')}
-            className="text-sm font-medium text-gray-700 hover:text-black mb-3 flex items-center gap-1"
+            className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-black"
           >
-            <ChevronLeft className="w-4 h-4" /> {t('back')}
+            <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
+            {t('back')}
           </button>
           <p className="text-base font-medium text-gray-900 mb-3">{t('confirmAppointment')}</p>
           <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4 space-y-2">
@@ -528,7 +554,7 @@ export default function ProEstimateBookingFlow({
             </p>
             {selectionLabel && (
               <p className="text-sm text-gray-700">
-                <span className="font-medium">{t('service')}:</span> {selectionLabel}
+                <span className="font-medium">{t(selectionLabelKey)}:</span> {selectionLabel}
               </p>
             )}
             <p className="text-sm text-gray-700">
@@ -561,7 +587,8 @@ export default function ProEstimateBookingFlow({
             <Input value={visit.note} placeholder={t('notePlaceholder')} onChange={(event) => setVisit((current) => ({ ...current, note: event.target.value }))} />
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => setStep('slots')}>
+            <Button type="button" variant="secondary" size="sm" className="inline-flex items-center gap-2" onClick={() => setStep('slots')}>
+              <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
               {t('back')}
             </Button>
             <Button
