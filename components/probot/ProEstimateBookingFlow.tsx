@@ -367,7 +367,7 @@ export default function ProEstimateBookingFlow({
             </button>
             {services.map((service) => {
               const selected = selectedServiceIds.includes(service.id);
-              const thumb = service.imageUrl || service.imageUrls?.[0] || null;
+              const thumb = service.imageUrl;
               return (
                 <button
                   key={service.id}
