@@ -11,10 +11,19 @@ export interface PriceTypeOption {
 
 /** Built-in price types. Custom types are saved per contractor and keep one of these layouts. */
 export const BUILTIN_PRICE_TYPES: PriceTypeOption[] = [
-  { label: 'Default', mode: 'flat' },
   { label: 'Unit price', mode: 'unit' },
-  { label: 'Price range', mode: 'range' },
+  { label: 'Start at', mode: 'flat' },
+  { label: 'Range price', mode: 'range' },
 ];
+
+const PRICE_TYPE_ALIASES: Record<string, PriceMode> = {
+  'unit price': 'unit',
+  'start at': 'flat',
+  'starting at': 'flat',
+  default: 'flat',
+  'range price': 'range',
+  'price range': 'range',
+};
 
 export const SERVICE_IMAGE_LIMIT = 5;
 export const PRODUCT_IMAGE_LIMIT = 8;
@@ -68,13 +77,18 @@ export function isBuiltinUnit(value: string): boolean {
 }
 
 export function isBuiltinPriceType(value: string): boolean {
-  const needle = value.trim().toLowerCase();
-  return BUILTIN_PRICE_TYPES.some((option) => option.label.toLowerCase() === needle);
+  return builtinPriceMode(value) != null;
 }
 
 export function builtinPriceMode(value: string): PriceMode | null {
-  const needle = value.trim().toLowerCase();
-  return BUILTIN_PRICE_TYPES.find((option) => option.label.toLowerCase() === needle)?.mode ?? null;
+  return PRICE_TYPE_ALIASES[value.trim().toLowerCase()] ?? null;
+}
+
+/** Current label for a built-in type, including older names such as Default and Price range. */
+export function priceTypeLabel(value: string): string {
+  const mode = builtinPriceMode(value);
+  if (!mode) return value;
+  return BUILTIN_PRICE_TYPES.find((option) => option.mode === mode)?.label ?? value;
 }
 
 export function formatCents(cents: number): string {

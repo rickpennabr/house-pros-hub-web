@@ -169,6 +169,7 @@
       "pickService": "What should this visit cover?",
       "generalEstimate": "General estimate",
       "service": "Service",
+      "services": "Services",
       "notAccepting": "This pro is not accepting appointments yet.",
       "ownService": "You can't book an appointment with your own business.",
       "freeEstimateLink": "Request a free estimate",

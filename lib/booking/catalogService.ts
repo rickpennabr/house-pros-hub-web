@@ -16,15 +16,19 @@ export interface CatalogService {
   priceMaxCents: number | null;
   priceType: ServicePriceType;
   unit: ServiceUnit;
+  /** Unit text from the CRM catalog, such as "sq ft" or "Sf". */
+  unitLabel?: string;
   imageUrl: string | null;
+  /** Every photo, thumbnail first. The detail page uses these for the strip. */
+  imageUrls?: string[];
   sortOrder: number;
   isActive: boolean;
 }
 
 export const bookingServiceInputSchema = z
   .object({
-    name: z.string().trim().min(2).max(80),
-    description: z.string().trim().max(200).optional().default(''),
+    name: z.string().trim().min(2).max(160),
+    description: z.string().trim().max(4000).optional().default(''),
     category: z.string().trim().max(80).optional().default(''),
     price: z.coerce.number().min(0).max(99999.99),
     priceMax: z.preprocess(
@@ -33,6 +37,7 @@ export const bookingServiceInputSchema = z
     ),
     priceType: z.enum(SERVICE_PRICE_TYPES),
     unit: z.enum(SERVICE_UNITS),
+    unitLabel: z.string().trim().max(40).optional().default(''),
     imageUrl: z.string().trim().max(2000).optional().nullable(),
     isActive: z.boolean().optional().default(true),
   })
@@ -62,13 +67,15 @@ export function dollarsToCents(value: number): number {
 }
 
 export function formatCatalogPrice(
-  service: Pick<CatalogService, 'priceCents' | 'priceMaxCents' | 'priceType' | 'unit'>,
+  service: Pick<CatalogService, 'priceCents' | 'priceMaxCents' | 'priceType' | 'unit'> & {
+    unitLabel?: string | null;
+  },
   locale: string,
   labels: { requestPrice: string; from: string; units: Record<ServiceUnit, string> }
 ): string {
   const money = (cents: number) =>
     new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(cents / 100);
-  const unit = labels.units[service.unit];
+  const unit = service.unitLabel?.trim() || labels.units[service.unit];
   const hasRange = service.priceType === 'range' && service.priceMaxCents != null && service.priceMaxCents > 0;
   if (!hasRange && service.priceCents <= 0) return labels.requestPrice;
   if (hasRange) {

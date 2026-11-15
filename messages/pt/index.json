@@ -169,6 +169,7 @@
       "pickService": "O que esta visita deve cobrir?",
       "generalEstimate": "Orçamento geral",
       "service": "Serviço",
+      "services": "Serviços",
       "notAccepting": "Este profissional ainda não aceita horários.",
       "ownService": "Você não pode agendar um horário com o seu próprio negócio.",
       "freeEstimateLink": "Pedir um orçamento grátis",

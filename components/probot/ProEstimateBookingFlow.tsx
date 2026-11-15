@@ -367,7 +367,14 @@ export default function ProEstimateBookingFlow({
             </button>
             {services.map((service) => {
               const selected = selectedServiceIds.includes(service.id);
-              const thumb = service.imageUrl;
+              const thumb = service.imageUrl || service.imageUrls?.[0] || null;
+              const price = formatCatalogPrice(service, locale, {
+                requestPrice: tServices('requestPrice'),
+                from: tServices('from'),
+                units: unitLabels,
+              });
+              const priceClass = `text-sm font-bold ${selected ? 'text-white' : 'text-green-600'}`;
+              const thumbRing = selected ? 'ring-1 ring-white/70' : 'ring-1 ring-black/20';
               return (
                 <button
                   key={service.id}
@@ -380,27 +387,47 @@ export default function ProEstimateBookingFlow({
                     ));
                   }}
                   aria-pressed={selected}
-                  className={`w-full rounded-lg border-2 border-black p-2 text-left cursor-pointer md:p-3 ${selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+                  className={`w-full cursor-pointer rounded-lg border-2 border-black p-2 text-left md:p-3 ${selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
                 >
-                  <div className="flex items-start gap-2">
+                  {/* Mobile: thumb + name on top, price under */}
+                  <div className="md:hidden">
+                    <div className="flex items-start gap-2">
+                      {thumb ? (
+                        <Image
+                          src={thumb}
+                          alt=""
+                          width={40}
+                          height={40}
+                          className={`h-10 w-10 shrink-0 rounded object-cover ${thumbRing}`}
+                        />
+                      ) : null}
+                      <p className="min-w-0 flex-1 font-semibold leading-tight">{service.name}</p>
+                    </div>
+                    <p className={`mt-1 text-center ${priceClass}`}>{price}</p>
+                  </div>
+                  {/* Desktop: tall image left; name top-right, price bottom-right, left-aligned to image */}
+                  <div className="hidden md:flex md:min-h-[4.5rem] md:gap-3">
                     {thumb ? (
                       <Image
                         src={thumb}
                         alt=""
-                        width={40}
-                        height={40}
-                        className={`h-10 w-10 shrink-0 rounded object-cover md:h-6 md:w-6 ${selected ? 'ring-1 ring-white/70' : 'ring-1 ring-black/20'}`}
+                        width={72}
+                        height={72}
+                        className={`h-[4.5rem] w-[4.5rem] shrink-0 rounded-lg object-cover ${thumbRing}`}
                       />
                     ) : null}
-                    <p className="min-w-0 flex-1 font-semibold leading-tight">{service.name}</p>
+                    <div className="flex min-w-0 flex-1 flex-col justify-between gap-1 py-0.5">
+                      <div className="min-w-0">
+                        <p className="font-semibold leading-tight">{service.name}</p>
+                        {service.description?.trim() ? (
+                          <p className={`mt-0.5 line-clamp-2 text-xs leading-snug ${selected ? 'text-white/80' : 'text-gray-600'}`}>
+                            {service.description.trim()}
+                          </p>
+                        ) : null}
+                      </div>
+                      <p className={`text-left ${priceClass}`}>{price}</p>
+                    </div>
                   </div>
-                  <p className={`mt-1 text-center text-sm font-bold ${selected ? 'text-white' : 'text-green-600'}`}>
-                    {formatCatalogPrice(service, locale, {
-                      requestPrice: tServices('requestPrice'),
-                      from: tServices('from'),
-                      units: unitLabels,
-                    })}
-                  </p>
                 </button>
               );
             })}
