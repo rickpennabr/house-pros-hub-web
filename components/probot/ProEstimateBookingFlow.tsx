@@ -140,15 +140,15 @@ export default function ProEstimateBookingFlow({
   const selectionLabelKey = selectionItems.length > 1 ? 'services' : 'service';
   const stepTitleClass =
     'text-left text-[1.26rem] font-bold leading-tight text-gray-900 md:text-[1.2rem] md:font-medium md:leading-normal';
-  const progressSteps = useMemo(
-    () => (services.length > 0 ? (['service', 'calendar', 'slots', 'confirm'] as const) : (['calendar', 'slots', 'confirm'] as const)),
+  type ProgressStep = 'service' | 'calendar' | 'slots' | 'confirm';
+  const progressSteps = useMemo<ProgressStep[]>(
+    () => (services.length > 0 ? ['service', 'calendar', 'slots', 'confirm'] : ['calendar', 'slots', 'confirm']),
     [services.length]
   );
-  const progressIndex = Math.max(1, progressSteps.indexOf(step as (typeof progressSteps)[number]) + 1);
-  const progressLabel =
-    step === 'service' || step === 'calendar' || step === 'slots' || step === 'confirm'
-      ? t(`stepLabels.${step}`)
-      : t('stepLabels.confirm');
+  const progressStep: ProgressStep =
+    step === 'service' || step === 'calendar' || step === 'slots' || step === 'confirm' ? step : 'confirm';
+  const progressIndex = Math.max(1, progressSteps.indexOf(progressStep) + 1);
+  const progressLabel = t(`stepLabels.${progressStep}`);
 
   useEffect(() => {
     let cancelled = false;
