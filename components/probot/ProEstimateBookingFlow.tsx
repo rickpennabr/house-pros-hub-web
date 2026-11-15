@@ -100,6 +100,8 @@ export default function ProEstimateBookingFlow({
   ];
   const selectionLabel = selectionItems.join(', ');
   const selectionLabelKey = selectionItems.length > 1 ? 'services' : 'service';
+  const stepTitleClass =
+    'text-left text-[1.8rem] font-bold leading-tight text-gray-900 md:text-[1.2rem] md:font-medium md:leading-normal';
 
   useEffect(() => {
     let cancelled = false;
@@ -424,11 +426,11 @@ export default function ProEstimateBookingFlow({
       {step === 'calendar' && (
         <>
           {selectionLabel && (
-            <p className="mb-2 text-left text-[1.2rem] font-bold leading-tight text-gray-900 md:text-sm md:font-medium md:leading-normal md:text-gray-700">
+            <p className={`mb-2 ${stepTitleClass}`}>
               <span className="font-bold md:font-medium">{t(selectionLabelKey)}:</span> {selectionLabel}
             </p>
           )}
-          <p className="mb-3 text-center text-[1.48rem] font-bold leading-tight text-gray-900 md:text-left md:text-base md:font-medium md:leading-normal">
+          <p className={`mb-3 ${stepTitleClass}`}>
             {t('pickYourDay')}
           </p>
           <div className="border-2 border-black rounded-lg overflow-hidden bg-white shadow-sm">
@@ -502,10 +504,10 @@ export default function ProEstimateBookingFlow({
 
       {step === 'slots' && (
         <>
-          <p className="mb-1 text-center text-[1.8rem] font-bold leading-tight text-gray-900 md:mb-1 md:text-left md:text-[1.2rem] md:font-medium md:leading-normal">
+          <p className={`mb-1 ${stepTitleClass}`}>
             {t('pickTime')}
           </p>
-          <p className="mb-3 text-center text-[1.8rem] font-bold leading-tight text-gray-900 md:text-left md:text-[1.2rem] md:font-medium md:leading-normal">
+          <p className={`mb-3 ${stepTitleClass}`}>
             {t('timesIn', { zone: timeZoneLabel(slotTimeZone, locale) })}
           </p>
           <div className="border-2 border-black rounded-lg overflow-hidden bg-white p-2">
@@ -539,31 +541,29 @@ export default function ProEstimateBookingFlow({
 
       {step === 'confirm' && selectedDate && selectedSlot && (
         <>
-          <button
-            type="button"
-            onClick={() => setStep('slots')}
-            className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-black"
-          >
-            <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
-            {t('back')}
-          </button>
-          <p className="text-base font-medium text-gray-900 mb-3">{t('confirmAppointment')}</p>
-          <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4 space-y-2">
-            <p className="text-sm text-gray-700">
-              <span className="font-medium">{t('dateTime')}:</span> {formatConfirmDateTime()}
+          <p className={`mb-3 ${stepTitleClass}`}>
+            {t('confirmAppointment')}
+          </p>
+          <div className="space-y-2 rounded-lg border-2 border-gray-200 bg-gray-50 p-4">
+            <p className={stepTitleClass}>
+              <span className="font-bold md:font-medium">{t('dateTime')}:</span> {formatConfirmDateTime()}
             </p>
             {selectionLabel && (
-              <p className="text-sm text-gray-700">
-                <span className="font-medium">{t(selectionLabelKey)}:</span> {selectionLabel}
+              <p className={stepTitleClass}>
+                <span className="font-bold md:font-medium">{t(selectionLabelKey)}:</span> {selectionLabel}
               </p>
             )}
-            <p className="text-sm text-gray-700">
-              <span className="font-medium">{t('confirmWith', { name: businessName })}</span>
+            <p className={stepTitleClass}>
+              {t('confirmWith', { name: businessName })}
             </p>
-            <p className="text-sm text-gray-600">{t('timesIn', { zone: timeZoneLabel(slotTimeZone, locale) })}</p>
+            <p className={stepTitleClass}>
+              {t('timesIn', { zone: timeZoneLabel(slotTimeZone, locale) })}
+            </p>
           </div>
           <div className="mt-4 space-y-3">
-            <p className="text-base font-medium text-gray-900">{t('visitAddress')}</p>
+            <p className={stepTitleClass}>
+              {t('visitAddress')}
+            </p>
             <AddressAutocomplete
               id="visit-address"
               value={visit.streetAddress}
