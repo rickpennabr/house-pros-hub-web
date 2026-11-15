@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { useLocale } from 'next-intl'
 import { SignupHeader } from './SignupHeader'
 
-export function InstallerProfileForm() {
+export function InstallerProfileForm({ variant = 'installer' }: { variant?: 'installer' | 'handyman' }) {
   const locale = useLocale()
+  const isHandyman = variant === 'handyman'
   const [trades, setTrades] = useState('')
   const [serviceArea, setServiceArea] = useState('')
   const [bio, setBio] = useState('')
@@ -19,7 +20,7 @@ export function InstallerProfileForm() {
     setSaving(true)
     setError('')
     try {
-      const response = await fetch('/api/installer/profile', {
+      const response = await fetch(isHandyman ? '/api/handyman/profile' : '/api/installer/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ trades, serviceArea, bio }),
@@ -29,7 +30,7 @@ export function InstallerProfileForm() {
         setError(typeof data.error === 'string' ? data.error : 'Could not save your profile')
         return
       }
-      setSavedPath(`/${locale}/installers/${data.slug}`)
+      setSavedPath(`/${locale}/${isHandyman ? 'handymen' : 'installers'}/${data.slug}`)
     } catch {
       setError('Could not save your profile')
     } finally {
@@ -57,17 +58,19 @@ export function InstallerProfileForm() {
       <SignupHeader isLoading={saving} />
       <form onSubmit={onSubmit} className="mx-auto flex w-full max-w-md flex-col gap-4 text-black">
         <div>
-          <h2 className="text-2xl font-semibold">Your installer profile</h2>
+          <h2 className="text-2xl font-semibold">{isHandyman ? 'Your handyman profile' : 'Your installer profile'}</h2>
           <p className="mt-1 text-sm text-gray-600">
-            This page is shareable. It does not appear as a public card in the House Pros list.
+            {isHandyman
+              ? 'This page is shareable. It does not appear as a public card. It is for small repairs and projects under $1,000, including labor and materials.'
+              : 'This page is shareable. It does not appear as a public card in the House Pros list.'}
           </p>
         </div>
         <label className="block text-sm font-medium">
-          What you install
+          {isHandyman ? 'What you repair' : 'What you install'}
           <input
             value={trades}
             onChange={(event) => setTrades(event.target.value)}
-            placeholder="Pavers, tile, irrigation"
+            placeholder={isHandyman ? 'Drywall, doors, fixtures' : 'Pavers, tile, irrigation'}
             required
             className="mt-1 w-full rounded-lg border-2 border-black px-3 py-2 text-sm"
           />

@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { Package } from 'lucide-react';
+import { ImageSlides } from '@/components/media/ImageSlides';
 import type { ProProduct, ProductVariant } from '@/lib/products/types';
 
 interface ProductDetailProps {
@@ -21,22 +21,9 @@ function thicknessLabel(variant: ProductVariant) {
 export function ProductDetail({ product }: ProductDetailProps) {
   const t = useTranslations('proProducts');
   const locale = useLocale();
-  const [imageFailed, setImageFailed] = useState(false);
-  const [imageIndex, setImageIndex] = useState(0);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [openSection, setOpenSection] = useState<'data' | 'desc' | null>('data');
   const images = product.images.length > 0 ? product.images : product.image_url ? [product.image_url] : [];
-  const currentImage = images[imageIndex] ?? images[0] ?? null;
-  const showImage = Boolean(currentImage) && !imageFailed;
-
-  useEffect(() => {
-    if (!lightboxOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setLightboxOpen(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [lightboxOpen]);
+  const slides = images.map((src) => ({ src, alt: product.name }));
 
   const rows = [
     { label: t('brand'), value: product.brand || '—' },
@@ -56,44 +43,13 @@ export function ProductDetail({ product }: ProductDetailProps) {
       <div className="overflow-hidden rounded-lg border-2 border-black bg-white">
         <div className="flex flex-col md:h-[500px] md:flex-row">
           <div className="relative h-[220px] w-full bg-neutral-100 md:h-full md:w-[45%] md:min-w-[45%]">
-            {showImage ? (
-              <button
-                type="button"
-                onClick={() => setLightboxOpen(true)}
-                className="absolute inset-0 cursor-zoom-in"
-                aria-label={product.name}
-              >
-                <img
-                  src={currentImage ?? undefined}
-                  alt=""
-                  className="h-full w-full object-contain"
-                  onError={() => setImageFailed(true)}
-                />
-              </button>
+            {slides.length > 0 ? (
+              <ImageSlides images={slides} label={product.name} fill />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-neutral-400">
                 <Package className="h-16 w-16" aria-hidden />
               </div>
             )}
-            {images.length > 1 ? (
-              <div className="absolute inset-x-2 bottom-2 flex gap-1 overflow-x-auto">
-                {images.map((image, index) => (
-                  <button
-                    key={image}
-                    type="button"
-                    onClick={() => {
-                      setImageFailed(false);
-                      setImageIndex(index);
-                    }}
-                    className={`h-10 w-10 shrink-0 overflow-hidden rounded border-2 bg-white ${
-                      index === imageIndex ? 'border-black' : 'border-white'
-                    }`}
-                  >
-                    <img src={image} alt="" className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </div>
 
           <div className="flex min-h-0 w-full flex-col md:w-[55%]">
@@ -166,25 +122,6 @@ export function ProductDetail({ product }: ProductDetailProps) {
         </div>
       ) : null}
 
-      {lightboxOpen && showImage
-        ? createPortal(
-            <div
-              className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setLightboxOpen(false)}
-              role="presentation"
-            >
-              <button type="button" className="sr-only" onClick={() => setLightboxOpen(false)}>
-                {t('closeImage')}
-              </button>
-              <img
-                src={currentImage ?? undefined}
-                alt={product.name}
-                className="max-h-[90vh] max-w-full object-contain"
-              />
-            </div>,
-            document.body
-          )
-        : null}
     </div>
   );
 }

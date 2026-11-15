@@ -30,9 +30,11 @@ export interface User {
   companyRoleOther?: string;
   userPicture?: string;
   preferredLocale?: string;
+  /** New Google customer still needs referral, phone, and terms. */
+  accountSetupPending?: boolean;
 }
 
-export type UserRole = 'customer' | 'contractor';
+export type UserRole = 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman';
 
 interface AuthContextType {
   user: User | null;
@@ -44,7 +46,11 @@ interface AuthContextType {
   signup: (userData: SignupData) => Promise<User>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  /** Reload roles after the signed-in person changes their classification. */
+  refreshRoles: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
+  /** Local update after the Google finish screen is saved. */
+  applyAccountSetup: (patch: { phone: string; referral: string; referralOther?: string }) => void;
 }
 
 interface SignupData {
@@ -123,6 +129,7 @@ function mapSupabaseUserToUser(
     companyRoleOther: profile?.company_role_other || metadata.companyRoleOther,
     userPicture: profile?.user_picture || metadata.userPicture,
     preferredLocale: profile?.preferred_locale || metadata.preferredLocale,
+    accountSetupPending: profile?.account_setup_pending === true,
   };
 }
 
@@ -334,6 +341,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               companyRoleOther: apiUser.companyRoleOther,
               userPicture: apiUser.userPicture,
               preferredLocale: apiUser.preferredLocale,
+              accountSetupPending: apiUser.accountSetupPending === true,
             });
             setIsAdmin(!!apiIsAdmin);
             setRoles(Array.isArray(userRoles) ? userRoles : []);
@@ -779,6 +787,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, [user, supabase, loadUserFromSession]);
 
+  const refreshRoles = useCallback(async () => {
+    try {
+      const response = await fetch('/api/profile/roles', { credentials: 'include' });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (Array.isArray(data.roles)) setRoles(data.roles);
+    } catch {
+      // Keep the roles already on screen.
+    }
+  }, []);
+
+  const applyAccountSetup = useCallback(
+    (patch: { phone: string; referral: string; referralOther?: string }) => {
+      setUser((current) =>
+        current
+          ? {
+              ...current,
+              phone: patch.phone,
+              referral: patch.referral,
+              referralOther: patch.referralOther,
+              accountSetupPending: false,
+            }
+          : current
+      );
+    },
+    []
+  );
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
@@ -789,7 +825,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signup,
     logout,
     checkAuth,
+    refreshRoles,
     updateUser,
+    applyAccountSetup,
   };
 
   return (

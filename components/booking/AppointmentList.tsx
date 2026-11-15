@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { createSignInUrl } from '@/lib/redirect';
 import { Button } from '@/components/ui/Button';
+import { BookProPicker } from '@/components/booking/BookProPicker';
 import type { Locale } from '@/i18n';
 
 interface AppointmentRow {
@@ -26,6 +27,7 @@ export default function AppointmentList() {
   const [rows, setRows] = useState<AppointmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -62,6 +64,8 @@ export default function AppointmentList() {
         <Link href={createSignInUrl(locale, '/appointments')}>
           <Button type="button" size="sm" variant="primary">{t('signInAction')}</Button>
         </Link>
+        <Button type="button" variant="primary" onClick={() => setPickerOpen(true)}>{t('makeAppointment')}</Button>
+        <BookProPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
       </div>
     );
   }
@@ -71,9 +75,19 @@ export default function AppointmentList() {
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-6 p-4">
-      <p className="text-sm text-gray-600">{t('subtitle')}</p>
       {error && <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-      {rows.length === 0 && !error && <p className="text-sm text-gray-700">{t('empty')}</p>}
+      {rows.length === 0 && !error && (
+        <div className="mt-[20px] flex flex-col items-center gap-4">
+          <p className="text-center text-xl font-semibold uppercase tracking-wide text-black">{t('empty')}</p>
+          <Button type="button" variant="primary" onClick={() => setPickerOpen(true)}>{t('makeAppointment')}</Button>
+        </div>
+      )}
+      {rows.length > 0 && (
+        <div className="flex justify-center">
+          <Button type="button" variant="primary" onClick={() => setPickerOpen(true)}>{t('makeAppointment')}</Button>
+        </div>
+      )}
+      <BookProPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
       <AppointmentGroup title={t('upcoming')} rows={upcoming} locale={locale} />
       <AppointmentGroup title={t('earlier')} rows={earlier} locale={locale} />
     </div>

@@ -63,7 +63,7 @@ export async function listProInviters(admin: Admin): Promise<ProInviter[]> {
       admin
         .from('user_roles')
         .select('user_id')
-        .in('role', ['contractor', 'realtor', 'installer'])
+        .in('role', ['contractor', 'realtor', 'installer', 'handyman'])
         .eq('is_active', true)
         .range(from, to),
     ),

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { savedBusinessStorage } from '@/lib/storage/savedBusinessStorage';
+import { fetchSavedBusinessIds, syncLocalSavedBusinesses, unsaveBusinessOnServer } from '@/lib/saved/saved-business-client';
 import { ProCardData } from '@/components/proscard/ProCard';
 import ProCard from '@/components/proscard/ProCard';
 import { Minus, Bookmark, Settings } from 'lucide-react';
@@ -26,16 +27,19 @@ export default function SavedBusinessesPage() {
       return;
     }
     let cancelled = false;
-    const ids = savedBusinessStorage.getSavedBusinessIds(user.id);
     setLoadingCards(true);
-    Promise.all(
-      ids.map(async (id) => {
-        const res = await fetch(`/api/businesses/${id}`);
-        if (!res.ok) return null;
-        const data = await res.json();
-        return (data.business ?? null) as ProCardData | null;
-      })
-    )
+    (async () => {
+      await syncLocalSavedBusinesses(user.id);
+      return (await fetchSavedBusinessIds()) ?? savedBusinessStorage.getSavedBusinessIds(user.id);
+    })()
+      .then((ids) => Promise.all(
+        ids.map(async (id) => {
+          const res = await fetch(`/api/businesses/${id}`);
+          if (!res.ok) return null;
+          const data = await res.json();
+          return (data.business ?? null) as ProCardData | null;
+        }),
+      ))
       .then((cards) => {
         if (cancelled) return;
         setSavedBusinesses(cards.filter((card): card is ProCardData => Boolean(card)));
@@ -51,29 +55,19 @@ export default function SavedBusinessesPage() {
     };
   }, [user?.id, refresh]);
 
-  const handleRemove = (businessId: string) => {
-    if (user?.id && confirm(t('removeConfirm'))) {
-      savedBusinessStorage.removeSavedBusiness(user.id, businessId);
-      setRefresh((v) => v + 1);
-    }
+  const handleRemove = async (businessId: string) => {
+    if (!user?.id || !confirm(t('removeConfirm'))) return;
+    const removed = await unsaveBusinessOnServer(businessId);
+    if (!removed) savedBusinessStorage.removeSavedBusiness(user.id, businessId);
+    setRefresh((v) => v + 1);
   };
 
   const handleShare = () => {
     // Share functionality can be handled by ProCard's built-in share
   };
 
-  const handleReaction = (businessId: string, type: 'love' | 'feedback' | 'link' | 'save') => {
-    if (type === 'save' && user?.id) {
-      // Toggle save status
-      const isSaved = savedBusinessStorage.isBusinessSaved(user.id, businessId);
-      if (isSaved) {
-        savedBusinessStorage.removeSavedBusiness(user.id, businessId);
-      } else {
-        savedBusinessStorage.saveBusiness(user.id, businessId);
-      }
-
-      setRefresh((v) => v + 1);
-    }
+  const handleReaction = (_businessId: string, type: 'love' | 'feedback' | 'link' | 'save') => {
+    if (type === 'save') setRefresh((v) => v + 1);
   };
 
   return (

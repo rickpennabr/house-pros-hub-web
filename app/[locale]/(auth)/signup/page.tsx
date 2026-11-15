@@ -3,9 +3,9 @@
 import { useState, Suspense, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { createClient } from '@/lib/supabase/client';
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout';
 import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
+import { startGoogleOAuth, takeGoogleOAuthResume } from '@/lib/auth/googleOAuth';
 import { isProSignup, signupUserType } from '@/lib/constants/auth';
 import { useSignupForm } from './hooks/useSignupForm';
 import { SignupHeader } from './components/SignupHeader';
@@ -42,7 +42,7 @@ function SignUpForm() {
   const { refreshBusinesses } = useAccountSwitch();
   
   // Get role from URL if coming from Free Estimate button
-  const urlRole = searchParams.get('role') as 'customer' | 'contractor' | 'realtor' | 'installer' | null;
+  const urlRole = searchParams.get('role') as 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | null;
   const skipRoleSelection = searchParams.get('skipRoleSelection') === 'true';
   const fromQuickRepair = (searchParams.get('returnUrl') ?? '').includes('/quick-repair');
   
@@ -51,10 +51,10 @@ function SignUpForm() {
   const [currentStep, setCurrentStep] = useState<SignupStep>(() => {
     if (fromQuickRepair) return 'form';
     if (skipRoleSelection || urlRole === 'customer') return 'customer-signup-choice';
-    if (urlRole === 'contractor' || urlRole === 'realtor' || urlRole === 'installer') return 'invitation-code';
+    if (urlRole === 'contractor' || urlRole === 'realtor' || urlRole === 'installer' || urlRole === 'handyman') return 'invitation-code';
     return 'role-selection';
   });
-  const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | 'realtor' | 'installer' | null>(
+  const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | null>(
     fromQuickRepair || skipRoleSelection ? 'customer' : urlRole
   );
   const [isAuthLoading, setIsAuthLoading] = useState(false);
@@ -91,7 +91,7 @@ function SignUpForm() {
   // Disable warning when success message or business success message is shown
   const { showModal, handleConfirmLeave, handleCancelLeave, allowNavigation } = useBeforeUnloadWarning(
     formState.currentStep,
-    currentStep === 'form' && !formState.showAddBusinessForm && !formState.successMessage && !formState.businessSuccessMessage
+    currentStep === 'form' && !formState.showAddBusinessForm && !formState.showInstallerForm && !formState.showHandymanForm && !formState.successMessage && !formState.businessSuccessMessage
   );
 
   const handleStepNext = async () => {
@@ -125,28 +125,35 @@ function SignUpForm() {
     setError(null);
     setIsGoogleLoading(true);
     const returnUrl = searchParams.get('returnUrl');
-    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-    document.cookie = `hph_oauth_flow=customer; Path=/; Max-Age=600; SameSite=Lax${secure}`;
-    document.cookie = `hph_oauth_locale=${encodeURIComponent(locale)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
-    if (returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//')) {
-      document.cookie = `hph_oauth_next=${encodeURIComponent(returnUrl)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
-    } else {
-      document.cookie = 'hph_oauth_next=; Path=/; Max-Age=0; SameSite=Lax';
-    }
-
-    const supabase = createClient();
-    const redirectTo = `${window.location.origin}/api/auth/callback?locale=${encodeURIComponent(locale)}&flow=customer`;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo },
+    const result = await startGoogleOAuth({
+      flow: 'customer',
+      locale,
+      returnUrl,
     });
-    if (error) {
-      setError(t('errors.googleSignInFailed'));
-      setIsGoogleLoading(false);
-    }
+    if (result.ok) return;
+    if (result.error === 'redirect_to_lan') return;
+    setError(
+      result.error === 'redirect_not_allowlisted'
+        ? result.message
+        : t('errors.googleSignInFailed')
+    );
+    setIsGoogleLoading(false);
   };
 
-  const handleRoleSelect = (role: 'customer' | 'contractor' | 'realtor' | 'installer') => {
+  useEffect(() => {
+    const fromQuery = searchParams.get('google');
+    const resume = fromQuery === 'customer' || fromQuery === 'signin' ? fromQuery : takeGoogleOAuthResume();
+    if (resume !== 'customer') return;
+    if (fromQuery) {
+      const cleaned = new URL(window.location.href);
+      cleaned.searchParams.delete('google');
+      window.history.replaceState({}, '', cleaned.pathname + cleaned.search);
+    }
+    void handleGoogleSignUp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when landing from the LAN hostname hop
+  }, []);
+
+  const handleRoleSelect = (role: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman') => {
     setSelectedRole(role);
     setCustomerChoseForm(false);
     setCurrentStep(role === 'customer' ? 'customer-signup-choice' : 'invitation-code');
@@ -182,7 +189,7 @@ function SignUpForm() {
       setCurrentStep('customer-signup-choice');
       return;
     }
-    if (formState.currentStep === 1 && (selectedRole === 'contractor' || selectedRole === 'realtor' || selectedRole === 'installer')) {
+    if (formState.currentStep === 1 && (selectedRole === 'contractor' || selectedRole === 'realtor' || selectedRole === 'installer' || selectedRole === 'handyman')) {
       setCurrentStep('invitation-code');
       return;
     }
@@ -333,7 +340,7 @@ function SignUpForm() {
         )}
 
         {/* Contractor or Realtor: Invitation code before personal info */}
-        {currentStep === 'invitation-code' && (selectedRole === 'contractor' || selectedRole === 'realtor' || selectedRole === 'installer') && (
+        {currentStep === 'invitation-code' && (selectedRole === 'contractor' || selectedRole === 'realtor' || selectedRole === 'installer' || selectedRole === 'handyman') && (
           <>
             <SignupHeader isLoading={false} />
             <InvitationCodeScreen
@@ -350,6 +357,8 @@ function SignUpForm() {
             {/* Add Business Form - takes priority */}
             {formState.showInstallerForm ? (
               <InstallerProfileForm />
+            ) : formState.showHandymanForm ? (
+              <InstallerProfileForm variant="handyman" />
             ) : formState.showAddBusinessForm ? (
               <AddBusinessForm
                 personalData={getPersonalData()}

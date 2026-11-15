@@ -27,11 +27,13 @@ import { HphQrCodeModal } from '@/components/qr/HphQrCodeModal';
 import { publicPageUrl } from '@/lib/qr/public-origin';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import MakeAppointmentCard from '@/components/businessdetails/MakeAppointmentCard';
 
 interface BusinessLinksTabProps {
   links: LinkItem[];
   businessName?: string;
   logoSrc?: string | null;
+  appointmentHref?: string;
 }
 
 // Type for icon components (both lucide-react and react-icons)
@@ -72,7 +74,7 @@ const linkLabels: Record<string, string> = {
   location: 'Location',
 };
 
-export default function BusinessLinksTab({ links, businessName, logoSrc }: BusinessLinksTabProps) {
+export default function BusinessLinksTab({ links, businessName, logoSrc, appointmentHref }: BusinessLinksTabProps) {
   const [isQrOpen, setIsQrOpen] = useState(false);
   const pathname = usePathname();
   const pageUrl = publicPageUrl(pathname);
@@ -93,7 +95,7 @@ export default function BusinessLinksTab({ links, businessName, logoSrc }: Busin
 
   const visibleLinks = links.filter((link) => link.type !== 'phone');
 
-  if (visibleLinks.length === 0) {
+  if (visibleLinks.length === 0 && !appointmentHref) {
     return (
       <div className="p-4 bg-white">
         <p className="text-gray-600">No links available.</p>
@@ -128,6 +130,11 @@ export default function BusinessLinksTab({ links, businessName, logoSrc }: Busin
             </div>
           );
         })}
+        {appointmentHref ? (
+          <div className="flex justify-end md:col-span-2">
+            <MakeAppointmentCard href={appointmentHref} />
+          </div>
+        ) : null}
       </div>
       <HphQrCodeModal
         isOpen={isQrOpen}

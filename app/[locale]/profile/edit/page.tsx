@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useState, useMemo } from 'react';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
-import { ChevronDown, ChevronUp, Trash2, User as UserIcon, X, UserPen, Settings } from 'lucide-react';
+import { ChevronDown, ChevronUp, HardHat, Trash2, User as UserIcon, X, UserPen, Settings } from 'lucide-react';
 import { resizeImageSquare, base64ToFile, validateFileSize } from '@/lib/utils/image';
 import { useRef } from 'react';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
@@ -30,7 +30,7 @@ import {
 import { useReferralOptions } from '@/hooks/useReferralOptions';
 
 export default function EditProfilePage() {
-  const { user, isAuthenticated, isLoading, updateUser, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, updateUser, logout, refreshRoles } = useAuth();
   const router = useRouter();
   const locale = useLocale() as Locale;
   const t = useTranslations('profileEdit');
@@ -66,6 +66,10 @@ export default function EditProfilePage() {
   const [personalAddressId, setPersonalAddressId] = useState<string | null>(null);
   const [initialFormData, setInitialFormData] = useState<typeof formData | null>(null);
   const [showCompanyFields, setShowCompanyFields] = useState(false);
+  const [accountRoles, setAccountRoles] = useState<string[]>([]);
+  const [roleMessage, setRoleMessage] = useState('');
+  const [roleError, setRoleError] = useState('');
+  const [roleBusy, setRoleBusy] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteStep, setDeleteStep] = useState<'warning' | 'verify'>('warning');
   const [deleteHasPassword, setDeleteHasPassword] = useState(true);
@@ -178,7 +182,9 @@ export default function EditProfilePage() {
 
         if (rolesRes.ok) {
           const rolesData = await rolesRes.json();
-          const isContractor = rolesData.roles?.includes('contractor') || false;
+          const roles: string[] = Array.isArray(rolesData.roles) ? rolesData.roles : [];
+          if (!cancelled) setAccountRoles(roles);
+          const isContractor = roles.includes('contractor');
           
           if (isContractor) {
             if (!cancelled) setShowCompanyFields(true);
@@ -209,6 +215,38 @@ export default function EditProfilePage() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  const toggleInstaller = async () => {
+    if (roleBusy) return;
+    const hasInstaller = accountRoles.includes('installer');
+    setRoleBusy(true);
+    setRoleError('');
+    setRoleMessage('');
+    try {
+      const csrfToken = await getCsrfToken();
+      const response = await fetch('/api/profile/roles', {
+        method: hasInstaller ? 'DELETE' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ role: 'installer', csrfToken }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data.error === 'string' ? data.error : t('roleFailed'));
+      }
+      const roles: string[] = Array.isArray(data.roles) ? data.roles : [];
+      setAccountRoles(roles);
+      setRoleMessage(t('roleUpdated'));
+      await refreshRoles();
+    } catch (error) {
+      setRoleError(error instanceof Error ? error.message : t('roleFailed'));
+    } finally {
+      setRoleBusy(false);
+    }
+  };
 
   // Check if form has been modified - compare all fields individually
   // This must be called before any early returns to follow Rules of Hooks
@@ -952,6 +990,25 @@ export default function EditProfilePage() {
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="border-2 border-black rounded-lg bg-white p-4">
+            <h2 className="text-xl font-bold text-black">{t('hubUseTitle')}</h2>
+            <p className="mt-1 text-sm text-gray-600">{t('hubUseHelp')}</p>
+            <button
+              type="button"
+              onClick={toggleInstaller}
+              disabled={roleBusy}
+              aria-pressed={accountRoles.includes('installer')}
+              className={`mt-3 flex w-full items-center gap-3 rounded-lg border-2 border-black p-3 text-left cursor-pointer disabled:opacity-50 ${
+                accountRoles.includes('installer') ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
+              }`}
+            >
+              <HardHat className={`h-5 w-5 ${accountRoles.includes('installer') ? 'text-white' : 'text-red-500'}`} />
+              <span className="text-sm font-medium">{t('installerRole')}</span>
+            </button>
+            {roleMessage && <p className="mt-2 text-sm text-green-700">{roleMessage}</p>}
+            {roleError && <p className="mt-2 text-sm text-red-600">{roleError}</p>}
           </div>
 
           {/* Address Information */}

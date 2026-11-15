@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 /**
  * User role types
  */
-export type UserRole = 'customer' | 'contractor' | 'realtor' | 'installer';
+export type UserRole = 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman';
 
 /**
  * Get all active roles for a user

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import * as LucideIcons from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import MakeAppointmentCard from '@/components/businessdetails/MakeAppointmentCard';
 
 interface LicenseInfo {
   license: string;
@@ -29,6 +30,7 @@ interface BusinessAboutTabProps {
   ownerCertifications?: string;
   ownerYearsExperience?: number;
   companyDescription?: string;
+  appointmentHref?: string;
 }
 
 function lines(value?: string): string[] {
@@ -161,7 +163,8 @@ export default function BusinessAboutTab({
   ownerDegrees,
   ownerCertifications,
   ownerYearsExperience,
-  companyDescription
+  companyDescription,
+  appointmentHref,
 }: BusinessAboutTabProps) {
   const t = useTranslations('estimate.options.trades');
   const tOwner = useTranslations('businessForm.owner');
@@ -275,6 +278,11 @@ export default function BusinessAboutTab({
                 </ul>
               </div>
             )}
+            {appointmentHref ? (
+              <div className="!mt-3 flex justify-end">
+                <MakeAppointmentCard href={appointmentHref} />
+              </div>
+            ) : null}
           </div>
         </div>
       </section>

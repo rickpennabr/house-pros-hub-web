@@ -202,7 +202,7 @@ export default function CRMProductsPage() {
         renderCell={(row, columnId) => {
           if (columnId === 'photo') {
             const photo = row.images.find((image) => image.is_thumbnail)?.image_url ?? row.images[0]?.image_url;
-            return photo ? <img src={photo} alt="" className="h-10 w-10 rounded object-cover" /> : <span className="inline-block h-10 w-10 rounded bg-neutral-100" />;
+            return photo ? <img src={photo} alt="" className="h-8 w-8 rounded object-cover" /> : <span className="inline-block h-8 w-8 rounded bg-neutral-100" />;
           }
           if (columnId === 'specs') return String(row.specs.length);
           return cellText(row, columnId) || '—';

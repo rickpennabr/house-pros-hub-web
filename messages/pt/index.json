@@ -22,6 +22,7 @@
       "email": "E-mail",
       "phone": "Telefone",
       "mobilePhone": "Celular",
+      "location": "Localização",
       "password": "Senha",
       "confirmPassword": "Confirmar Senha"
     },
@@ -52,6 +53,7 @@
     "account": {
       "myBusiness": "Meu Negócio",
       "accountManagement": "Gerenciar Conta",
+      "manageAccounts": "Gerenciar Contas",
       "proscrm": "ProsCRM",
       "probot": "ProBot",
       "callTheHub": "Ligar para o Hub",
@@ -66,10 +68,20 @@
       "searchBusinesses": "Buscar negócios",
       "noBusinessesFound": "Nenhum negócio encontrado",
       "personalAccount": "Conta pessoal",
-      "businessAccount": "Conta comercial"
+      "businessAccount": "Conta comercial",
+      "switchAccount": "Trocar conta",
+      "shareBusiness": "Compartilhar negócio"
     },
     "settings": {
       "languagePreferenceSaved": "Sua escolha é salva na sua conta e usada sempre que você entrar."
+    },
+    "slides": {
+      "view": "Ver fotos",
+      "close": "Fechar fotos",
+      "previous": "Foto anterior",
+      "next": "Próxima foto",
+      "count": "{current} de {total}",
+      "thumbnail": "Foto {index}"
     }
   },
   "probot": {
@@ -238,7 +250,14 @@
     "active": "Mostrar na sua página",
     "hidden": "Oculto",
     "error": "Não foi possível salvar este serviço.",
-    "unavailable": "Os serviços ainda não estão prontos. Aplique a migração de serviços de agendamento."
+    "unavailable": "Os serviços ainda não estão prontos. Aplique a migração de serviços de agendamento.",
+    "share": "Compartilhar",
+    "shareTitle": "Compartilhar serviços",
+    "shareMessage": "Estes são os serviços de {name}.",
+    "detailsTitle": "Detalhes do serviço",
+    "back": "Voltar aos serviços",
+    "noPhoto": "Ainda sem foto",
+    "noDescription": "Ainda sem descrição."
   },
   "businessHours": {
     "tab": "Horário",
@@ -248,12 +267,22 @@
     "empty": "O horário ainda não foi informado.",
     "timesIn": "Os horários estão em {zone}."
   },
+  "businessTabs": {
+    "dragHint": "Arraste para mudar a ordem das abas"
+  },
   "appointments": {
     "title": "Horários",
     "subtitle": "Remarque ou cancele até 2 horas antes da visita.",
     "upcoming": "Próximos",
     "earlier": "Anteriores",
     "empty": "Você ainda não tem horários.",
+    "makeAppointment": "Marcar um horário",
+    "pickPro": "Escolha um profissional",
+    "pickProHint": "Toque em um profissional para começar o horário.",
+    "searchPros": "Buscar profissionais",
+    "noSearchResults": "Nenhum profissional corresponde à busca.",
+    "noPros": "Ainda não há profissionais.",
+    "loadingPros": "Carregando profissionais…",
     "signIn": "Entre para ver os horários da sua conta. Reservas de visitante ficam no link do e-mail de confirmação.",
     "signInAction": "Entrar",
     "with": "Com",
@@ -547,6 +576,7 @@
     "crmInvoices": "Faturas",
     "crmProjects": "Projetos",
     "crmExpenses": "Despesas",
+    "crmMileage": "Quilometragem",
     "crmReports": "Relatórios",
     "crmItems": "Produtos e serviços",
     "crmServices": "Serviços",
@@ -624,6 +654,7 @@
     "crmJobsite": "Obra",
     "crmPortal": "Portal do cliente",
     "crmQrcode": "QR code",
+    "crmMenuDragHint": "Arraste um quadro para mudar a ordem",
     "proAdd": {
       "title": "Adicionar",
       "crm": "CRM",
@@ -632,6 +663,7 @@
       "invoice": "Nova fatura",
       "project": "Novo projeto",
       "expense": "Nova despesa",
+      "trip": "Registrar viagem",
       "task": "Nova tarefa",
       "service": "Novo serviço",
       "product": "Novo produto"
@@ -682,6 +714,23 @@
       "title": "Conectando sua conta do Google",
       "subtitle": "Estamos trazendo seu nome, e-mail e foto do Google para o House Pros Hub."
     },
+    "finishSetup": {
+      "title": "Termine a configuração da sua conta para entrar no Hub",
+      "subtitle": "Seu nome, e-mail e foto do Google estão salvos. Diga como conheceu o House Pros Hub, adicione seu telefone e aceite os termos.",
+      "submit": "Entrar no Hub",
+      "submitting": "Salvando...",
+      "cancel": "Agora não",
+      "cancelHint": "Vamos manter sua conta do Google. Entre com o Google de novo quando quiser terminar.",
+      "termsPrefix": "Eu concordo com os",
+      "errors": {
+        "generic": "Não foi possível terminar sua conta. Tente de novo.",
+        "referral": "Selecione como conheceu o House Pros Hub",
+        "referralOther": "Diga como conheceu o House Pros Hub",
+        "phone": "O telefone é obrigatório",
+        "phoneInvalid": "Telefone inválido (ex.: 702-555-0123)",
+        "terms": "Você precisa aceitar os termos"
+      }
+    },
     "signin": {
       "title": "Bem-vindo de volta",
       "subtitle": "Entre na sua conta",
@@ -702,6 +751,7 @@
       "errors": {
         "generic": "Falha ao entrar. Tente novamente.",
         "google": "Não foi possível entrar com o Google",
+        "googleRedirectAllowlist": "O Google abriria o site ao vivo a partir deste URL do telefone. {detail}",
         "existingAccount": "Já existe uma conta com este e-mail. Entre com a senha que você criou."
       }
     },
@@ -783,7 +833,13 @@
           "title": "Sou Instalador",
           "titleWithCode": "(código de convite obrigatório) Sou Instalador",
           "invitationCodeRequired": "(código de convite obrigatório)",
-          "description": "Instalo para contratados"
+          "description": "Instalo para contratados e projetos pequenos ou reparos"
+        },
+        "handyman": {
+          "title": "Sou Handyman",
+          "titleWithCode": "(código de convite obrigatório) Sou Handyman",
+          "invitationCodeRequired": "(código de convite obrigatório)",
+          "description": "Faço reparos e projetos pequenos abaixo de $1.000"
         },
         "realtor": {
           "title": "Sou Corretor",
@@ -800,7 +856,7 @@
       },
       "customerSignupChoice": {
         "title": "Como você quer se cadastrar?",
-        "estimateHint": "Digite suas informações para o orçamento GRÁTIS.",
+        "estimateHint": "Digite suas informações para os orçamentos GRÁTIS.",
         "signUpWithForm": "Cadastrar com formulário",
         "or": "OU"
       },
@@ -1118,6 +1174,22 @@
       "noGalleryYet": "Ainda não há imagens na galeria.",
       "saveError": "A foto foi enviada, mas não foi possível salvá-la na galeria. Tente novamente.",
       "removeError": "Não foi possível remover essa foto. Tente novamente.",
+      "shareButton": "Compartilhar",
+      "shareTitle": "Compartilhar fotos",
+      "shareMessage": "Aqui estão alguns trabalhos de {name}.",
+      "reorderHint": "Arraste as fotos para mudar a ordem.",
+      "savingOrder": "Salvando ordem…",
+      "reorderError": "Não foi possível salvar a nova ordem das fotos. Tente novamente.",
+      "dragImageAria": "Arrastar para reordenar a foto {index}",
+      "search": "Buscar imagens",
+      "clearSearch": "Limpar busca",
+      "noSearchResults": "Nenhuma imagem corresponde à busca.",
+      "tagHint": "Adicione tags como driveway ou pavers para as pessoas encontrarem cada foto.",
+      "tagPlaceholder": "Adicionar tag",
+      "addTag": "Adicionar",
+      "removeTagAria": "Remover tag {tag}",
+      "tagLimit": "Cada foto pode ter até 8 tags.",
+      "tagSaveError": "Não foi possível salvar essas tags. Tente novamente.",
       "instructionsTitle": "Gallery Instructions",
       "instructionsLine1": "Add photos of your work or business (e.g. projects, team, office).",
       "instructionsLine2": "These will appear in the Images tab on your business details page."
@@ -1219,10 +1291,12 @@
     },
     "accordion": {
       "customerInfo": "Customer Information",
-      "projectAddress": "Project Address",
+      "personalInfo": "Informações pessoais",
+      "projectAddress": "Endereço do projeto",
       "confirmAddressFromProfile": "We've pre-filled your project address from your profile. Confirm or update it below.",
       "projectInfo": "Project Information",
       "projectType": "Project Type",
+      "projectTypeHint": "Escolha o que melhor descreve o seu projeto.",
       "trades": "Select Trades/Services Needed*",
       "tradesMultiHint": "(you can select more than one)",
       "description": "Project Description & Images",
@@ -1274,6 +1348,7 @@
       "hoaAnd3DLabel": "Any of these apply to your project?",
       "tradesLabel": "Select Trades/Services Needed* (you can select more than one)",
       "projectDescriptionLabel": "Project Description",
+      "descriptionLabel": "Descrição",
       "projectDescriptionPlaceholder": "Describe what you need...",
       "projectImagesLabel": "Project Images (Optional)",
       "projectImagesHelp": "Upload up to 5 images to help contractors understand your project better. Accepted formats: JPEG, PNG, WebP. Max size: 5MB per image.",
@@ -1304,6 +1379,7 @@
         "repair": "Repair",
         "remodel": "Remodel",
         "addition_extension": "Addition/Extension",
+        "maintenance": "Manutenção",
         "other": "Other"
       },
       "budgetRange": {
@@ -1469,7 +1545,13 @@
     "love": "Amei",
     "feedback": "Comentar",
     "link": "Conectar",
-    "save": "salvar"
+    "save": "salvar",
+    "saveOnPersonalTitle": "Salvar no seu perfil pessoal",
+    "saveOnPersonalMessage": "Os negócios salvos ficam no seu perfil pessoal. Quer mudar para esse perfil e salvar este negócio?",
+    "yes": "Sim",
+    "savedTitle": "Salvo",
+    "savedMessage": "Este negócio foi salvo no seu perfil pessoal.",
+    "ok": "OK"
   },
   "categories": {
     "all": "All",
@@ -1534,7 +1616,12 @@
     "personalAccountFallback": "Pessoal",
     "businessAccountFallback": "Negócio",
     "quickActions": "Quick Actions",
+    "dragHint": "Arraste o ícone para colocar primeiro os que você mais usa",
     "access": "Access",
+    "settings": {
+      "title": "Configurações",
+      "description": "Idioma e privacidade"
+    },
     "actions": {
       "personal": {
         "editProfile": {
@@ -1584,8 +1671,8 @@
           "description": "New Business"
         },
         "managePartners": {
-          "title": "Manage Partners",
-          "description": "Manage Partnerships"
+          "title": "Fazer parceria",
+          "description": "Nova parceria"
         }
       }
     }
@@ -1637,6 +1724,11 @@
     "emailRequired": "Digite o e-mail desta conta",
     "emailMismatch": "Esse e-mail não corresponde a esta conta",
     "profileUpdated": "Perfil atualizado com sucesso!",
+    "hubUseTitle": "Como você usa o Hub",
+    "hubUseHelp": "Instalador é você, não um negócio do diretório. Ative aqui. O endereço só é obrigatório quando um cliente pede um orçamento.",
+    "installerRole": "Sou instalador",
+    "roleUpdated": "Classificação atualizada.",
+    "roleFailed": "Não foi possível atualizar sua classificação.",
     "fields": {
       "firstName": "Nome",
       "lastName": "Sobrenome",
@@ -2521,6 +2613,7 @@
     "failed": "Não foi possível publicar a avaliação.",
     "replyFailed": "Não foi possível publicar a resposta.",
     "ownBusiness": "Este é o seu negócio. Aqui você pode responder às avaliações.",
+    "pickLinkType": "Escolha o tipo de link",
     "appointment": "Agendamento",
     "businessPage": "Página do negócio",
     "shareFeedback": "Avaliação",

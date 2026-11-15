@@ -12,6 +12,7 @@ import { sendNewSignupAdminNotification } from '@/lib/services/emailService';
 import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
 import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
+import { businessAddressError } from '@/lib/schemas/business';
 
 /**
  * Convert base64 string to Buffer for server-side file handling
@@ -155,20 +156,15 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       }
     }
 
-    // Validate address
-    if (!streetAddress && !address) {
-      return NextResponse.json(
-        { error: 'Street address is required' },
-        { status: 400 }
-      );
+    const addressProblem = businessAddressError({ streetAddress, address, city, state, zipCode });
+    if (addressProblem) {
+      return NextResponse.json({ error: addressProblem }, { status: 400 });
     }
-
-    if (!city || !state || !zipCode) {
-      return NextResponse.json(
-        { error: 'City, state, and ZIP code are required' },
-        { status: 400 }
-      );
-    }
+    const hasBusinessAddress = Boolean(
+      String(streetAddress || address || '').trim() ||
+      String(city || '').trim() ||
+      String(zipCode || '').trim()
+    );
 
     // Validate email format if provided
     if (email && !isValidEmail(email)) {
@@ -302,28 +298,31 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       }
     }
 
-    // Create business address
-    const { data: addressData, error: addressError } = await supabase
-      .from('addresses')
-      .insert({
-        user_id: userId,
-        address_type: 'business',
-        street_address: safeStreetAddress,
-        apartment: safeApartment,
-        city: safeCity,
-        state: safeState,
-        zip_code: safeZipCode,
-        is_public: true, // Business addresses are public
-      })
-      .select()
-      .single();
+    let businessAddressId: string | null = null;
+    if (hasBusinessAddress) {
+      const { data: addressData, error: addressError } = await supabase
+        .from('addresses')
+        .insert({
+          user_id: userId,
+          address_type: 'business',
+          street_address: safeStreetAddress,
+          apartment: safeApartment,
+          city: safeCity,
+          state: safeState,
+          zip_code: safeZipCode,
+          is_public: true,
+        })
+        .select()
+        .single();
 
-    if (addressError) {
-      logger.error('Error creating business address', { endpoint: '/api/business/create' }, addressError as Error);
-      return NextResponse.json(
-        { error: 'Failed to create business address' },
-        { status: 500 }
-      );
+      if (addressError || !addressData) {
+        logger.error('Error creating business address', { endpoint: '/api/business/create' }, addressError as Error);
+        return NextResponse.json(
+          { error: 'Failed to create business address' },
+          { status: 500 }
+        );
+      }
+      businessAddressId = addressData.id;
     }
 
     // Create business record first (without images, we'll update after upload)
@@ -340,7 +339,7 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
         email: safeEmail,
         phone: safePhone,
         mobile_phone: safeMobilePhone,
-        business_address_id: addressData.id,
+        business_address_id: businessAddressId,
         links: safeLinks,
         services: safeServices,
         operating_hours: operatingHours || null,
@@ -351,8 +350,9 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
 
     if (businessError) {
       logger.error('Error creating business', { endpoint: '/api/business/create' }, businessError as Error);
-      // Clean up address if business creation fails
-      await supabase.from('addresses').delete().eq('id', addressData.id);
+      if (businessAddressId) {
+        await supabase.from('addresses').delete().eq('id', businessAddressId);
+      }
       return NextResponse.json(
         { error: 'Failed to create business' },
         { status: 500 }

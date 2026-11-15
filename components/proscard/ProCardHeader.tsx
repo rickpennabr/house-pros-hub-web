@@ -27,6 +27,8 @@ interface ProCardHeaderProps {
   onPhoneClick?: (e: React.MouseEvent) => void;
   /** Pro online status: show green (online) or gray (offline) indicator */
   online?: boolean;
+  /** When false, share, message, and phone stay visible but do not take clicks. */
+  actionsEnabled?: boolean;
 }
 
 function getInitials(name: string): string {
@@ -157,6 +159,7 @@ export default function ProCardHeader({
   onMessage,
   onPhoneClick,
   online,
+  actionsEnabled = true,
 }: ProCardHeaderProps) {
   const t = useTranslations('estimate.options.trades');
   const initials = getInitials(businessName);
@@ -267,7 +270,7 @@ export default function ProCardHeader({
       </div>
       {/* Right-side actions: one group at right-2 so share's right edge matches left logo padding (p-2). Icons closer with gap-1. */}
       {isListMode && (
-        <div className="absolute right-2 z-20 flex items-center gap-2 pointer-events-auto">
+        <div className={`absolute right-2 z-20 flex items-center gap-2 ${actionsEnabled ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {phone && (
             <button
               onClick={(e) => {
@@ -297,7 +300,7 @@ export default function ProCardHeader({
       )}
       {/* Card mode: message + share in one group at right-2, share's right edge matches left logo padding */}
       {!isListMode && (
-        <div className="absolute right-2 z-20 flex items-center gap-2 pointer-events-auto">
+        <div className={`absolute right-2 z-20 flex items-center gap-2 ${actionsEnabled ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {onMessage && (
             <button
               onClick={(e) => {

@@ -11,6 +11,7 @@ import {
   SUGGESTED_SERVICE_TRADES,
   SERVICE_IMAGE_LIMIT,
   builtinPriceMode,
+  priceTypeLabel,
   type PriceMode,
 } from '@/lib/crm/catalog-options';
 import type { CrmCatalogTerm, CrmService } from '@/lib/crm/catalog-types';
@@ -58,7 +59,7 @@ export function ServiceEditor({ open, initial, terms, onClose, onSaved, onTermsC
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [unit, setUnit] = useState(DEFAULT_UNIT);
-  const [priceType, setPriceType] = useState(BUILTIN_PRICE_TYPES[0].label);
+  const [priceType, setPriceType] = useState('Start at');
   const [priceMode, setPriceMode] = useState<PriceMode>('flat');
   const [priceCents, setPriceCents] = useState(0);
   const [priceMinCents, setPriceMinCents] = useState(0);
@@ -74,8 +75,9 @@ export function ServiceEditor({ open, initial, terms, onClose, onSaved, onTermsC
     setCategory(initial?.category ?? '');
     setDescription(initial?.description ?? '');
     setUnit(initial?.unit || DEFAULT_UNIT);
-    setPriceType(initial?.price_type || BUILTIN_PRICE_TYPES[0].label);
-    setPriceMode(initial?.price_mode || builtinPriceMode(initial?.price_type || '') || 'flat');
+    const storedType = initial?.price_type || '';
+    setPriceType(storedType && builtinPriceMode(storedType) ? priceTypeLabel(storedType) : storedType || 'Start at');
+    setPriceMode(initial?.price_mode || builtinPriceMode(storedType) || 'flat');
     setPriceCents(initial?.price_cents ?? 0);
     setPriceMinCents(initial?.price_min_cents ?? initial?.price_cents ?? 0);
     setPriceMaxCents(initial?.price_max_cents ?? initial?.price_cents ?? 0);
@@ -279,54 +281,35 @@ export function ServiceEditor({ open, initial, terms, onClose, onSaved, onTermsC
             />
           </label>
           {priceMode !== 'unit' ? unitField : null}
-          <RememberedCombobox
-            label="Price type"
-            value={priceType}
-            onChange={(value) => {
-              setPriceType(value);
-              const match = priceOptions.find((option) => option.value.toLowerCase() === value.trim().toLowerCase());
-              if (match?.mode) setPriceMode(match.mode);
-            }}
-            options={priceOptions}
-            onPick={(option) => {
-              setPriceType(option.value);
-              if (option.mode) setPriceMode(option.mode);
-            }}
-            onRemove={removeTerm}
-          />
-          {!knownPrice && priceType.trim() ? (
-            <div className="rounded-lg border-2 border-black p-3">
-              <p className="mb-2 text-sm text-gray-700">Save “{priceType.trim()}” and choose how the price is entered.</p>
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ['flat', 'One price'],
-                    ['unit', 'Price per unit'],
-                    ['range', 'From / to'],
-                  ] as const
-                ).map(([mode, label]) => (
-                  <Button
-                    key={mode}
+          <div>
+            <span className="mb-1 block text-sm font-medium text-gray-700">Price type</span>
+            <div className="grid grid-cols-3 gap-2">
+              {BUILTIN_PRICE_TYPES.map((option) => {
+                const savedMode = builtinPriceMode(priceType) ?? priceMode;
+                const selected = option.mode === savedMode;
+                return (
+                  <button
+                    key={option.label}
                     type="button"
-                    size="sm"
-                    variant="secondary"
+                    aria-pressed={selected}
                     onClick={() => {
-                      void addTerm('price_type', priceType.trim(), mode).then(() => {
-                        setPriceType(priceType.trim());
-                        setPriceMode(mode);
-                      });
+                      setPriceType(option.label);
+                      setPriceMode(option.mode);
                     }}
+                    className={`rounded-lg border-2 border-black px-2 py-2 text-center text-sm font-medium cursor-pointer ${
+                      selected ? 'bg-black text-white' : 'bg-white text-black'
+                    }`}
                   >
-                    {label}
-                  </Button>
-                ))}
-              </div>
+                    {option.label}
+                  </button>
+                );
+              })}
             </div>
-          ) : null}
-          {priceMode === 'flat' ? <CentsField label="Price ($)" cents={priceCents} onChange={setPriceCents} /> : null}
+          </div>
+          {priceMode === 'flat' ? <CentsField label="Start at ($)" cents={priceCents} onChange={setPriceCents} /> : null}
           {priceMode === 'unit' ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <CentsField label="Price ($)" cents={priceCents} onChange={setPriceCents} />
+              <CentsField label="Unit price ($)" cents={priceCents} onChange={setPriceCents} />
               {unitField}
             </div>
           ) : null}

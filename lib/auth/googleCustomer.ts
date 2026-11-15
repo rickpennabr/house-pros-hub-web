@@ -2,8 +2,6 @@ import type { User } from '@supabase/supabase-js';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { logger } from '@/lib/utils/logger';
-import { sendNewSignupAdminNotification } from '@/lib/services/emailService';
-import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import { classifyGoogleAccount } from '@/lib/auth/googleAccount';
 
 function textMeta(meta: Record<string, unknown>, key: string): string {
@@ -44,7 +42,10 @@ type SavedProfile = {
   referral: string | null;
   business_id: string | null;
   company_role: string | null;
+  account_setup_pending: boolean | null;
 };
+
+export type GoogleCustomerProvision = 'new' | 'existing' | 'pending';
 
 function profileHasSavedDetails(profile: SavedProfile | null): boolean {
   if (!profile) return false;
@@ -89,8 +90,12 @@ async function keepProfileName(
  * After Google sign-in, make sure a brand-new account is a customer.
  * An email/password account with the same address stays that account:
  * same role, phone, business, and name. Google is only an extra way to sign in.
+ *
+ * A brand-new Google customer is marked pending. The Hub stays closed until
+ * they add how they heard about us, a phone number, and the terms. The admin
+ * email waits for that step. Leaving the screen keeps the account.
  */
-export async function provisionGoogleCustomer(user: User): Promise<'new' | 'existing'> {
+export async function provisionGoogleCustomer(user: User): Promise<GoogleCustomerProvision> {
   const service = createServiceRoleClient();
   const { data: adminData, error: adminError } = await service.auth.admin.getUserById(user.id);
   const account = adminData.user ?? user;
@@ -113,7 +118,7 @@ export async function provisionGoogleCustomer(user: User): Promise<'new' | 'exis
 
   const { data: profile, error: profileReadError } = await service
     .from('profiles')
-    .select('first_name, last_name, user_picture, phone, referral, business_id, company_role')
+    .select('first_name, last_name, user_picture, phone, referral, business_id, company_role, account_setup_pending')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -178,7 +183,7 @@ export async function provisionGoogleCustomer(user: User): Promise<'new' | 'exis
     }
 
     await keepProfileName(service, account, profile);
-    return 'existing';
+    return profile?.account_setup_pending ? 'pending' : 'existing';
   }
 
   const isNewAccount = !isAdmin;
@@ -201,6 +206,7 @@ export async function provisionGoogleCustomer(user: User): Promise<'new' | 'exis
     first_name: profile?.first_name?.trim() || firstName,
     last_name: profile?.last_name?.trim() || lastName || null,
     user_picture: profile?.user_picture || picture,
+    ...(isNewAccount ? { account_setup_pending: true } : {}),
   };
 
   const { error: profileError } = profile
@@ -209,30 +215,7 @@ export async function provisionGoogleCustomer(user: User): Promise<'new' | 'exis
 
   if (profileError) {
     logger.error('[Google customer] failed to save profile', { userId: user.id, error: profileError.message });
-  }
-
-  if (isNewAccount) {
-    const displayName = `${firstName} ${lastName}`.trim() || email || 'Customer';
-    await recordAdminBellEvent({
-      eventType: 'signup',
-      entityType: 'customer',
-      entityId: user.id,
-      displayName,
-      detail: email || null,
-    });
-    if (email) {
-      const adminNotify = await sendNewSignupAdminNotification({
-        type: 'customer',
-        name: displayName,
-        email,
-      });
-      if (!adminNotify.success) {
-        logger.warn('[Google customer] failed to email admin about signup', {
-          userId: user.id,
-          error: adminNotify.error,
-        });
-      }
-    }
+    if (isNewAccount) throw new Error('Could not finish Google sign-up');
   }
 
   return isNewAccount ? 'new' : 'existing';

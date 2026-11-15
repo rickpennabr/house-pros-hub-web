@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 
@@ -35,17 +36,19 @@ export function RememberedCombobox({
 }: RememberedComboboxProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [menuBox, setMenuBox] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
   const containerRef = useRef<HTMLLabelElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const query = value.trim().toLowerCase();
-  const filtered = useMemo(() => {
-    if (!query) return options;
-    return options.filter(
-      (option) => option.label.toLowerCase().includes(query) || option.value.toLowerCase().includes(query)
-    );
-  }, [options, query]);
   const exact = options.some(
     (option) => option.value.toLowerCase() === query || option.label.toLowerCase() === query
   );
+  const filtered = useMemo(() => {
+    if (!query || exact) return options;
+    return options.filter(
+      (option) => option.label.toLowerCase().includes(query) || option.value.toLowerCase().includes(query)
+    );
+  }, [options, query, exact]);
   const groups = filtered.reduce<string[]>((names, option) => {
     const group = option.group || 'Options';
     if (!names.includes(group)) names.push(group);
@@ -54,11 +57,34 @@ export function RememberedCombobox({
 
   useEffect(() => {
     if (!open) return;
+    const place = () => {
+      const input = containerRef.current?.querySelector('input');
+      if (!input) return;
+      const rect = input.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom - 12;
+      const spaceAbove = rect.top - 12;
+      const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(120, Math.min(224, openUp ? spaceAbove : spaceBelow));
+      setMenuBox(
+        openUp
+          ? { left: rect.left, width: rect.width, bottom: window.innerHeight - rect.top + 4, maxHeight }
+          : { left: rect.left, width: rect.width, top: rect.bottom + 4, maxHeight }
+      );
+    };
+    place();
     const close = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (containerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
   }, [open]);
 
   const choose = (option: RememberedOption) => {
@@ -80,8 +106,20 @@ export function RememberedCombobox({
           setOpen(true);
         }}
       />
-      {open ? (
-        <div className="absolute z-[120] mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-300 bg-white py-1 shadow-lg">
+      {open && menuBox
+        ? createPortal(
+        <div
+          ref={menuRef}
+          className="z-[400] overflow-y-auto rounded-lg border border-gray-300 bg-white py-1 shadow-lg"
+          style={{
+            position: 'fixed',
+            left: menuBox.left,
+            width: menuBox.width,
+            top: menuBox.top,
+            bottom: menuBox.bottom,
+            maxHeight: menuBox.maxHeight,
+          }}
+        >
           {filtered.length === 0 ? <p className="px-3 py-2 text-sm text-gray-500">No matches yet.</p> : null}
           {groups.map((group) => (
             <div key={group}>
@@ -120,8 +158,10 @@ export function RememberedCombobox({
               {busy ? 'Saving…' : `Add "${value.trim()}" to the list`}
             </button>
           ) : null}
-        </div>
-      ) : null}
+        </div>,
+        document.body
+      )
+        : null}
     </label>
   );
 }

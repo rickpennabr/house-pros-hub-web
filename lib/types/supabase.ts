@@ -32,6 +32,7 @@ export interface Database {
           referral: string | null;
           referral_other: string | null;
           preferred_locale: string | null;
+          account_setup_pending: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -47,6 +48,7 @@ export interface Database {
           referral?: string | null;
           referral_other?: string | null;
           preferred_locale?: string | null;
+          account_setup_pending?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -62,6 +64,7 @@ export interface Database {
           referral?: string | null;
           referral_other?: string | null;
           preferred_locale?: string | null;
+          account_setup_pending?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -84,7 +87,7 @@ export interface Database {
         Row: {
           id: string;
           user_id: string;
-          role: 'customer' | 'contractor' | 'realtor' | 'installer';
+          role: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman';
           is_active: boolean;
           activated_at: string | null;
           deactivated_at: string | null;
@@ -93,7 +96,7 @@ export interface Database {
         Insert: {
           id?: string;
           user_id: string;
-          role: 'customer' | 'contractor' | 'realtor' | 'installer';
+          role: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman';
           is_active?: boolean;
           activated_at?: string | null;
           deactivated_at?: string | null;
@@ -102,7 +105,7 @@ export interface Database {
         Update: {
           id?: string;
           user_id?: string;
-          role?: 'customer' | 'contractor' | 'realtor' | 'installer';
+          role?: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman';
           is_active?: boolean;
           activated_at?: string | null;
           deactivated_at?: string | null;
@@ -169,10 +172,62 @@ export interface Database {
           }
         ];
       };
+      handyman_profiles: {
+        Row: {
+          id: string;
+          user_id: string;
+          slug: string;
+          display_name: string;
+          photo_url: string | null;
+          phone: string | null;
+          email: string | null;
+          bio: string | null;
+          trades: string[];
+          service_area: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          slug: string;
+          display_name: string;
+          photo_url?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          bio?: string | null;
+          trades?: string[];
+          service_area?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          slug?: string;
+          display_name?: string;
+          photo_url?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          bio?: string | null;
+          trades?: string[];
+          service_area?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "handyman_profiles_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       invitation_codes: {
         Row: {
           id: string;
-          role: 'contractor' | 'realtor' | 'installer';
+          role: 'contractor' | 'realtor' | 'installer' | 'handyman';
           code: string;
           created_at: string;
           expires_at: string;
@@ -181,7 +236,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          role: 'contractor' | 'realtor' | 'installer';
+          role: 'contractor' | 'realtor' | 'installer' | 'handyman';
           code: string;
           created_at?: string;
           expires_at: string;
@@ -190,7 +245,7 @@ export interface Database {
         };
         Update: {
           id?: string;
-          role?: 'contractor' | 'realtor' | 'installer';
+          role?: 'contractor' | 'realtor' | 'installer' | 'handyman';
           code?: string;
           created_at?: string;
           expires_at?: string;
@@ -589,6 +644,7 @@ export interface Database {
           links: Json | null;
           services: string[] | null;
           images: Json | null;
+          tab_order: Json | null;
           operating_hours: Json | null;
           timezone: string;
           is_active: boolean;
@@ -621,6 +677,7 @@ export interface Database {
           links?: Json | null;
           services?: string[] | null;
           images?: Json | null;
+          tab_order?: Json | null;
           operating_hours?: Json | null;
           timezone?: string;
           is_active?: boolean;
@@ -653,6 +710,7 @@ export interface Database {
           links?: Json | null;
           services?: string[] | null;
           images?: Json | null;
+          tab_order?: Json | null;
           operating_hours?: Json | null;
           timezone?: string;
           is_active?: boolean;
@@ -1013,6 +1071,24 @@ export interface Database {
         };
         Relationships: [];
       };
+      site_settings: {
+        Row: {
+          key: string;
+          value: Json;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          value: Json;
+          updated_at?: string;
+        };
+        Update: {
+          key?: string;
+          value?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       password_reset_attempts: {
         Row: {
           id: string;
@@ -1047,7 +1123,7 @@ export interface Database {
           state: string;
           zip_code: string;
           apartment: string | null;
-          project_type: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'addition_extension' | 'other';
+          project_type: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'addition_extension' | 'maintenance' | 'other';
           project_type_other: string | null;
           requires_hoa_approval: boolean;
           wants_3d: boolean;
@@ -1080,7 +1156,7 @@ export interface Database {
           state: string;
           zip_code: string;
           apartment?: string | null;
-          project_type: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'addition_extension' | 'other';
+          project_type: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'addition_extension' | 'maintenance' | 'other';
           project_type_other?: string | null;
           requires_hoa_approval?: boolean;
           wants_3d?: boolean;
@@ -1113,7 +1189,7 @@ export interface Database {
           state?: string;
           zip_code?: string;
           apartment?: string | null;
-          project_type?: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'addition_extension' | 'other';
+          project_type?: 'new_construction' | 'renovation' | 'repair' | 'remodel' | 'addition_extension' | 'maintenance' | 'other';
           project_type_other?: string | null;
           requires_hoa_approval?: boolean;
           wants_3d?: boolean;
@@ -1728,6 +1804,7 @@ export interface Database {
           receipt_url: string | null;
           billed_invoice_id: string | null;
           billed_at: string | null;
+          vehicle_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1749,6 +1826,7 @@ export interface Database {
           receipt_url?: string | null;
           billed_invoice_id?: string | null;
           billed_at?: string | null;
+          vehicle_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1770,6 +1848,7 @@ export interface Database {
           receipt_url?: string | null;
           billed_invoice_id?: string | null;
           billed_at?: string | null;
+          vehicle_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1777,7 +1856,137 @@ export interface Database {
           { foreignKeyName: "pro_crm_expenses_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "users"; referencedColumns: ["id"] },
           { foreignKeyName: "pro_crm_expenses_project_id_fkey"; columns: ["project_id"]; referencedRelation: "pro_crm_projects"; referencedColumns: ["id"] },
           { foreignKeyName: "pro_crm_expenses_supplier_id_fkey"; columns: ["supplier_id"]; referencedRelation: "pro_crm_customers"; referencedColumns: ["id"] },
-          { foreignKeyName: "pro_crm_expenses_billed_invoice_id_fkey"; columns: ["billed_invoice_id"]; referencedRelation: "pro_crm_invoices"; referencedColumns: ["id"] }
+          { foreignKeyName: "pro_crm_expenses_billed_invoice_id_fkey"; columns: ["billed_invoice_id"]; referencedRelation: "pro_crm_invoices"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_expenses_vehicle_id_fkey"; columns: ["vehicle_id"]; referencedRelation: "pro_crm_vehicles"; referencedColumns: ["id"] }
+        ];
+      };
+      pro_crm_vehicles: {
+        Row: {
+          id: string;
+          owner_id: string;
+          name: string;
+          mpg: number | null;
+          fuel_price_cents: number | null;
+          annual_miles: number | null;
+          average_trip_miles: number | null;
+          insurance_cents: number;
+          maintenance_cents: number;
+          registration_cents: number;
+          tires_cents: number;
+          depreciation_cents: number;
+          other_cents: number;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          name: string;
+          mpg?: number | null;
+          fuel_price_cents?: number | null;
+          annual_miles?: number | null;
+          average_trip_miles?: number | null;
+          insurance_cents?: number;
+          maintenance_cents?: number;
+          registration_cents?: number;
+          tires_cents?: number;
+          depreciation_cents?: number;
+          other_cents?: number;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          name?: string;
+          mpg?: number | null;
+          fuel_price_cents?: number | null;
+          annual_miles?: number | null;
+          average_trip_miles?: number | null;
+          insurance_cents?: number;
+          maintenance_cents?: number;
+          registration_cents?: number;
+          tires_cents?: number;
+          depreciation_cents?: number;
+          other_cents?: number;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "pro_crm_vehicles_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "users"; referencedColumns: ["id"] }
+        ];
+      };
+      pro_crm_mileage_trips: {
+        Row: {
+          id: string;
+          owner_id: string;
+          vehicle_id: string | null;
+          vehicle_name: string;
+          customer_id: string | null;
+          estimate_id: string | null;
+          project_id: string | null;
+          trip_date: string;
+          purpose: 'job' | 'estimate' | 'supply_run' | 'other';
+          origin_label: string | null;
+          destination_label: string | null;
+          miles: number;
+          cost_per_mile_cents: number;
+          amount_cents: number;
+          note: string | null;
+          expense_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          vehicle_id?: string | null;
+          vehicle_name: string;
+          customer_id?: string | null;
+          estimate_id?: string | null;
+          project_id?: string | null;
+          trip_date?: string;
+          purpose?: 'job' | 'estimate' | 'supply_run' | 'other';
+          origin_label?: string | null;
+          destination_label?: string | null;
+          miles: number;
+          cost_per_mile_cents: number;
+          amount_cents?: number;
+          note?: string | null;
+          expense_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          vehicle_id?: string | null;
+          vehicle_name?: string;
+          customer_id?: string | null;
+          estimate_id?: string | null;
+          project_id?: string | null;
+          trip_date?: string;
+          purpose?: 'job' | 'estimate' | 'supply_run' | 'other';
+          origin_label?: string | null;
+          destination_label?: string | null;
+          miles?: number;
+          cost_per_mile_cents?: number;
+          amount_cents?: number;
+          note?: string | null;
+          expense_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "pro_crm_mileage_trips_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "users"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_mileage_trips_vehicle_id_fkey"; columns: ["vehicle_id"]; referencedRelation: "pro_crm_vehicles"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_mileage_trips_customer_id_fkey"; columns: ["customer_id"]; referencedRelation: "pro_crm_customers"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_mileage_trips_estimate_id_fkey"; columns: ["estimate_id"]; referencedRelation: "pro_crm_estimates"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_mileage_trips_project_id_fkey"; columns: ["project_id"]; referencedRelation: "pro_crm_projects"; referencedColumns: ["id"] },
+          { foreignKeyName: "pro_crm_mileage_trips_expense_id_fkey"; columns: ["expense_id"]; referencedRelation: "pro_crm_expenses"; referencedColumns: ["id"] }
         ];
       };
       pro_invoice_settings: {
@@ -2232,7 +2441,7 @@ export interface Database {
         Row: {
           id: string;
           event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance';
-          entity_type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business' | 'estimate' | 'booking' | 'email';
+          entity_type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id: string;
           display_name: string;
           detail: string | null;
@@ -2241,7 +2450,7 @@ export interface Database {
         Insert: {
           id?: string;
           event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance';
-          entity_type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business' | 'estimate' | 'booking' | 'email';
+          entity_type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id: string;
           display_name: string;
           detail?: string | null;
@@ -2250,7 +2459,7 @@ export interface Database {
         Update: {
           id?: string;
           event_type?: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance';
-          entity_type?: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business' | 'estimate' | 'booking' | 'email';
+          entity_type?: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id?: string;
           display_name?: string;
           detail?: string | null;
@@ -3350,6 +3559,24 @@ export interface Database {
           pro_response?: string | null;
           pro_response_image_urls?: string[];
           pro_responded_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      saved_businesses: {
+        Row: {
+          user_id: string;
+          business_id: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          business_id: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          business_id?: string;
           created_at?: string;
         };
         Relationships: [];

@@ -26,7 +26,7 @@ export default function BusinessHoursList({ schedule, timezone, locale, heading,
   const t = useTranslations('businessHours');
   const zone = timeZoneName(timezone, locale);
   return (
-    <section className="mb-4 rounded-lg border-2 border-black p-3">
+    <section className="rounded-lg border-2 border-black p-3">
       <h2 className="text-lg font-bold text-black">{heading}</h2>
       <p className="mb-2 text-xs text-gray-500">{t('timesIn', { zone })}</p>
       <ul className="space-y-1">

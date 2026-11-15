@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, MessageSquare, Mail } from 'lucide-react';
+import { Building2, Calendar, Copy, Mail, MessageSquare, type LucideIcon } from 'lucide-react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import Modal from '@/components/ui/Modal';
@@ -15,9 +15,23 @@ interface ShareBusinessModalProps {
   businessUrl: string;
   /** Header title. Defaults to the business share label. */
   title?: string;
+  /** Sentence sent with the link. Defaults to the business name and trade. */
+  message?: string;
+  /** Share this URL only and hide the page picker. */
+  fixedUrl?: string;
 }
 
 type ShareTarget = 'booking' | 'details' | 'feedback';
+
+const LINK_TYPE_OPTIONS: {
+  id: ShareTarget;
+  labelKey: 'appointment' | 'businessPage' | 'shareFeedback';
+  icon: LucideIcon;
+}[] = [
+  { id: 'booking', labelKey: 'appointment', icon: Calendar },
+  { id: 'details', labelKey: 'businessPage', icon: Building2 },
+  { id: 'feedback', labelKey: 'shareFeedback', icon: MessageSquare },
+];
 
 function shareTargets(businessUrl: string): Record<ShareTarget, string> | null {
   try {
@@ -55,12 +69,14 @@ export default function ShareBusinessModal({
   logo,
   businessUrl,
   title = 'Share Business',
+  message,
+  fixedUrl,
 }: ShareBusinessModalProps) {
   const t = useTranslations('businessFeedback');
   const [copied, setCopied] = useState(false);
   const [target, setTarget] = useState<ShareTarget>('booking');
-  const targets = shareTargets(businessUrl);
-  const activeUrl = targets ? targets[target] : businessUrl;
+  const targets = fixedUrl ? null : shareTargets(businessUrl);
+  const activeUrl = fixedUrl || (targets ? targets[target] : businessUrl);
   const initials = getInitials(businessName);
 
   const handleCopyLink = async () => {
@@ -75,7 +91,7 @@ export default function ShareBusinessModal({
 
   const handleShare = (platform: string) => {
     const encodedUrl = encodeURIComponent(activeUrl);
-    const encodedText = encodeURIComponent(`Check out ${businessName} - ${contractorType}`);
+    const encodedText = encodeURIComponent(message || `Check out ${businessName} - ${contractorType}`);
     
     const shareUrls: Record<string, string> = {
       whatsapp: `https://wa.me/?text=${encodedText}%20${encodedUrl}`,
@@ -129,26 +145,26 @@ export default function ShareBusinessModal({
         {/* Business URL */}
         <div className="p-4 border-b-2 border-black">
           {targets && (
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              {([
-                ['booking', t('appointment')],
-                ['details', t('businessPage')],
-                ['feedback', t('shareFeedback')],
-              ] as const).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => {
-                    setTarget(id);
-                    setCopied(false);
-                  }}
-                  className={`rounded-lg border-2 border-black px-2 py-2 text-xs font-semibold cursor-pointer ${
-                    target === id ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="mb-3">
+              <p className="mb-2 text-sm font-semibold text-black">{t('pickLinkType')}</p>
+              <div className="grid grid-cols-3 gap-2">
+                {LINK_TYPE_OPTIONS.map(({ id, labelKey, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setTarget(id);
+                      setCopied(false);
+                    }}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg border-2 border-black px-2 py-2 text-xs font-semibold leading-tight cursor-pointer ${
+                      target === id ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-red-500" aria-hidden />
+                    {t(labelKey)}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <div className="bg-yellow-100 border-2 border-black rounded-lg p-3 flex items-center justify-between gap-2">

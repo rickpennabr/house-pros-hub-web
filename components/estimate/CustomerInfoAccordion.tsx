@@ -1,14 +1,15 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { TbUserEdit } from 'react-icons/tb';
-import { MapPin } from 'lucide-react';
+import { MapPin, UserRound } from 'lucide-react';
 import { UseFormReturn } from 'react-hook-form';
 import { EstimateSchema } from '@/lib/schemas/estimate';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import AddressAutocomplete, { AddressData } from '@/components/AddressAutocomplete';
 import Accordion from '@/components/ui/Accordion';
+import ProAccordion from '@/components/ui/ProAccordion';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 
@@ -25,6 +26,8 @@ interface CustomerInfoAccordionProps {
   tTips: (key: string) => string;
   /** When true, show a message asking the customer to confirm or update the pre-filled profile address. */
   addressPrefilledFromProfile?: boolean;
+  /** When true, the profile already has name, email and phone, so Personal Information starts collapsed. */
+  personalInfoFromProfile?: boolean;
 }
 
 export default function CustomerInfoAccordion({
@@ -39,6 +42,7 @@ export default function CustomerInfoAccordion({
   tAccordion,
   tTips,
   addressPrefilledFromProfile = false,
+  personalInfoFromProfile = false,
 }: CustomerInfoAccordionProps) {
   const { register, watch, setValue } = methods;
   const streetAddress = watch('streetAddress');
@@ -75,6 +79,11 @@ export default function CustomerInfoAccordion({
   // Show missing info indicator when accordion is collapsed and info is incomplete
   const showMissingInfo = !isOpen && !isComplete;
 
+  // Collapse Personal Information when the profile already filled it, but reopen it if a field there fails validation.
+  const personalHasErrors = Boolean(errors.firstName || errors.lastName || errors.email || errors.phone);
+  const [personalOpen, setPersonalOpen] = useState(!personalInfoFromProfile);
+  if (personalHasErrors && !personalOpen) setPersonalOpen(true);
+
   return (
     <Accordion
       title={tAccordion('customerInfo')}
@@ -87,58 +96,64 @@ export default function CustomerInfoAccordion({
       missingInfoMessage={showMissingInfo ? tAccordion('missingRequiredInfo') : undefined}
       tip={tTips('customerInfo')}
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FormField label={tFields('firstNameLabel')} required error={errors.firstName?.message}>
-          <Input
-            {...register('firstName')}
-            placeholder={animatedPlaceholders[0]}
-            disabled={isSubmitting}
-            error={errors.firstName?.message}
-          />
-        </FormField>
+      <ProAccordion
+        title={tAccordion('personalInfo')}
+        icon={<UserRound className="w-5 h-5" />}
+        isOpen={personalOpen}
+        onToggle={setPersonalOpen}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label={tFields('firstNameLabel')} required error={errors.firstName?.message}>
+            <Input
+              {...register('firstName')}
+              placeholder={animatedPlaceholders[0]}
+              disabled={isSubmitting}
+              error={errors.firstName?.message}
+            />
+          </FormField>
 
-        <FormField label={tFields('lastNameLabel')} required error={errors.lastName?.message}>
-          <Input
-            {...register('lastName')}
-            placeholder={animatedPlaceholders[1]}
-            disabled={isSubmitting}
-            error={errors.lastName?.message}
-          />
-        </FormField>
-      </div>
-
-      <FormField label={tFields('emailLabel')} required error={errors.email?.message}>
-        <Input
-          {...register('email')}
-          type="email"
-          placeholder={animatedPlaceholders[2]}
-          disabled={isSubmitting}
-          error={errors.email?.message}
-        />
-      </FormField>
-
-      <FormField label={tFields('phoneLabel')} required error={errors.phone?.message}>
-        <Input
-          {...register('phone')}
-          type="tel"
-          placeholder={animatedPlaceholders[3]}
-          disabled={isSubmitting}
-          error={errors.phone?.message}
-          onChange={(e) => {
-            const formatted = formatPhoneNumber(e.target.value);
-            setValue('phone', formatted, { shouldValidate: true });
-          }}
-        />
-      </FormField>
-
-      <div className="pt-2 border-t-2 border-gray-200">
-        <div className="flex items-center gap-2 mb-3">
-          <MapPin className="w-5 h-5 text-red-600" />
-          <h3 className="text-lg font-semibold text-black">{tAccordion('projectAddress')}</h3>
+          <FormField label={tFields('lastNameLabel')} required error={errors.lastName?.message}>
+            <Input
+              {...register('lastName')}
+              placeholder={animatedPlaceholders[1]}
+              disabled={isSubmitting}
+              error={errors.lastName?.message}
+            />
+          </FormField>
         </div>
 
+        <FormField label={tFields('emailLabel')} required error={errors.email?.message}>
+          <Input
+            {...register('email')}
+            type="email"
+            placeholder={animatedPlaceholders[2]}
+            disabled={isSubmitting}
+            error={errors.email?.message}
+          />
+        </FormField>
+
+        <FormField label={tFields('phoneLabel')} required error={errors.phone?.message}>
+          <Input
+            {...register('phone')}
+            type="tel"
+            placeholder={animatedPlaceholders[3]}
+            disabled={isSubmitting}
+            error={errors.phone?.message}
+            onChange={(e) => {
+              const formatted = formatPhoneNumber(e.target.value);
+              setValue('phone', formatted, { shouldValidate: true });
+            }}
+          />
+        </FormField>
+      </ProAccordion>
+
+      <ProAccordion
+        divider
+        title={tAccordion('projectAddress')}
+        icon={<MapPin className="w-5 h-5" />}
+      >
         {addressPrefilledFromProfile && (
-          <p className="text-sm text-gray-700 mb-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+          <p className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
             {tAccordion('confirmAddressFromProfile')}
           </p>
         )}
@@ -193,7 +208,7 @@ export default function CustomerInfoAccordion({
             />
           </FormField>
         </div>
-      </div>
+      </ProAccordion>
     </Accordion>
   );
 }

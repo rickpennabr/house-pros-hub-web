@@ -21,10 +21,11 @@ import {
   BookOpen,
   Package,
   QrCode,
+  GripVertical,
   LucideIcon 
 } from 'lucide-react';
 import { useAdminSearch } from './AdminSearchContext';
-import Modal from '@/components/ui/Modal';
+import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
 import { BsGrid3X3Gap } from 'react-icons/bs';
 
 interface NavItem {
@@ -51,6 +52,8 @@ export const navItems: NavItem[] = [
   { href: '/admin/clear-data', label: 'Clear Data', icon: Eraser },
 ];
 
+const NAV_ORDER_KEY = 'admin-nav-order';
+
 export function AdminSidebar() {
   const pathname = usePathname();
   const { searchQuery, setSearchQuery } = useAdminSearch();
@@ -60,9 +63,41 @@ export function AdminSidebar() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchBarRef = useRef<HTMLDivElement>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
+  const dragHref = useRef<string | null>(null);
+  const [navOrder, setNavOrder] = useState<string[] | null>(null);
 
   // Avoid hydration mismatch: pathname can differ server vs client (e.g. locale); compute active only after mount.
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(NAV_ORDER_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      setNavOrder(Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : []);
+    } catch {
+      setNavOrder([]);
+    }
+  }, []);
+
+  const orderedNavItems = [...navItems].sort((a, b) => {
+    if (!navOrder) return 0;
+    const ai = navOrder.indexOf(a.href);
+    const bi = navOrder.indexOf(b.href);
+    return (ai === -1 ? navOrder.length : ai) - (bi === -1 ? navOrder.length : bi);
+  });
+
+  const moveNavItem = (fromHref: string, toHref: string) => {
+    if (!fromHref || fromHref === toHref) return;
+    const current = orderedNavItems.map((item) => item.href);
+    const from = current.indexOf(fromHref);
+    const to = current.indexOf(toHref);
+    if (from < 0 || to < 0) return;
+    const next = [...current];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setNavOrder(next);
+    localStorage.setItem(NAV_ORDER_KEY, JSON.stringify(next));
+  };
 
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current) {
@@ -107,7 +142,7 @@ export function AdminSidebar() {
       <div className="md:hidden w-full border-b-2 border-black bg-white shrink-0 z-40">
         <div className="relative flex items-center h-[60px] px-2 py-2">
           <nav className="flex items-center gap-3 overflow-x-auto scrollbar-custom flex-1 min-w-0 pr-24">
-            {navItems.map((item) => {
+            {orderedNavItems.map((item) => {
               const isActive = isActiveRoute(item.href);
               const Icon = item.icon;
               return (
@@ -196,52 +231,39 @@ export function AdminSidebar() {
       </div>
 
       {/* Mobile: Main menu modal - all nav items in 3-column grid */}
-      <Modal
+      <MobileGridActionsModal
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
         title="Menu"
-        showHeader={true}
-        maxWidth="md"
-        contentClassName="p-0 md:p-6"
-      >
-        <div className="grid grid-cols-3 gap-3 p-2 md:p-4">
-          {navItems.map((item) => {
-            const isActive = isActiveRoute(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setIsMenuOpen(false)}
-                className={`
-                  flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 border-black transition-all font-medium cursor-pointer hover:scale-[1.02]
-                  ${
-                    isActive
-                      ? 'bg-black text-white'
-                      : 'bg-white text-black'
-                  }
-                `}
-              >
-                <Icon className="w-6 h-6 text-red-600" />
-                <span className="text-sm text-center">{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </Modal>
+        items={orderedNavItems.map((item) => ({
+          id: item.href,
+          href: item.href,
+          label: item.label,
+          icon: item.icon,
+          isActive: isActiveRoute(item.href),
+        }))}
+        onReorder={moveNavItem}
+      />
 
       {/* Desktop: Vertical sidebar */}
-      <aside className="hidden md:block w-64 border-r-2 border-black bg-white h-full flex-shrink-0">
-        <nav className="p-4 space-y-2">
-          {navItems.map((item) => {
+      <aside className="hidden md:block w-64 shrink-0 border-r-2 border-black bg-white md:h-full md:min-h-0 md:overflow-y-auto">
+        <nav className="space-y-2 p-4">
+          {orderedNavItems.map((item) => {
             const isActive = isActiveRoute(item.href);
             const Icon = item.icon;
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                draggable={false}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  moveNavItem(dragHref.current || event.dataTransfer.getData('text/plain'), item.href);
+                  dragHref.current = null;
+                }}
                 className={`
-                  group flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 border-2 hover:scale-[1.02]
+                  group flex items-center px-4 py-3 rounded-lg transition-all duration-300 border-2 hover:scale-[1.02]
                   ${
                     isActive
                       ? 'bg-white border-black text-black font-medium'
@@ -249,7 +271,24 @@ export function AdminSidebar() {
                   }
                 `}
               >
-                <Icon className="w-5 h-5 text-red-600 transition-transform duration-300 group-hover:scale-110" />
+                <span
+                  draggable
+                  onDragStart={(event) => {
+                    dragHref.current = item.href;
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', item.href);
+                  }}
+                  onDragEnd={() => { dragHref.current = null; }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  className="flex w-0 cursor-grab items-center overflow-hidden opacity-0 transition-all group-hover:mr-2 group-hover:w-4 group-hover:opacity-100 active:cursor-grabbing"
+                  aria-label="Drag to reorder"
+                >
+                  <GripVertical className="h-4 w-4 shrink-0 text-gray-500" />
+                </span>
+                <Icon className="mr-3 w-5 h-5 text-red-600 transition-transform duration-300 group-hover:scale-110" />
                 {item.label}
               </Link>
             );

@@ -137,10 +137,15 @@ export function PlacesHome() {
     );
   }
 
+  const noPlaces = places.length === 0 && !adding && listView !== 'map';
+
   return (
     <div className="px-2 pt-4 pb-28 space-y-3 md:px-4">
-      <div>
-        <p className="text-sm text-gray-700">{t('subtitle')}</p>
+      <div className={noPlaces ? 'mt-[20px] flex flex-col items-center gap-4' : undefined}>
+        <p className="mx-auto text-center text-xl font-bold text-black md:max-w-2xl md:text-balance">{t('subtitle')}</p>
+        {noPlaces ? (
+          <Button type="button" variant="primary" onClick={() => setAdding(true)}>{t('add')}</Button>
+        ) : null}
         {!emailConfirmed ? <p className="mt-1 text-sm text-red-600">{t('confirmEmail')}</p> : null}
       </div>
 
@@ -156,9 +161,7 @@ export function PlacesHome() {
           }))}
           onOpen={(id) => router.push(`/${locale}/myplaces/${id}`)}
         />
-      ) : places.length === 0 ? (
-        <p className="border-2 border-black rounded-lg p-4 text-sm text-gray-600">{t('empty')}</p>
-      ) : (
+      ) : places.length === 0 ? null : (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
           {places.map((place) => (
             <Link
@@ -302,19 +305,21 @@ export function PlacesHome() {
         </Button>
       </form> : null}
 
-      <ViewToggle
-        currentView={listView}
-        onViewChange={(view) => {
-          setListView(view);
-          setAdding(false);
-        }}
-        views={['list', 'map']}
-        hideBackgroundToggle
-        onAdd={() => setAdding((open) => !open)}
-        addOpen={adding}
-        addLabel={t('add')}
-        showAddOnDesktop
-      />
+      {places.length > 0 ? (
+        <ViewToggle
+          currentView={listView}
+          onViewChange={(view) => {
+            setListView(view);
+            setAdding(false);
+          }}
+          views={['list', 'map']}
+          hideBackgroundToggle
+          onAdd={() => setAdding((open) => !open)}
+          addOpen={adding}
+          addLabel={t('add')}
+          showAddOnDesktop
+        />
+      ) : null}
     </div>
   );
 }

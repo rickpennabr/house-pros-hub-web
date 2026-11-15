@@ -12,6 +12,8 @@ interface BusinessDetailsHeaderProps {
   logo?: string;
   businessName: string;
   contractorType?: string;
+  /** Replaces the trade line under the business name. Share still uses the trade. */
+  subtitle?: string;
   secondaryLogo?: string;
   /** When true, show ProfileIcon (owner's account). When false, show business logo for visitors. */
   isOwner?: boolean;
@@ -35,6 +37,7 @@ export default function BusinessDetailsHeader({
   logo, 
   businessName,
   contractorType = '',
+  subtitle,
   secondaryLogo,
   isOwner = false,
   shareTitle,
@@ -71,9 +74,9 @@ export default function BusinessDetailsHeader({
       </div>
       <div className="flex-1 flex items-center justify-center gap-1 md:gap-1 pr-14 md:pr-16 min-w-0">
         <div className="flex-1 min-w-0 flex flex-col items-center">
-          <h1 className="text-[19px] md:text-[18px] font-bold text-black truncate w-full text-center">{businessName}</h1>
-          {contractorType && (
-            <p className="text-sm text-gray-600 truncate w-full text-center">{contractorType}</p>
+          <h1 className="text-[22.8px] md:text-[18px] font-bold text-black truncate w-full text-center">{businessName}</h1>
+          {(subtitle || contractorType) && (
+            <p className="text-[16.8px] text-gray-600 truncate w-full text-center md:text-sm">{subtitle || contractorType}</p>
           )}
         </div>
       </div>

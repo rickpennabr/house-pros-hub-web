@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import BusinessDetailsHeader from '@/components/businessdetails/BusinessDetailsHeader';
@@ -27,6 +27,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { parseObjectPosition, formatObjectPosition } from '@/lib/utils/backgroundPosition';
 import { getCsrfToken } from '@/lib/utils/csrf';
 import { ImagePlus, Loader2, X } from 'lucide-react';
+import MakeAppointmentCard from '@/components/businessdetails/MakeAppointmentCard';
 import type { WeekSchedule } from '@/lib/booking/businessHours';
 
 type TabType = BusinessDetailsTab;
@@ -54,14 +55,8 @@ function scrollportBounds(scroller: HTMLElement | null): { top: number; bottom: 
   return { top, bottom: top + scroller.clientHeight };
 }
 
-function bottomOverflow(content: HTMLElement, scroller: HTMLElement | null): number {
-  const rect = content.getBoundingClientRect();
-  const port = scrollportBounds(scroller);
-  return rect.bottom - (port.bottom - TAB_CONTENT_BOTTOM_INSET_PX);
-}
-
-function scrollByAmount(amount: number, scroller: HTMLElement | null) {
-  if (amount <= 1) return;
+function scrollByDelta(amount: number, scroller: HTMLElement | null) {
+  if (Math.abs(amount) <= 1) return;
   const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
   if (scroller) {
     scroller.scrollBy({ top: amount, behavior });
@@ -71,22 +66,24 @@ function scrollByAmount(amount: number, scroller: HTMLElement | null) {
 }
 
 /**
- * Short tabs: scroll only until the last boxes are fully on screen.
- * Tall tabs: show the first boxes. Never pin the tab bar by adding blank space.
+ * Tall tabs, and any tab already scrolled off: put the tab row on the top edge.
+ * Short tabs still on screen: move only enough to show the last boxes.
  */
-function scrollUntilLastBoxesVisible(content: HTMLElement, scroller: HTMLElement | null) {
+function alignTabOnScreen(tabs: HTMLElement, content: HTMLElement, scroller: HTMLElement | null) {
   content.style.paddingBottom = '';
-  const rect = content.getBoundingClientRect();
   const port = scrollportBounds(scroller);
+  const contentRect = content.getBoundingClientRect();
+  const tabsRect = tabs.getBoundingClientRect();
   const portHeight = port.bottom - port.top;
-  const overflow = bottomOverflow(content, scroller);
+  const overflow = contentRect.bottom - (port.bottom - TAB_CONTENT_BOTTOM_INSET_PX);
+  const tabsAbove = tabsRect.top < port.top - 1;
+  const tall = contentRect.height > portHeight;
 
-  if (rect.height <= portHeight) {
-    scrollByAmount(overflow, scroller);
+  if (tall || tabsAbove) {
+    scrollByDelta(tabsRect.top - port.top, scroller);
     return;
   }
-
-  scrollByAmount(rect.top - port.top, scroller);
+  if (overflow > 1) scrollByDelta(overflow, scroller);
 }
 
 interface OwnerProfile {
@@ -111,6 +108,7 @@ interface BookingSettings {
 
 export default function BusinessDetailsPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
   const locale = useLocale();
   const tHours = useTranslations('businessHours');
@@ -119,6 +117,8 @@ export default function BusinessDetailsPage() {
   const [isSignInRequiredOpen, setIsSignInRequiredOpen] = useState(false);
   const [business, setBusiness] = useState<BusinessWithMeta | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('contact');
+  const appliedSharedTab = useRef(false);
+  const tabSaveSeq = useRef(0);
   const [tabScrollNonce, setTabScrollNonce] = useState(0);
   const [ownerRoles, setOwnerRoles] = useState<string[]>([]);
   const [bookingSettings, setBookingSettings] = useState<BookingSettings | null>(null);
@@ -127,6 +127,7 @@ export default function BusinessDetailsPage() {
   const [bgSaving, setBgSaving] = useState(false);
   const bgInputRef = useRef<HTMLInputElement>(null);
   const heroContainerRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
   const tabContentRef = useRef<HTMLDivElement>(null);
   const [heroDragStart, setHeroDragStart] = useState<{ clientX: number; clientY: number; posX: number; posY: number } | null>(null);
   const [showAdjustHint, setShowAdjustHint] = useState(false);
@@ -173,7 +174,7 @@ export default function BusinessDetailsPage() {
     return () => clearTimeout(t);
   }, [showAdjustHint]);
 
-  // When a tab's last boxes are cut off, scroll just enough to show them. Leave short tabs where they are.
+  // Each tab tap brings the tab row to the top. Scrolling the list itself does not.
   const skipInitialTabScroll = useRef(true);
   useEffect(() => {
     if (skipInitialTabScroll.current) {
@@ -182,39 +183,64 @@ export default function BusinessDetailsPage() {
     }
 
     const content = tabContentRef.current;
-    if (!content) return;
+    const tabs = tabsRef.current;
+    if (!content || !tabs) return;
 
     const scroller = findScrollParent(content);
     let cancelled = false;
-    let didScroll = false;
-    let userScrolled = false;
-    content.style.paddingBottom = '';
+    let userTookOver = false;
+    let fromUs = true;
+    let quietTimer: number | null = null;
 
-    const alignIfHidden = () => {
-      if (cancelled || didScroll || userScrolled) return;
+    const markQuiet = () => {
+      if (quietTimer != null) window.clearTimeout(quietTimer);
+      quietTimer = window.setTimeout(() => {
+        fromUs = false;
+      }, 180);
+    };
+
+    const align = () => {
+      if (cancelled || userTookOver) return;
       const currentContent = tabContentRef.current;
-      if (!currentContent) return;
-      if (bottomOverflow(currentContent, scroller) <= 1) return;
-      didScroll = true;
-      scrollUntilLastBoxesVisible(currentContent, scroller);
+      const currentTabs = tabsRef.current;
+      if (!currentContent || !currentTabs) return;
+      fromUs = true;
+      alignTabOnScreen(currentTabs, currentContent, scroller);
+      markQuiet();
     };
 
-    const onUserScroll = () => {
-      if (!didScroll) userScrolled = true;
+    const onScroll = () => {
+      if (fromUs) {
+        markQuiet();
+        return;
+      }
+      userTookOver = true;
     };
-    scroller?.addEventListener('scroll', onUserScroll, { passive: true });
+    scroller?.addEventListener('scroll', onScroll, { passive: true });
 
-    const frame = requestAnimationFrame(alignIfHidden);
-    const observer = new ResizeObserver(alignIfHidden);
+    const frame = requestAnimationFrame(align);
+    const observer = new ResizeObserver(align);
     observer.observe(content);
 
     return () => {
       cancelled = true;
+      if (quietTimer != null) window.clearTimeout(quietTimer);
       cancelAnimationFrame(frame);
       observer.disconnect();
-      scroller?.removeEventListener('scroll', onUserScroll);
+      scroller?.removeEventListener('scroll', onScroll);
     };
   }, [tabScrollNonce]);
+
+  // Open Services or Images when a shared link includes ?tab=
+  useEffect(() => {
+    if (loading || appliedSharedTab.current) return;
+    const requested = searchParams.get('tab');
+    if (requested !== 'images' && requested !== 'services') return;
+    if (requested === 'services' && !showServices) return;
+    appliedSharedTab.current = true;
+    setActiveTab(requested);
+    setTabScrollNonce((n) => n + 1);
+  }, [loading, searchParams, showServices]);
 
   useEffect(() => {
     let cancelled = false;
@@ -334,6 +360,33 @@ export default function BusinessDetailsPage() {
       </div>
     );
   }
+
+  const saveTabOrder = async (next: TabType[]) => {
+    if (!isOwner) return;
+    const seq = ++tabSaveSeq.current;
+    const previous = business.tabOrder;
+    setBusiness((prev) => (prev ? { ...prev, tabOrder: next } : null));
+    try {
+      const csrfToken = await getCsrfToken();
+      const res = await fetch(`/api/businesses/${business.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ tabOrder: next }),
+      });
+      if (seq !== tabSaveSeq.current) return;
+      if (!res.ok) {
+        setBusiness((prev) => (prev ? { ...prev, tabOrder: previous } : null));
+      }
+    } catch (error) {
+      console.error('Failed to save tab order', error);
+      if (seq !== tabSaveSeq.current) return;
+      setBusiness((prev) => (prev ? { ...prev, tabOrder: previous } : null));
+    }
+  };
 
   const phoneLink = business.links.find(l => l.type === 'phone');
   const emailLink = business.links.find(l => l.type === 'email');
@@ -559,8 +612,8 @@ export default function BusinessDetailsPage() {
         )}
       </div>
       
-      <div className="flex flex-col md:flex-row md:items-center h-auto md:min-h-[60px] p-2 bg-white border-b-2 border-black">
-        <div className="w-full md:w-1/2 md:pr-4">
+      <div className="grid grid-cols-1 items-center border-b-2 border-black bg-white p-2 md:min-h-[60px] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        <div className="flex min-w-0 justify-center md:px-3">
           <ProReactions
             initialReactions={business.reactions}
             businessName={business.businessName}
@@ -573,20 +626,20 @@ export default function BusinessDetailsPage() {
             gap="gap-1"
           />
         </div>
-        {/* Divider: horizontal on mobile, vertical on desktop */}
-        <div className="w-full h-px bg-black my-2 md:hidden"></div>
+        <div className="my-2 h-px w-full bg-black md:mx-1 md:my-1 md:h-10 md:w-px" aria-hidden />
 
-        <div className="w-full min-w-0 md:w-1/2 flex flex-wrap justify-center md:border-l md:border-black md:pl-4 items-center gap-2">
+        <div className="flex min-w-0 items-center justify-center md:px-3">
           <ProLinks
             links={business.links}
             bare
+            desktopLarge
             onSignInRequired={!isAuthenticated ? () => setIsSignInRequiredOpen(true) : undefined}
             onQrCode={() => setIsQrModalOpen(true)}
           />
         </div>
       </div>
       
-      <div>
+      <div ref={tabsRef}>
         <BusinessDetailsTabs
           activeTab={activeTab}
           onTabChange={(tab) => {
@@ -594,6 +647,18 @@ export default function BusinessDetailsPage() {
             setTabScrollNonce((n) => n + 1);
           }}
           showServices={showServices}
+          tabOrder={business.tabOrder}
+          canReorder={isOwner}
+          onReorder={(order) => {
+            void saveTabOrder(order);
+          }}
+          sectionShare={{
+            locale,
+            slug: business.slug || business.id,
+            businessName: business.businessName,
+            contractorType: business.contractorType,
+            logo: business.logo || business.businessLogo,
+          }}
         />
       </div>
 
@@ -603,31 +668,44 @@ export default function BusinessDetailsPage() {
             <BusinessContactInfo
               phone={phoneLink?.value}
               email={emailLink?.value}
+              streetAddress={business.streetAddress}
+              apartment={business.apartment}
+              city={business.city}
+              state={business.state}
+              zipCode={business.zipCode}
+              appointmentHref={business.slug ? `/${locale}/book/${business.slug}` : undefined}
             />
           </div>
         )}
 
         {activeTab === 'hours' && (
-          <div>
-            {bookingSettings && (bookingSettings.hoursConfigured || bookingSettings.enabled) && (
-              <BusinessHoursList
-                schedule={bookingSettings.schedule}
-                timezone={bookingSettings.timezone}
-                locale={locale}
-                heading={tHours('heading')}
-                closedLabel={tHours('closed')}
-              />
-            )}
-            {isOwner && !bookingSettings?.hoursConfigured && (
-              <p className="mb-3 text-sm text-gray-700">
-                <Link href={`/${locale}/crm/calendar`} className="font-medium underline">
-                  {tHours('setHours')}
-                </Link>
-              </p>
-            )}
-            {!isOwner && !(bookingSettings && (bookingSettings.hoursConfigured || bookingSettings.enabled)) && (
-              <p className="text-sm text-gray-700">{tHours('empty')}</p>
-            )}
+          <div className="flex flex-col gap-3">
+            <div>
+              {bookingSettings && (bookingSettings.hoursConfigured || bookingSettings.enabled) && (
+                <BusinessHoursList
+                  schedule={bookingSettings.schedule}
+                  timezone={bookingSettings.timezone}
+                  locale={locale}
+                  heading={tHours('heading')}
+                  closedLabel={tHours('closed')}
+                />
+              )}
+              {isOwner && !bookingSettings?.hoursConfigured && (
+                <p className="mb-3 text-sm text-gray-700">
+                  <Link href={`/${locale}/crm/calendar`} className="font-medium underline">
+                    {tHours('setHours')}
+                  </Link>
+                </p>
+              )}
+              {!isOwner && !(bookingSettings && (bookingSettings.hoursConfigured || bookingSettings.enabled)) && (
+                <p className="text-sm text-gray-700">{tHours('empty')}</p>
+              )}
+            </div>
+            {business.slug ? (
+              <div className="flex justify-end">
+                <MakeAppointmentCard href={`/${locale}/book/${business.slug}`} />
+              </div>
+            ) : null}
           </div>
         )}
         
@@ -649,6 +727,7 @@ export default function BusinessDetailsPage() {
               links={business.links}
               businessName={business.businessName}
               logoSrc={business.logo || business.businessLogo}
+              appointmentHref={business.slug ? `/${locale}/book/${business.slug}` : undefined}
             />
           </div>
         )}
@@ -671,6 +750,7 @@ export default function BusinessDetailsPage() {
               ownerCertifications={business.ownerCertifications}
               ownerYearsExperience={business.ownerYearsExperience}
               companyDescription={business.companyDescription}
+              appointmentHref={business.slug ? `/${locale}/book/${business.slug}` : undefined}
             />
           </div>
         )}
@@ -678,11 +758,22 @@ export default function BusinessDetailsPage() {
         {activeTab === 'images' && (
           <div>
             <BusinessImagesTab
+              gallery={business.gallery}
               images={business.images}
               businessName={business.businessName}
               isOwner={isOwner}
               businessId={business.id}
-              onImagesChange={(newImages) => setBusiness((prev) => (prev ? { ...prev, images: newImages } : null))}
+              onGalleryChange={(next) =>
+                setBusiness((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        gallery: next,
+                        images: next.map((item) => item.url),
+                      }
+                    : null
+                )
+              }
             />
           </div>
         )}

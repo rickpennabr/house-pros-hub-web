@@ -17,7 +17,7 @@ import { AuthNavigationButtons } from '@/components/auth/AuthNavigationButtons';
 import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
-import { createClient } from '@/lib/supabase/client';
+import { startGoogleOAuth, takeGoogleOAuthResume } from '@/lib/auth/googleOAuth';
 
 function SignInForm() {
   const locale = useLocale();
@@ -199,26 +199,35 @@ function SignInForm() {
     setError(null);
     setIsGoogleLoading(true);
     const returnUrl = searchParams.get('returnUrl');
-    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-    document.cookie = `hph_oauth_flow=signin; Path=/; Max-Age=600; SameSite=Lax${secure}`;
-    document.cookie = `hph_oauth_locale=${encodeURIComponent(locale)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
-    if (returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//')) {
-      document.cookie = `hph_oauth_next=${encodeURIComponent(returnUrl)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
-    } else {
-      document.cookie = 'hph_oauth_next=; Path=/; Max-Age=0; SameSite=Lax';
-    }
-
-    const supabase = createClient();
-    const redirectTo = `${window.location.origin}/api/auth/callback?locale=${encodeURIComponent(locale)}&flow=signin`;
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo },
+    const result = await startGoogleOAuth({
+      flow: 'signin',
+      locale,
+      returnUrl,
     });
-    if (oauthError) {
-      setError(t('errors.google'));
-      setIsGoogleLoading(false);
-    }
+    if (result.ok) return;
+    if (result.error === 'redirect_to_lan') return;
+    setError(
+      result.error === 'redirect_not_allowlisted'
+        ? t('errors.googleRedirectAllowlist', { detail: result.message })
+        : t('errors.google')
+    );
+    setIsGoogleLoading(false);
   };
+
+  // Phone LAN IPs cannot be Google redirect targets. After we bounce to sslip.io,
+  // resume the OAuth start once on the hostname origin.
+  useEffect(() => {
+    const fromQuery = searchParams.get('google');
+    const resume = fromQuery === 'signin' || fromQuery === 'customer' ? fromQuery : takeGoogleOAuthResume();
+    if (resume !== 'signin') return;
+    if (fromQuery) {
+      const cleaned = new URL(window.location.href);
+      cleaned.searchParams.delete('google');
+      window.history.replaceState({}, '', cleaned.pathname + cleaned.search);
+    }
+    void handleGoogleSignIn();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when landing from the LAN hostname hop
+  }, []);
 
   return (
     <AuthPageLayout>

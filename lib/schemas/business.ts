@@ -59,10 +59,10 @@ export const businessSchema = z.object({
     name: z.string().trim().min(1, 'Service name is required'),
   })).optional().default([]),
   images: z.array(z.string()).max(MAX_BUSINESS_GALLERY_IMAGES, `Maximum ${MAX_BUSINESS_GALLERY_IMAGES} images allowed`).optional().default([]),
-  streetAddress: z.string().trim().min(1, 'Street address is required'),
-  city: z.string().trim().min(1, 'City is required'),
-  state: z.string().trim().length(2, 'Use 2-letter state code').default('NV'),
-  zipCode: z.string().trim().regex(zipRegex, 'Invalid ZIP code'),
+  streetAddress: z.string().trim().optional().default(''),
+  city: z.string().trim().optional().default(''),
+  state: z.string().trim().optional().default(''),
+  zipCode: z.string().trim().optional().default(''),
   apartment: z.string().trim().optional(),
   address: z.string().trim().optional(), // Combined address string
   email: z.string().trim().lowercase().email('Invalid email format').optional().or(z.literal('')),
@@ -80,7 +80,38 @@ export const businessSchema = z.object({
 }, {
   message: 'At least one phone number is required',
   path: ['phone'],
+}).superRefine((data, ctx) => {
+  const message = businessAddressError(data);
+  if (!message) return;
+  const path = message.startsWith('Street')
+    ? 'streetAddress'
+    : message.startsWith('Use')
+      ? 'state'
+      : message.startsWith('Invalid')
+        ? 'zipCode'
+        : 'city';
+  ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: [path] });
 });
+
+/** Blank address is allowed. A started address must be complete. */
+export function businessAddressError(input: {
+  streetAddress?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+}): string | null {
+  const street = (input.streetAddress || input.address || '').trim();
+  const city = (input.city || '').trim();
+  const state = (input.state || '').trim();
+  const zip = (input.zipCode || '').trim();
+  if (!street && !city && !zip) return null;
+  if (!street) return 'Street address is required when you add an address';
+  if (!city) return 'City is required when you add an address';
+  if (state.length !== 2) return 'Use a 2-letter state code';
+  if (!zipRegex.test(zip)) return 'Invalid ZIP code';
+  return null;
+}
 
 export type BusinessSchema = z.infer<typeof businessSchema>;
 // Use this for react-hook-form values (defaults allow undefined inputs, e.g. zod `.default()`)

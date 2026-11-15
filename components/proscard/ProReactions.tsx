@@ -4,12 +4,21 @@ import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Heart, MessageSquare, Link, Bookmark } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { createSignInUrl } from '@/lib/redirect';
 import { readReactionCounts, writeReactionCounts } from '@/lib/storage/reactionCounts';
 import { savedBusinessStorage } from '@/lib/storage/savedBusinessStorage';
+import {
+  fetchSaveState,
+  saveBusinessOnServer,
+  syncLocalSavedBusinesses,
+  unsaveBusinessOnServer,
+} from '@/lib/saved/saved-business-client';
 import Modal from '@/components/ui/Modal';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { Button } from '@/components/ui/Button';
 
 const FeedbackModal = dynamic(() => import('./FeedbackModal'), {
   ssr: false,
@@ -54,7 +63,10 @@ export default function ProReactions({
   const [activeReactions, setActiveReactions] = useState<Set<string>>(new Set());
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [isComingSoonModalOpen, setIsComingSoonModalOpen] = useState(false);
+  const [switchSaveOpen, setSwitchSaveOpen] = useState(false);
+  const [savedConfirmOpen, setSavedConfirmOpen] = useState(false);
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { activeAccountId, setActiveAccountId } = useAccountSwitch();
   const router = useRouter();
   const pathname = usePathname();
   const locale = useLocale();
@@ -68,7 +80,6 @@ export default function ProReactions({
         ...prev,
         love: stored.love ?? prev.love,
         link: stored.link ?? prev.link,
-        save: stored.save ?? prev.save,
       }));
     }
     let cancelled = false;
@@ -85,12 +96,29 @@ export default function ProReactions({
   }, [businessId]);
 
   useEffect(() => {
-    if (user?.id && businessId && typeof window !== 'undefined') {
-      const isSaved = savedBusinessStorage.isBusinessSaved(user.id, businessId);
-      if (isSaved) {
-        setActiveReactions(prev => new Set(prev).add('save'));
+    if (!businessId) return;
+    let cancelled = false;
+    (async () => {
+      if (user?.id) await syncLocalSavedBusinesses(user.id);
+      const state = await fetchSaveState(businessId);
+      if (cancelled) return;
+      if (state) {
+        setReactions((prev) => ({ ...prev, save: state.count }));
+        setActiveReactions((prev) => {
+          const next = new Set(prev);
+          if (state.saved) next.add('save');
+          else next.delete('save');
+          return next;
+        });
+        return;
       }
-    }
+      if (user?.id && savedBusinessStorage.isBusinessSaved(user.id, businessId)) {
+        setActiveReactions((prev) => new Set(prev).add('save'));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id, businessId]);
 
   const applyFeedbackCount = useCallback((count: number) => {
@@ -121,6 +149,9 @@ export default function ProReactions({
       return;
     }
 
+    // Save is stored on the user's account, not as a local reaction.
+    if (type === 'save') return;
+
     const isActive = activeReactions.has(type);
     const currentCount = reactions[type] || 0;
     const newCount = isActive ? Math.max(0, currentCount - 1) : currentCount + 1;
@@ -135,15 +166,6 @@ export default function ProReactions({
       return newSet;
     });
 
-    // Handle save action with saved businesses storage
-    if (type === 'save' && user?.id && businessId && typeof window !== 'undefined') {
-      if (isActive) {
-        savedBusinessStorage.removeSavedBusiness(user.id, businessId);
-      } else {
-        savedBusinessStorage.saveBusiness(user.id, businessId);
-      }
-    }
-
     const updatedReactions = {
       ...reactions,
       [type]: newCount,
@@ -156,6 +178,34 @@ export default function ProReactions({
     if (onReaction) {
       onReaction(type);
     }
+  };
+
+  const applySaveState = (saved: boolean, count: number) => {
+    setReactions((prev) => ({ ...prev, save: count }));
+    setActiveReactions((prev) => {
+      const next = new Set(prev);
+      if (saved) next.add('save');
+      else next.delete('save');
+      return next;
+    });
+  };
+
+  const persistSave = async (removing: boolean): Promise<boolean> => {
+    if (!user?.id || !businessId) return false;
+    const state = removing
+      ? await unsaveBusinessOnServer(businessId)
+      : await saveBusinessOnServer(businessId);
+    if (!state) {
+      if (removing) savedBusinessStorage.removeSavedBusiness(user.id, businessId);
+      else savedBusinessStorage.saveBusiness(user.id, businessId);
+      const nextCount = Math.max(0, (reactions.save || 0) + (removing ? -1 : 1));
+      applySaveState(!removing, nextCount);
+    } else {
+      savedBusinessStorage.removeSavedBusiness(user.id, businessId);
+      applySaveState(state.saved, state.count);
+    }
+    onReaction?.('save');
+    return true;
   };
 
   const handleReaction = (e: React.MouseEvent, type: 'love' | 'feedback' | 'link' | 'save') => {
@@ -174,7 +224,26 @@ export default function ProReactions({
       router.push(signInUrl);
       return;
     }
+    if (type === 'save') {
+      const removing = activeReactions.has('save');
+      const uid = user?.id;
+      const onBusinessProfile = Boolean(uid) && activeAccountId !== uid;
+      if (!removing && onBusinessProfile) {
+        setSwitchSaveOpen(true);
+        return;
+      }
+      void persistSave(removing);
+      return;
+    }
     performReaction(type);
+  };
+
+  const confirmSwitchAndSave = async () => {
+    const ok = await persistSave(false);
+    if (!ok || !user?.id) return;
+    setActiveAccountId(user.id);
+    setSwitchSaveOpen(false);
+    setSavedConfirmOpen(true);
   };
 
   const reactionConfig = [
@@ -185,10 +254,11 @@ export default function ProReactions({
   ];
 
   const justifyClass = layout === 'around' ? 'justify-around' : 'justify-between';
+  const isCard = layout !== 'around';
   
   return (
-    <div className="procard-reactions px-1 py-1 flex items-center justify-center">
-      <div className={`w-full flex items-center gap-1 ${justifyClass}`}>
+    <div className={`procard-reactions flex w-full min-w-0 items-center justify-center px-1 ${isCard ? 'pt-1 pb-2' : 'py-1 md:[zoom:0.9]'}`}>
+      <div className={`flex w-full min-w-0 items-center gap-1 ${justifyClass}`}>
         {reactionConfig.map(({ type, icon: Icon, label, count }) => {
           const isActive = activeReactions.has(type);
           // Special styling for active states
@@ -237,11 +307,11 @@ export default function ProReactions({
               aria-label={`${label}, ${count}`}
             >
               <div className="flex items-center justify-center gap-1 pb-1">
-                <Icon className={`w-4 h-4 md:w-3 md:h-3 transition-transform md:group-hover:scale-110 ${getIconStyles()}`} />
-                <span className={`text-[10px] font-semibold leading-tight ${getTextColor()}`}>{count}</span>
+                <Icon className={`w-4 h-4 transition-transform md:group-hover:scale-110 ${isCard ? 'md:w-3 md:h-3' : 'md:w-5 md:h-5'} ${getIconStyles()}`} />
+                <span className={`font-semibold leading-tight ${getTextColor()} ${isCard ? 'text-[10px]' : 'text-[10px] md:text-sm'}`}>{count}</span>
               </div>
-              <div className={`w-full min-w-0 px-1 py-1 rounded border-2 ${getBorderStyles()} bg-white flex items-center justify-center`}>
-                <span className={`text-[10px] font-semibold leading-tight whitespace-nowrap truncate ${getTextColor()}`}>{label}</span>
+              <div className={`w-full min-w-0 rounded border-2 ${getBorderStyles()} bg-white flex items-center justify-center ${isCard ? 'px-1 py-1' : 'px-1 py-1 md:px-2 md:py-1.5'}`}>
+                <span className={`font-semibold leading-tight whitespace-nowrap truncate ${getTextColor()} ${isCard ? 'text-[10px]' : 'text-[10px] md:text-base'}`}>{label}</span>
               </div>
             </button>
           );
@@ -257,6 +327,29 @@ export default function ProReactions({
         businessId={businessId}
         businessSlug={businessSlug}
         onCountChange={applyFeedbackCount}
+      />
+
+      <Modal
+        isOpen={switchSaveOpen}
+        onClose={() => setSwitchSaveOpen(false)}
+        title={t('saveOnPersonalTitle')}
+        showHeader
+        showCloseButton
+        maxWidth="sm"
+        contentClassName="p-6 text-center"
+      >
+        <p className="mb-6 text-base text-black">{t('saveOnPersonalMessage')}</p>
+        <Button type="button" variant="primary" className="w-full" onClick={confirmSwitchAndSave}>
+          {t('yes')}
+        </Button>
+      </Modal>
+
+      <ConfirmationModal
+        isOpen={savedConfirmOpen}
+        onClose={() => setSavedConfirmOpen(false)}
+        title={t('savedTitle')}
+        message={t('savedMessage')}
+        primaryButton={{ label: t('ok'), onClick: () => setSavedConfirmOpen(false) }}
       />
 
       <Modal

@@ -165,6 +165,7 @@ export default function BusinessListClient({
           showAddOnDesktop
           onJobCamera={isPro ? () => setJobCamOpen(true) : undefined}
           jobCameraLabel={tJob('title')}
+          showAccount={isAuthenticated}
         />
       )}
       {isPro && <ProAddModal isOpen={addOpen} onClose={() => setAddOpen(false)} />}

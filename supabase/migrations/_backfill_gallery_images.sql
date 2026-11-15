@@ -1,9 +1,9 @@
--- One-off repair: attach today's gallery uploads. Earlier retries stayed in storage
--- because the images column did not exist, and the gallery cap is 30.
+-- One-off repair: keep the newest 30 of today's uploads (gallery cap).
 WITH ranked AS (
   SELECT
     name,
-    created_at
+    created_at,
+    row_number() OVER (ORDER BY created_at DESC) AS rn
   FROM storage.objects
   WHERE bucket_id = 'business-images'
     AND split_part(name, '/', 1) = 'e79fe48c-08f4-4928-9e69-17861b7edfe7'

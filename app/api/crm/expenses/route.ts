@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { categoryNeedsSupplier, cleanExpenseText, parseExpenseOrderFields, resolveOwnedSupplierId, supplierNamesById } from '@/lib/crm/expense-supplier';
+import { MILEAGE_SETUP_ERROR, mileageSchemaMissing, resolveVehicleId } from '@/lib/crm/mileage';
 import { safeTimeZone } from '@/lib/crm/estimate-chart';
 import { buildExpenseChart, type ExpenseChart } from '@/lib/crm/list-charts';
 
@@ -152,29 +153,38 @@ export async function POST(request: NextRequest) {
       : { id: null, error: null, status: 200 };
     if (supplier.error) return NextResponse.json({ error: supplier.error }, { status: supplier.status });
     const order = parseExpenseOrderFields(category, body);
+    const vehicle = await resolveVehicleId(supabase, user.id, category, body.vehicleId ?? body.vehicle_id);
+    if (vehicle.error) return NextResponse.json({ error: vehicle.error }, { status: vehicle.status });
 
-    const { data: row, error } = await supabase
-      .from('pro_crm_expenses')
-      .insert({
-        owner_id: user.id,
-        project_id: projectId,
-        amount_cents: amountCents,
-        category,
-        expense_date: expenseDate,
-        note,
-        description,
-        supplier_id: supplier.id,
-        po_number: order.po_number,
-        quantity: order.quantity,
-        unit: order.unit,
-        requested_by: order.requested_by,
-        ordered_by: order.ordered_by,
-        receipt_url: receiptUrl,
-      })
-      .select('id, created_at')
-      .single();
+    const insertRow = {
+      owner_id: user.id,
+      project_id: projectId,
+      amount_cents: amountCents,
+      category,
+      expense_date: expenseDate,
+      note,
+      description,
+      supplier_id: supplier.id,
+      po_number: order.po_number,
+      quantity: order.quantity,
+      unit: order.unit,
+      requested_by: order.requested_by,
+      ordered_by: order.ordered_by,
+      receipt_url: receiptUrl,
+      vehicle_id: vehicle.id,
+    };
+    let { data: row, error } = await supabase.from('pro_crm_expenses').insert(insertRow).select('id, created_at').single();
+    const { vehicle_id: linkedVehicleId, ...withoutVehicle } = insertRow;
+    if (error && mileageSchemaMissing(error.message) && linkedVehicleId == null) {
+      const retry = await supabase.from('pro_crm_expenses').insert(withoutVehicle).select('id, created_at').single();
+      row = retry.data;
+      error = retry.error;
+    }
 
-    if (error) return NextResponse.json({ error: error.message || 'Failed to create expense' }, { status: 500 });
+    if (error && mileageSchemaMissing(error.message)) {
+      return NextResponse.json({ error: MILEAGE_SETUP_ERROR }, { status: 400 });
+    }
+    if (error || !row) return NextResponse.json({ error: error?.message || 'Failed to create expense' }, { status: 500 });
     return NextResponse.json({ id: row.id, created_at: row.created_at }, { status: 201 });
   } catch (err) {
     console.error('POST /api/crm/expenses', err);

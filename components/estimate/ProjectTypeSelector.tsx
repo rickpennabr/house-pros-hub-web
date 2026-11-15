@@ -51,6 +51,7 @@ export default function ProjectTypeSelector({
       tip={tTips('projectType')}
       missingInfoMessage={!isOpen && !isComplete ? tAccordion('missingRequiredInfo') : undefined}
     >
+      <p className="text-sm font-medium text-black">{tAccordion('projectTypeHint')}</p>
       <FormField label="" error={undefined}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {projectTypes.map((type) => {
@@ -76,6 +77,26 @@ export default function ProjectTypeSelector({
               </button>
             );
           })}
+          {selectedProjectType === 'other' && (
+            <div className="col-span-full">
+              <FormField
+                label={tFields('projectTypeOtherLabel')}
+                error={errors.projectTypeOther?.message ? tValidation(errors.projectTypeOther.message as string) : undefined}
+              >
+                <input
+                  {...register('projectTypeOther')}
+                  type="text"
+                  placeholder={tFields('projectTypeOtherPlaceholder')}
+                  disabled={isSubmitting}
+                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none transition-all ${
+                    errors.projectTypeOther
+                      ? 'border-red-500 focus:border-red-500'
+                      : 'border-black'
+                  } bg-white`}
+                />
+              </FormField>
+            </div>
+          )}
         </div>
         <div className="mt-4 space-y-3">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -98,26 +119,6 @@ export default function ProjectTypeSelector({
           </label>
         </div>
       </FormField>
-      {selectedProjectType === 'other' && (
-        <div className="mt-4">
-          <FormField
-            label={tFields('projectTypeOtherLabel')}
-            error={errors.projectTypeOther?.message ? tValidation(errors.projectTypeOther.message as string) : undefined}
-          >
-            <input
-              {...register('projectTypeOther')}
-              type="text"
-              placeholder={tFields('projectTypeOtherPlaceholder')}
-              disabled={isSubmitting}
-              className={`w-full px-4 py-2.5 border-2 rounded-lg focus:outline-none transition-all ${
-                errors.projectTypeOther
-                  ? 'border-red-500 focus:border-red-500'
-                  : 'border-black'
-              } bg-white`}
-            />
-          </FormField>
-        </div>
-      )}
     </Accordion>
   );
 }

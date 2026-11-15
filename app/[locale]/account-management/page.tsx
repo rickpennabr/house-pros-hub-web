@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo, useEffect, Suspense } from 'react';
+import { useMemo, useEffect, useRef, useState, useSyncExternalStore, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useTranslations, useLocale } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
 import LoadingFallback from '@/components/ui/LoadingFallback';
+import SettingsModal from '@/components/settings/SettingsModal';
 import { 
   Building2, 
   Plus, 
@@ -19,8 +20,17 @@ import {
   FileText,
   HardDrive,
   CreditCard,
-  QrCode
+  QrCode,
+  Settings,
+  GripVertical
 } from 'lucide-react';
+import {
+  applyQuickActionMove,
+  getQuickActionOrder,
+  sortBySavedOrder,
+  subscribeQuickActionOrder,
+  writeQuickActionOrder,
+} from '@/lib/account/quick-action-order';
 
 interface Account {
   id: string;
@@ -50,6 +60,7 @@ function AccountManagementContent() {
   const locale = useLocale();
   const searchParams = useSearchParams();
   const t = useTranslations('accountManagement');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { user, roles, isAdmin, isLoading: authLoading } = useAuth();
   const { businesses, activeAccountId, setActiveAccountId, refreshBusinesses } = useAccountSwitch();
   const userId = user?.id ?? '';
@@ -115,6 +126,16 @@ function AccountManagementContent() {
       borderColor: 'border-black',
       path: `/${locale}/business/add`,
     },
+    {
+      id: 'personal-2',
+      title: t('actions.personal.savedBusiness.title'),
+      description: t('actions.personal.savedBusiness.description'),
+      icon: Bookmark,
+      iconBg: 'bg-black',
+      iconColor: 'text-white',
+      borderColor: 'border-black',
+      path: `/${locale}/saved-businesses`,
+    },
   ], [t, locale]);
 
   // Pro profile: business tools plus the rest of the hub shortcuts.
@@ -148,16 +169,6 @@ function AccountManagementContent() {
       iconColor: 'text-white',
       borderColor: 'border-black',
       path: `/${locale}/partners/manage`,
-    },
-    {
-      id: 'personal-2',
-      title: t('actions.personal.savedBusiness.title'),
-      description: t('actions.personal.savedBusiness.description'),
-      icon: Bookmark,
-      iconBg: 'bg-black',
-      iconColor: 'text-white',
-      borderColor: 'border-black',
-      path: `/${locale}/saved-businesses`,
     },
     {
       id: 'personal-proscrm',
@@ -245,10 +256,11 @@ function AccountManagementContent() {
     return accounts;
   }, [user, businessList, effectiveSelectedAccountId, t]);
 
-  // Personal shows Edit Profile and Add Business. Everything else is on a pro profile.
+  // Personal shows profile, saved businesses, and creating a business. Partnership is on a pro profile.
   const selectedAccount = visibleAccounts.find(acc => acc.id === effectiveSelectedAccountId);
   const isPro = roles.includes('contractor') || (roles as string[]).includes('realtor');
   const isInstaller = (roles as string[]).includes('installer');
+  const isHandyman = (roles as string[]).includes('handyman');
   const visibleActions = [
     ...(selectedAccount?.type === 'personal'
       ? personalActions
@@ -256,7 +268,7 @@ function AccountManagementContent() {
           .filter((action) => {
             if (action.id === 'personal-proscrm') return isPro && !isAdmin;
             if (action.id === 'personal-proresume') return isInstaller;
-            if (action.id === 'personal-qrcode') return isInstaller && !isPro && !isAdmin;
+            if (action.id === 'personal-qrcode') return (isInstaller || isHandyman) && !isPro && !isAdmin;
             return true;
           })
           .map((action) => {
@@ -268,13 +280,126 @@ function AccountManagementContent() {
             }
             return action;
           })),
+    ...(selectedAccount?.type === 'personal'
+      ? [
+          {
+            id: 'settings',
+            title: t('settings.title'),
+            description: t('settings.description'),
+            icon: Settings,
+            iconBg: 'bg-black',
+            iconColor: 'text-white',
+            borderColor: 'border-black',
+            path: 'settings',
+          },
+        ]
+      : []),
   ];
+
+  const accountKind = selectedAccount?.type === 'personal' ? 'personal' : 'business';
+  const orderKey = userId ? `hph-quick-actions-order:${userId}:${accountKind}` : null;
+  const savedOrder = useSyncExternalStore(
+    subscribeQuickActionOrder,
+    () => getQuickActionOrder(orderKey),
+    () => getQuickActionOrder(null),
+  );
+  const dragFromId = useRef<string | null>(null);
+  const dragCleanup = useRef<(() => void) | null>(null);
+  const didDrag = useRef(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  useEffect(() => () => dragCleanup.current?.(), []);
+
+  const orderedActions = sortBySavedOrder(visibleActions, savedOrder);
+
+  const commitOrder = (fromId: string, toId: string) => {
+    const next = applyQuickActionMove(
+      savedOrder,
+      orderedActions.map((action) => action.id),
+      fromId,
+      toId,
+    );
+    if (next === savedOrder || !orderKey) return;
+    writeQuickActionOrder(orderKey, next);
+  };
+
+  const beginDrag = (event: React.PointerEvent, id: string) => {
+    if (event.button !== 0) return;
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const pointerType = event.pointerType;
+    let active = false;
+    dragFromId.current = id;
+    dragCleanup.current?.();
+
+    const cleanup = () => {
+      document.body.style.cursor = '';
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      if (dragCleanup.current === cleanup) dragCleanup.current = null;
+    };
+
+    function onMove(ev: PointerEvent) {
+      if (ev.pointerId !== pointerId) return;
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!active) {
+        if (Math.hypot(dx, dy) < 8) return;
+        // A vertical swipe is a page scroll, not a reorder.
+        if (pointerType === 'touch' && Math.abs(dy) > Math.abs(dx)) {
+          dragFromId.current = null;
+          cleanup();
+          return;
+        }
+        active = true;
+        didDrag.current = true;
+        document.body.style.cursor = 'grabbing';
+        setDraggingId(id);
+      }
+      const card = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>('[data-action-id]');
+      const overId = card?.dataset.actionId ?? null;
+      const nextOver = overId && overId !== id ? overId : null;
+      setDragOverId((current) => (current === nextOver ? current : nextOver));
+    }
+
+    function onUp(ev: PointerEvent) {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+      const fromId = dragFromId.current;
+      dragFromId.current = null;
+      const toId = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>('[data-action-id]')?.dataset.actionId ?? null;
+      setDraggingId(null);
+      setDragOverId(null);
+      if (active && fromId && toId) commitOrder(fromId, toId);
+      if (active) window.setTimeout(() => { didDrag.current = false; }, 0);
+    }
+
+    dragCleanup.current = cleanup;
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  const openAction = (path: string) => {
+    if (didDrag.current) {
+      didDrag.current = false;
+      return;
+    }
+    handleQuickAction(path);
+  };
 
   const handleAccountSelect = (accountId: string) => {
     setActiveAccountId(accountId);
   };
 
   const handleQuickAction = (path: string) => {
+    if (path === 'settings') {
+      setSettingsOpen(true);
+      return;
+    }
     router.push(path);
   };
 
@@ -342,8 +467,8 @@ function AccountManagementContent() {
       {/* Main Content */}
       <div className="w-full max-w-[960px] mx-auto p-2 md:p-2 py-2 md:py-2">
         {/* Select Account Section - Personal first, then business (e.g. after "Manage business") */}
-        <div className="mb-4 md:mb-6">
-          <h2 className="text-lg md:text-xl font-bold text-black mb-4">{t('selectAccount')}</h2>
+        <div className="mb-2 md:mb-0">
+          <h2 className="text-lg md:text-xl font-bold text-black mb-2 md:mb-4">{t('selectAccount')}</h2>
           <div className="relative">
             {authLoading ? (
               <div className="flex gap-3 overflow-x-auto pb-2">
@@ -390,62 +515,96 @@ function AccountManagementContent() {
 
         {/* Quick Actions Section */}
         <div>
-          <h2 className="text-lg md:text-xl font-bold text-black mb-4">{t('quickActions')}</h2>
+          <h2 className="text-lg md:text-xl font-bold text-black mb-1">{t('quickActions')}</h2>
+          <p className="mb-3 text-sm text-gray-500 md:mb-4">{t('dragHint')}</p>
           {/* Mobile: 2 column horizontal button layout */}
           <div className="grid grid-cols-2 gap-3 md:hidden">
-            {visibleActions.map((action) => {
+            {orderedActions.map((action) => {
               const IconComponent = action.icon;
-              const isSpanish = locale === 'es';
-              // Allow text wrapping on Spanish mobile, keep nowrap for English
-              const textWrapClass = isSpanish ? '' : 'whitespace-nowrap';
+              const dragging = draggingId === action.id;
+              const dropTarget = dragOverId === action.id;
               return (
-                <button
+                <div
                   key={action.id}
-                  onClick={() => handleQuickAction(action.path)}
-                  className="bg-white border-2 border-black rounded-lg px-2 py-2 flex items-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors"
+                  role="button"
+                  tabIndex={0}
+                  data-action-id={action.id}
+                  onClick={() => openAction(action.path)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openAction(action.path);
+                    }
+                  }}
+                  className={`relative bg-white border-2 border-black rounded-lg py-2 pl-2 pr-5 flex items-center gap-2 cursor-pointer select-none hover:bg-gray-50 transition-colors ${
+                    dragging ? 'opacity-40' : ''
+                  } ${dropTarget ? 'outline outline-2 outline-offset-2 outline-black' : ''}`}
                 >
-                  {/* Icon */}
                   <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
                     <IconComponent className="w-5 h-5 text-white" />
                   </div>
-                  {/* Text */}
-                  <span className={`text-sm font-medium text-gray-800 ${textWrapClass}`}>
+                  <span className="min-w-0 flex-1 text-sm font-medium leading-tight text-gray-800 break-words">
                     {action.title}
                   </span>
-                </button>
+                  <button
+                    type="button"
+                    aria-label={t('dragHint')}
+                    onPointerDown={(event) => {
+                      event.stopPropagation();
+                      beginDrag(event, action.id);
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    className="absolute right-0.5 top-1/2 z-10 flex -translate-y-1/2 cursor-grab items-center justify-center text-gray-500 active:cursor-grabbing"
+                  >
+                    <GripVertical className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
               );
             })}
           </div>
           {/* PC: Card layout (original) */}
           <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {visibleActions.map((action) => {
+            {orderedActions.map((action) => {
               const IconComponent = action.icon;
+              const dragging = draggingId === action.id;
+              const dropTarget = dragOverId === action.id;
               return (
                 <div
                   key={action.id}
-                  className="bg-white border-2 border-black rounded-lg p-4 md:p-6 cursor-pointer hover:shadow-lg transition-shadow"
-                  onClick={() => handleQuickAction(action.path)}
+                  data-action-id={action.id}
+                  onClick={() => openAction(action.path)}
+                  className={`relative bg-white border-2 border-black rounded-lg p-2 cursor-pointer select-none hover:shadow-lg transition-shadow ${
+                    dragging ? 'opacity-40' : ''
+                  } ${dropTarget ? 'outline outline-2 outline-offset-2 outline-black' : ''}`}
                 >
-                  {/* Icon and Text Section */}
+                  <button
+                    type="button"
+                    aria-label={t('dragHint')}
+                    onPointerDown={(event) => {
+                      event.stopPropagation();
+                      beginDrag(event, action.id);
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    className="absolute right-2 top-2 z-10 flex h-8 w-8 cursor-grab items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 active:cursor-grabbing"
+                  >
+                    <GripVertical className="h-5 w-5" aria-hidden />
+                  </button>
                   <div className="flex items-start gap-4 mb-4">
-                    {/* Icon */}
                     <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
                       <IconComponent className="w-6 h-6 text-white" />
                     </div>
 
-                    {/* Title and Description */}
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-800 mb-1">
+                    <div className="min-w-0 flex-1 pr-4">
+                      <h3 className="mb-1 truncate text-lg font-bold text-gray-800">
                         {action.title}
                       </h3>
-                      <p className="text-sm text-gray-600">
+                      <p className="truncate text-sm text-gray-600" title={action.description}>
                         {action.description}
                       </p>
                     </div>
                   </div>
 
-                  {/* Access Button - Full width rectangle with rounded corners */}
-                  <button className="w-full py-2.5 px-4 border-2 border-black bg-white text-black rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm cursor-pointer">
+                  <button type="button" className="w-full py-2.5 px-4 border-2 border-black bg-white text-black rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm cursor-pointer">
                     {t('access')}
                   </button>
                 </div>
@@ -455,6 +614,7 @@ function AccountManagementContent() {
         </div>
 
       </div>
+      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

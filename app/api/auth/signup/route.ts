@@ -129,7 +129,9 @@ export async function POST(request: NextRequest) {
           ? 'realtor'
           : userType === 'installer'
             ? 'installer'
-            : null;
+            : userType === 'handyman'
+              ? 'handyman'
+              : null;
     if (invitationRole) {
       const rawCode = invitationCode != null ? String(invitationCode).trim().toUpperCase() : '';
       if (!rawCode) {
@@ -305,16 +307,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Assign role(s) if provided and valid
-    const validUserTypes = ['customer', 'contractor', 'realtor', 'installer', 'both'] as const;
+    const validUserTypes = ['customer', 'contractor', 'realtor', 'installer', 'handyman', 'both'] as const;
     if (userType && validUserTypes.includes(userType as typeof validUserTypes[number])) {
-      const roles: ('customer' | 'contractor' | 'realtor' | 'installer')[] =
+      const roles: ('customer' | 'contractor' | 'realtor' | 'installer' | 'handyman')[] =
         userType === 'both'
           ? ['customer', 'contractor']
           : userType === 'realtor'
             ? ['realtor']
             : userType === 'installer'
               ? ['installer']
-              : [userType as 'customer' | 'contractor'];
+              : userType === 'handyman'
+                ? ['handyman']
+                : [userType as 'customer' | 'contractor'];
 
       let roleAssignFailed = false;
       for (const role of roles) {
@@ -352,9 +356,9 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-      if (userType === 'installer' && roleAssignFailed) {
+      if ((userType === 'installer' || userType === 'handyman') && roleAssignFailed) {
         return NextResponse.json(
-          { error: 'Could not finish installer signup' },
+          { error: userType === 'handyman' ? 'Could not finish handyman signup' : 'Could not finish installer signup' },
           { status: 500 }
         );
       }
@@ -437,7 +441,7 @@ export async function POST(request: NextRequest) {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: normalizedEmail,
-        userType: (userType || 'customer') as 'customer' | 'contractor' | 'realtor' | 'installer' | 'both',
+        userType: (userType || 'customer') as 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | 'both',
       };
 
       // Send welcome email (errors are logged but don't fail signup)
@@ -468,7 +472,9 @@ export async function POST(request: NextRequest) {
             ? 'realtor'
             : userType === 'installer'
               ? 'installer'
-              : 'customer';
+              : userType === 'handyman'
+                ? 'handyman'
+                : 'customer';
       const name = `${firstName.trim()} ${lastName.trim()}`.trim() || normalizedEmail;
       const adminNotifyResult = await sendNewSignupAdminNotification({
         type: signupType,
@@ -499,7 +505,9 @@ export async function POST(request: NextRequest) {
           ? 'realtor'
           : userType === 'installer'
             ? 'installer'
-            : 'customer';
+            : userType === 'handyman'
+              ? 'handyman'
+              : 'customer';
     await recordAdminBellEvent({
       eventType: 'signup',
       entityType,

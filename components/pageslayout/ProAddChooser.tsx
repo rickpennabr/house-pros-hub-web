@@ -10,6 +10,7 @@ import {
   FolderKanban,
   Package,
   Receipt,
+  Car,
   Users,
   Shovel,
 } from 'lucide-react';
@@ -17,7 +18,7 @@ import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/
 
 /** Contractor, realtor, and installer accounts. Customers keep the public contact buttons. */
 export function isHubPro(roles: readonly string[]): boolean {
-  return roles.includes('contractor') || roles.includes('realtor') || roles.includes('installer');
+  return roles.includes('contractor') || roles.includes('realtor') || roles.includes('installer') || roles.includes('handyman');
 }
 
 interface ProAddModalProps {
@@ -37,6 +38,7 @@ export function ProAddModal({ isOpen, onClose }: ProAddModalProps) {
       { id: 'invoice', href: `${crm}/invoices/new`, label: t('proAdd.invoice'), icon: FileCheck },
       { id: 'project', href: `${crm}/projects?new=1`, label: t('proAdd.project'), icon: FolderKanban },
       { id: 'expense', href: `${crm}/expenses?new=1`, label: t('proAdd.expense'), icon: Receipt },
+      { id: 'trip', href: `${crm}/mileage?new=1`, label: t('proAdd.trip'), icon: Car },
       { id: 'estimate', href: `${crm}/estimates?new=1`, label: t('proAdd.estimate'), icon: FileText },
       { id: 'task', href: `${crm}/calendar?new=task`, label: t('proAdd.task'), icon: CalendarDays },
       { id: 'service', href: `${crm}/services?new=1`, label: t('proAdd.service'), icon: Shovel },

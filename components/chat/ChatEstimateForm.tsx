@@ -22,6 +22,7 @@ const PROJECT_TYPES: Array<EstimateSchemaType['projectType']> = [
   'repair',
   'remodel',
   'addition_extension',
+  'maintenance',
   'other',
 ];
 

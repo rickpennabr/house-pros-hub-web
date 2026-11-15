@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
     const roleParam = searchParams.get('role');
-    const role = roleParam === 'realtor' ? 'realtor' : roleParam === 'installer' ? 'installer' : 'contractor';
+    const role = roleParam === 'realtor' ? 'realtor' : roleParam === 'installer' ? 'installer' : roleParam === 'handyman' ? 'handyman' : 'contractor';
 
     const service = createServiceRoleClient();
     const { data: codes, error } = await service

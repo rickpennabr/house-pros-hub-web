@@ -8,6 +8,7 @@ import { locales } from '@/i18n';
 import type { Locale } from '@/i18n';
 import AuthProviderWrapper from '@/components/providers/AuthProviderWrapper';
 import { GlobalHashHandler } from '@/components/auth/GlobalHashHandler';
+import { FinishAccountSetupGate } from '@/components/auth/FinishAccountSetup';
 import { RecoveryHashRedirect } from '@/components/auth/RecoveryHashRedirect';
 import ContractorPresenceHeartbeat from '@/components/presence/ContractorPresenceHeartbeat';
 import UserPresenceHeartbeat from '@/components/presence/UserPresenceHeartbeat';
@@ -216,6 +217,7 @@ export default async function RootLayout({
             <UserPresenceHeartbeat />
             <ContractorPresenceHeartbeat />
             <GlobalHashHandler />
+            <FinishAccountSetupGate />
             <QuickRepairCameraHost />
             <Suspense fallback={<LoadingOverlay />}>
               {children}

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChartColumn, List, Map, Plus } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
+import { ChartColumn, List, Map, Plus, Settings } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { LuIdCard } from 'react-icons/lu';
 import { useBackgroundMode } from '@/contexts/BackgroundModeContext';
 import { DAY_CYCLE_SKY_ENABLED } from '@/lib/constants/probot';
@@ -32,6 +33,8 @@ interface ViewToggleProps {
   /** Desktop Jobsite camera. Add sits to its right. */
   onJobCamera?: () => void;
   jobCameraLabel?: string;
+  /** Signed-in users: Account Management sits to the right of Add. */
+  showAccount?: boolean;
 }
 
 interface ViewOption {
@@ -60,7 +63,10 @@ export default function ViewToggle({
   showAddOnDesktop = false,
   onJobCamera,
   jobCameraLabel = 'JOB',
+  showAccount = false,
 }: ViewToggleProps) {
+  const router = useRouter();
+  const locale = useLocale();
   const t = useTranslations('common');
   const { mode, setMode } = useBackgroundMode();
   const [mounted, setMounted] = useState(false);
@@ -167,6 +173,26 @@ export default function ViewToggle({
           <Plus className={`${iconSize} transition-transform duration-200 ${addOpen ? 'rotate-45' : ''}`} />
           {!embedded && showAddOnDesktop && (
             <span className="hidden md:inline whitespace-nowrap tracking-wider">{addLabel}</span>
+          )}
+        </button>
+      )}
+      {showAccount && (
+        <button
+          type="button"
+          onClick={() => router.push(`/${locale}/account-management`)}
+          className={`
+            flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 shrink-0
+            rounded-lg border-2 border-white box-border text-white hover:bg-gray-800
+            ${controlSize}
+            ${!embedded ? 'md:w-auto md:min-w-10 md:px-3' : ''}
+          `}
+          aria-label={t('account.manageAccounts')}
+        >
+          <Settings className={iconSize} />
+          {!embedded && (
+            <span className="hidden md:inline whitespace-nowrap tracking-wider">
+              {t('account.manageAccounts')}
+            </span>
           )}
         </button>
       )}

@@ -7,6 +7,7 @@ import { Bell, User, Briefcase, MessageCircle, ClipboardList, Calendar, Mail } f
 import type { AdminNotificationEntityType, AdminNotificationEventType } from '@/lib/types/adminNotification';
 import { useOptionalChat } from '@/contexts/ChatContext';
 import { useOptionalAuth } from '@/contexts/AuthContext';
+import { useHoverMenu } from '@/hooks/useHoverMenu';
 
 export type NewSignupItem = {
   id: string;
@@ -28,6 +29,8 @@ function entityLabel(type: NewSignupItem['type']): string {
       return 'Realtor';
     case 'installer':
       return 'Installer';
+    case 'handyman':
+      return 'Handyman';
     case 'business':
       return 'Business';
     default:
@@ -106,6 +109,10 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
   const notificationRef = useRef<HTMLDivElement>(null);
   const bellButtonRef = useRef<HTMLButtonElement>(null);
   const [menuBox, setMenuBox] = useState<{ top: number; right: number } | null>(null);
+  const { openOnHover, closeOnHover, cancelClose } = useHoverMenu(setNotificationOpen, [
+    bellButtonRef,
+    notificationRef,
+  ]);
   const isChat = variant === 'chat';
   const visitorId = useOptionalChat()?.visitorId ?? '';
   const user = useOptionalAuth()?.user;
@@ -198,9 +205,12 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
         ref={bellButtonRef}
         type="button"
         onClick={() => setNotificationOpen((o) => !o)}
+        onMouseEnter={openOnHover}
+        onMouseLeave={closeOnHover}
         className="relative w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors bell-shake-on-hover"
         aria-label="Notifications"
         aria-expanded={notificationOpen}
+        aria-haspopup="menu"
       >
         <Bell className="w-5 h-5 text-black" />
         {notificationCount > 0 && (
@@ -213,9 +223,12 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
       {notificationOpen && menuBox && createPortal(
         <div
           ref={notificationRef}
-          className="fixed w-72 bg-white rounded-lg border-2 border-black shadow-lg z-[300] overflow-hidden"
-          style={{ top: menuBox.top, right: menuBox.right }}
+          onMouseEnter={cancelClose}
+          onMouseLeave={closeOnHover}
+          className="fixed z-[300] w-72 pt-2"
+          style={{ top: menuBox.top - 8, right: menuBox.right }}
         >
+        <div className="overflow-hidden rounded-lg border-2 border-black bg-white shadow-lg">
           {isChat ? (
             <>
               <div className="px-4 py-3 border-b-2 border-black bg-gray-50">
@@ -317,6 +330,7 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
               </div>
             </>
           )}
+        </div>
         </div>,
         document.body
       )}

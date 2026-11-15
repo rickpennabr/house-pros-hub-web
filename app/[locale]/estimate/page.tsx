@@ -63,7 +63,11 @@ export default function EstimatePage() {
   const notesRef = useRef<HTMLDivElement>(null);
 
   // Get accordion state from hook
-  const { state: accordionState, toggleAccordion, openAccordion, isOpen, closeAll } = useAccordionState();
+  // Start on Customer Information so the person can confirm their details and project address.
+  const { state: accordionState, toggleAccordion, openAccordion, isOpen, closeAll } = useAccordionState({
+    customerInfo: true,
+    projectInfo: false,
+  });
 
   // Create translated arrays
   const PROJECT_TYPES = useMemo(() => [
@@ -72,6 +76,7 @@ export default function EstimatePage() {
     { value: 'repair', label: tOptions('projectType.repair'), explanation: '' },
     { value: 'remodel', label: tOptions('projectType.remodel'), explanation: '' },
     { value: 'addition_extension', label: tOptions('projectType.addition_extension'), explanation: '' },
+    { value: 'maintenance', label: tOptions('projectType.maintenance'), explanation: '' },
     { value: 'other', label: tOptions('projectType.other'), explanation: '' },
   ], [tOptions]);
 
@@ -518,6 +523,9 @@ export default function EstimatePage() {
               tAccordion={tAccordion}
               tTips={tTips}
               addressPrefilledFromProfile={addressPrefilledFromProfile}
+              personalInfoFromProfile={Boolean(
+                user?.firstName?.trim() && user?.lastName?.trim() && user?.email?.trim() && user?.phone?.trim()
+              )}
             />
           </div>
 

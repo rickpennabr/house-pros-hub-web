@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 
-type InvitationRole = 'contractor' | 'realtor' | 'installer';
+type InvitationRole = 'contractor' | 'realtor' | 'installer' | 'handyman';
 
 interface InvitationCodeRow {
   id: string;
@@ -118,7 +118,7 @@ export default function InvitationCodesPage() {
     }
   };
 
-  const roleLabel = role === 'realtor' ? 'Realtor' : role === 'installer' ? 'Installer' : 'Contractor';
+  const roleLabel = role === 'realtor' ? 'Realtor' : role === 'installer' ? 'Installer' : role === 'handyman' ? 'Handyman' : 'Contractor';
 
   return (
     <div className="w-full">
@@ -126,7 +126,7 @@ export default function InvitationCodesPage() {
         <div>
           <h1 className="text-3xl font-semibold text-black mb-2">Invitation codes</h1>
           <p className="text-gray-600 mb-3">
-            Generate one-time codes for contractor, realtor, or installer signup. Each code expires in 30 days.
+            Generate one-time codes for contractor, realtor, installer, or handyman signup. Each code expires in 30 days.
           </p>
           <div className="flex gap-2 border-b border-gray-200">
             <button
@@ -161,6 +161,17 @@ export default function InvitationCodesPage() {
               }`}
             >
               Installer
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole('handyman')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                role === 'handyman'
+                  ? 'border-black text-black'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Handyman
             </button>
           </div>
         </div>

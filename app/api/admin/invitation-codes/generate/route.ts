@@ -32,7 +32,7 @@ function generateCode(): string {
 /**
  * POST /api/admin/invitation-codes/generate
  * Generate a new one-time contractor or realtor invitation code. Admin only.
- * Body: { role?: 'contractor' | 'realtor' | 'installer' } (default contractor)
+ * Body: { role?: 'contractor' | 'realtor' | 'installer' | 'handyman' } (default contractor)
  * Returns { code, expiresAt, role }.
  */
 export async function POST(request: NextRequest) {
@@ -40,11 +40,12 @@ export async function POST(request: NextRequest) {
     const { error: authError } = await requireAdmin();
     if (authError) return authError;
 
-    let role: 'contractor' | 'realtor' | 'installer' = 'contractor';
+    let role: 'contractor' | 'realtor' | 'installer' | 'handyman' = 'contractor';
     try {
       const body = await request.json().catch(() => ({}));
       if (body.role === 'realtor') role = 'realtor';
       if (body.role === 'installer') role = 'installer';
+      if (body.role === 'handyman') role = 'handyman';
     } catch {
       // no body or invalid JSON, use default
     }

@@ -50,6 +50,10 @@ export interface ProCardData {
   companyDescription?: string;
   services?: string[];
   images?: string[];
+  /** Gallery photos with the tags used by the Images search. */
+  gallery?: { url: string; tags: string[] }[];
+  /** Saved public tab order: contact, hours, services, links, images, about. */
+  tabOrder?: Array<'contact' | 'hours' | 'services' | 'links' | 'images' | 'about'>;
   links: LinkItem[];
   reactions?: {
     love?: number;
@@ -66,9 +70,13 @@ interface ProCardProps {
   onShare?: (id: string) => void;
   onReaction?: (id: string, type: 'love' | 'feedback' | 'link' | 'save') => void;
   isListMode?: boolean;
+  /** Replaces the profile link. Used when a card should open booking. */
+  href?: string;
+  /** The whole card is one choice. Reactions and icon buttons stay visible and do not click. */
+  pickOnly?: boolean;
 }
 
-export default function ProCard({ data, onShare, onReaction, isListMode = false }: ProCardProps) {
+export default function ProCard({ data, onShare, onReaction, isListMode = false, href, pickOnly = false }: ProCardProps) {
   const router = useRouter();
   const locale = useLocale();
   const { isAuthenticated } = useAuth();
@@ -76,6 +84,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isSignInRequiredOpen, setIsSignInRequiredOpen] = useState(false);
   const profileHref = createLocalePath(locale as Locale, `/business/${data.slug || data.id}`);
+  const cardHref = href || profileHref;
   const [shareBusinessUrl, setShareBusinessUrl] = useState('');
   const qrFileName = `hph-${(data.slug || data.id).replace(/[^a-zA-Z0-9-_]+/g, '-')}-qr.png`;
   const qrUrl = publicPageUrl(profileHref);
@@ -117,7 +126,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
 
     return (
       <div className="procard relative border-2 border-black rounded-lg bg-white overflow-hidden hover:shadow-lg transition-shadow w-full">
-        <Link href={profileHref} className="absolute inset-0 z-[1]" aria-label={data.businessName} />
+        <Link href={cardHref} className="absolute inset-0 z-[1]" aria-label={data.businessName} />
         <div className="relative z-[2] pointer-events-none">
         <ProCardHeader
           logo={data.logo}
@@ -138,6 +147,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
             }
           }}
           onPhoneClick={!isAuthenticated ? handlePhoneClick : undefined}
+          actionsEnabled={!pickOnly}
         />
         </div>
         <ShareBusinessModal
@@ -155,7 +165,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
 
   return (
     <div className="procard relative border-2 border-black rounded-lg bg-white overflow-hidden hover:shadow-lg transition-shadow w-full">
-      <Link href={profileHref} className="absolute inset-0 z-[1]" aria-label={data.businessName} />
+      <Link href={cardHref} className="absolute inset-0 z-[1]" aria-label={data.businessName} />
       <div className="relative z-[2] pointer-events-none">
       <ProCardHeader
         logo={data.logo}
@@ -173,8 +183,9 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false 
             setIsShareModalOpen(true);
           }
         }}
+        actionsEnabled={!pickOnly}
       />
-      <div className="pointer-events-auto relative z-20">
+      <div className={pickOnly ? undefined : 'pointer-events-auto relative z-20'}>
       <ProLinks
         links={data.links}
         maxLinks={7}

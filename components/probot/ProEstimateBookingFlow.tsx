@@ -387,7 +387,7 @@ export default function ProEstimateBookingFlow({
                     ));
                   }}
                   aria-pressed={selected}
-                  className={`w-full cursor-pointer rounded-lg border-2 border-black p-2 text-left md:p-3 ${selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+                  className={`w-full cursor-pointer rounded-lg border-2 border-black p-2 text-left md:self-start md:p-3 ${selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
                 >
                   {/* Mobile: thumb + name on top, price under */}
                   <div className="md:hidden">
@@ -405,8 +405,8 @@ export default function ProEstimateBookingFlow({
                     </div>
                     <p className={`mt-1 text-center ${priceClass}`}>{price}</p>
                   </div>
-                  {/* Desktop: tall image left; name top-right, price bottom-right, left-aligned to image */}
-                  <div className="hidden md:flex md:min-h-[4.5rem] md:gap-3">
+                  {/* Desktop: square image left; tight name → description → price stack, equal p-3 inset */}
+                  <div className="hidden md:flex md:items-start md:gap-3">
                     {thumb ? (
                       <Image
                         src={thumb}
@@ -416,16 +416,14 @@ export default function ProEstimateBookingFlow({
                         className={`h-[4.5rem] w-[4.5rem] shrink-0 rounded-lg object-cover ${thumbRing}`}
                       />
                     ) : null}
-                    <div className="flex min-w-0 flex-1 flex-col justify-between gap-1 py-0.5">
-                      <div className="min-w-0">
-                        <p className="font-semibold leading-tight">{service.name}</p>
-                        {service.description?.trim() ? (
-                          <p className={`mt-0.5 line-clamp-2 text-xs leading-snug ${selected ? 'text-white/80' : 'text-gray-600'}`}>
-                            {service.description.trim()}
-                          </p>
-                        ) : null}
-                      </div>
-                      <p className={`text-left ${priceClass}`}>{price}</p>
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+                      <p className="font-semibold leading-tight">{service.name}</p>
+                      {service.description?.trim() ? (
+                        <p className={`line-clamp-2 text-xs leading-snug ${selected ? 'text-white/80' : 'text-gray-600'}`}>
+                          {service.description.trim()}
+                        </p>
+                      ) : null}
+                      <p className={`text-left leading-tight ${priceClass}`}>{price}</p>
                     </div>
                   </div>
                 </button>

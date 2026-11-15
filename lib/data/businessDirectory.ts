@@ -294,6 +294,21 @@ async function queryFilteredFallback(
   };
 }
 
+/** Active pros who turned on appointments. */
+export async function listBookableBusinesses(limit = 48): Promise<ProCardData[]> {
+  const supabase = createServiceRoleClient();
+  const licenseCategories = await getCachedLicenseCategories();
+  const { data, error } = await supabase
+    .from('businesses')
+    .select(LIST_SELECT)
+    .eq('is_active', true)
+    .eq('show_calendar_on_procard', true)
+    .order('business_name', { ascending: true })
+    .limit(Math.min(Math.max(limit, 1), 60));
+  if (error) throw new Error(error.message);
+  return toCards((data ?? []) as unknown as DbBusinessRow[], licenseCategories);
+}
+
 async function queryBusinessDirectory(params: DirectoryQuery): Promise<DirectoryPage> {
   const { limit, offset } = clampDirectoryPage(params.limit, params.offset);
   const search = sanitizeDirectorySearch(params.search);

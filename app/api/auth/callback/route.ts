@@ -4,8 +4,9 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { Database } from '@/lib/types/supabase';
 import { logger } from '@/lib/utils/logger';
 import { locales, type Locale } from '@/i18n';
-import { provisionGoogleCustomer } from '@/lib/auth/googleCustomer';
+import { provisionGoogleCustomer, type GoogleCustomerProvision } from '@/lib/auth/googleCustomer';
 import { isGoogleAccountConflict } from '@/lib/auth/googleAccount';
+import { finishSetupPath } from '@/lib/auth/finishSetup';
 
 function safeLocale(value: string | null): Locale {
   return locales.includes(value as Locale) ? (value as Locale) : 'en';
@@ -26,19 +27,16 @@ function safeAppPath(value: string | null, locale: string): string {
 }
 
 /**
- * The header Free Estimate button stores the estimate page as the return path.
- * A signup started from the profile icon has no return path, so a brand-new
- * account lands on the thanks screen instead.
+ * A new or unfinished Google customer stops on the setup screen. The thanks
+ * page waits until they submit it. Everyone else follows the return path.
  */
 function customerDestination(
   nextPath: string,
   locale: string,
-  flow: string,
-  kind: 'new' | 'existing'
+  kind: GoogleCustomerProvision
 ): string {
-  if (nextPath.includes('/estimate')) return nextPath;
-  if (flow === 'customer' && kind === 'new' && nextPath === `/${locale}`) {
-    return `/${locale}/signup/success?role=customer`;
+  if (kind === 'new' || kind === 'pending') {
+    return finishSetupPath(locale, { welcome: kind === 'new', nextPath });
   }
   return nextPath;
 }
@@ -57,9 +55,9 @@ function clearOauthCookies(response: NextResponse) {
  * the code for a session, set cookies, and redirect to /[locale]/reset-password. The reset
  * page then relies on getSession() (cookies) only — no hash tokens.
  *
- * Customer Google sign-up uses the same exchange, then assigns the customer role and
- * sends the person to their return path. Contractor, realtor, and installer accounts
- * are not created here.
+ * Customer Google sign-up uses the same exchange, then assigns the customer role.
+ * A new customer, or one who still owes the referral, phone, and terms, is sent
+ * to the finish screen. Contractor, realtor, and installer accounts are not created here.
  */
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -162,6 +160,16 @@ export async function GET(request: NextRequest) {
         logger.info('[Auth Callback] code already used, session from the first request is valid', {
           userId: current.user.id,
         });
+        if (isCustomerGoogle) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('account_setup_pending')
+            .eq('id', current.user.id)
+            .maybeSingle();
+          if (profile?.account_setup_pending) {
+            return redirect(finishSetupPath(locale, { welcome: false, nextPath }));
+          }
+        }
         return redirect(successPath);
       }
 
@@ -176,7 +184,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (exchangeData?.user ?? exchangeData?.session) {
-      let accountKind: 'new' | 'existing' = 'existing';
+      let accountKind: GoogleCustomerProvision = 'existing';
       if (isCustomerGoogle && exchangeData.user) {
         try {
           accountKind = await provisionGoogleCustomer(exchangeData.user);
@@ -190,7 +198,7 @@ export async function GET(request: NextRequest) {
         }
       }
       const landing = isCustomerGoogle
-        ? customerDestination(nextPath, locale, flow, accountKind)
+        ? customerDestination(nextPath, locale, accountKind)
         : successPath;
       logger.info('[Auth Callback] exchangeCodeForSession ok', {
         redirectPath: landing,

@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useMemo, useRef } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -18,6 +18,27 @@ import { sendAnalyticsIngest } from '@/lib/utils/analyticsIngest';
 
 interface ServiceCategoriesProps {
   children?: ReactNode;
+}
+
+function findScrollParent(element: HTMLElement): HTMLElement | null {
+  let node = element.parentElement;
+  while (node) {
+    const { overflowY } = window.getComputedStyle(node);
+    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+/** Put the search bar on the top edge of the screen, or of the scrolling card on desktop. */
+function scrollSearchBarToTop(bar: HTMLElement) {
+  const scroller = findScrollParent(bar);
+  const barTop = bar.getBoundingClientRect().top;
+  const portTop = scroller ? scroller.getBoundingClientRect().top + scroller.clientTop : 0;
+  const delta = barTop - portTop;
+  if (Math.abs(delta) <= 1) return;
+  if (scroller) scroller.scrollBy({ top: delta, behavior: 'auto' });
+  else window.scrollBy({ top: delta, behavior: 'auto' });
 }
 
 export default function ServiceCategories({ children }: ServiceCategoriesProps) {
@@ -75,6 +96,15 @@ export default function ServiceCategories({ children }: ServiceCategoriesProps) 
       setSearchQuery(''); // Clear search when closing
     }
   };
+
+  useLayoutEffect(() => {
+    if (!isSearchOpen) return;
+    const bar = categoriesRef.current;
+    if (!bar) return;
+    scrollSearchBarToTop(bar);
+    const frame = requestAnimationFrame(() => scrollSearchBarToTop(bar));
+    return () => cancelAnimationFrame(frame);
+  }, [isSearchOpen]);
 
   // Debug logging (development only)
   useEffect(() => {

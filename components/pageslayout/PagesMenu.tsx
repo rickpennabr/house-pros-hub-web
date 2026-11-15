@@ -1,11 +1,13 @@
 'use client';
 
-import { ReactNode, useLayoutEffect, useRef } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { openQuickRepairCamera } from '@/lib/media/quick-repair-camera';
 import { BookOpen, Briefcase, HardHat, Package, Truck } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { normalizeMainMenuOrder, type MainMenuKey } from '@/lib/constants/mainMenu';
 
 interface PagesMenuProps {
   children?: ReactNode;
@@ -26,6 +28,25 @@ const menuItems: MenuItem[] = [
   { labelKey: 'quickRepair', path: '/quick-repair' },
 ];
 
+const DRAG_SLOP_PX = 8;
+const LONG_PRESS_MS = 280;
+
+type MenuDrag = {
+  key: MainMenuKey;
+  pointerId: number;
+  pointerType: string;
+  startX: number;
+  startY: number;
+  startOrder: MainMenuKey[];
+  active: boolean;
+  timer: number | null;
+  target: HTMLElement;
+};
+
+function sameOrder(a: MainMenuKey[], b: MainMenuKey[]): boolean {
+  return a.length === b.length && a.every((key, index) => key === b[index]);
+}
+
 /** Scroll so Quick Repair, the last pill, sits flush on the right. Same idea as BrazaLink's home menu. */
 function scrollMenuToEnd(container: HTMLDivElement | null) {
   if (!container) return;
@@ -42,7 +63,7 @@ const CAMERA_OUTLINE =
 export function RepairCameraMark({ label = 'FIX', line = 'black' }: { label?: string; line?: 'black' | 'white' }) {
   const ink = line === 'white' ? '#fff' : '#000';
   return (
-    <span className={`relative block h-full w-full overflow-visible ${line === 'white' ? 'text-white' : 'text-black'}`}>
+    <span className={`repair-cam-mark relative block h-full w-full overflow-visible ${line === 'white' ? 'text-white' : 'text-black'}`}>
       <svg viewBox="0 3 80 61" className="h-full w-full overflow-visible" aria-hidden>
         <path d={CAMERA_OUTLINE} fill="none" stroke={ink} strokeWidth="3" strokeLinejoin="round" pathLength="2" strokeDasharray="1 1" className="repair-cam-border repair-cam-border-black" />
         <path d={CAMERA_OUTLINE} fill="none" stroke="#ef4444" strokeWidth="3" strokeLinejoin="round" pathLength="2" strokeDasharray="1 1" className="repair-cam-border repair-cam-border-red" />
@@ -104,7 +125,149 @@ export default function PagesMenu({ children }: PagesMenuProps) {
   const pathname = usePathname();
   const locale = useLocale();
   const t = useTranslations('navigation');
+  const { isAdmin } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const orderRef = useRef<MainMenuKey[]>(menuItems.map((item) => item.labelKey as MainMenuKey));
+  const orderEpochRef = useRef(0);
+  const dragRef = useRef<MenuDrag | null>(null);
+  const suppressClickRef = useRef(false);
+  const [menuOrder, setMenuOrder] = useState<MainMenuKey[] | null>(null);
+  const [draggingKey, setDraggingKey] = useState<MainMenuKey | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const epoch = orderEpochRef.current;
+    fetch('/api/navigation/menu-order', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { order?: unknown } | null) => {
+        if (cancelled || epoch !== orderEpochRef.current || !data || dragRef.current?.active) return;
+        const next = normalizeMainMenuOrder(data.order);
+        orderRef.current = next;
+        setMenuOrder(next);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => () => {
+    const session = dragRef.current;
+    if (session?.timer != null) window.clearTimeout(session.timer);
+  }, []);
+
+  const orderedItems = useMemo(() => {
+    const keys = menuOrder ?? menuItems.map((item) => item.labelKey as MainMenuKey);
+    const byKey = new Map(menuItems.map((item) => [item.labelKey, item]));
+    return normalizeMainMenuOrder(keys)
+      .map((key) => byKey.get(key))
+      .filter((item): item is MenuItem => Boolean(item));
+  }, [menuOrder]);
+
+  const placeItem = (key: MainMenuKey, clientX: number) => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const nodes = Array.from(root.querySelectorAll<HTMLElement>('[data-menu-key]'));
+    const others = nodes.filter((node) => node.dataset.menuKey !== key);
+    let insertAt = 0;
+    for (const node of others) {
+      const rect = node.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) continue;
+      if (clientX > rect.left + rect.width / 2) insertAt += 1;
+    }
+    setMenuOrder((current) => {
+      const base = normalizeMainMenuOrder(current ?? orderRef.current);
+      const without = base.filter((item) => item !== key);
+      const next = without.slice();
+      next.splice(Math.min(insertAt, without.length), 0, key);
+      orderRef.current = next;
+      return sameOrder(next, base) ? (current ?? next) : next;
+    });
+  };
+
+  const beginDrag = (session: MenuDrag) => {
+    session.active = true;
+    if (session.timer != null) {
+      window.clearTimeout(session.timer);
+      session.timer = null;
+    }
+    setDraggingKey(session.key);
+    try {
+      session.target.setPointerCapture(session.pointerId);
+    } catch {
+      // The pointer can already be gone if the finger lifted as the timer fired.
+    }
+  };
+
+  const finishDrag = (event: React.PointerEvent<HTMLAnchorElement>) => {
+    const session = dragRef.current;
+    if (!session || event.pointerId !== session.pointerId) return;
+    if (session.timer != null) window.clearTimeout(session.timer);
+    dragRef.current = null;
+    setDraggingKey(null);
+    if (!session.active) return;
+    suppressClickRef.current = true;
+    if (sameOrder(session.startOrder, orderRef.current)) return;
+    orderEpochRef.current += 1;
+    const order = orderRef.current.slice();
+    void fetch('/api/admin/menu-order', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order }),
+    }).then(async (res) => {
+      if (res.ok) return;
+      const fresh = await fetch('/api/navigation/menu-order', { cache: 'no-store' });
+      const data = await fresh.json().catch(() => null);
+      if (!data) return;
+      const next = normalizeMainMenuOrder(data.order);
+      orderRef.current = next;
+      setMenuOrder(next);
+    }).catch(() => {});
+  };
+
+  const onItemPointerDown = (event: React.PointerEvent<HTMLAnchorElement>, key: MainMenuKey) => {
+    if (!isAdmin || event.button !== 0) return;
+    const session: MenuDrag = {
+      key,
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOrder: orderRef.current.slice(),
+      active: false,
+      timer: null,
+      target: event.currentTarget,
+    };
+    dragRef.current = session;
+    if (event.pointerType === 'mouse') {
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Capture can fail if the pointer is already gone.
+      }
+      return;
+    }
+    session.timer = window.setTimeout(() => {
+      if (dragRef.current === session) beginDrag(session);
+    }, LONG_PRESS_MS);
+  };
+
+  const onItemPointerMove = (event: React.PointerEvent<HTMLAnchorElement>) => {
+    const session = dragRef.current;
+    if (!session || event.pointerId !== session.pointerId) return;
+    const distance = Math.hypot(event.clientX - session.startX, event.clientY - session.startY);
+    if (!session.active) {
+      if (distance < DRAG_SLOP_PX) return;
+      if (session.pointerType !== 'mouse') {
+        if (session.timer != null) window.clearTimeout(session.timer);
+        dragRef.current = null;
+        return;
+      }
+      beginDrag(session);
+    }
+    placeItem(session.key, event.clientX);
+  };
 
   useLayoutEffect(() => {
     const run = () => scrollMenuToEnd(scrollRef.current);
@@ -138,10 +301,10 @@ export default function PagesMenu({ children }: PagesMenuProps) {
   };
 
   return (
-    <div className="flex h-[60px] w-full min-w-0 flex-shrink-0 items-center border-b-2 border-black px-1 md:h-[69px] md:px-[6px]">
-      <div ref={scrollRef} className="scrollbar-category h-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+    <div id="main-menu" className="sticky top-0 z-30 flex h-[60px] w-full min-w-0 flex-shrink-0 items-center border-b-2 border-black bg-white px-1 md:h-[69px] md:px-[6px]">
+      <div ref={scrollRef} className={`scrollbar-category h-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden ${draggingKey ? 'touch-none cursor-grabbing' : ''}`}>
         <div className="flex h-full w-max items-center gap-2 md:w-full md:justify-between">
-          {menuItems.map((item) => {
+          {orderedItems.map((item) => {
             const Icon = item.icon;
             const isHousePros = item.labelKey === 'housePros';
             const isQuickRepair = item.labelKey === 'quickRepair';
@@ -152,15 +315,35 @@ export default function PagesMenu({ children }: PagesMenuProps) {
               <Link
                 key={item.path}
                 href={`/${locale}${item.path}`}
+                data-menu-key={item.labelKey}
+                draggable={false}
                 onMouseDown={(event) => {
                   if (event.button === 0) event.preventDefault();
                 }}
-                onClick={isQuickRepair ? (event) => {
+                onPointerDown={(event) => onItemPointerDown(event, item.labelKey as MainMenuKey)}
+                onPointerMove={onItemPointerMove}
+                onPointerUp={finishDrag}
+                onPointerCancel={finishDrag}
+                onPointerLeave={(event) => {
+                  const session = dragRef.current;
+                  if (!session || session.active || session.pointerType === 'mouse' || event.pointerId !== session.pointerId) return;
+                  if (session.timer != null) window.clearTimeout(session.timer);
+                  dragRef.current = null;
+                }}
+                onClick={(event) => {
+                  if (suppressClickRef.current) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    suppressClickRef.current = false;
+                    return;
+                  }
+                  if (!isQuickRepair) return;
                   event.preventDefault();
                   openQuickRepairCamera();
-                } : undefined}
+                }}
                 aria-label={isQuickRepair ? t(item.labelKey) : undefined}
-                className={menuItemClasses(item.path, item.labelKey)}
+                className={`${menuItemClasses(item.path, item.labelKey)}${isAdmin ? ' select-none' : ''}${draggingKey ? ' !transition-none' : ''}${draggingKey === item.labelKey ? ' opacity-60 hover:!scale-100' : ''}`}
+                style={isAdmin ? { WebkitTouchCallout: 'none' } : undefined}
               >
                 {isQuickRepair ? (
                   <RepairCameraMark />

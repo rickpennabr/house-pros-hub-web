@@ -17,7 +17,7 @@ export const passwordSchema = z
   .regex(/[0-9]/, 'Password must contain at least one number');
 
 const signupSchemaBaseObject = z.object({
-  userType: z.enum(['customer', 'contractor', 'realtor', 'installer']),
+  userType: z.enum(['customer', 'contractor', 'realtor', 'installer', 'handyman']),
   firstName: z.string().trim().min(1, 'First name is required'),
   lastName: z.string().trim().min(1, 'Last name is required'),
   email: z.string().trim().lowercase().email('Invalid email format').optional(),
@@ -37,11 +37,11 @@ const signupSchemaBaseObject = z.object({
     .optional(),
   userPicture: z.string().optional(),
   
-  // Address fields (mostly for customer)
+  // Address is optional except when a customer requests an estimate.
   streetAddress: z.string().trim().optional(),
   city: z.string().trim().optional(),
-  state: z.string().trim().length(2, 'Use 2-letter state code').default('NV').optional(),
-  zipCode: z.string().trim().regex(zipRegex, 'Invalid ZIP code').optional().or(z.literal('')),
+  state: z.string().trim().optional().or(z.literal('')),
+  zipCode: z.string().trim().optional().or(z.literal('')),
   apartment: z.string().trim().optional(),
   gateCode: z.string().trim().optional(),
   addressNote: z.string().trim().optional(),
@@ -98,7 +98,7 @@ export const signupSchema = signupSchemaBaseObject.refine((data) => {
     });
   }
 }).refine((data) => {
-  if ((data.userType === 'customer' || data.userType === 'installer') && !data.phone?.trim()) {
+  if ((data.userType === 'customer' || data.userType === 'installer' || data.userType === 'handyman') && !data.phone?.trim()) {
     return false;
   }
   return true;
@@ -115,13 +115,30 @@ export const signupSchema = signupSchemaBaseObject.refine((data) => {
   message: "Please enter your company role",
   path: ["companyRoleOther"],
 }).refine((data) => {
-  if (data.userType === 'contractor' || data.userType === 'realtor' || data.userType === 'installer') {
+  if (data.userType === 'contractor' || data.userType === 'realtor' || data.userType === 'installer' || data.userType === 'handyman') {
     return !!data.invitationCode?.trim();
   }
   return true;
 }, {
   message: 'Invitation code is required for this signup.',
   path: ['invitationCode'],
+}).superRefine((data, ctx) => {
+  const street = data.streetAddress?.trim() ?? '';
+  const city = data.city?.trim() ?? '';
+  const zip = data.zipCode?.trim() ?? '';
+  if (!street && !city && !zip) return;
+  if (!street) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Street address is required when you add an address', path: ['streetAddress'] });
+  }
+  if (!city) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'City is required when you add an address', path: ['city'] });
+  }
+  if ((data.state?.trim() ?? '').length !== 2) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use a 2-letter state code', path: ['state'] });
+  }
+  if (!zipRegex.test(zip)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid ZIP code', path: ['zipCode'] });
+  }
 });
 
 export type SignupSchema = z.infer<typeof signupSchema>;

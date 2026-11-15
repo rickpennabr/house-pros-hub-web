@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { Loader2, Pencil, Search, Tag, Trash2, X, Calendar } from 'lucide-react';
+import { Loader2, Pencil, Tag, Trash2, Calendar } from 'lucide-react';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { getCsrfToken } from '@/lib/utils/csrf';
@@ -35,6 +36,7 @@ interface ServiceForm {
   priceMax: string;
   priceType: ServicePriceType;
   unit: ServiceUnit;
+  unitLabel: string;
   imageUrl: string;
   isActive: boolean;
 }
@@ -47,6 +49,7 @@ const emptyForm = (): ServiceForm => ({
   priceMax: '',
   priceType: 'fixed',
   unit: 'job',
+  unitLabel: '',
   imageUrl: '',
   isActive: true,
 });
@@ -60,6 +63,7 @@ function formFromService(service: CatalogService): ServiceForm {
     priceMax: service.priceMaxCents != null && service.priceMaxCents > 0 ? String(service.priceMaxCents / 100) : '',
     priceType: service.priceType,
     unit: service.unit,
+    unitLabel: service.unitLabel ?? '',
     imageUrl: service.imageUrl ?? '',
     isActive: service.isActive,
   };
@@ -85,6 +89,7 @@ export default function BusinessServicesTab({
   const [error, setError] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [catalogSource, setCatalogSource] = useState<'crm' | 'booking'>('booking');
 
   const unitLabels: Record<ServiceUnit, string> = {
     job: t('job'),
@@ -113,6 +118,7 @@ export default function BusinessServicesTab({
       if (!res.ok) throw new Error(data.error || t('error'));
       setServices(Array.isArray(data.services) ? data.services : []);
       setReady(data.ready !== false);
+      setCatalogSource(data.source === 'crm' ? 'crm' : 'booking');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('error'));
     } finally {
@@ -168,6 +174,7 @@ export default function BusinessServicesTab({
         priceMax: form.priceType === 'range' && form.priceMax !== '' ? Number(form.priceMax) : null,
         priceType: form.priceType,
         unit: form.unit,
+        unitLabel: form.unitLabel,
         imageUrl: imageUrl || null,
         isActive: form.isActive,
       };
@@ -225,27 +232,12 @@ export default function BusinessServicesTab({
   return (
     <div className="space-y-4 bg-white md:p-2">
       <div className="flex items-center gap-2">
-        <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-red-500" size={20} />
-          <input
-            type="text"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('search')}
-            aria-label={t('search')}
-            className="h-10 w-full rounded-lg border-2 border-black bg-white pl-10 pr-8 text-base text-black placeholder:text-gray-500 focus:outline-none"
-          />
-          {query ? (
-            <button
-              type="button"
-              onClick={() => setQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-gray-600 hover:text-black"
-              aria-label={t('cancel')}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          ) : null}
-        </div>
+        <TypingSearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder={t('search')}
+          clearLabel={t('cancel')}
+        />
         {isOwner && ready && !showForm && (
           <Button type="button" variant="primary" size="sm" onClick={openCreate}>
             {t('add')}
@@ -278,13 +270,13 @@ export default function BusinessServicesTab({
             placeholder={t('name')}
             required
             minLength={2}
-            maxLength={80}
+            maxLength={160}
           />
           <textarea
             value={form.description}
             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
             placeholder={t('description')}
-            maxLength={200}
+            maxLength={4000}
             rows={2}
             className="w-full rounded-lg border-2 border-black p-2 text-sm"
           />
@@ -313,7 +305,13 @@ export default function BusinessServicesTab({
               <span className="mb-1 block font-medium">{t('unit')}</span>
               <select
                 value={form.unit}
-                onChange={(event) => setForm((current) => ({ ...current, unit: event.target.value as ServiceUnit }))}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    unit: event.target.value as ServiceUnit,
+                    unitLabel: '',
+                  }))
+                }
                 className="w-full rounded-lg border-2 border-black bg-white p-2"
               >
                 {SERVICE_UNITS.map((unit) => (
@@ -352,14 +350,16 @@ export default function BusinessServicesTab({
               className="block w-full text-sm"
             />
           </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.isActive}
-              onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.checked }))}
-            />
-            {t('active')}
-          </label>
+          {catalogSource !== 'crm' && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.checked }))}
+              />
+              {t('active')}
+            </label>
+          )}
           <div className="flex gap-2">
             <Button type="submit" variant="primary" size="sm" disabled={saving}>
               {saving ? t('saving') : t('save')}
@@ -419,8 +419,9 @@ export default function BusinessServicesTab({
             from: t('from'),
             units: unitLabels,
           });
-          return (
-            <li key={service.id} className="flex gap-3 rounded-lg border-2 border-black p-3">
+          const detailHref = `/${locale}/business/${businessSlug}/services/${service.id}`;
+          const summary = (
+            <>
               {service.imageUrl ? (
                 <Image
                   src={service.imageUrl}
@@ -446,7 +447,19 @@ export default function BusinessServicesTab({
                 {service.description ? (
                   <p className="mt-1 line-clamp-2 text-sm text-gray-700">{service.description}</p>
                 ) : null}
-                <div className="mt-2 flex flex-wrap gap-2">
+              </div>
+            </>
+          );
+          return (
+            <li key={service.id} className="rounded-lg border-2 border-black p-3">
+              {service.isActive ? (
+                <Link href={detailHref} className="flex gap-3">
+                  {summary}
+                </Link>
+              ) : (
+                <div className="flex gap-3">{summary}</div>
+              )}
+              <div className="mt-2 flex flex-wrap gap-2">
                   {service.isActive && bookingEnabled && (
                     <Link
                       href={`/${locale}/book/${businessSlug}?service=${service.id}`}
@@ -486,7 +499,6 @@ export default function BusinessServicesTab({
                       {t('confirmRemove')}
                     </button>
                   )}
-                </div>
               </div>
             </li>
           );

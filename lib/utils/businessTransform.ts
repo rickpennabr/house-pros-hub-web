@@ -3,6 +3,7 @@
  */
 
 import { ProCardData } from '@/components/proscard/ProCard';
+import { parseGallery } from '@/lib/business/gallery';
 import { LinkItem } from '@/components/proscard/ProLinks';
 import { cardLinks } from '@/lib/utils/cardLinks';
 import { RESIDENTIAL_CONTRACTOR_LICENSES, HANDYMAN_LICENSE_CODE } from '@/lib/constants/contractorLicenses';
@@ -147,7 +148,8 @@ export function transformBusinessToProCardData(
     ownerYearsExperience?: number;
     licenses: Array<{ license: string; trade?: string; licenseNumber?: string }>;
     services?: string[] | Array<{ name: string }>;
-    images?: string[];
+    images?: unknown;
+    tabOrder?: ProCardData['tabOrder'];
     streetAddress?: string;
     city?: string;
     state?: string;
@@ -244,7 +246,8 @@ export function transformBusinessToProCardData(
     typeof s === 'string' ? s : (s as { name?: string })?.name ?? ''
   ).filter(Boolean);
 
-  const images: string[] = Array.isArray(businessData.images) ? businessData.images : [];
+  const gallery = parseGallery(businessData.images);
+  const images = gallery.map((item) => item.url);
 
   return {
     id: businessData.id,
@@ -259,6 +262,8 @@ export function transformBusinessToProCardData(
     licenses: processedLicenses,
     services,
     images,
+    gallery,
+    tabOrder: businessData.tabOrder,
     streetAddress: businessData.streetAddress,
     city: businessData.city,
     state: businessData.state,

@@ -10,6 +10,8 @@ import { TipModal } from './TipModal';
  */
 interface AccordionProps {
   title: string;
+  /** Smaller line under the title. */
+  subtitle?: string;
   isOpen: boolean;
   onToggle: () => void;
   /** When true, hide error state (red border) when closed. When showCompleteStyle is also true, header gets black bg. */
@@ -28,6 +30,7 @@ interface AccordionProps {
 
 export default function Accordion({
   title,
+  subtitle,
   isOpen,
   onToggle,
   isComplete = false,
@@ -80,6 +83,11 @@ export default function Accordion({
                   </span>
                 )}
               </h2>
+              {subtitle ? (
+                <span className={`text-xs font-normal leading-tight ${useCompleteStyle ? 'text-white' : 'text-gray-600'}`}>
+                  {subtitle}
+                </span>
+              ) : null}
               {showErrorState && missingInfoMessage && (
                 <span className="font-normal text-sm text-red-600">
                   {missingInfoMessage}

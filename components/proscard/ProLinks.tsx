@@ -47,6 +47,8 @@ interface ProLinksProps {
   onQrCode?: () => void;
   /** Sit inside another bar. Skips the card row border and fixed height. */
   bare?: boolean;
+  /** Larger buttons from the md breakpoint up. Phones keep the compact size. */
+  desktopLarge?: boolean;
 }
 
 function isBookingCalendarLink(link: LinkItem) {
@@ -85,7 +87,7 @@ const iconMap: Partial<Record<LinkItem['type'], IconComponent>> = {
   angi: AngiIcon,
 };
 
-export default function ProLinks({ links, maxLinks = 7, onSignInRequired, onQrCode, bare = false }: ProLinksProps) {
+export default function ProLinks({ links, maxLinks = 7, onSignInRequired, onQrCode, bare = false, desktopLarge = false }: ProLinksProps) {
   const visibleLinks = visibleLinkList(links, maxLinks);
   const linkCount = visibleLinks.length;
   const shouldSpaceBetween = linkCount === 7;
@@ -173,16 +175,21 @@ export default function ProLinks({ links, maxLinks = 7, onSignInRequired, onQrCo
 
   const renderLinkButton = (link: LinkItem, index: number) => {
     const Icon = iconMap[link.type] || Globe;
-    const iconSizeClass = link.type === 'angi'
-      ? 'w-9 h-9 lg:w-8 lg:h-8'
-      : 'w-5 h-5 lg:w-[18px] lg:h-[18px]';
+    const iconSizeClass = desktopLarge
+      ? link.type === 'angi'
+        ? 'w-9 h-9 md:h-[39.6px] md:w-[39.6px]'
+        : 'w-5 h-5 md:h-[21.6px] md:w-[21.6px]'
+      : link.type === 'angi'
+        ? 'w-9 h-9 lg:w-8 lg:h-8'
+        : 'w-5 h-5 lg:w-[18px] lg:h-[18px]';
+    const buttonSizeClass = desktopLarge ? 'h-10 w-10 md:h-[43.2px] md:w-[43.2px]' : 'h-10 w-10 lg:h-9 lg:w-9';
 
     return (
       <button
         key={`${link.type}-${index}`}
         type="button"
         onClick={(e) => handleLinkClick(e, link)}
-        className="w-10 h-10 lg:w-9 lg:h-9 rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0"
+        className={`${buttonSizeClass} rounded-lg bg-white border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors shrink-0`}
         aria-label={
           link.type === 'qrcode'
             ? 'HPH QRcode'
@@ -205,10 +212,13 @@ export default function ProLinks({ links, maxLinks = 7, onSignInRequired, onQrCo
     : linkCount === 6 
       ? 'gap-2' 
       : 'gap-4';
+  const rowClass = bare
+    ? `justify-center gap-2${desktopLarge ? ' md:gap-[10.8px]' : ''}`
+    : `w-full ${gapClass}`;
 
   return (
     <div className={bare ? 'flex max-w-full items-center' : 'h-[50px] flex items-center p-2 border-b border-black'}>
-      <div className={`flex items-center flex-wrap ${bare ? 'justify-center gap-2' : `w-full ${gapClass}`}`}>
+      <div className={`flex flex-wrap items-center ${rowClass}`}>
         {visibleLinks.map((link, index) => renderLinkButton(link, index))}
       </div>
 

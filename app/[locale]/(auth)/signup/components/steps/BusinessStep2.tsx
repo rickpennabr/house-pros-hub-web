@@ -45,7 +45,7 @@ export function BusinessStep2({
 
   return (
     <div className="space-y-6 flex-1">
-      <FormField label={t('businessAddressLabel')} required error={errors.streetAddress?.message}>
+      <FormField label={t('businessAddressLabel')} error={errors.streetAddress?.message}>
         {personalData && (
           <div className="flex items-center justify-start mb-2">
             <label
@@ -88,7 +88,7 @@ export function BusinessStep2({
       </FormField>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField label={t('cityLabel')} required error={errors.city?.message}>
+        <FormField label={t('cityLabel')} error={errors.city?.message}>
           <Input
             {...register('city')}
             id="city"
@@ -96,14 +96,13 @@ export function BusinessStep2({
             value={watch('city') || ''}
             onClear={() => setValue('city', '')}
             showClear
-            required
             placeholder={t('cityPlaceholder')}
             disabled={isSubmitting}
             error={errors.city?.message}
           />
         </FormField>
 
-        <FormField label={t('stateLabel')} required error={errors.state?.message}>
+        <FormField label={t('stateLabel')} error={errors.state?.message}>
           <Input
             {...register('state')}
             id="state"
@@ -111,7 +110,6 @@ export function BusinessStep2({
             value={watch('state') || ''}
             onClear={() => setValue('state', '')}
             showClear
-            required
             placeholder={t('statePlaceholder')}
             disabled={isSubmitting}
             error={errors.state?.message}
@@ -119,7 +117,7 @@ export function BusinessStep2({
         </FormField>
       </div>
 
-      <FormField label={t('zipLabel')} required error={errors.zipCode?.message}>
+      <FormField label={t('zipLabel')} error={errors.zipCode?.message}>
         <Input
           {...register('zipCode')}
           id="zipCode"
@@ -127,7 +125,6 @@ export function BusinessStep2({
           value={watch('zipCode') || ''}
           onClear={() => setValue('zipCode', '')}
           showClear
-          required
           placeholder={t('zipPlaceholder')}
           disabled={isSubmitting}
           error={errors.zipCode?.message}

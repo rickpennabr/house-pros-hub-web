@@ -8,7 +8,9 @@ import { sanitizeText, sanitizeUrl } from '@/lib/utils/sanitize';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
-import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
+import { writeGallery } from '@/lib/business/gallery';
+import { businessAddressError } from '@/lib/schemas/business';
+import { normalizeBusinessTabOrder } from '@/lib/constants/businessTabs';
 import {
   DEFAULT_SLOT_MINUTES,
   DEFAULT_TIMEZONE,
@@ -67,6 +69,7 @@ interface BusinessUpdateBody {
   links?: unknown;
   services?: Array<{ name: string }>;
   images?: string[];
+  tabOrder?: string[];
   operatingHours?: unknown;
   streetAddress?: string;
   apartment?: string;
@@ -199,6 +202,7 @@ async function handleGetBusiness(
         licenses: licensesForTransform,
         services: Array.isArray(businessServices) ? businessServices : [],
         images: Array.isArray(businessImages) ? businessImages : [],
+        tabOrder: normalizeBusinessTabOrder((business as { tab_order?: unknown }).tab_order),
         address: address?.street_address || undefined,
         streetAddress: address?.street_address || undefined,
         city: address?.city || undefined,
@@ -326,7 +330,7 @@ async function handleUpdateBusiness(
     // Verify ownership
     const { data: existingBusiness, error: fetchError } = await supabase
       .from('businesses')
-      .select('owner_id, business_address_id, business_logo, business_background, business_background_position')
+      .select('owner_id, business_address_id, business_logo, business_background, business_background_position, images')
       .eq('id', businessId)
       .single();
 
@@ -347,26 +351,61 @@ async function handleUpdateBusiness(
     const oldBusinessLogo = existingBusiness.business_logo || null;
     const oldBusinessBackground = existingBusiness.business_background || null;
 
-    // Update business address if provided
-    if (body.streetAddress || body.city || body.state || body.zipCode) {
-      if (existingBusiness.business_address_id) {
-        await supabase
-          .from('addresses')
-          .update({
-            street_address: body.streetAddress || undefined,
-            apartment: body.apartment || undefined,
-            city: body.city || undefined,
-            state: body.state || undefined,
-            zip_code: body.zipCode || undefined,
-            gate_code: body.gateCode || undefined,
-            address_note: body.addressNote || undefined,
-          })
-          .eq('id', existingBusiness.business_address_id);
+    let clearAddressId: string | null = null;
+    let nextAddressId: string | undefined;
+    const addressTouched = body.streetAddress !== undefined || body.city !== undefined || body.zipCode !== undefined;
+    if (addressTouched) {
+      const addressProblem = businessAddressError(body);
+      if (addressProblem) {
+        return NextResponse.json({ error: addressProblem }, { status: 400 });
+      }
+      const street = (body.streetAddress || '').trim();
+      const city = (body.city || '').trim();
+      const zip = (body.zipCode || '').trim();
+      const hasAddress = Boolean(street || city || zip);
+      if (!hasAddress && existingBusiness.business_address_id) {
+        clearAddressId = existingBusiness.business_address_id;
+      } else if (hasAddress) {
+        const addressRow = {
+          street_address: street,
+          apartment: (body.apartment || '').trim() || null,
+          city,
+          state: (body.state || '').trim().toUpperCase(),
+          zip_code: zip,
+          gate_code: (body.gateCode || '').trim() || null,
+          address_note: (body.addressNote || '').trim() || null,
+        };
+        if (existingBusiness.business_address_id) {
+          const { error: addressError } = await supabase
+            .from('addresses')
+            .update(addressRow)
+            .eq('id', existingBusiness.business_address_id);
+          if (addressError) {
+            return NextResponse.json({ error: 'Failed to save business address' }, { status: 500 });
+          }
+        } else {
+          const { data: created, error: addressError } = await supabase
+            .from('addresses')
+            .insert({
+              ...addressRow,
+              user_id: userId,
+              address_type: 'business',
+              is_public: true,
+            })
+            .select('id')
+            .single();
+          if (addressError || !created) {
+            return NextResponse.json({ error: 'Failed to save business address' }, { status: 500 });
+          }
+          nextAddressId = created.id;
+        }
       }
     }
 
     // Update business record
     const updateData: Record<string, unknown> = {};
+    if (clearAddressId) updateData.business_address_id = null;
+    if (nextAddressId) updateData.business_address_id = nextAddressId;
     if (body.businessName) updateData.business_name = body.businessName;
     if (body.slug) updateData.slug = body.slug;
     if (body.businessLogo !== undefined) updateData.business_logo = body.businessLogo;
@@ -394,7 +433,10 @@ async function handleUpdateBusiness(
     if (body.mobilePhone !== undefined) updateData.mobile_phone = body.mobilePhone;
     if (body.links !== undefined) updateData.links = body.links;
     if (body.services !== undefined) updateData.services = body.services;
-    if (body.images !== undefined) updateData.images = Array.isArray(body.images) ? body.images.slice(0, MAX_BUSINESS_GALLERY_IMAGES) : [];
+    if (body.images !== undefined) {
+      updateData.images = writeGallery((existingBusiness as { images?: unknown }).images, body.images);
+    }
+    if (body.tabOrder !== undefined) updateData.tab_order = normalizeBusinessTabOrder(body.tabOrder);
     if (body.operatingHours !== undefined) updateData.operating_hours = body.operatingHours;
     if (body.showCalendarOnProCard !== undefined) updateData.show_calendar_on_procard = body.showCalendarOnProCard;
 
@@ -430,6 +472,10 @@ async function handleUpdateBusiness(
         },
         { status: 500 }
       );
+    }
+
+    if (clearAddressId) {
+      await serviceSupabase.from('addresses').delete().eq('id', clearAddressId);
     }
 
     // Safe image swap: delete old images only after DB update succeeds
@@ -588,6 +634,7 @@ async function handleUpdateBusiness(
         licenses: licensesForTransform,
         services: Array.isArray(completeBusinessServices) ? completeBusinessServices : [],
         images: Array.isArray(completeBusinessImages) ? completeBusinessImages : [],
+        tabOrder: normalizeBusinessTabOrder((completeBusiness as { tab_order?: unknown }).tab_order),
         address: address?.street_address || undefined,
         streetAddress: address?.street_address || undefined,
         city: address?.city || undefined,

@@ -32,7 +32,8 @@ interface BusinessListMobileBottomBarProps {
  * Mobile-only bottom bar on the business list (HousePros) page.
  * Guests: two view buttons, then ProBot, WhatsApp, and Phone.
  * Signed-in users also get a settings button that opens Account Management.
- * Signed-in pros: two view buttons, then ProBot, call, camera, Add, and settings.
+ * Signed-in pros: two view buttons, then ProBot, camera, Add, and settings.
+ * Call the hub lives in the account menu, under Help.
  */
 export default function BusinessListMobileBottomBar({
   currentView,
@@ -115,14 +116,6 @@ export default function BusinessListMobileBottomBar({
               />
             </button>
           </div>
-          <button
-            type="button"
-            onClick={handlePhoneClick}
-            className="flex h-11 w-11 min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-black transition-colors hover:bg-gray-50"
-            aria-label={`Call ${PHONE_NUMBER}`}
-          >
-            <Phone className="h-5 w-5" />
-          </button>
           <div className="relative flex shrink-0 items-center justify-center">
             <span
               className="beta-badge-dynamic absolute -top-[10px] -right-2 z-10 rounded border border-black px-0.5 text-[9px] font-bold text-black shadow"

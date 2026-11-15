@@ -126,6 +126,7 @@ export async function GET() {
       companyRoleOther: profile?.company_role_other || user.user_metadata?.companyRoleOther || null,
       userPicture: profile?.user_picture || user.user_metadata?.userPicture || null,
       preferredLocale: profile?.preferred_locale || user.user_metadata?.preferredLocale || null,
+      accountSetupPending: profile?.account_setup_pending === true,
     };
 
     const isAdmin =

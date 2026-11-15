@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import type { AdminUserRow } from '@/app/api/admin/users/route';
 
-const ROLE_FILTERS = ['all', 'admin', 'customer', 'contractor', 'realtor', 'installer'] as const;
+const ROLE_FILTERS = ['all', 'admin', 'customer', 'contractor', 'realtor', 'installer', 'handyman'] as const;
 type RoleFilter = (typeof ROLE_FILTERS)[number];
 
 const USER_COLUMNS: AdminDataTableColumn<AdminUserRow>[] = [

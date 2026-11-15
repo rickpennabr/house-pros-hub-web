@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   clampDirectoryPage,
   getBusinessDirectoryPage,
+  listBookableBusinesses,
   sanitizeDirectoryCategory,
   sanitizeDirectoryCity,
   sanitizeDirectorySearch,
@@ -33,6 +34,19 @@ export async function GET(request: NextRequest) {
     const search = sanitizeDirectorySearch(searchParams.get('search'));
     const category = sanitizeDirectoryCategory(searchParams.get('category'));
     const city = sanitizeDirectoryCity(searchParams.get('city'));
+    if (searchParams.get('booking') === '1') {
+      const businesses = await listBookableBusinesses(limit);
+      return NextResponse.json({
+        businesses,
+        pagination: {
+          limit,
+          offset: 0,
+          count: businesses.length,
+          total: businesses.length,
+          hasMore: false,
+        },
+      });
+    }
 
     const page = city
       ? await searchBusinessesForAgents({ limit, offset, search, category, city })

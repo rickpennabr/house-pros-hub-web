@@ -7,16 +7,18 @@ export const USER_TYPES = {
   CONTRACTOR: 'contractor',
   REALTOR: 'realtor',
   INSTALLER: 'installer',
+  HANDYMAN: 'handyman',
 } as const;
 
 export type UserType = typeof USER_TYPES[keyof typeof USER_TYPES];
 
-/** Contractor, realtor, and installer signup. Customers stay on the original referral question. */
+/** Contractor, realtor, installer, and handyman signup. Customers stay on the original referral question. */
 export function isProSignup(userType: unknown): boolean {
   return (
     userType === USER_TYPES.CONTRACTOR ||
     userType === USER_TYPES.REALTOR ||
-    userType === USER_TYPES.INSTALLER
+    userType === USER_TYPES.INSTALLER ||
+    userType === USER_TYPES.HANDYMAN
   );
 }
 
@@ -24,6 +26,7 @@ export function isProSignup(userType: unknown): boolean {
 export function signupUserType(role: string | null | undefined): UserType {
   if (role === USER_TYPES.REALTOR) return USER_TYPES.REALTOR;
   if (role === USER_TYPES.INSTALLER) return USER_TYPES.INSTALLER;
+  if (role === USER_TYPES.HANDYMAN) return USER_TYPES.HANDYMAN;
   if (role === USER_TYPES.CONTRACTOR || role === 'both') return USER_TYPES.CONTRACTOR;
   return USER_TYPES.CUSTOMER;
 }

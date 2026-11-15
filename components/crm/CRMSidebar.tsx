@@ -16,6 +16,7 @@ import {
   Package,
   Shovel,
   BarChart3,
+  Car,
   Camera,
   Home,
   QrCode,
@@ -63,6 +64,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     { href: `${base}/portal`, labelKey: 'crmPortal', icon: Home },
     { href: `${base}/jobsite`, labelKey: 'crmJobsite', icon: Camera },
     { href: `${base}/expenses`, labelKey: 'crmExpenses', icon: Receipt },
+    { href: `${base}/mileage`, labelKey: 'crmMileage', icon: Car },
     { href: `${base}/reports`, labelKey: 'crmReports', icon: BarChart3 },
     { href: `${base}/services`, labelKey: 'crmServices', icon: Shovel },
     { href: `${base}/products`, labelKey: 'crmProducts', icon: Package },
@@ -217,6 +219,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
         onClose={() => setIsMenuOpen(false)}
         title="Menu"
         items={mobileMenuItems}
+        onReorder={moveNavItem}
       />
 
       {/* Desktop: vertical sidebar */}

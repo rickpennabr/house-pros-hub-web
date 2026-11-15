@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, User, Shield, Globe, ChevronDown } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Globe, ChevronDown } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -18,7 +18,7 @@ import {
   setJobLocationAllowed,
 } from '@/lib/media/job-camera-prefs';
 
-type AccordionSection = 'account' | 'language' | 'privacy';
+type AccordionSection = 'language' | 'privacy' | null;
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -36,7 +36,7 @@ export default function SettingsModal({
   const currentLocale = useLocale() as Locale;
   const [selectedLocale, setSelectedLocale] = useState<Locale>(currentLocale);
   const [isUpdatingLocale, setIsUpdatingLocale] = useState(false);
-  const [openSection, setOpenSection] = useState<AccordionSection>('account');
+  const [openSection, setOpenSection] = useState<AccordionSection>(null);
   const [cameraAllowed, setCameraAllowed] = useState(false);
   const [locationAllowed, setLocationAllowed] = useState(false);
   const tJob = useTranslations('jobsite');
@@ -45,7 +45,7 @@ export default function SettingsModal({
   useEffect(() => {
     if (isOpen) {
       setSelectedLocale(currentLocale);
-      setOpenSection('account');
+      setOpenSection(null);
       setCameraAllowed(jobCameraAllowed());
       setLocationAllowed(jobLocationAllowed());
     }
@@ -168,49 +168,7 @@ export default function SettingsModal({
           </div>
         )}
 
-        {/* Settings Sections (accordion: only one open, default Account) */}
         <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-          {/* Account Settings */}
-          <div className="border-2 border-black rounded-lg bg-white">
-            <button
-              type="button"
-              onClick={() => setOpenSection('account')}
-              className="w-full p-4 flex items-center justify-between gap-2 hover:bg-gray-50/50 transition-colors text-left rounded-t-lg"
-              aria-expanded={openSection === 'account'}
-            >
-              <div className="flex items-center gap-2">
-                <User className="w-5 h-5 text-black shrink-0" />
-                <h3 className="text-base font-bold text-black">Account</h3>
-              </div>
-              <ChevronDown
-                className={`w-5 h-5 text-black shrink-0 transition-transform ${openSection === 'account' ? 'rotate-180' : ''}`}
-                aria-hidden
-              />
-            </button>
-            {openSection === 'account' && (
-            <div className="p-2 border-t-2 border-black space-y-1">
-              <button
-                onClick={() => {
-                  onClose();
-                  router.push('/profile/edit');
-                }}
-                className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors font-medium text-black cursor-pointer"
-              >
-                Edit Profile
-              </button>
-              <button
-                onClick={() => {
-                  onClose();
-                  router.push('/account-management');
-                }}
-                className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors font-medium text-black cursor-pointer"
-              >
-                Account Management
-              </button>
-            </div>
-            )}
-          </div>
-
           {/* Language Preference */}
           <div className="border-2 border-black rounded-lg bg-white">
             <button

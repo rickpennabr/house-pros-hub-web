@@ -341,9 +341,9 @@ export default function AdminProductsPage() {
         renderCell={(row, columnId) => {
           if (columnId === 'photo') {
             return row.image_url ? (
-              <img src={row.image_url} alt="" className="h-10 w-10 rounded object-cover" />
+              <img src={row.image_url} alt="" className="h-8 w-8 rounded object-cover" />
             ) : (
-              <span className="inline-block h-10 w-10 rounded bg-neutral-100" />
+              <span className="inline-block h-8 w-8 rounded bg-neutral-100" />
             );
           }
           if (columnId === 'name') return <span className="font-medium text-black">{row.name}</span>;

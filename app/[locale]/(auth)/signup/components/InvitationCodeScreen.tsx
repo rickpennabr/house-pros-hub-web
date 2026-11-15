@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 
 interface InvitationCodeScreenProps {
-  role?: 'contractor' | 'realtor' | 'installer';
+  role?: 'contractor' | 'realtor' | 'installer' | 'handyman';
   onValidCode: (code: string) => void;
   onBack: () => void;
 }

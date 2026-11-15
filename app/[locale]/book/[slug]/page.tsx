@@ -162,8 +162,7 @@ export default function BookBySlugPage() {
         businessName={business.businessName}
         contractorType={t('bookSubtitle')}
       />
-      <div className="w-full border-b-2 border-black bg-white p-2 md:p-2">
-        <p className="mb-3 text-sm text-gray-600">{t('appointmentNote')}</p>
+      <div className="w-full border-b-2 border-black bg-white py-2 md:p-2">
         {children}
       </div>
     </div>

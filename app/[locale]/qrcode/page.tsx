@@ -12,7 +12,7 @@ export default function AccountQrCodePage() {
   const locale = useLocale()
   const list = roles as string[]
   const usesCrm = list.includes('contractor') || list.includes('realtor')
-  const isInstaller = list.includes('installer')
+  const isInstaller = list.includes('installer') || list.includes('handyman')
 
   useEffect(() => {
     if (isLoading) return

@@ -114,7 +114,7 @@ export interface WelcomeEmailData {
   firstName: string;
   lastName: string;
   email: string;
-  userType: 'customer' | 'contractor' | 'realtor' | 'installer' | 'both';
+  userType: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | 'both';
 }
 
 export interface SetPasswordEmailTranslations {
@@ -130,7 +130,7 @@ export interface SetPasswordEmailTranslations {
 }
 
 export interface NewSignupAdminNotificationData {
-  type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'business';
+  type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | 'business';
   /** For customer/contractor/realtor: full name. For business: business name. */
   name: string;
   email: string;
@@ -151,7 +151,9 @@ export function generateNewSignupAdminNotification(data: NewSignupAdminNotificat
           ? 'New realtor signed up'
           : data.type === 'installer'
             ? 'New installer signed up'
-            : 'New business added';
+            : data.type === 'handyman'
+              ? 'New handyman signed up'
+              : 'New business added';
   const typeLabel =
     data.type === 'customer'
       ? 'Customer'
@@ -161,7 +163,9 @@ export function generateNewSignupAdminNotification(data: NewSignupAdminNotificat
           ? 'Realtor'
           : data.type === 'installer'
             ? 'Installer'
-            : 'Business';
+            : data.type === 'handyman'
+              ? 'Handyman'
+              : 'Business';
 
   return `
 <!DOCTYPE html>
@@ -272,6 +276,7 @@ export function generateEstimateConfirmationEmail(
     repair: 'Repair',
     remodel: 'Remodel',
     addition_extension: 'Addition/Extension',
+    maintenance: 'Maintenance',
     other: 'Other',
   };
   const projectTypeDisplay = estimate.projectType === 'other' && estimate.projectTypeOther
@@ -499,6 +504,7 @@ export function generateWelcomeEmail(
       break;
     case 'realtor':
     case 'installer':
+    case 'handyman':
       welcomeMessage = translations.contractorWelcomeMessage;
       nextStepsContent = translations.contractorNextSteps;
       break;

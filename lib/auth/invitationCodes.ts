@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type InvitationRole = 'contractor' | 'realtor' | 'installer';
+export type InvitationRole = 'contractor' | 'realtor' | 'installer' | 'handyman';
 
 export interface InvitationCodeRow {
   id: string;
@@ -11,6 +11,7 @@ export interface InvitationCodeRow {
 export function parseInvitationRole(value: unknown): InvitationRole {
   if (value === 'realtor') return 'realtor';
   if (value === 'installer') return 'installer';
+  if (value === 'handyman') return 'handyman';
   return 'contractor';
 }
 

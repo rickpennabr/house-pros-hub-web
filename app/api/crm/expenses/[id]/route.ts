@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { categoryNeedsSupplier, cleanExpenseText, parseExpenseOrderFields, resolveOwnedSupplierId, supplierNamesById } from '@/lib/crm/expense-supplier';
+import { MILEAGE_SETUP_ERROR, mileageSchemaMissing, resolveVehicleId } from '@/lib/crm/mileage';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -41,6 +42,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       requestedBy: row.requested_by ?? '',
       orderedBy: row.ordered_by ?? '',
       receiptUrl: row.receipt_url ?? '',
+      vehicleId: row.vehicle_id ?? '',
     });
   } catch (err) {
     console.error('GET /api/crm/expenses/[id]', err);
@@ -83,8 +85,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         if (p) updates.project_id = body.projectId;
       } else updates.project_id = null;
     }
+    if (body.vehicleId !== undefined || body.vehicle_id !== undefined || updates.category !== undefined) {
+      let category = typeof updates.category === 'string' ? updates.category : '';
+      if (!category) {
+        const { data: current } = await supabase.from('pro_crm_expenses').select('category').eq('id', id).eq('owner_id', user.id).maybeSingle();
+        category = current?.category ?? '';
+      }
+      const vehicle = await resolveVehicleId(supabase, user.id, category, body.vehicleId ?? body.vehicle_id);
+      if (vehicle.error) return NextResponse.json({ error: vehicle.error }, { status: vehicle.status });
+      updates.vehicle_id = vehicle.id;
+    }
 
-    const { error } = await supabase.from('pro_crm_expenses').update(updates).eq('id', id).eq('owner_id', user.id);
+    let { error } = await supabase.from('pro_crm_expenses').update(updates).eq('id', id).eq('owner_id', user.id);
+    if (error && mileageSchemaMissing(error.message) && updates.vehicle_id == null) {
+      const withoutVehicle = { ...updates };
+      delete withoutVehicle.vehicle_id;
+      const retry = await supabase.from('pro_crm_expenses').update(withoutVehicle).eq('id', id).eq('owner_id', user.id);
+      error = retry.error;
+    }
+    if (error && mileageSchemaMissing(error.message)) {
+      return NextResponse.json({ error: MILEAGE_SETUP_ERROR }, { status: 400 });
+    }
     if (error) return NextResponse.json({ error: error.message || 'Failed to update expense' }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -866,11 +866,11 @@ export default function EditBusinessPage() {
         phone: data.phone || undefined,
         mobilePhone: data.mobilePhone || undefined,
         links: links,
-        streetAddress: data.streetAddress || undefined,
-        apartment: data.apartment || undefined,
-        city: data.city || undefined,
-        state: data.state || undefined,
-        zipCode: data.zipCode || undefined,
+        streetAddress: data.streetAddress || '',
+        apartment: data.apartment || '',
+        city: data.city || '',
+        state: data.state || '',
+        zipCode: data.zipCode || '',
         licenses: data.licenses || undefined,
         services: data.services || undefined,
         images: data.images || undefined,
@@ -1485,7 +1485,7 @@ export default function EditBusinessPage() {
               
               {isAddressInfoOpen && (
                 <div className="px-4 pb-4 border-t-2 border-black space-y-4 pt-4">
-                  <FormField label="Business Address" required error={errors.streetAddress?.message}>
+                  <FormField label="Business Address" error={errors.streetAddress?.message}>
                     <AddressAutocomplete
                       id="business-address"
                       value={watch('address') || ''}
@@ -1505,7 +1505,7 @@ export default function EditBusinessPage() {
                     />
                   </FormField>
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField label="City" required error={errors.city?.message}>
+                    <FormField label="City" error={errors.city?.message}>
                       <Input
                         {...register('city')}
                         value={watch('city') || ''}
@@ -1516,7 +1516,7 @@ export default function EditBusinessPage() {
                         error={errors.city?.message}
                       />
                     </FormField>
-                    <FormField label="State" required error={errors.state?.message}>
+                    <FormField label="State" error={errors.state?.message}>
                       <Input
                         {...register('state')}
                         value={watch('state') || ''}
@@ -1528,7 +1528,7 @@ export default function EditBusinessPage() {
                       />
                     </FormField>
                   </div>
-                  <FormField label="ZIP Code" required error={errors.zipCode?.message}>
+                  <FormField label="ZIP Code" error={errors.zipCode?.message}>
                     <Input
                       {...register('zipCode')}
                       value={watch('zipCode') || ''}

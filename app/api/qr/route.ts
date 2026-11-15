@@ -14,7 +14,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const roles = await getUserRoles(user.id)
-    const allowed = roles.includes('contractor') || roles.includes('realtor') || roles.includes('installer')
+    const allowed = roles.includes('contractor') || roles.includes('realtor') || roles.includes('installer') || roles.includes('handyman')
     if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const admin = createServiceRoleClient()
@@ -54,7 +54,7 @@ export async function PATCH(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const roles = await getUserRoles(user.id)
-    const allowed = roles.includes('contractor') || roles.includes('realtor') || roles.includes('installer')
+    const allowed = roles.includes('contractor') || roles.includes('realtor') || roles.includes('installer') || roles.includes('handyman')
     if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await request.json().catch(() => ({}))

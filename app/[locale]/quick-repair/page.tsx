@@ -25,7 +25,7 @@ import {
 import { QUICK_REPAIR_PHOTO_EVENT, openQuickRepairCamera, type QuickRepairPhotoRequest } from '@/lib/media/quick-repair-camera';
 import { uploadProDriveFile, ProDriveQuotaClientError } from '@/lib/drive/upload-client';
 import { estimateSchema } from '@/lib/schemas/estimate';
-import { createClient } from '@/lib/supabase/client';
+import { startGoogleOAuth } from '@/lib/auth/googleOAuth';
 import type { DriveFile, DriveUsage } from '@/lib/drive/types';
 import type { Locale } from '@/i18n';
 
@@ -410,19 +410,16 @@ export default function QuickRepairPage() {
       setGoogleLoading(false);
       return;
     }
-    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
     const returnUrl = `/${locale}/quick-repair?step=3`;
-    document.cookie = `hph_oauth_flow=customer; Path=/; Max-Age=600; SameSite=Lax${secure}`;
-    document.cookie = `hph_oauth_locale=${encodeURIComponent(locale)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
-    document.cookie = `hph_oauth_next=${encodeURIComponent(returnUrl)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
-    const { error: oauthError } = await createClient().auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/api/auth/callback?locale=${encodeURIComponent(locale)}&flow=customer` },
+    const result = await startGoogleOAuth({
+      flow: 'customer',
+      locale,
+      returnUrl,
     });
-    if (oauthError) {
-      setError(t('googleFailed'));
-      setGoogleLoading(false);
-    }
+    if (result.ok) return;
+    if (result.error === 'redirect_to_lan') return;
+    setError(result.error === 'redirect_not_allowlisted' ? result.message : t('googleFailed'));
+    setGoogleLoading(false);
   };
 
   const leaveForAccount = async (href: string) => {

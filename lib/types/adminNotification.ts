@@ -13,6 +13,7 @@ export type AdminNotificationEntityType =
   | 'contractor'
   | 'realtor'
   | 'installer'
+  | 'handyman'
   | 'business'
   | 'estimate'
   | 'booking'
@@ -42,6 +43,7 @@ export function adminNotificationHref(entityType: string, eventType?: string): s
       return '/admin/businesses';
     case 'realtor':
     case 'installer':
+    case 'handyman':
       return '/admin/users';
     default:
       return '/admin';

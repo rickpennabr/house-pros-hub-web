@@ -157,7 +157,7 @@ export async function syncProfessionalCards(admin: Admin): Promise<number> {
   const { data: roles, error: roleError } = await admin
     .from('user_roles')
     .select('user_id, role')
-    .in('role', ['contractor', 'realtor', 'installer'])
+    .in('role', ['contractor', 'realtor', 'installer', 'handyman'])
     .eq('is_active', true)
   if (roleError) throw new Error(roleError.message)
 

@@ -4,7 +4,6 @@ import { useState, useRef } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 import Image from 'next/image';
 import { EstimateSchema } from '@/lib/schemas/estimate';
-import { FormField } from '@/components/ui/FormField';
 import Accordion from '@/components/ui/Accordion';
 import { Upload, X } from 'lucide-react';
 
@@ -123,7 +122,10 @@ export default function ProjectDescriptionAccordion({
       missingInfoMessage={!isOpen && !isComplete ? tAccordion('missingRequiredInfo') : undefined}
     >
       <div className="space-y-4">
-        <FormField label="" error={undefined}>
+        <div className="space-y-2">
+          <label className="block text-sm font-bold text-black">
+            {tFields('descriptionLabel')} <span className="text-red-500">*</span>
+          </label>
           <textarea
             {...register('projectDescription')}
             rows={5}
@@ -135,7 +137,7 @@ export default function ProjectDescriptionAccordion({
             } bg-white`}
             disabled={isSubmitting}
           />
-        </FormField>
+        </div>
 
         {/* Image Upload Section */}
         <div className="space-y-2">

@@ -18,6 +18,7 @@ import Modal from '@/components/ui/Modal';
 import { CustomerForm, emptyForm } from '@/components/crm/CustomerForm';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { categoryNeedsSupplier } from '@/lib/crm/expense-supplier';
+import { categoryUsesVehicle } from '@/lib/crm/mileage-cost';
 import { UNIT_OPTIONS } from '@/lib/constants/unitOptions';
 
 const SORT_OPTIONS = [
@@ -126,7 +127,8 @@ function formatQty(value: number | string | null) {
   return Number.isFinite(amount) ? String(amount) : '';
 }
 
-function expenseTypeLabel(category: string): string {
+function expenseTypeLabel(category: string, projectId?: string | null): string {
+  if (category.trim().toLowerCase() === 'mileage' && projectId) return 'Job';
   const kind = kindForCategory(category);
   if (kind === 'job') return 'Job';
   if (kind === 'business') return 'Business';
@@ -166,7 +168,7 @@ function expenseCellText(row: ExpenseRow, columnId: string, projectName = ''): s
     case 'expense_date':
       return formatDate(row.expense_date);
     case 'type':
-      return expenseTypeLabel(row.category);
+      return expenseTypeLabel(row.category, row.project_id);
     case 'project':
       return projectName;
     case 'amount':
@@ -384,6 +386,8 @@ export default function CRMExpensesPage() {
   const [formUnit, setFormUnit] = useState('');
   const [formRequestedBy, setFormRequestedBy] = useState('');
   const [formOrderedBy, setFormOrderedBy] = useState('');
+  const [formVehicleId, setFormVehicleId] = useState('');
+  const [vehicles, setVehicles] = useState<{ id: string; name: string }[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [descriptions, setDescriptions] = useState<string[]>([]);
   const [supplierRoleId, setSupplierRoleId] = useState('');
@@ -404,6 +408,7 @@ export default function CRMExpensesPage() {
     setPickingOther(false);
     setFormProjectId('');
     setProjectName('');
+    setFormVehicleId('');
   }, [viewMode]);
 
   useEffect(() => {
@@ -445,6 +450,12 @@ export default function CRMExpensesPage() {
         });
       })
       .catch(() => { if (!cancelled) setSuppliers([]); });
+    fetch('/api/crm/vehicles', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data: { vehicles?: { id: string; name: string }[] }) => {
+        if (!cancelled) setVehicles((data.vehicles ?? []).map((vehicle) => ({ id: vehicle.id, name: vehicle.name })));
+      })
+      .catch(() => { if (!cancelled) setVehicles([]); });
     fetch('/api/crm/roles', { credentials: 'include' })
       .then((r) => r.json())
       .then((data: { roles?: { id: string; slug: string }[] }) => {
@@ -499,6 +510,7 @@ export default function CRMExpensesPage() {
         setFormUnit(data.unit ?? '');
         setFormRequestedBy(data.requestedBy ?? '');
         setFormOrderedBy(data.orderedBy ?? '');
+        setFormVehicleId(data.vehicleId ?? '');
         if (data.supplierId && data.supplierName) {
           setSuppliers((current) => (
             current.some((supplier) => supplier.id === data.supplierId)
@@ -661,12 +673,13 @@ export default function CRMExpensesPage() {
           unit: categoryNeedsSupplier(category) ? formUnit.trim() || null : null,
           requestedBy: categoryNeedsSupplier(category) ? formRequestedBy.trim() || null : null,
           orderedBy: categoryNeedsSupplier(category) ? formOrderedBy.trim() || null : null,
+          vehicleId: categoryUsesVehicle(category) ? formVehicleId || null : null,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to create expense');
       setViewMode('table');
-      setFormProjectId(''); setProjectName(''); setFormAmountDollars(''); setFormCategory(''); setExpenseKind(''); setPickingOther(false); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy('');
+      setFormProjectId(''); setProjectName(''); setFormAmountDollars(''); setFormCategory(''); setExpenseKind(''); setPickingOther(false); setFormDate(''); setFormNote(''); setFormDescription(''); setFormSupplierId(''); setFormPoNumber(''); setFormQuantity(''); setFormUnit(''); setFormRequestedBy(''); setFormOrderedBy(''); setFormVehicleId('');
       fetchExpenses();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Request failed');
@@ -706,6 +719,7 @@ export default function CRMExpensesPage() {
           unit: categoryNeedsSupplier(category) ? formUnit.trim() || null : null,
           requestedBy: categoryNeedsSupplier(category) ? formRequestedBy.trim() || null : null,
           orderedBy: categoryNeedsSupplier(category) ? formOrderedBy.trim() || null : null,
+          vehicleId: categoryUsesVehicle(category) ? formVehicleId || null : null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -739,6 +753,7 @@ export default function CRMExpensesPage() {
     setFormUnit('');
     setFormRequestedBy('');
     setFormOrderedBy('');
+    setFormVehicleId('');
     setFormError(null);
     setViewMode('add');
   };
@@ -950,6 +965,14 @@ export default function CRMExpensesPage() {
                   onChange={(event) => chooseCategory(event.target.value)}
                   placeholder="Type a category"
                 />
+              </FormField>
+            )}
+            {categoryUsesVehicle(formCategory) && vehicles.length > 0 && (
+              <FormField label="Vehicle" tip="Tags this cost to a truck so Mileage can compare it with the numbers you entered.">
+                <Select value={formVehicleId} onChange={(event) => setFormVehicleId(event.target.value)}>
+                  <option value="">No vehicle</option>
+                  {vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}
+                </Select>
               </FormField>
             )}
             <FormField label="Amount ($)" required>

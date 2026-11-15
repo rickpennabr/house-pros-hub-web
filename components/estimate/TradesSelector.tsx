@@ -34,7 +34,8 @@ export default function TradesSelector({
 }: TradesSelectorProps) {
   return (
     <Accordion
-      title={`${tAccordion('trades')} ${tAccordion('tradesMultiHint')}`}
+      title={tAccordion('trades')}
+      subtitle={tAccordion('tradesMultiHint')}
       isOpen={isOpen}
       onToggle={onToggle}
       isComplete={isComplete}

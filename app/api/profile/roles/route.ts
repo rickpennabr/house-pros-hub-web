@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
-import { getUserRoles, addRole, removeRole, UserRole } from '@/lib/utils/roles';
+import { getUserRoles, addRole, removeRole } from '@/lib/utils/roles';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 import { z } from 'zod';
@@ -10,7 +10,7 @@ import { z } from 'zod';
  * Schema for role management requests
  */
 const roleSchema = z.object({
-  role: z.enum(['customer', 'contractor', 'realtor']),
+  role: z.enum(['customer', 'contractor', 'realtor', 'installer', 'handyman']),
 });
 
 /**
@@ -41,7 +41,7 @@ async function handleGetRoles(request: AuthenticatedRequest) {
 /**
  * POST /api/profile/roles
  * Add a role to the user
- * Body: { role: 'customer' }
+ * Body: { role: 'customer' | 'installer' | 'handyman' }
  * Contractor and realtor roles are granted only by invitation signup.
  */
 async function handleAddRole(request: AuthenticatedRequest) {
@@ -69,7 +69,7 @@ async function handleAddRole(request: AuthenticatedRequest) {
 
     const { role } = validationResult.data;
 
-    if (role !== 'customer') {
+    if (role !== 'customer' && role !== 'installer' && role !== 'handyman') {
       return NextResponse.json(
         { error: 'Contractor and realtor roles require an invitation code' },
         { status: 403 }

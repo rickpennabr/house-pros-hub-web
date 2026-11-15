@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { CatalogDeleteDialog } from '@/components/crm/catalog/catalog-delete-dialog';
 import { ServiceEditor } from '@/components/crm/catalog/service-editor';
-import { formatServicePrice } from '@/lib/crm/catalog-options';
+import { formatServicePrice, priceTypeLabel } from '@/lib/crm/catalog-options';
 import type { CrmCatalogTerm, CrmService } from '@/lib/crm/catalog-types';
 
 const ACTIONS_MENU_HEIGHT = 220;
@@ -21,7 +21,7 @@ const COLUMNS: AdminDataTableColumn<CrmService>[] = [
   { id: 'unit', label: 'Unit', width: 100 },
   { id: 'price_type', label: 'Price type', width: 130 },
   { id: 'price', label: 'Price', width: 160 },
-  { id: 'description', label: 'Description', width: 240, wrap: true },
+  { id: 'description', label: 'Description', width: 240 },
   { id: 'actions', label: 'Actions', resizable: false },
 ];
 
@@ -36,7 +36,7 @@ function cellText(service: CrmService, columnId: string): string {
     case 'unit':
       return service.unit;
     case 'price_type':
-      return service.price_type;
+      return priceTypeLabel(service.price_type);
     case 'price':
       return formatServicePrice(service);
     case 'description':
@@ -199,6 +199,7 @@ export default function CRMServicesPage() {
         </Button>
       </div>
       <AdminDataTable
+        compactRows
         clientSide
         columnOrderKey="crm-services"
         exportName="services"
@@ -229,7 +230,7 @@ export default function CRMServicesPage() {
         renderCell={(row, columnId) => {
           if (columnId === 'photo') {
             const photo = row.images.find((image) => image.is_thumbnail)?.image_url ?? row.images[0]?.image_url;
-            return photo ? <img src={photo} alt="" className="h-10 w-10 rounded object-cover" /> : <span className="inline-block h-10 w-10 rounded bg-neutral-100" />;
+            return photo ? <img src={photo} alt="" className="h-8 w-8 rounded object-cover" /> : <span className="inline-block h-8 w-8 rounded bg-neutral-100" />;
           }
           return cellText(row, columnId) || '—';
         }}

@@ -23,12 +23,17 @@ const nextConfig: NextConfig = {
       'react-icons/tb',
     ],
   },
-  // Allow cross-origin requests from local network during development (hostname and full origin)
+  // Allow cross-origin requests from local network during development (hostname and full origin).
+  // sslip.io hostnames let Google OAuth return to a LAN phone without a raw IP redirectTo.
   allowedDevOrigins: [
     '192.168.0.26',
     '192.168.0.25',
     'http://192.168.0.26:3000',
     'http://192.168.0.25:3000',
+    '192-168-0-25.sslip.io',
+    '192-168-0-26.sslip.io',
+    'http://192-168-0-25.sslip.io:3000',
+    'http://192-168-0-26.sslip.io:3000',
   ],
   images: {
     remotePatterns: [
@@ -114,7 +119,7 @@ const nextConfig: NextConfig = {
               // https: does not allow websockets. Dev needs ws: for the hot-reload socket
               // (ws://<lan-ip>:3000/_next/hmr). Production only allows the Supabase socket.
               process.env.NODE_ENV === 'development'
-                ? "connect-src 'self' https: ws: wss: http://localhost:* http://127.0.0.1:* http://192.168.0.25:3000 http://192.168.0.26:3000 http://127.0.0.1:7243 https://maps.googleapis.com https://*.googleapis.com"
+                ? "connect-src 'self' https: ws: wss: http://localhost:* http://127.0.0.1:* http://192.168.0.25:3000 http://192.168.0.26:3000 http://192-168-0-25.sslip.io:3000 http://192-168-0-26.sslip.io:3000 http://127.0.0.1:7243 https://maps.googleapis.com https://*.googleapis.com"
                 : "connect-src 'self' https: wss://*.supabase.co https://maps.googleapis.com https://*.googleapis.com",
               "base-uri 'self'",
               "object-src 'none'",

@@ -7,7 +7,9 @@ import type { ProEstimateBookingEmailData } from '@/lib/utils/emailTemplates';
 import { readVisitAddress, formatVisitAddress } from '@/lib/booking/visitAddress';
 import { confirmationEmailCopy } from '@/lib/booking/bookingEmailCopy';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
+import { isMissingServicesTable } from '@/lib/booking/catalogAccess';
 import { loadBusinessBookingWindow } from '@/lib/booking/loadBookingWindow';
+import { isMissingCatalogTable } from '@/lib/crm/catalog-db';
 import { slotIsOpen } from '@/lib/booking/openSlots';
 import { appointmentManageUrl, bookingLocale } from '@/lib/booking/appointmentPolicy';
 import { originFromRequest } from '@/lib/booking/appointmentNotice';
@@ -118,15 +120,37 @@ export async function POST(request: NextRequest) {
         .from('pro_booking_services')
         .select('id, name, is_active, business_id')
         .in('id', requestedServiceIds);
-      const available = (catalogServices ?? []).filter(
-        (row) => row.business_id === businessId && row.is_active
-      );
-      if (serviceError || available.length !== requestedServiceIds.length) {
+      if (serviceError && !isMissingServicesTable(serviceError)) {
         return NextResponse.json({ error: 'That service is not available' }, { status: 400 });
       }
-      const nameById = new Map(available.map((row) => [row.id, row.name]));
-      const names = requestedServiceIds.map((id) => nameById.get(id)).filter((name): name is string => Boolean(name));
-      serviceId = names.length === 1 && !includeGeneralEstimate ? requestedServiceIds[0] : null;
+      const bookingById = new Map(
+        (catalogServices ?? [])
+          .filter((row) => row.business_id === businessId && row.is_active)
+          .map((row) => [row.id, row.name] as const)
+      );
+      const missing = requestedServiceIds.filter((id) => !bookingById.has(id));
+      const crmById = new Map<string, string>();
+      if (missing.length > 0) {
+        const { data: crmServices, error: crmError } = await service
+          .from('pro_crm_services')
+          .select('id, name')
+          .eq('owner_id', business.ownerId)
+          .in('id', missing);
+        if (crmError && !isMissingCatalogTable(crmError)) {
+          return NextResponse.json({ error: 'That service is not available' }, { status: 400 });
+        }
+        for (const row of crmServices ?? []) crmById.set(row.id, row.name);
+      }
+      if (requestedServiceIds.some((id) => !bookingById.has(id) && !crmById.has(id))) {
+        return NextResponse.json({ error: 'That service is not available' }, { status: 400 });
+      }
+      const names = requestedServiceIds
+        .map((id) => bookingById.get(id) ?? crmById.get(id))
+        .filter((name): name is string => Boolean(name));
+      serviceId =
+        names.length === 1 && !includeGeneralEstimate && bookingById.has(requestedServiceIds[0])
+          ? requestedServiceIds[0]
+          : null;
       serviceName = names.join(', ');
     }
     if (includeGeneralEstimate) {

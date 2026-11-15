@@ -22,6 +22,7 @@
       "email": "Email",
       "phone": "Phone",
       "mobilePhone": "Mobile Phone",
+      "location": "Location",
       "password": "Password",
       "confirmPassword": "Confirm Password"
     },
@@ -52,6 +53,7 @@
     "account": {
       "myBusiness": "My Business",
       "accountManagement": "Account Management",
+      "manageAccounts": "Manage Accounts",
       "proscrm": "ProsCRM",
       "probot": "ProBot",
       "callTheHub": "Call the hub",
@@ -66,10 +68,20 @@
       "searchBusinesses": "Search businesses",
       "noBusinessesFound": "No businesses found",
       "personalAccount": "Personal account",
-      "businessAccount": "Business account"
+      "businessAccount": "Business account",
+      "switchAccount": "Switch account",
+      "shareBusiness": "Share business"
     },
     "settings": {
       "languagePreferenceSaved": "Your choice is saved to your account and used whenever you sign in."
+    },
+    "slides": {
+      "view": "View photos",
+      "close": "Close photos",
+      "previous": "Previous photo",
+      "next": "Next photo",
+      "count": "{current} of {total}",
+      "thumbnail": "Photo {index}"
     }
   },
   "probot": {
@@ -238,7 +250,14 @@
     "active": "Show on your page",
     "hidden": "Hidden",
     "error": "Could not save this service.",
-    "unavailable": "Services are not ready yet. Apply the booking services migration."
+    "unavailable": "Services are not ready yet. Apply the booking services migration.",
+    "share": "Share",
+    "shareTitle": "Share services",
+    "shareMessage": "Here are the services from {name}.",
+    "detailsTitle": "Service Details",
+    "back": "Back to services",
+    "noPhoto": "No photo yet",
+    "noDescription": "No description yet."
   },
   "businessHours": {
     "tab": "Hours",
@@ -248,12 +267,22 @@
     "empty": "Hours are not listed yet.",
     "timesIn": "Times are in {zone}."
   },
+  "businessTabs": {
+    "dragHint": "Drag to change the tab order"
+  },
   "appointments": {
     "title": "Appointments",
     "subtitle": "Reschedule or cancel up to 2 hours before the visit.",
     "upcoming": "Upcoming",
     "earlier": "Earlier",
     "empty": "You have no appointments yet.",
+    "makeAppointment": "Make an appointment",
+    "pickPro": "Choose a pro",
+    "pickProHint": "Tap a pro to start the appointment.",
+    "searchPros": "Search pros",
+    "noSearchResults": "No pros match that search.",
+    "noPros": "No pros yet.",
+    "loadingPros": "Loading pros…",
     "signIn": "Sign in to see appointments on your account. Guest bookings stay on the link in your confirmation email.",
     "signInAction": "Sign in",
     "with": "With",
@@ -547,6 +576,7 @@
     "crmInvoices": "Invoices",
     "crmProjects": "Projects",
     "crmExpenses": "Expenses",
+    "crmMileage": "Mileage",
     "crmReports": "Reports",
     "crmItems": "Products & Services",
     "crmServices": "Services",
@@ -624,6 +654,7 @@
     "crmJobsite": "Jobsite",
     "crmPortal": "Customer portal",
     "crmQrcode": "QR code",
+    "crmMenuDragHint": "Drag a tile to change the order",
     "proAdd": {
       "title": "Add",
       "crm": "CRM",
@@ -632,6 +663,7 @@
       "invoice": "New invoice",
       "project": "New project",
       "expense": "New expense",
+      "trip": "Log trip",
       "task": "New task",
       "service": "New service",
       "product": "New product"
@@ -682,6 +714,23 @@
       "title": "Connecting your Google account",
       "subtitle": "We are bringing your name, email, and photo from Google over to House Pros Hub."
     },
+    "finishSetup": {
+      "title": "Finish your account setup to enter the Hub",
+      "subtitle": "Your Google name, email, and photo are saved. Tell us how you heard about House Pros Hub, add your phone, and accept the terms.",
+      "submit": "Enter the Hub",
+      "submitting": "Saving...",
+      "cancel": "Not now",
+      "cancelHint": "We'll keep your Google account. Sign in with Google again when you are ready.",
+      "termsPrefix": "I agree to the",
+      "errors": {
+        "generic": "Could not finish your account. Please try again.",
+        "referral": "Please select how you heard about us",
+        "referralOther": "Please enter how you heard about us",
+        "phone": "Phone number is required",
+        "phoneInvalid": "Invalid phone format (e.g. 702-555-0123)",
+        "terms": "You must agree to the terms"
+      }
+    },
     "signin": {
       "title": "Welcome back",
       "subtitle": "Sign in to your account",
@@ -702,6 +751,7 @@
       "errors": {
         "generic": "Failed to sign in. Please try again.",
         "google": "Could not sign in with Google",
+        "googleRedirectAllowlist": "Google sign-in would open the live site from this phone URL. {detail}",
         "existingAccount": "An account with this email already exists. Sign in with the password you created."
       }
     },
@@ -783,7 +833,13 @@
           "title": "I'm an Installer",
           "titleWithCode": "(invitation code required) I'm an Installer",
           "invitationCodeRequired": "(invitation code required)",
-          "description": "I install for contractors"
+          "description": "I install for contractors and small projects/repair"
+        },
+        "handyman": {
+          "title": "I'm a Handyman",
+          "titleWithCode": "(invitation code required) I'm a Handyman",
+          "invitationCodeRequired": "(invitation code required)",
+          "description": "I do small repairs and projects under $1,000"
         },
         "realtor": {
           "title": "I'm a Realtor",
@@ -800,7 +856,7 @@
       },
       "customerSignupChoice": {
         "title": "How you want to sign up?",
-        "estimateHint": "Enter your information for the FREE estimate.",
+        "estimateHint": "Enter your information for the FREE estimates.",
         "signUpWithForm": "Sign up with form",
         "or": "OR"
       },
@@ -1118,6 +1174,22 @@
       "noGalleryYet": "No gallery images yet.",
       "saveError": "The photo uploaded, but it could not be saved to your gallery. Please try again.",
       "removeError": "Could not remove that photo. Please try again.",
+      "shareButton": "Share",
+      "shareTitle": "Share photos",
+      "shareMessage": "Here are some jobs from {name}.",
+      "reorderHint": "Drag photos to change their order.",
+      "savingOrder": "Saving order…",
+      "reorderError": "Could not save the new photo order. Please try again.",
+      "dragImageAria": "Drag to reorder photo {index}",
+      "search": "Search images",
+      "clearSearch": "Clear search",
+      "noSearchResults": "No images match that search.",
+      "tagHint": "Add tags like driveway or pavers so people can find each photo.",
+      "tagPlaceholder": "Add a tag",
+      "addTag": "Add",
+      "removeTagAria": "Remove tag {tag}",
+      "tagLimit": "Each photo can have up to 8 tags.",
+      "tagSaveError": "Could not save those tags. Please try again.",
       "instructionsTitle": "Gallery Instructions",
       "instructionsLine1": "Add photos of your work or business (e.g. projects, team, office).",
       "instructionsLine2": "These will appear in the Images tab on your business details page."
@@ -1219,10 +1291,12 @@
     },
     "accordion": {
       "customerInfo": "Customer Information",
+      "personalInfo": "Personal Information",
       "projectAddress": "Project Address",
       "confirmAddressFromProfile": "We've pre-filled your project address from your profile. Confirm or update it below.",
       "projectInfo": "Project Information",
       "projectType": "Project Type",
+      "projectTypeHint": "Pick what best describes your project.",
       "trades": "Select Trades/Services Needed*",
       "tradesMultiHint": "(you can select more than one)",
       "description": "Project Description & Images",
@@ -1274,6 +1348,7 @@
       "hoaAnd3DLabel": "Any of these apply to your project?",
       "tradesLabel": "Select Trades/Services Needed* (you can select more than one)",
       "projectDescriptionLabel": "Project Description",
+      "descriptionLabel": "Description",
       "projectDescriptionPlaceholder": "Describe what you need...",
       "projectImagesLabel": "Project Images (Optional)",
       "projectImagesHelp": "Upload up to 5 images to help contractors understand your project better. Accepted formats: JPEG, PNG, WebP. Max size: 5MB per image.",
@@ -1304,6 +1379,7 @@
         "repair": "Repair",
         "remodel": "Remodel",
         "addition_extension": "Addition/Extension",
+        "maintenance": "Maintenance",
         "other": "Other"
       },
       "budgetRange": {
@@ -1469,7 +1545,13 @@
     "love": "Love",
     "feedback": "Feedback",
     "link": "Connect",
-    "save": "Save"
+    "save": "Save",
+    "saveOnPersonalTitle": "Save on your personal profile",
+    "saveOnPersonalMessage": "Saved businesses are kept on your personal profile. Switch to that profile and save this business?",
+    "yes": "Yes",
+    "savedTitle": "Saved",
+    "savedMessage": "This business was saved on your personal profile.",
+    "ok": "OK"
   },
   "categories": {
     "all": "All",
@@ -1534,7 +1616,12 @@
     "personalAccountFallback": "Personal",
     "businessAccountFallback": "Business",
     "quickActions": "Quick Actions",
+    "dragHint": "Drag the handle to put the ones you use most first",
     "access": "Access",
+    "settings": {
+      "title": "Settings",
+      "description": "Language & privacy"
+    },
     "actions": {
       "personal": {
         "editProfile": {
@@ -1584,8 +1671,8 @@
           "description": "New Business"
         },
         "managePartners": {
-          "title": "Manage Partners",
-          "description": "Manage Partnerships"
+          "title": "Make Partnership",
+          "description": "New partnership"
         }
       }
     }
@@ -1637,6 +1724,11 @@
     "emailRequired": "Type the email on this account",
     "emailMismatch": "That email does not match this account",
     "profileUpdated": "Profile updated successfully!",
+    "hubUseTitle": "How you use the Hub",
+    "hubUseHelp": "Installer is you, not a business listing. Turn it on here. A street address is only required when a customer requests an estimate.",
+    "installerRole": "I'm an Installer",
+    "roleUpdated": "Classification updated.",
+    "roleFailed": "Could not update your classification.",
     "fields": {
       "firstName": "First Name",
       "lastName": "Last Name",
@@ -2521,6 +2613,7 @@
     "failed": "Could not post feedback.",
     "replyFailed": "Could not post the reply.",
     "ownBusiness": "This is your business. You can reply to feedback here.",
+    "pickLinkType": "Pick type of link",
     "appointment": "Appointment",
     "businessPage": "Business page",
     "shareFeedback": "Feedback",

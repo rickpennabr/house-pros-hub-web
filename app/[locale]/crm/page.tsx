@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { CalendarDays, FileCheck, FilePlus2, FileText, FolderKanban, Loader2, Plus, Users } from 'lucide-react';
+import { CalendarDays, Car, FileCheck, FilePlus2, FileText, FolderKanban, Loader2, Plus, Users } from 'lucide-react';
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
 import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
@@ -347,6 +347,12 @@ export default function CRMPage() {
       label: 'Expense',
       icon: FilePlus2,
       onClick: () => router.push(`/${locale}/crm/expenses`),
+    },
+    {
+      id: 'add-mileage',
+      label: 'Mileage',
+      icon: Car,
+      onClick: () => router.push(`/${locale}/crm/mileage`),
     },
     {
       id: 'add-task',

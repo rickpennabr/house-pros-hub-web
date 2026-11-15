@@ -43,9 +43,11 @@ export function CustomerSignupChoiceScreen({
       </div>
 
       <div className="mb-6 flex flex-col items-center justify-center gap-2 md:mb-8 md:pt-4 animate-slide-in-right">
-        <h2 className="text-3xl font-semibold text-center">{t('title')}</h2>
+        <h2 className="text-3xl font-semibold text-center">
+          {forEstimate ? t('estimateHint') : t('title')}
+        </h2>
         {forEstimate && (
-          <p className="text-center text-sm text-gray-600">{t('estimateHint')}</p>
+          <p className="text-center text-sm text-gray-600">{t('title')}</p>
         )}
       </div>
 
