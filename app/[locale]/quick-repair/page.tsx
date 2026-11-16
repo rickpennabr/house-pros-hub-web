@@ -411,14 +411,22 @@ export default function QuickRepairPage() {
       return;
     }
     const returnUrl = `/${locale}/quick-repair?step=3`;
-    const result = await startGoogleOAuth({
-      flow: 'customer',
-      locale,
-      returnUrl,
-    });
-    if (result.ok) return;
-    if (result.error === 'redirect_to_lan') return;
-    setError(result.error === 'redirect_not_allowlisted' ? result.message : t('googleFailed'));
+    try {
+      const result = await startGoogleOAuth({
+        flow: 'customer',
+        locale,
+        returnUrl,
+      });
+      if (result.ok) return;
+      if (result.error === 'redirect_to_lan') return;
+      setError(
+        result.error === 'redirect_not_allowlisted' || result.error === 'lan_hostname_unreachable'
+          ? result.message
+          : t('googleFailed')
+      );
+    } catch {
+      setError(t('googleFailed'));
+    }
     setGoogleLoading(false);
   };
 

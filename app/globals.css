@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
+/* Hub is light-only. Never follow system/incognito dark mode — dark: utilities
+   only apply under an explicit .dark ancestor, which we do not set. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
+  color-scheme: light only;
   --background: #ffffff;
   --foreground: #171717;
   --color-black: #000000;
@@ -178,27 +183,12 @@ button:hover .repair-cam-mark .repair-fix-pulse,
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-
-  /* Form fields: dark background, light text, visible placeholder site-wide (avoids white-on-white on mobile/admin) */
-  input,
-  select,
-  textarea {
-    background-color: #1a1a1a !important;
-    color: #ededed !important;
-  }
-  input::placeholder,
-  textarea::placeholder {
-    color: #a3a3a3 !important;
-  }
-  select option {
-    background-color: #1a1a1a;
-    color: #ededed;
-  }
+/* Keep native controls on the light palette even when the OS is dark. */
+input,
+select,
+textarea,
+button {
+  color-scheme: light;
 }
 
 body {

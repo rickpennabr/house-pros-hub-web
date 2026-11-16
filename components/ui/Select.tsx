@@ -19,11 +19,11 @@ export function Select({ error, className = '', disabled, ...props }: SelectProp
       <select
         {...props}
         disabled={disabled}
-        className={`w-full h-12 min-h-12 shrink-0 appearance-none bg-none py-0 pl-3 pr-10 leading-[44px] border-2 rounded-lg bg-white dark:bg-[#1a1a1a] text-black dark:text-gray-100 focus:outline-none transition-all dark:border-gray-600 ${borderClass} ${className}`}
+        className={`w-full h-12 min-h-12 shrink-0 appearance-none bg-none py-0 pl-3 pr-10 leading-[44px] border-2 rounded-lg bg-white text-black focus:outline-none transition-all ${borderClass} ${className}`}
       />
       <ChevronDown
         aria-hidden
-        className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${disabled ? 'text-gray-400' : 'text-black dark:text-gray-100'}`}
+        className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${disabled ? 'text-gray-400' : 'text-black'}`}
       />
     </div>
   );

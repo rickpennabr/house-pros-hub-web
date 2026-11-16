@@ -26,7 +26,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         {...props}
         value={value}
         disabled={disabled}
-        className={`w-full p-2 ${showClear ? 'pr-8' : ''} border-2 rounded-lg bg-white dark:bg-[#1a1a1a] text-black dark:text-gray-100 focus:outline-none transition-all placeholder:dark:placeholder-gray-400 ${borderClass} dark:border-gray-600 ${className}`}
+        className={`w-full p-2 ${showClear ? 'pr-8' : ''} border-2 rounded-lg bg-white text-black placeholder:text-gray-500 focus:outline-none transition-all ${borderClass} ${className}`}
       />
       {showClear && value && onClear && (
         <ClearButton onClick={onClear} disabled={disabled} />

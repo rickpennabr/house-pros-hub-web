@@ -318,23 +318,26 @@ function FinishAccountSetupModal({
       }
 
       // Show the URL immediately (Google photos need no-referrer on <img>).
-      // Convert to data URL only when possible so crop/zoom can run.
-      const editableSource = (await toEditableDataUrl(nextPicture)) || nextPicture;
+      // Crop/zoom only works on a same-origin data URL — remote Google avatars
+      // taint the canvas and throw SecurityError on mobile if edit mode is forced on.
+      const editableSource = await toEditableDataUrl(nextPicture);
       if (cancelled) return;
 
+      const canEdit = Boolean(editableSource?.startsWith('data:image/'));
+      const displayPicture = canEdit ? editableSource! : nextPicture;
       setDraft((current) => ({
         ...current,
-        userPicture: editableSource.startsWith('data:image/') ? editableSource : nextPicture,
+        userPicture: displayPicture,
       }));
-      setPreview(nextPicture.startsWith('data:image/') ? editableSource : nextPicture);
-      setOriginalImage(editableSource.startsWith('data:image/') ? editableSource : nextPicture);
+      setPreview(displayPicture);
+      setOriginalImage(canEdit ? editableSource! : null);
       setZoom(50);
       setVerticalPosition(50);
       setHorizontalPosition(50);
       zoomRef.current = 50;
       verticalPositionRef.current = 50;
       horizontalPositionRef.current = 50;
-      setIsEditMode(true);
+      setIsEditMode(canEdit);
       setDraftReady(true);
     };
 
@@ -346,7 +349,11 @@ function FinishAccountSetupModal({
 
   useEffect(() => {
     if (!draftReady) return;
-    localStorage.setItem(draftKey(userId), JSON.stringify(draft));
+    try {
+      localStorage.setItem(draftKey(userId), JSON.stringify(draft));
+    } catch {
+      // Private mode / quota — keep the in-memory draft only.
+    }
   }, [userId, draft, draftReady]);
 
   const needsDetail = referralNeedsDetail(draft.referral);
@@ -723,26 +730,26 @@ function FinishAccountSetupModal({
                         >
                           <X className="w-3.5 h-3.5 md:w-2.5 md:h-2.5 text-white" strokeWidth={3} />
                         </button>
-                        <button
-                          type="button"
-                          onClick={async (event) => {
-                            event.stopPropagation();
-                            setIsEditMode(true);
-                            if (originalImage) {
+                        {originalImage?.startsWith('data:image/') ? (
+                          <button
+                            type="button"
+                            onClick={async (event) => {
+                              event.stopPropagation();
+                              setIsEditMode(true);
                               await applyZoom(
                                 originalImage,
                                 zoomRef.current,
                                 verticalPositionRef.current,
                                 horizontalPositionRef.current
                               );
-                            }
-                          }}
-                          disabled={saving}
-                          className="w-6 h-6 md:w-4 md:h-4 rounded bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-50"
-                          aria-label="Edit profile picture"
-                        >
-                          <Pencil className="w-3.5 h-3.5 md:w-2.5 md:h-2.5 text-white" strokeWidth={2} />
-                        </button>
+                            }}
+                            disabled={saving}
+                            className="w-6 h-6 md:w-4 md:h-4 rounded bg-black border-2 border-black flex items-center justify-center cursor-pointer hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-50"
+                            aria-label="Edit profile picture"
+                          >
+                            <Pencil className="w-3.5 h-3.5 md:w-2.5 md:h-2.5 text-white" strokeWidth={2} />
+                          </button>
+                        ) : null}
                         {isEditMode ? (
                           <button
                             type="button"

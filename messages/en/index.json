@@ -779,7 +779,8 @@
       "errors": {
         "generic": "Failed to sign in. Please try again.",
         "google": "Could not sign in with Google",
-        "googleRedirectAllowlist": "Google sign-in would open the live site from this phone URL. {detail}",
+        "googleRedirectAllowlist": "Google would send you to the live site from this phone URL. {detail}",
+        "googleLanHostname": "{detail}",
         "existingAccount": "An account with this email already exists. Sign in with the password you created."
       }
     },

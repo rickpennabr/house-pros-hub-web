@@ -1,3 +1,4 @@
+import os from 'node:os';
 import type { NextConfig } from "next";
 import createNextIntlPlugin from 'next-intl/plugin';
 
@@ -6,6 +7,40 @@ const withNextIntl = createNextIntlPlugin('./i18n.ts');
 // Extract Supabase hostname from environment variable
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : null;
+
+/** LAN IPv4s + .local / sslip.io / nip.io mirrors so a phone can load Next assets and finish Google OAuth. */
+function getLanDevOrigins(): string[] {
+  const origins = ['localhost', '127.0.0.1'];
+  const machine = os.hostname().split('.')[0];
+  if (machine) origins.push(`${machine}.local`);
+  for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const addr of addrs ?? []) {
+      if (addr.family === 'IPv4' && !addr.internal) {
+        origins.push(addr.address);
+        // Phone Google OAuth hops raw IPs to a hostname (Supabase rejects IP redirectTo).
+        origins.push(`${addr.address.replace(/\./g, '-')}.sslip.io`);
+        origins.push(`${addr.address}.nip.io`);
+      }
+    }
+  }
+  // Optional fixed hostname (ngrok / Cloudflare tunnel) that works on any network.
+  const override = process.env.NEXT_PUBLIC_DEV_LAN_ORIGIN?.trim();
+  if (override) {
+    try {
+      origins.push(new URL(override).hostname);
+    } catch {
+      // ignore malformed override
+    }
+  }
+  return [...new Set(origins)];
+}
+
+/** CSP connect-src entries for the dev LAN hosts (any port: the phone probes them before hopping). */
+function devConnectSrc(): string {
+  return getLanDevOrigins()
+    .map((host) => `http://${host}:*`)
+    .join(' ');
+}
 
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
@@ -23,18 +58,9 @@ const nextConfig: NextConfig = {
       'react-icons/tb',
     ],
   },
-  // Allow cross-origin requests from local network during development (hostname and full origin).
+  // Allow cross-origin requests from local network during development.
   // sslip.io hostnames let Google OAuth return to a LAN phone without a raw IP redirectTo.
-  allowedDevOrigins: [
-    '192.168.0.26',
-    '192.168.0.25',
-    'http://192.168.0.26:3000',
-    'http://192.168.0.25:3000',
-    '192-168-0-25.sslip.io',
-    '192-168-0-26.sslip.io',
-    'http://192-168-0-25.sslip.io:3000',
-    'http://192-168-0-26.sslip.io:3000',
-  ],
+  allowedDevOrigins: getLanDevOrigins(),
   images: {
     remotePatterns: [
       {
@@ -119,7 +145,7 @@ const nextConfig: NextConfig = {
               // https: does not allow websockets. Dev needs ws: for the hot-reload socket
               // (ws://<lan-ip>:3000/_next/hmr). Production only allows the Supabase socket.
               process.env.NODE_ENV === 'development'
-                ? "connect-src 'self' https: ws: wss: http://localhost:* http://127.0.0.1:* http://192.168.0.25:3000 http://192.168.0.26:3000 http://192-168-0-25.sslip.io:3000 http://192-168-0-26.sslip.io:3000 http://127.0.0.1:7243 https://maps.googleapis.com https://*.googleapis.com"
+                ? `connect-src 'self' https: ws: wss: ${devConnectSrc()} http://*.local:* https://maps.googleapis.com https://*.googleapis.com`
                 : "connect-src 'self' https: wss://*.supabase.co https://maps.googleapis.com https://*.googleapis.com",
               "base-uri 'self'",
               "object-src 'none'",

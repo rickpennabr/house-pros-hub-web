@@ -779,7 +779,8 @@
       "errors": {
         "generic": "Falha ao entrar. Tente novamente.",
         "google": "Não foi possível entrar com o Google",
-        "googleRedirectAllowlist": "O Google abriria o site ao vivo a partir deste URL do telefone. {detail}",
+        "googleRedirectAllowlist": "O Google enviaria você ao site ao vivo a partir deste URL do telefone. {detail}",
+        "googleLanHostname": "{detail}",
         "existingAccount": "Já existe uma conta com este e-mail. Entre com a senha que você criou."
       }
     },

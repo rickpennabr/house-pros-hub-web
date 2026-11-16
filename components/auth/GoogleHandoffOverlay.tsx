@@ -1,7 +1,5 @@
 'use client';
 
-import Image from 'next/image';
-
 interface GoogleHandoffOverlayProps {
   open: boolean;
   title: string;
@@ -14,6 +12,9 @@ const TRANSFER_DOTS = ['#4285F4', '#EA4335', '#FBBC05', '#34A853'];
  * Full-screen handoff shown while the browser leaves for Google and while the
  * callback finishes. It mirrors the Google consent screen: the two accounts side
  * by side with the profile moving from one to the other.
+ *
+ * Uses a plain img (not next/image) so LAN/sslip phone hops do not depend on
+ * the image optimizer while client JS is still attaching.
  */
 export function GoogleHandoffOverlay({ open, title, subtitle }: GoogleHandoffOverlayProps) {
   if (!open) return null;
@@ -47,7 +48,8 @@ export function GoogleHandoffOverlay({ open, title, subtitle }: GoogleHandoffOve
           </span>
 
           <span className="flex h-16 w-16 items-center justify-center rounded-full border border-gray-200 bg-white p-2 shadow-sm">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/hph-logo-simble-bot-v1.png"
               alt="House Pros Hub"
               width={48}

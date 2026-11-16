@@ -23,7 +23,8 @@ export function VerticalSlider({ initialPosition = 50, onPositionChange, classNa
     if (!sliderRef.current) return;
 
     const rect = sliderRef.current.getBoundingClientRect();
-    const clientY = 'touches' in e ? e.touches[0].clientY : ('clientY' in e ? e.clientY : 0);
+    const touch = 'touches' in e ? e.touches[0] ?? ('changedTouches' in e ? e.changedTouches[0] : undefined) : undefined;
+    const clientY = touch ? touch.clientY : 'clientY' in e ? e.clientY : 0;
     const y = clientY - rect.top;
     const percentage = Math.max(0, Math.min(100, (y / rect.height) * 100));
     

@@ -23,7 +23,8 @@ export function ZoomSlider({ initialZoom = 50, onZoomChange, className = '' }: Z
     if (!sliderRef.current) return;
 
     const rect = sliderRef.current.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : ('clientX' in e ? e.clientX : 0);
+    const touch = 'touches' in e ? e.touches[0] ?? ('changedTouches' in e ? e.changedTouches[0] : undefined) : undefined;
+    const clientX = touch ? touch.clientX : 'clientX' in e ? e.clientX : 0;
     const x = clientX - rect.left;
     const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
     

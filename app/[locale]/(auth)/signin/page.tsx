@@ -17,7 +17,7 @@ import { AuthNavigationButtons } from '@/components/auth/AuthNavigationButtons';
 import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
 import { isValidEmail, isNotEmpty } from '@/lib/validation';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
-import { startGoogleOAuth, takeGoogleOAuthResume } from '@/lib/auth/googleOAuth';
+import { startGoogleOAuth } from '@/lib/auth/googleOAuth';
 
 function SignInForm() {
   const locale = useLocale();
@@ -198,36 +198,27 @@ function SignInForm() {
     if (busy) return;
     setError(null);
     setIsGoogleLoading(true);
-    const returnUrl = searchParams.get('returnUrl');
-    const result = await startGoogleOAuth({
-      flow: 'signin',
-      locale,
-      returnUrl,
-    });
-    if (result.ok) return;
-    if (result.error === 'redirect_to_lan') return;
-    setError(
-      result.error === 'redirect_not_allowlisted'
-        ? t('errors.googleRedirectAllowlist', { detail: result.message })
-        : t('errors.google')
-    );
+    try {
+      const returnUrl = searchParams.get('returnUrl');
+      const result = await startGoogleOAuth({
+        flow: 'signin',
+        locale,
+        returnUrl,
+      });
+      if (result.ok) return;
+      if (result.error === 'redirect_to_lan') return;
+      if (result.error === 'lan_hostname_unreachable') {
+        setError(t('errors.googleLanHostname', { detail: result.message }));
+      } else if (result.error === 'redirect_not_allowlisted') {
+        setError(t('errors.googleRedirectAllowlist', { detail: result.message }));
+      } else {
+        setError(t('errors.google'));
+      }
+    } catch {
+      setError(t('errors.google'));
+    }
     setIsGoogleLoading(false);
   };
-
-  // Phone LAN IPs cannot be Google redirect targets. After we bounce to sslip.io,
-  // resume the OAuth start once on the hostname origin.
-  useEffect(() => {
-    const fromQuery = searchParams.get('google');
-    const resume = fromQuery === 'signin' || fromQuery === 'customer' ? fromQuery : takeGoogleOAuthResume();
-    if (resume !== 'signin') return;
-    if (fromQuery) {
-      const cleaned = new URL(window.location.href);
-      cleaned.searchParams.delete('google');
-      window.history.replaceState({}, '', cleaned.pathname + cleaned.search);
-    }
-    void handleGoogleSignIn();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when landing from the LAN hostname hop
-  }, []);
 
   return (
     <AuthPageLayout>

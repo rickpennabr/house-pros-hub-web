@@ -25,6 +25,24 @@ export function lanHostnameViaSslip(hostname: string): string {
   return `${hostname.replace(/\./g, '-')}.sslip.io`;
 }
 
+/** nip.io keeps the dotted IP as labels: 192.168.0.25.nip.io */
+export function lanHostnameViaNip(hostname: string): string {
+  return `${hostname}.nip.io`;
+}
+
+export function oauthFriendlyCandidates(
+  location: Pick<Location, 'protocol' | 'hostname' | 'port'>
+): string[] {
+  const port = location.port ? `:${location.port}` : '';
+  if (!isPrivateLanHostname(location.hostname)) {
+    return [`${location.protocol}//${location.hostname}${port}`];
+  }
+  return [
+    `${location.protocol}//${lanHostnameViaSslip(location.hostname)}${port}`,
+    `${location.protocol}//${lanHostnameViaNip(location.hostname)}${port}`,
+  ];
+}
+
 export function oauthFriendlyOrigin(location: Pick<Location, 'protocol' | 'hostname' | 'port'>): {
   origin: string;
   switchedFromIp: boolean;
@@ -37,6 +55,44 @@ export function oauthFriendlyOrigin(location: Pick<Location, 'protocol' | 'hostn
   const host = lanHostnameViaSslip(location.hostname);
   const origin = `${location.protocol}//${host}${port}`;
   return { origin, switchedFromIp: true, friendlyUrl: origin };
+}
+
+/**
+ * Probe whether the phone can resolve+reach a LAN hostname mirror.
+ * Avoids navigating into Chrome's ERR_NAME_NOT_RESOLVED screen.
+ */
+export async function pickReachableLanOrigin(candidates: string[]): Promise<string | null> {
+  for (const origin of candidates) {
+    try {
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 2500);
+      await fetch(`${origin}/favicon.ico`, {
+        method: 'GET',
+        mode: 'no-cors',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      window.clearTimeout(timer);
+      return origin;
+    } catch {
+      // try next candidate (DNS failure, timeout, offline)
+    }
+  }
+  return null;
+}
+
+/** Dev API + static sslip/nip candidates. `.local` often works when public DNS blocks sslip. */
+async function lanHopCandidates(location: Location): Promise<string[]> {
+  const fromPage = oauthFriendlyCandidates(location);
+  try {
+    const res = await fetch('/api/dev/lan-hosts', { cache: 'no-store' });
+    if (!res.ok) return fromPage;
+    const body = (await res.json()) as { origins?: string[] };
+    const fromServer = Array.isArray(body.origins) ? body.origins : [];
+    return [...new Set([...fromServer, ...fromPage])];
+  } catch {
+    return fromPage;
+  }
 }
 
 function setOauthCookies(flow: GoogleOAuthFlow, locale: string, returnUrl: string | null) {
@@ -71,30 +127,68 @@ export function takeGoogleOAuthResume(): GoogleOAuthFlow | null {
 
 export type StartGoogleOAuthResult =
   | { ok: true }
-  | { ok: false; error: 'redirect_to_lan' | 'redirect_not_allowlisted' | 'oauth_start_failed'; message: string; friendlyUrl?: string };
+  | {
+      ok: false;
+      error: 'redirect_to_lan' | 'redirect_not_allowlisted' | 'oauth_start_failed' | 'lan_hostname_unreachable';
+      message: string;
+      friendlyUrl?: string;
+    };
+
+/**
+ * Quiet entry used after a LAN → hostname hop (BrazaLink-style).
+ * Keeps PKCE + cookies on the hostname origin without reloading sign-in UI.
+ */
+export function googleStartPath(
+  locale: string,
+  flow: GoogleOAuthFlow,
+  returnUrl?: string | null
+): string {
+  const params = new URLSearchParams({ flow });
+  if (returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//')) {
+    params.set('returnUrl', returnUrl);
+  }
+  return `/${locale}/auth/google-start?${params.toString()}`;
+}
 
 /**
  * Starts Google OAuth and keeps the return hop on this origin.
- * On a phone using a LAN IP, sends the browser to the sslip.io hostname first.
+ * On a phone using a LAN IP, hops to a reachable sslip.io / nip.io hostname
+ * first so Google never sees a raw IP redirectTo.
  */
 export async function startGoogleOAuth(input: {
   flow: GoogleOAuthFlow;
   locale: string;
   returnUrl?: string | null;
 }): Promise<StartGoogleOAuthResult> {
-  const { origin, switchedFromIp, friendlyUrl } = oauthFriendlyOrigin(window.location);
-  if (switchedFromIp && friendlyUrl) {
+  const { origin, switchedFromIp } = oauthFriendlyOrigin(window.location);
+  if (switchedFromIp) {
+    // Docs: Supabase Auth rejects raw IP redirectTo and falls back to Site URL
+    // (production). Google also rejects raw IPs as Authorized JavaScript origins.
+    // Hop to a hostname the phone can resolve (.local / sslip / nip).
+    const candidates = await lanHopCandidates(window.location);
+    const reachable = await pickReachableLanOrigin(candidates);
+    if (!reachable) {
+      const suggested = candidates[0] || oauthFriendlyCandidates(window.location)[0];
+      return {
+        ok: false,
+        error: 'lan_hostname_unreachable',
+        message: suggested
+          ? `Google cannot finish on a raw phone IP, and this phone could not resolve ${suggested}. Your router's DNS is probably blocking hostnames that point at LAN addresses (DNS rebinding protection). Set the phone's DNS to dns.google / 8.8.8.8, or open the Hub through a tunnel URL (NEXT_PUBLIC_DEV_LAN_ORIGIN).`
+          : 'Google cannot finish on a raw phone IP. Open the Hub with a hostname URL on the same Wi‑Fi, not 192.168.x.x.',
+        friendlyUrl: suggested,
+      };
+    }
     stashGoogleOAuthResume(input.flow);
-    const next = new URL(`${friendlyUrl}${window.location.pathname}${window.location.search}`);
-    next.searchParams.set('google', input.flow);
-    if (input.returnUrl) next.searchParams.set('returnUrl', input.returnUrl);
+    const next = new URL(
+      `${reachable}${googleStartPath(input.locale, input.flow, input.returnUrl ?? null)}`
+    );
     window.location.assign(next.toString());
     return {
       ok: false,
       error: 'redirect_to_lan',
       message:
         'Google sign-in cannot return to a raw phone IP. Opening this page on a local hostname instead.',
-      friendlyUrl,
+      friendlyUrl: reachable,
     };
   }
 
@@ -102,9 +196,19 @@ export async function startGoogleOAuth(input: {
 
   const redirectTo = `${origin}/api/auth/callback?locale=${encodeURIComponent(input.locale)}&flow=${input.flow}`;
   const supabase = createClient();
+  try {
+    // Same as BrazaLink google-start: drop stale local cookies before PKCE.
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {
+    // Continue — OAuth start still needs to run.
+  }
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo, skipBrowserRedirect: true },
+    options: {
+      redirectTo,
+      skipBrowserRedirect: true,
+      queryParams: { prompt: 'select_account' },
+    },
   });
 
   if (error || !data.url) {

@@ -30,7 +30,7 @@ export function PasswordInput({ label, showToggle = true, togglePosition = 'righ
   return (
     <div>
       {label && (
-        <label htmlFor={props.id} className={`flex items-center gap-2 text-sm font-medium mb-2 text-gray-900 dark:text-gray-100 ${hasError ? 'text-red-600 dark:text-red-400' : ''}`}>
+        <label htmlFor={props.id} className={`flex items-center gap-2 text-sm font-medium mb-2 ${hasError ? 'text-red-600' : 'text-gray-900'}`}>
           {error ? <span>{error}</span> : <>{label}</>}
           {props.required && !error && <span className="text-red-500">*</span>}
           {tip && !error && <TipModal message={tip} hoverOnly />}
@@ -40,13 +40,13 @@ export function PasswordInput({ label, showToggle = true, togglePosition = 'righ
         <input
           {...props}
           type={showPassword ? 'text' : 'password'}
-          className={`w-full py-2.5 border-2 rounded-lg bg-white dark:bg-[#1a1a1a] text-black dark:text-gray-100 focus:outline-none transition-all placeholder:dark:placeholder-gray-400 ${inputPaddingClass} ${borderClass} dark:border-gray-600 ${className}`}
+          className={`w-full py-2.5 border-2 rounded-lg bg-white text-black placeholder:text-gray-500 focus:outline-none transition-all ${inputPaddingClass} ${borderClass} ${className}`}
         />
         {showToggle && (
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className={`absolute ${togglePlacementClass} top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-gray-100 transition-colors cursor-pointer`}
+            className={`absolute ${togglePlacementClass} top-1/2 -translate-y-1/2 text-gray-600 hover:text-black transition-colors cursor-pointer`}
             disabled={props.disabled}
           >
             {showPassword ? (

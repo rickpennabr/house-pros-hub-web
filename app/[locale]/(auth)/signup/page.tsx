@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout';
 import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
-import { startGoogleOAuth, takeGoogleOAuthResume } from '@/lib/auth/googleOAuth';
+import { startGoogleOAuth } from '@/lib/auth/googleOAuth';
 import { isProSignup, signupUserType } from '@/lib/constants/auth';
 import { useSignupForm } from './hooks/useSignupForm';
 import { SignupHeader } from './components/SignupHeader';
@@ -124,34 +124,27 @@ function SignUpForm() {
     if (isGoogleLoading) return;
     setError(null);
     setIsGoogleLoading(true);
-    const returnUrl = searchParams.get('returnUrl');
-    const result = await startGoogleOAuth({
-      flow: 'customer',
-      locale,
-      returnUrl,
-    });
-    if (result.ok) return;
-    if (result.error === 'redirect_to_lan') return;
-    setError(
-      result.error === 'redirect_not_allowlisted'
-        ? result.message
-        : t('errors.googleSignInFailed')
-    );
+    try {
+      const returnUrl = searchParams.get('returnUrl');
+      const result = await startGoogleOAuth({
+        flow: 'customer',
+        locale,
+        returnUrl,
+      });
+      if (result.ok) return;
+      if (result.error === 'redirect_to_lan') return;
+      setError(
+        result.error === 'redirect_not_allowlisted' || result.error === 'lan_hostname_unreachable'
+          ? result.message
+          : result.error === 'oauth_start_failed' && result.message
+            ? result.message
+            : t('errors.googleSignInFailed')
+      );
+    } catch {
+      setError(t('errors.googleSignInFailed'));
+    }
     setIsGoogleLoading(false);
   };
-
-  useEffect(() => {
-    const fromQuery = searchParams.get('google');
-    const resume = fromQuery === 'customer' || fromQuery === 'signin' ? fromQuery : takeGoogleOAuthResume();
-    if (resume !== 'customer') return;
-    if (fromQuery) {
-      const cleaned = new URL(window.location.href);
-      cleaned.searchParams.delete('google');
-      window.history.replaceState({}, '', cleaned.pathname + cleaned.search);
-    }
-    void handleGoogleSignUp();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when landing from the LAN hostname hop
-  }, []);
 
   const handleRoleSelect = (role: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman') => {
     setSelectedRole(role);

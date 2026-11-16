@@ -12,7 +12,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-visual",
+  // Always light — do not flip with system/incognito dark mode.
   themeColor: "#ffffff",
+  colorScheme: "light",
 };
 
 // Validate environment variables at runtime (not during build)
@@ -45,8 +47,9 @@ export default async function RootLayout({
   const locale = resolveLocale(headerList.get("x-hph-locale"));
 
   return (
-    <html lang={locale}>
+    <html lang={locale} style={{ colorScheme: "light" }}>
       <head>
+        <meta name="color-scheme" content="light" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
@@ -54,7 +57,7 @@ export default async function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased">
+      <body className="bg-white text-black antialiased">
         <CsrfFetchPatch />
         <Suspense fallback={<LoadingOverlay />}>{children}</Suspense>
       </body>

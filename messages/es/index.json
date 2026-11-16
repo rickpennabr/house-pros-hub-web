@@ -779,7 +779,8 @@
       "errors": {
         "generic": "No se pudo iniciar sesión. Por favor intenta de nuevo.",
         "google": "No se pudo iniciar sesión con Google",
-        "googleRedirectAllowlist": "Google abriría el sitio en vivo desde esta URL del teléfono. {detail}",
+        "googleRedirectAllowlist": "Google te enviaría al sitio en vivo desde esta URL del teléfono. {detail}",
+        "googleLanHostname": "{detail}",
         "existingAccount": "Ya existe una cuenta con este correo. Entra con la contraseña que creaste."
       }
     },
