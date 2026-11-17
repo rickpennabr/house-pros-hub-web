@@ -796,6 +796,7 @@ export interface Database {
           description: string | null;
           requires_contractor_license: boolean;
           sort_order: number;
+          role: 'contractor' | 'realtor';
           created_at: string;
           updated_at: string;
         };
@@ -806,6 +807,7 @@ export interface Database {
           description?: string | null;
           requires_contractor_license?: boolean;
           sort_order?: number;
+          role?: 'contractor' | 'realtor';
           created_at?: string;
           updated_at?: string;
         };
@@ -816,6 +818,7 @@ export interface Database {
           description?: string | null;
           requires_contractor_license?: boolean;
           sort_order?: number;
+          role?: 'contractor' | 'realtor';
           created_at?: string;
           updated_at?: string;
         };

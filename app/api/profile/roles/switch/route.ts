@@ -11,6 +11,7 @@ import {
   isProAccountRole,
   primaryProAccountRole,
   roleRequiresInvitation,
+  type ProAccountRole,
 } from '@/lib/utils/proAccountRole';
 import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
 import { sanitizeText } from '@/lib/utils/sanitize';
@@ -36,7 +37,7 @@ const bodySchema = z.object({
   brokerageName: z.string().trim().optional(),
 });
 
-async function switchPrimaryRole(userId: string, role: string, isActive = true) {
+async function switchPrimaryRole(userId: string, role: ProAccountRole, isActive = true) {
   const service = createServiceRoleClient();
   const now = new Date().toISOString();
   const { data: rows, error: lookupError } = await service
@@ -155,10 +156,11 @@ async function handleSwitch(request: AuthenticatedRequest) {
           }
         }
 
-        await service.from('licenses').delete().eq('business_id', profile.business_id);
+        const businessId = profile.business_id;
+        await service.from('licenses').delete().eq('business_id', businessId);
         const { error: licenseError } = await service.from('licenses').insert(
           normalizedLicenses.map((item) => ({
-            business_id: profile.business_id,
+            business_id: businessId,
             license_type: sanitizeText(item.license) || item.license,
             license_number: item.licenseNumber
               ? sanitizeText(item.licenseNumber) || item.licenseNumber

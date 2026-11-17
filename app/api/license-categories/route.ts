@@ -55,14 +55,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       categories: (data ?? []).map((row) => ({
-        id: (row as { id: string }).id,
-        code: (row as { code: string }).code,
-        name: (row as { name: string }).name,
-        description: (row as { description: string | null }).description ?? undefined,
-        requires_contractor_license: (row as { requires_contractor_license: boolean })
-          .requires_contractor_license,
-        sort_order: (row as { sort_order: number }).sort_order,
-        role: ((row as { role?: string }).role as 'contractor' | 'realtor' | undefined) ?? 'contractor',
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        description: row.description ?? undefined,
+        requires_contractor_license: row.requires_contractor_license,
+        sort_order: row.sort_order,
+        role: row.role ?? 'contractor',
       })),
     });
   } catch (e) {
