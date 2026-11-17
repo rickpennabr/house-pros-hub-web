@@ -43,22 +43,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { user, isAdmin } = useAuth();
   const isContractor = !isAdmin && !!user?.businessId;
 
-  // Defer visitor session until chat opens or the page is idle, so nav pages paint first.
+  // ProBot full page needs the visitor cookie immediately; drawer can wait until open/idle.
   useEffect(() => {
     if (visitorId) return;
     let cancelled = false;
 
     const ensureVisitor = async () => {
       if (cancelled) return;
-      try {
-        const existing = localStorage.getItem(VISITOR_ID_KEY);
-        if (existing) {
-          setVisitorId(existing);
-          return;
-        }
-      } catch {
-        // localStorage can be unavailable
-      }
+      // Always ask the server: the httpOnly cookie is the source of truth for chat ownership.
       try {
         const res = await fetch('/api/chat/visitor-session', {
           method: 'POST',
@@ -74,13 +66,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // localStorage can be unavailable
           }
           setVisitorId(data.visitorId);
+          return;
         }
+      } catch {
+        // Fall back to a cached id only when the session endpoint fails.
+      }
+      try {
+        const existing = localStorage.getItem(VISITOR_ID_KEY);
+        if (!cancelled && existing) setVisitorId(existing);
       } catch {
         // Leave visitor id empty until the session endpoint succeeds.
       }
     };
 
-    if (isOpen) {
+    const onProBotPage =
+      typeof window !== 'undefined' && window.location.pathname.includes('/probot');
+
+    if (isOpen || onProBotPage) {
       void ensureVisitor();
       return () => {
         cancelled = true;

@@ -9,6 +9,7 @@ import { locales, type Locale } from '@/i18n';
 import { logger } from '@/lib/utils/logger';
 import { sendWelcomeEmail, sendNewSignupAdminNotification } from '@/lib/services/emailService';
 import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
+import { ensurePersonalPlaceFromAddress } from '@/lib/places/portal';
 import type { WelcomeEmailTranslations } from '@/lib/utils/emailTemplates';
 
 const zipRegex = /^\d{5}(-\d{4})?$/;
@@ -175,6 +176,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Could not save your address. Please try again.' }, { status: 500 });
       }
     }
+
+    await ensurePersonalPlaceFromAddress(user.id, {
+      streetAddress,
+      apartment,
+      city,
+      state,
+      zipCode,
+    });
 
     const email = user.email?.trim().toLowerCase() ?? '';
     const displayFirst = saved.first_name?.trim() || 'Customer';

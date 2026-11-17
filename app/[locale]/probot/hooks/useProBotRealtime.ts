@@ -91,9 +91,12 @@ export function useProBotRealtime({
           { event: 'INSERT', schema: 'public', table: 'probot_messages' },
           (payload) => {
             const row = payload.new as { sender?: string; business_id?: string | null; conversation_id?: string };
-            if (row.sender !== 'visitor' || row.business_id !== contractorBusinessIdRef.current) return;
-            if (soundEnabled) playNotificationSound();
-            onContractorNewMessage();
+            if (row.business_id !== contractorBusinessIdRef.current) return;
+            // Sound/unread only for inbound customer messages; always refresh order so replies bump the chat up.
+            if (row.sender === 'visitor') {
+              if (soundEnabled) playNotificationSound();
+              onContractorNewMessage();
+            }
             Promise.all([
               fetch('/api/chat/contacts').then((res) => (res.ok ? res.json() : { contacts: [] })),
               fetch('/api/chat/contractor/conversations').then((res) => (res.ok ? res.json() : { conversations: [] })),
@@ -102,9 +105,18 @@ export function useProBotRealtime({
                 const list = (contactsData.contacts ?? []) as ProBotContact[];
                 if (list.length > 0) {
                   const bid = contractorBusinessIdRef.current;
-                  setContacts(
-                    bid ? list.map((c) => (c.businessId === bid ? { ...c, online: true } : c)) : list
-                  );
+                  const next = bid
+                    ? list.map((c) => (c.businessId === bid ? { ...c, online: true } : c))
+                    : list;
+                  setContacts(next);
+                  try {
+                    sessionStorage.setItem(
+                      'probot_contacts_auth',
+                      JSON.stringify({ contacts: next, ts: Date.now() })
+                    );
+                  } catch {
+                    // ignore quota / private
+                  }
                 }
                 const convList = (convData.conversations ?? []) as ProBotRecentConversation[];
                 if (convList.length > 0) {

@@ -9,6 +9,7 @@ import { getMessages } from 'next-intl/server';
 import { logger } from '@/lib/utils/logger';
 import { findInvitationCode, invitationCodeBlockReason, type InvitationRole } from '@/lib/auth/invitationCodes';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { ensurePersonalPlaceFromAddress } from '@/lib/places/portal';
 import type { WelcomeEmailTranslations } from '@/lib/utils/emailTemplates';
 
 /**
@@ -116,6 +117,25 @@ export async function POST(request: NextRequest) {
         { error: 'First name and last name are required' },
         { status: 400 }
       );
+    }
+
+    const requiresPersonalAddress =
+      !userType ||
+      userType === 'customer' ||
+      userType === 'installer' ||
+      userType === 'handyman' ||
+      userType === 'both';
+    const street = typeof streetAddress === 'string' ? streetAddress.trim() : '';
+    const cityValue = typeof city === 'string' ? city.trim() : '';
+    const stateValue = typeof state === 'string' ? state.trim().toUpperCase() : '';
+    const zipValue = typeof zipCode === 'string' ? zipCode.trim() : '';
+    if (requiresPersonalAddress) {
+      if (!street || !cityValue || stateValue.length !== 2 || !/^\d{5}(-\d{4})?$/.test(zipValue)) {
+        return NextResponse.json(
+          { error: 'Street, city, 2-letter state, and ZIP code are required' },
+          { status: 400 }
+        );
+      }
     }
 
     const serviceRoleClient = createServiceRoleClient();
@@ -266,7 +286,7 @@ export async function POST(request: NextRequest) {
       // Don't fail - profile can be updated later, but log the error
     }
 
-    // Save address to addresses table if address fields are provided
+    // Save address to addresses table, and mirror it into My Places.
     const hasAnyAddressField = !!(
       normalizeString(streetAddress) ||
       normalizeString(city) ||
@@ -275,7 +295,6 @@ export async function POST(request: NextRequest) {
     );
 
     if (hasAnyAddressField) {
-      // Required fields must always be included
       const addressData = {
         user_id: authData.user.id,
         address_type: 'personal' as const,
@@ -302,7 +321,14 @@ export async function POST(request: NextRequest) {
           details: addressError.details,
           hint: addressError.hint,
         });
-        // Don't fail signup if address save fails - user can add address later
+      } else {
+        await ensurePersonalPlaceFromAddress(authData.user.id, {
+          streetAddress: street || streetAddress || '',
+          apartment: normalizeString(apartment),
+          city: cityValue || city || '',
+          state: stateValue || state || '',
+          zipCode: zipValue || zipCode || '',
+        });
       }
     }
 

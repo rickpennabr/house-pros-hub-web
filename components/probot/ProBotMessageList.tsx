@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from 'react';
 import ProBotMessageBubble from './ProBotMessageBubble';
-import type { ChatMessage } from '@/lib/types/chat';
+import type { ChatCrmEstimateShare, ChatMessage } from '@/lib/types/chat';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
 
 /** Dedupe by id so React keys are unique (e.g. when merging conversations or after refetch). */
@@ -23,10 +23,13 @@ interface ProBotMessageListProps {
   adminViewingConversation: ProBotRecentConversation | null;
   selectedContact: ProBotContact | null;
   visitorAvatarUrl: string | null;
+  businessReplyName?: string | null;
+  businessReplyLogo?: string | null;
   confirmingStepId?: string | null;
   onConfirmEstimate?: (stepId: string) => void;
   onEditEstimate?: () => void;
   onReply?: (msg: ChatMessage) => void;
+  onCrmEstimateApproved?: (messageId: string, next: ChatCrmEstimateShare) => void;
 }
 
 export default function ProBotMessageList({
@@ -36,10 +39,13 @@ export default function ProBotMessageList({
   adminViewingConversation,
   selectedContact,
   visitorAvatarUrl,
+  businessReplyName,
+  businessReplyLogo,
   confirmingStepId,
   onConfirmEstimate,
   onEditEstimate,
   onReply,
+  onCrmEstimateApproved,
 }: ProBotMessageListProps) {
   const uniqueMessages = useMemo(() => dedupeMessagesById(messages), [messages]);
 
@@ -64,10 +70,13 @@ export default function ProBotMessageList({
           adminViewingConversation={adminViewingConversation}
           selectedContact={selectedContact}
           visitorAvatarUrl={visitorAvatarUrl}
+          businessReplyName={businessReplyName}
+          businessReplyLogo={businessReplyLogo}
           confirmingStepId={confirmingStepId}
           onConfirmEstimate={onConfirmEstimate}
           onEditEstimate={onEditEstimate}
           onReply={onReply}
+          onCrmEstimateApproved={onCrmEstimateApproved}
         />
       ))}
     </div>

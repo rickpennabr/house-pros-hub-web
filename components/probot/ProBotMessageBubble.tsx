@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Building2, User, Check, CheckCheck, ImageIcon, Reply } from 'lucide-react';
 import { ChatMediaAttachment } from '@/components/chat/ChatMediaAttachment';
+import ChatEstimateShareCard from '@/components/chat/ChatEstimateShareCard';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
-import type { ChatMessage } from '@/lib/types/chat';
+import type { ChatCrmEstimateShare, ChatMessage } from '@/lib/types/chat';
 import ProAgentCards from './ProAgentCards';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
 
@@ -16,10 +17,14 @@ interface ProBotMessageBubbleProps {
   adminViewingConversation: ProBotRecentConversation | null;
   selectedContact: ProBotContact | null;
   visitorAvatarUrl: string | null;
+  /** Business branding when replying in a customer→pro thread */
+  businessReplyName?: string | null;
+  businessReplyLogo?: string | null;
   confirmingStepId?: string | null;
   onConfirmEstimate?: (stepId: string) => void;
   onEditEstimate?: () => void;
   onReply?: (msg: ChatMessage) => void;
+  onCrmEstimateApproved?: (messageId: string, next: ChatCrmEstimateShare) => void;
 }
 
 export default function ProBotMessageBubble({
@@ -28,14 +33,53 @@ export default function ProBotMessageBubble({
   adminViewingConversation,
   selectedContact,
   visitorAvatarUrl,
+  businessReplyName,
+  businessReplyLogo,
   confirmingStepId,
   onConfirmEstimate,
   onEditEstimate,
   onReply,
+  onCrmEstimateApproved,
 }: ProBotMessageBubbleProps) {
   const t = useTranslations('probot');
   const isVisitor = msg.sender === 'visitor';
   const body = typeof msg.body === 'string' ? msg.body : '';
+
+  const renderBody = (text: string) => {
+    const parts = text.split(/(https?:\/\/[^\s]+)/g);
+    if (parts.length === 1) return text;
+    return parts.map((part, index) =>
+      /^https?:\/\//.test(part) ? (
+        <a
+          key={`${part}-${index}`}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`underline break-all ${isVisitor ? 'text-blue-200' : 'text-blue-700'}`}
+        >
+          {part}
+        </a>
+      ) : (
+        <span key={`t-${index}`}>{part}</span>
+      )
+    );
+  };
+
+  // Customer→pro threads: contractor replies are the business, not ProBot (even if older rows were tagged probot).
+  const isBusinessThread = Boolean(adminViewingConversation?.business_id || msg.business_id);
+  const isHubAgent = msg.admin_sent_as === 'hub_agent';
+  const isBusinessReply =
+    !isVisitor &&
+    !isHubAgent &&
+    (msg.admin_sent_as === 'business' ||
+      Boolean(msg.business_id) ||
+      (isAdminView && isBusinessThread));
+  const businessName =
+    msg.business_name ||
+    businessReplyName ||
+    (selectedContact?.businessId ? selectedContact.name : undefined) ||
+    'Business';
+  const businessLogo = businessReplyLogo || selectedContact?.logo || null;
 
   const avatarContent = isVisitor ? (
     visitorAvatarUrl ? (
@@ -43,17 +87,19 @@ export default function ProBotMessageBubble({
     ) : (
       <User className="w-4 h-4 text-gray-300" aria-hidden />
     )
-  ) : (msg.admin_avatar_url ? (
-    <img src={msg.admin_avatar_url} alt="" width={32} height={32} className="w-full h-full object-cover" />
-  ) : msg.admin_sent_as === 'business' || msg.business_id ? (
-    selectedContact?.logo ? (
-      <img src={selectedContact.logo} alt="" width={32} height={32} className="w-full h-full object-cover" />
+  ) : isBusinessReply ? (
+    businessLogo ? (
+      <img src={businessLogo} alt="" width={32} height={32} className="w-full h-full object-cover" />
     ) : (
       <Building2 className="w-4 h-4 text-gray-500" aria-hidden />
     )
+  ) : isHubAgent && msg.admin_avatar_url ? (
+    <img src={msg.admin_avatar_url} alt="" width={32} height={32} className="w-full h-full object-cover" />
+  ) : msg.admin_avatar_url ? (
+    <img src={msg.admin_avatar_url} alt="" width={32} height={32} className="w-full h-full object-cover" />
   ) : (
     <Image src={PROBOT_ASSETS.avatar} alt="" width={32} height={32} className="w-full h-full object-contain" />
-  ));
+  );
 
   return (
     <div className={`flex ${isVisitor ? 'justify-end' : 'justify-start'}`}>
@@ -68,9 +114,9 @@ export default function ProBotMessageBubble({
         <div className="min-w-0 flex-1">
           {msg.sender === 'admin' && (
             <p className="text-xs font-medium text-gray-500 mb-1">
-              {msg.admin_sent_as === 'business'
-                ? (msg.business_name ?? selectedContact?.name ?? 'Business')
-                : msg.admin_sent_as === 'hub_agent'
+              {isBusinessReply
+                ? businessName
+                : isHubAgent
                   ? (msg.admin_display_name || t('replyAsHubAgent'))
                   : 'ProBot'}
             </p>
@@ -98,8 +144,15 @@ export default function ProBotMessageBubble({
               <Reply className="h-3.5 w-3.5" />
             </button>
           ) : null}
-          {body.trim() && <p className="whitespace-pre-wrap break-words">{body}</p>}
-          {msg.payload && (
+          {body.trim() && <p className="whitespace-pre-wrap break-words">{renderBody(body)}</p>}
+          {msg.payload?.crmEstimate ? (
+            <ChatEstimateShareCard
+              estimate={msg.payload.crmEstimate}
+              canApprove={!isAdminView}
+              onApproved={(next) => onCrmEstimateApproved?.(msg.id, next)}
+            />
+          ) : null}
+          {msg.payload && (msg.payload.pros || msg.payload.confirm || msg.payload.confirmed) ? (
             <ProAgentCards
               payload={msg.payload}
               canConfirm={!isAdminView && !msg.payload.confirmed}
@@ -107,7 +160,7 @@ export default function ProBotMessageBubble({
               onConfirm={onConfirmEstimate}
               onEdit={onEditEstimate}
             />
-          )}
+          ) : null}
           {msg.attachments?.length ? (
             <div className="mt-2 space-y-2">
               {msg.attachments.map((att, i) => (

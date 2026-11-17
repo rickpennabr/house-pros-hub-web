@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
 import { addressSchema } from '@/lib/schemas/address';
+import { ensurePersonalPlaceFromAddress } from '@/lib/places/portal';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 
@@ -126,6 +127,16 @@ async function handleCreateAddress(request: AuthenticatedRequest) {
         { error: 'Failed to create address' },
         { status: 500 }
       );
+    }
+
+    if (data.addressType === 'personal') {
+      await ensurePersonalPlaceFromAddress(userId, {
+        streetAddress: data.streetAddress,
+        apartment: data.apartment,
+        city: data.city,
+        state: data.state,
+        zipCode: data.zipCode,
+      });
     }
 
     // Format address for response

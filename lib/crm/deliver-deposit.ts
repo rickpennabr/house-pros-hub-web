@@ -15,7 +15,7 @@ export async function deliverDepositInvoice(
   supabase: Client,
   invoiceId: string,
   options: { baseUrl: string; locale: string }
-): Promise<{ emailed: boolean; error?: string }> {
+): Promise<{ emailed: boolean; viewUrl?: string; error?: string }> {
   const { data: invoice, error } = await supabase
     .from('pro_crm_invoices')
     .select('id, owner_id, customer_id, invoice_number, amount_cents, status, business_id')
@@ -38,7 +38,6 @@ export async function deliverDepositInvoice(
     .eq('id', invoice.customer_id)
     .single();
   const toEmail = customer?.email?.trim();
-  if (!toEmail) return { emailed: false };
 
   let businessName = 'Your pro';
   if (invoice.business_id) {
@@ -67,9 +66,13 @@ export async function deliverDepositInvoice(
     })
     .select('token')
     .single();
-  if (tokenError || !tokenRow) return { emailed: false, error: tokenError?.message || 'Could not create a payment link' };
+  if (tokenError || !tokenRow) {
+    return { emailed: false, error: tokenError?.message || 'Could not create a payment link' };
+  }
 
   const viewUrl = `${options.baseUrl}/${options.locale}/invoices/view?token=${tokenRow.token}`;
+  if (!toEmail) return { emailed: false, viewUrl };
+
   const email = await sendInvoiceEmail(
     {
       businessName,
@@ -80,6 +83,6 @@ export async function deliverDepositInvoice(
     },
     toEmail
   );
-  if (!email.success) return { emailed: false, error: email.error };
-  return { emailed: true };
+  if (!email.success) return { emailed: false, viewUrl, error: email.error };
+  return { emailed: true, viewUrl };
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
 import { addressUpdateSchema } from '@/lib/schemas/address';
+import { ensurePersonalPlaceFromAddress } from '@/lib/places/portal';
 import { handleError } from '@/lib/utils/errorHandler';
 import { logger } from '@/lib/utils/logger';
 
@@ -167,6 +168,16 @@ async function handleUpdateAddress(
         { error: 'Failed to update address' },
         { status: 500 }
       );
+    }
+
+    if (address.address_type === 'personal' && address.street_address && address.city && address.state && address.zip_code) {
+      await ensurePersonalPlaceFromAddress(userId, {
+        streetAddress: address.street_address,
+        apartment: address.apartment,
+        city: address.city,
+        state: address.state,
+        zipCode: address.zip_code,
+      });
     }
 
     // Format address for response

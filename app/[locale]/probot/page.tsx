@@ -180,25 +180,12 @@ function ProBotPageContent() {
       // Mark that user chose this contact so the URL-sync effect doesn't revert to the previous ?contact= (e.g. History Chat's contact) when contacts/contactById update.
       pendingUserContactParamRef.current = contactParamValue;
       router.replace(`${pathname}?contact=${encodeURIComponent(contactParamValue)}`, { scroll: false });
-      if (contact.conversationId && (isAdmin || isContractor)) {
-        // Load this contact's conversation and set it. Do NOT clear adminViewingConversation first:
-        // clearing would make the chat area fall back to the visitor's own ProBot thread (wrong conversation).
-        fetch(`/api/chat/admin/conversations/${contact.conversationId}`)
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data) => {
-            if (data?.conversation) {
-              setAdminViewingConversation(data.conversation as ProBotRecentConversation);
-            } else {
-              setAdminViewingConversation(null);
-            }
-          })
-          .catch(() => setAdminViewingConversation(null));
-      } else {
-        // ProBot or contact with no conversation: clear so chat area shows visitor ProBot or empty.
+      // Conversation load for admin/contractor is handled by the effect on selectedContact.conversationId.
+      if (!contact.conversationId) {
         setAdminViewingConversation(null);
       }
     },
-    [isAdmin, isContractor, router, pathname]
+    [router, pathname]
   );
 
   // Sync URL ?contact= to selectedContact. When user clicks a contact we update state + URL; do not override with the old URL until the URL has updated (pendingUserContactParamRef).
@@ -224,15 +211,62 @@ function ProBotPageContent() {
       return;
     }
     if (contactParam !== 'probot') {
+      const isCustomerContact =
+        contactParam.startsWith('customer-') || contactParam.startsWith('visitor-');
+      // Do not set businessId to a slug — messages are keyed by business UUID.
+      // Wait for /api/chat/contacts to resolve the real contact.
       setSelectedContact({
         id: contactParam,
         slug: contactParam,
         name: contactParam,
         isProBot: false,
-        businessId: contactParam,
+        ...(isCustomerContact
+          ? {}
+          : /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                contactParam
+              )
+            ? { businessId: contactParam }
+            : {}),
       });
     }
   }, [contactParam, contacts, contactById]);
+
+  // Admin/contractor: when a contact with a conversation is selected (click or ?contact= URL),
+  // load that thread. Without this, URL selection leaves adminViewingConversation null and the
+  // chat shows the empty "Book a ProEstimate" customer view instead of the message history.
+  useEffect(() => {
+    if (!(isAdmin || isContractor)) return;
+    const convId = selectedContact.conversationId;
+    if (!convId) {
+      setAdminViewingConversation(null);
+      return;
+    }
+    if (adminViewingConversation?.id === convId) return;
+
+    let cancelled = false;
+    fetch(`/api/chat/admin/conversations/${convId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.conversation) {
+          setAdminViewingConversation(data.conversation as ProBotRecentConversation);
+        } else {
+          setAdminViewingConversation(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAdminViewingConversation(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isAdmin,
+    isContractor,
+    selectedContact.id,
+    selectedContact.conversationId,
+    adminViewingConversation?.id,
+  ]);
 
   // When ProBot is selected, poll hub presence (for ProBot online indicator)
   useEffect(() => {

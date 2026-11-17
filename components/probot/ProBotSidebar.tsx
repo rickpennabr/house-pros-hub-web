@@ -45,6 +45,8 @@ export interface ProBotRecentConversation {
   business_logo?: string | null;
   /** Real name when known (e.g. from signup or when sent with a message) */
   visitor_display_name?: string | null;
+  /** Signed-in hub user when the visitor has an account */
+  user_id?: string | null;
   /** From profiles when conversation.user_id is set */
   profile_first_name?: string | null;
   profile_last_name?: string | null;

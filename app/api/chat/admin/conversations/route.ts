@@ -95,9 +95,13 @@ export async function GET(request: NextRequest) {
 
     const hasAnyMessageByConv = new Map<string, boolean>();
     const businessIdByConv = new Map<string, string>();
+    const visitorMessagedBusinessByConv = new Map<string, boolean>();
     for (const m of messagesByConv) {
       hasAnyMessageByConv.set(m.conversation_id, true);
       if (m.business_id) businessIdByConv.set(m.conversation_id, m.business_id);
+      if (m.sender === 'visitor' && m.business_id) {
+        visitorMessagedBusinessByConv.set(m.conversation_id, true);
+      }
     }
 
     const businessIds = [...new Set(businessIdByConv.values())];
@@ -118,14 +122,19 @@ export async function GET(request: NextRequest) {
     const userIds = [...new Set(convList.map((c) => (c as ConvRow).user_id).filter((id): id is string => typeof id === 'string' && id.length > 0))];
     type ProfileRow = { id: string; first_name: string | null; last_name: string | null; user_picture: string | null };
     const profileByUserId: Record<string, ProfileRow> = {};
+    const ownsBusinessByUserId = new Set<string>();
     if (userIds.length > 0) {
-      const { data: profileRows } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name, user_picture')
-        .in('id', userIds);
+      const [{ data: profileRows }, { data: ownedBizRows }] = await Promise.all([
+        supabase.from('profiles').select('id, first_name, last_name, user_picture').in('id', userIds),
+        supabase.from('businesses').select('owner_id').in('owner_id', userIds),
+      ]);
       for (const p of profileRows ?? []) {
         const row = p as ProfileRow;
         profileByUserId[row.id] = row;
+      }
+      for (const b of ownedBizRows ?? []) {
+        const ownerId = (b as { owner_id: string | null }).owner_id;
+        if (ownerId) ownsBusinessByUserId.add(ownerId);
       }
     }
 
@@ -203,7 +212,13 @@ export async function GET(request: NextRequest) {
           ? new Date(lastSeenAt).getTime() > Date.now() - ONLINE_THRESHOLD_MS
           : false;
         const bid = businessIdByConv.get(row.id);
-        const participant_type = bid ? ('contractor' as const) : ('customer' as const);
+        // business_id on messages = visitor messaged a pro; they remain the customer.
+        const visitorMessagedABusiness = visitorMessagedBusinessByConv.get(row.id) === true;
+        const visitorOwnsABusiness = row.user_id ? ownsBusinessByUserId.has(row.user_id) : false;
+        const participant_type =
+          visitorMessagedABusiness || !visitorOwnsABusiness
+            ? ('customer' as const)
+            : ('contractor' as const);
         const business_name = bid ? businessNames[bid] : undefined;
         const business_logo = bid ? (businessLogos[bid] ?? undefined) : undefined;
         const business_id = bid ?? undefined;

@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       status: result.status,
       depositInvoiceId: result.depositInvoiceId,
+      depositPaymentUrl: result.depositPaymentUrl,
       depositError: result.depositError,
     });
   } catch (err) {

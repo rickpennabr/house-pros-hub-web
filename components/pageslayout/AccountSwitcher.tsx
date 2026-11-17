@@ -24,16 +24,11 @@ interface AccountSwitchRowsProps {
 /** 2px outside the avatar's black border. Stroke is 2px, so the box extends 4px. */
 const SWITCH_RING =
   'M 12 1 H 28 A 11 11 0 0 1 39 12 V 28 A 11 11 0 0 1 28 39 H 12 A 11 11 0 0 1 1 28 V 12 A 11 11 0 0 1 12 1 Z';
-/** One lap starting at the middle of the right side, so the tip never reverses. */
-const SWITCH_RING_RIGHT =
-  'M 39 20 V 28 A 11 11 0 0 1 28 39 H 12 A 11 11 0 0 1 1 28 V 12 A 11 11 0 0 1 12 1 H 28 A 11 11 0 0 1 39 12 V 20 Z';
-/** One lap starting at the middle of the left side. */
-const SWITCH_RING_LEFT =
-  'M 1 20 V 12 A 11 11 0 0 1 12 1 H 28 A 11 11 0 0 1 39 12 V 28 A 11 11 0 0 1 28 39 H 12 A 11 11 0 0 1 1 28 V 20 Z';
 
 /**
  * Red border around an account you can switch to.
- * The stroke and the arrows run along that border, the same way the camera outline does.
+ * Dashed stroke travels via CSS; arrows stay parked mid-side (SMIL animateMotion
+ * lands at the SVG origin on mobile Chrome / WebKit and looks stuck top-left).
  */
 function SwitchableAvatar({
   src,
@@ -51,7 +46,9 @@ function SwitchableAvatar({
       <svg
         aria-hidden
         viewBox="0 0 40 40"
-        className="pointer-events-none absolute -inset-1 z-20 overflow-visible"
+        width={40}
+        height={40}
+        className="pointer-events-none absolute -left-1 -top-1 z-20 h-10 w-10 overflow-visible"
       >
         <path
           d={SWITCH_RING}
@@ -64,13 +61,11 @@ function SwitchableAvatar({
           strokeLinecap="butt"
           className="account-ring-travel"
         />
-        <g>
+        <g transform="translate(39 20) rotate(90)">
           <polygon points="0,-4.6 13.2,0 0,0" fill="#DC2626" />
-          <animateMotion dur="1.4s" repeatCount="1" rotate="auto" fill="freeze" path={SWITCH_RING_RIGHT} />
         </g>
-        <g>
+        <g transform="translate(1 20) rotate(-90)">
           <polygon points="0,-4.6 13.2,0 0,0" fill="#DC2626" />
-          <animateMotion dur="1.4s" repeatCount="1" rotate="auto" fill="freeze" path={SWITCH_RING_LEFT} />
         </g>
       </svg>
       <AccountAvatar src={src} name={name} className={`relative z-10 ${className ?? ''}`} textClassName={textClassName} />

@@ -84,7 +84,15 @@ const nextConfig: NextConfig = {
   },
   // Allow cross-origin requests from local network during development.
   // sslip.io hostnames let Google OAuth return to a LAN phone without a raw IP redirectTo.
-  allowedDevOrigins: getLanDevOrigins(),
+  // Without this, phones on http://192.168.x.x:3000 get /_next/hmr 403s and remount storms
+  // (stuck Loading… + presence spam). Restart `next dev` after changing this list.
+  allowedDevOrigins: (() => {
+    const origins = getLanDevOrigins();
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[next.config] allowedDevOrigins (${origins.length}):`, origins.join(', '));
+    }
+    return origins;
+  })(),
   images: {
     remotePatterns: [
       {

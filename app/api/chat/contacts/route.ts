@@ -146,12 +146,20 @@ export async function GET(request: NextRequest) {
       const { data: adminUsers } = await supabase.from('admin_users').select('user_id');
       const adminUserIdsSet = new Set<string>(((adminUsers ?? []) as { user_id: string }[]).map((r) => r.user_id));
 
+      // Newest activity first so the latest chat rises under ProBot.
       const { data: msgRows } = await supabase
         .from('probot_messages')
-        .select('conversation_id')
+        .select('conversation_id, created_at')
         .eq('business_id', userBusinessId)
-        .limit(500);
-      const convIds = [...new Set((msgRows ?? []).map((m) => (m as { conversation_id: string }).conversation_id))];
+        .order('created_at', { ascending: false })
+        .limit(2000);
+      const lastActivityByConv = new Map<string, string>();
+      for (const row of (msgRows ?? []) as Array<{ conversation_id: string; created_at: string }>) {
+        if (!lastActivityByConv.has(row.conversation_id)) {
+          lastActivityByConv.set(row.conversation_id, row.created_at);
+        }
+      }
+      const convIds = [...lastActivityByConv.keys()];
       if (convIds.length > 0) {
         const { data: convList } = await supabase
           .from('probot_conversations')
@@ -175,14 +183,35 @@ export async function GET(request: NextRequest) {
             profileByUserId[row.id] = row;
           }
         }
-        // One contact per user (dedupe by user_id) for signed-up customers; exclude contractors and admins (only ProBot represents admins).
+        type ChatContact = {
+          id: string;
+          name: string;
+          isProBot: boolean;
+          conversationId: string;
+          visitorId: string;
+          profile_user_picture: string | null;
+          lastActivityAt: string;
+        };
+        const chatContacts: ChatContact[] = [];
+        // One contact per user (dedupe by user_id). Keep anyone who messaged this business —
+        // including accounts that also own a business (or this business), so inbox history stays visible.
+        // Only hide hub admins (they appear as ProBot).
         const seenUserIds = new Set<string>();
+        const seenVisitorIds = new Set<string>();
         for (const c of list) {
+          const lastActivityAt = lastActivityByConv.get(c.id) ?? '';
           if (c.user_id) {
             if (adminUserIdsSet.has(c.user_id)) continue; // Admin/hub agent: show only as ProBot, not as separate contact
             const profile = profileByUserId[c.user_id];
-            if (profile?.business_id) continue; // Contractor: do not show as personal contact
-            if (seenUserIds.has(c.user_id)) continue;
+            if (seenUserIds.has(c.user_id)) {
+              const existing = chatContacts.find((item) => item.id === `customer-${c.user_id}`);
+              if (existing && lastActivityAt > existing.lastActivityAt) {
+                existing.conversationId = c.id;
+                existing.visitorId = c.visitor_id;
+                existing.lastActivityAt = lastActivityAt;
+              }
+              continue;
+            }
             seenUserIds.add(c.user_id);
             const profileName =
               profile?.first_name || profile?.last_name
@@ -192,25 +221,45 @@ export async function GET(request: NextRequest) {
               profileName ||
               (c.visitor_display_name?.trim() || undefined) ||
               `Customer ${c.visitor_id.slice(0, 8)}`;
-            contacts.push({
+            chatContacts.push({
               id: `customer-${c.user_id}`,
               name,
               isProBot: false,
               conversationId: c.id,
               visitorId: c.visitor_id,
               profile_user_picture: profile?.user_picture ?? null,
+              lastActivityAt,
             });
           } else {
             // Anonymous visitors who messaged this business: show so contractor can receive and reply
-            contacts.push({
+            if (seenVisitorIds.has(c.visitor_id)) {
+              const existing = chatContacts.find((item) => item.id === `visitor-${c.visitor_id}`);
+              if (existing && lastActivityAt > existing.lastActivityAt) {
+                existing.conversationId = c.id;
+                existing.lastActivityAt = lastActivityAt;
+              }
+              continue;
+            }
+            seenVisitorIds.add(c.visitor_id);
+            chatContacts.push({
               id: `visitor-${c.visitor_id}`,
               name: (c.visitor_display_name?.trim() || undefined) || `Visitor ${c.visitor_id.slice(0, 8)}`,
               isProBot: false,
               conversationId: c.id,
               visitorId: c.visitor_id,
               profile_user_picture: null,
+              lastActivityAt,
             });
           }
+        }
+        chatContacts.sort((a, b) => {
+          const at = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
+          const bt = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
+          return bt - at;
+        });
+        for (const item of chatContacts) {
+          const { lastActivityAt: _lastActivityAt, ...contact } = item;
+          contacts.push(contact);
         }
       }
       // Contractor: append all hub contractors (other businesses) after customers/visitors

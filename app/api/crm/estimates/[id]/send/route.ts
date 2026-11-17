@@ -1,27 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import { sendEstimateReviewEmail } from '@/lib/services/emailService';
-
-async function requireContractor() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
-  }
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) {
-    return {
-      error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }),
-      user: null,
-    };
-  }
-  return { error: null, user };
-}
 
 /**
  * POST /api/crm/estimates/[id]/send

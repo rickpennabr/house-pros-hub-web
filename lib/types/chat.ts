@@ -63,6 +63,28 @@ export interface ProAgentEstimateSummary {
   projectType: string;
 }
 
+/** CRM estimate shared in chat for in-thread review and approval. */
+export interface ChatCrmEstimateShare {
+  token: string;
+  estimateId: string;
+  estimateNumber: string;
+  amountCents: number;
+  depositCents: number;
+  status: 'draft' | 'sent' | 'accepted' | 'declined';
+  validUntilDate?: string | null;
+  businessName?: string | null;
+  businessLogo?: string | null;
+  viewUrl: string;
+  lineItemsPreview?: Array<{
+    product_or_service?: string | null;
+    description?: string | null;
+    amount_cents?: number | null;
+  }>;
+  /** Set after the customer approves in chat */
+  approvedAt?: string;
+  depositPaymentUrl?: string | null;
+}
+
 /** Cards attached to a ProAgent chat message. Plain text stays in body. */
 export interface ProAgentPayload {
   pros?: ProAgentProCard[];
@@ -71,6 +93,8 @@ export interface ProAgentPayload {
     summary: ProAgentEstimateSummary;
   };
   confirmed?: boolean;
+  /** Pro-shared CRM estimate the customer can approve in chat */
+  crmEstimate?: ChatCrmEstimateShare;
 }
 
 export interface ChatMessage {

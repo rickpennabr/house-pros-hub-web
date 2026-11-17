@@ -55,6 +55,12 @@ export function useProBotContacts({ isAuthenticated, userBusinessId }: UseProBot
 
   useEffect(() => {
     if (isAuthenticated) {
+      // Bust stale session cache so inbox order/membership matches the server after chat fixes.
+      try {
+        sessionStorage.removeItem(CONTACTS_CACHE_KEY_PREFIX + 'auth');
+      } catch {
+        // ignore
+      }
       fetch('/api/chat/contacts')
         .then((res) => (res.ok ? res.json() : { contacts: [] }))
         .then((data) => {

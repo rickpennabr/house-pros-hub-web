@@ -245,12 +245,19 @@ export default function BusinessDetailsPage() {
   }, [loading, searchParams, showServices]);
 
   useEffect(() => {
-    let cancelled = false;
     const FETCH_TIMEOUT_MS = 15000;
+    const controller = new AbortController();
+    // HMR / LAN remount storms cancel in-flight fetches; always clear loading so the UI cannot stick.
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      setLoading(false);
+    };
 
     const fetchBusiness = async () => {
       if (!slug) {
-        setLoading(false);
+        settle();
         return;
       }
       setLoading(true);
@@ -264,13 +271,12 @@ export default function BusinessDetailsPage() {
 
         // Fetch from API with timeout so we don't hang indefinitely
         try {
-          const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
           const response = await fetch(`/api/businesses/${slug}`, {
             signal: controller.signal,
           });
           clearTimeout(timeoutId);
-          if (cancelled) return;
+          if (controller.signal.aborted) return;
           if (response.ok) {
             const result = await response.json();
             data = result.business;
@@ -298,6 +304,7 @@ export default function BusinessDetailsPage() {
             failed = true;
           }
         } catch (apiError) {
+          if (controller.signal.aborted) return;
           failed = true;
           if ((apiError as Error)?.name === 'AbortError') {
             console.warn('Business fetch timed out');
@@ -305,7 +312,7 @@ export default function BusinessDetailsPage() {
             console.error('Error fetching from API:', apiError);
           }
         }
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
 
         setLoadError(data ? null : failed ? 'Could not load this business. Try again.' : null);
 
@@ -334,16 +341,18 @@ export default function BusinessDetailsPage() {
           setSavedBgPosition(data.businessBackgroundPosition);
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error('Error fetching business:', error);
-        if (!cancelled) setLoadError('Could not load this business. Try again.');
+        setLoadError('Could not load this business. Try again.');
       } finally {
-        if (!cancelled) setLoading(false);
+        settle();
       }
     };
 
     fetchBusiness();
     return () => {
-      cancelled = true;
+      controller.abort();
+      settle();
     };
   }, [slug]);
 

@@ -37,7 +37,7 @@ const signupSchemaBaseObject = z.object({
     .optional(),
   userPicture: z.string().optional(),
   
-  // Address is optional except when a customer requests an estimate.
+  // Personal address is required for customer (and installer/handyman) signup.
   streetAddress: z.string().trim().optional(),
   city: z.string().trim().optional(),
   state: z.string().trim().optional().or(z.literal('')),
@@ -126,14 +126,48 @@ export const signupSchema = signupSchemaBaseObject.refine((data) => {
   const street = data.streetAddress?.trim() ?? '';
   const city = data.city?.trim() ?? '';
   const zip = data.zipCode?.trim() ?? '';
-  if (!street && !city && !zip) return;
+  const state = data.state?.trim() ?? '';
+  const needsAddress =
+    data.userType === 'customer' ||
+    data.userType === 'installer' ||
+    data.userType === 'handyman';
+
+  if (!needsAddress) {
+    if (!street && !city && !zip) return;
+    if (!street) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Street address is required when you add an address',
+        path: ['streetAddress'],
+      });
+    }
+    if (!city) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'City is required when you add an address',
+        path: ['city'],
+      });
+    }
+    if (state.length !== 2) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use a 2-letter state code', path: ['state'] });
+    }
+    if (!zipRegex.test(zip)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid ZIP code', path: ['zipCode'] });
+    }
+    return;
+  }
+
   if (!street) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Street address is required when you add an address', path: ['streetAddress'] });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Street address is required',
+      path: ['streetAddress'],
+    });
   }
   if (!city) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'City is required when you add an address', path: ['city'] });
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'City is required', path: ['city'] });
   }
-  if ((data.state?.trim() ?? '').length !== 2) {
+  if (state.length !== 2) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Use a 2-letter state code', path: ['state'] });
   }
   if (!zipRegex.test(zip)) {

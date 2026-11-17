@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       }
       const { data: conv } = await supabase
         .from('probot_conversations')
-        .select('id, visitor_id')
+        .select('id, visitor_id, user_id')
         .eq('id', convId.data)
         .single();
       if (!conv) {
@@ -84,31 +84,36 @@ export async function POST(request: NextRequest) {
       if (isAdmin) {
         prefix = `${convId.data}/admin-${user.id}`;
       } else {
-        const businessId = await getOwnedBusinessId(user.id);
-        if (!businessId) {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        const convVisitorId = (conv as { visitor_id?: string | null }).visitor_id?.trim() || '';
+        const convUserId = (conv as { user_id?: string | null }).user_id || null;
+        const visitorMatches =
+          Boolean(rawVisitorId) && convVisitorId && convVisitorId === rawVisitorId.trim();
+        const ownsAsSignedInCustomer = convUserId === user.id || visitorMatches;
+
+        // Signed-in customers (including pros chatting as themselves) upload on their visitor thread.
+        if (ownsAsSignedInCustomer) {
+          if (visitorMatches && convUserId !== user.id) {
+            const cookieDenied = visitorCookieDenied(request, rawVisitorId.trim());
+            if (cookieDenied) return cookieDenied;
+          }
+          prefix = `${convId.data}/user-${user.id}`;
+        } else {
+          const businessId = await getOwnedBusinessId(user.id);
+          if (!businessId) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+          }
+          const { data: msgRow } = await supabase
+            .from('probot_messages')
+            .select('id')
+            .eq('conversation_id', convId.data)
+            .eq('business_id', businessId)
+            .limit(1)
+            .maybeSingle();
+          if (!msgRow) {
+            return NextResponse.json({ error: 'Conversation not found or access denied' }, { status: 404 });
+          }
+          prefix = `${convId.data}/contractor-${user.id}`;
         }
-        const { data: msgRow } = await supabase
-          .from('probot_messages')
-          .select('id')
-          .eq('conversation_id', convId.data)
-          .eq('business_id', businessId)
-          .limit(1)
-          .maybeSingle();
-        const convVisitorId = (conv as { visitor_id?: string }).visitor_id;
-        const hasMessage = !!msgRow;
-        const isOwnThread =
-          convVisitorId &&
-          rawVisitorId &&
-          convVisitorId.trim() === rawVisitorId.trim();
-        if (!hasMessage && isOwnThread) {
-          const cookieDenied = visitorCookieDenied(request, rawVisitorId.trim());
-          if (cookieDenied) return cookieDenied;
-        }
-        if (!hasMessage && !isOwnThread) {
-          return NextResponse.json({ error: 'Conversation not found or access denied' }, { status: 404 });
-        }
-        prefix = `${convId.data}/contractor-${user.id}`;
       }
     }
 

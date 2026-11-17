@@ -12,6 +12,7 @@ import type { ProbotTurn } from '@/lib/chat/probot-ai';
 import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 import { parseStoredReply, snapshotFromRow } from '@/lib/chat/reply-snapshot';
+import { resolveVisitorConversation, visitorOwnsConversation } from '@/lib/chat/resolveConversation';
 
 async function sessionUserId(): Promise<string | undefined> {
   try {
@@ -55,35 +56,16 @@ export async function POST(request: NextRequest) {
     let conversationId = providedConvId;
 
     if (!conversationId) {
-      const { data: existing } = await supabase
-        .from('probot_conversations')
-        .select('id')
-        .eq('visitor_id', visitorId)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (existing) {
-        conversationId = (existing as { id: string }).id;
-      } else {
-        const { data: inserted, error: insertErr } = await supabase
-          .from('probot_conversations')
-          .insert({ visitor_id: visitorId })
-          .select('id')
-          .single();
-        if (insertErr || !inserted) {
-          console.error('ProBot conversation insert error:', insertErr);
-          return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 });
-        }
-        conversationId = inserted.id;
+      try {
+        const resolved = await resolveVisitorConversation(supabase, visitorId);
+        conversationId = resolved.conversationId;
+      } catch (insertErr) {
+        console.error('ProBot conversation resolve error:', insertErr);
+        return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 });
       }
     } else {
-      const { data: conv } = await supabase
-        .from('probot_conversations')
-        .select('id')
-        .eq('id', conversationId)
-        .eq('visitor_id', visitorId)
-        .single();
-      if (!conv) {
+      const owns = await visitorOwnsConversation(supabase, conversationId, visitorId);
+      if (!owns) {
         return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
       }
     }
@@ -284,17 +266,6 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServiceRoleClient();
 
-    // Started early so it overlaps the message query below.
-    const visitorOwnershipQuery =
-      !isAdmin && hasVisitorId
-        ? supabase
-            .from('probot_conversations')
-            .select('id')
-            .eq('id', parsed.data.conversationId)
-            .eq('visitor_id', parsed.data.visitorId!)
-            .maybeSingle()
-        : null;
-
     let contractorReadBusinessId: string | null = null;
     if (!isAdmin && !hasVisitorId) {
       if (!supabaseServer || !user?.id) {
@@ -317,9 +288,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const isVisitorContext = Boolean(parsed.data.visitorId?.trim());
+    if (isVisitorContext) {
+      const owns = await visitorOwnsConversation(
+        supabase,
+        parsed.data.conversationId,
+        parsed.data.visitorId!
+      );
+      if (!owns) {
+        return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      }
+    }
+
     // WhatsApp-style: one thread per profile. For admin/contractor, load messages from all conversations for this visitor and merge.
     let conversationIds: string[] = [parsed.data.conversationId];
-    const isVisitorContext = Boolean(parsed.data.visitorId?.trim());
     if (!isVisitorContext) {
       const { data: convRow } = await supabase
         .from('probot_conversations')
@@ -350,21 +332,12 @@ export async function GET(request: NextRequest) {
     let rawMessages: MessageRow[] | null = null;
 
     const selectCols = 'id, sender, body, created_at, business_id, read_at, attachments, reply_to, admin_sent_as, admin_user_id, payload';
-    const messagesQuery = supabase
+    const withAttachments = await supabase
       .from('probot_messages')
       .select(selectCols)
       .in('conversation_id', conversationIds)
       .order('created_at', { ascending: true })
       .limit(300);
-
-    const [ownershipResult, withAttachments] = await Promise.all([
-      visitorOwnershipQuery,
-      messagesQuery,
-    ]);
-
-    if (visitorOwnershipQuery && !ownershipResult?.data) {
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
-    }
 
     if (!withAttachments.error) {
       rawMessages = withAttachments.data as unknown as MessageRow[] | null;

@@ -45,6 +45,29 @@ export const adminSentAsSchema = z.enum(['probot', 'hub_agent']).or(
 );
 export type AdminSentAs = z.infer<typeof adminSentAsSchema>;
 
+const crmEstimateShareSchema = z.object({
+  token: z.string().min(1).max(200),
+  estimateId: z.string().uuid(),
+  estimateNumber: z.string().max(64),
+  amountCents: z.number().int().nonnegative(),
+  depositCents: z.number().int().nonnegative().optional(),
+  status: z.enum(['draft', 'sent', 'accepted', 'declined']).optional(),
+  validUntilDate: z.string().nullable().optional(),
+  businessName: z.string().max(200).nullable().optional(),
+  businessLogo: z.string().max(2000).nullable().optional(),
+  viewUrl: z.string().url(),
+  lineItemsPreview: z
+    .array(
+      z.object({
+        product_or_service: z.string().nullable().optional(),
+        description: z.string().nullable().optional(),
+        amount_cents: z.number().int().nullable().optional(),
+      })
+    )
+    .max(6)
+    .optional(),
+});
+
 export const adminSendMessageSchema = z.object({
   conversationId: z.string().uuid(),
   body: z.string().trim().max(MAX_MESSAGE_LENGTH),
@@ -52,7 +75,13 @@ export const adminSendMessageSchema = z.object({
   replyToId: z.string().uuid().optional(),
   /** Which identity to send as: 'probot' | 'hub_agent' | { businessId }. Defaults to 'probot' */
   sentAs: adminSentAsSchema.optional(),
-}).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0, {
+  /** Optional rich card payload (e.g. CRM estimate share for in-chat approve) */
+  payload: z
+    .object({
+      crmEstimate: crmEstimateShareSchema.optional(),
+    })
+    .optional(),
+}).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0 || Boolean(data.payload?.crmEstimate), {
   message: 'Message cannot be empty',
   path: ['body'],
 });

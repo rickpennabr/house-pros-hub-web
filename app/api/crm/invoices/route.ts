@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { sanitizeCompanyDisplay } from '@/lib/invoices/companyDisplay';
 import { getNextInvoiceNumber } from '@/lib/crm/invoice-number';
 import { PRO_INVOICE_STATUSES, type PaymentMethod, type ProInvoiceStatus } from '@/lib/crm/invoice-books';
@@ -15,25 +15,6 @@ import type { Json } from '@/lib/types/supabase';
 import { safeTimeZone } from '@/lib/crm/estimate-chart';
 import { buildInvoiceChart, type InvoiceChart } from '@/lib/crm/list-charts';
 
-async function requireContractor() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
-  }
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) {
-    return {
-      error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }),
-      user: null,
-    };
-  }
-  return { error: null, user };
-}
-
 const VALID_SORT = ['created_at', 'updated_at', 'status', 'invoice_date', 'due_date', 'amount_cents', 'invoice_number'] as const;
 
 export async function GET(request: NextRequest) {
@@ -47,6 +28,9 @@ export async function GET(request: NextRequest) {
     const sortBy = (searchParams.get('sortBy') || 'created_at') as (typeof VALID_SORT)[number];
     const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc';
     const statusFilter = searchParams.get('status') || '';
+    const customerIdFilter = searchParams.get('customerId')?.trim() || '';
+    const depositOnly = searchParams.get('deposit') === '1';
+    const unpaidOnly = searchParams.get('unpaid') === '1';
     const search = (searchParams.get('search') || '').replace(/[%_,.()]/g, ' ').trim();
 
     const supabase = await createClient();
@@ -60,6 +44,15 @@ export async function GET(request: NextRequest) {
 
     if (statusFilter && (PRO_INVOICE_STATUSES as readonly string[]).includes(statusFilter)) {
       query = query.eq('status', statusFilter as ProInvoiceStatus);
+    }
+    if (customerIdFilter) {
+      query = query.eq('customer_id', customerIdFilter);
+    }
+    if (depositOnly) {
+      query = query.ilike('note', '%Deposit of%');
+    }
+    if (unpaidOnly) {
+      query = query.in('status', ['draft', 'sent', 'partial', 'overdue']);
     }
 
     let invoiceSearch: string | null = null;

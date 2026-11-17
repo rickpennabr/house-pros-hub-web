@@ -1,27 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { crmEstimateCreateSchema, depositWithinEstimate, normalizeEstimateAmountCents } from '@/lib/schemas/crmEstimate';
 import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { summarizeEstimateStatuses } from '@/lib/crm/estimate-books';
 import { buildEstimateChart, safeTimeZone, type EstimateChart } from '@/lib/crm/estimate-chart';
-
-async function requireContractor() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
-  }
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) {
-    return { error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }), user: null };
-  }
-  return { error: null, user };
-}
 
 const VALID_SORT = ['created_at', 'updated_at', 'status', 'due_date', 'amount_cents'] as const;
 
@@ -43,6 +27,7 @@ export async function GET(request: NextRequest) {
     const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc';
     const search = searchParams.get('search')?.trim() || '';
     const statusFilter = searchParams.get('status') || '';
+    const customerIdFilter = searchParams.get('customerId')?.trim() || '';
     const includeChart = searchParams.get('chart') === '1';
     const timeZone = safeTimeZone(searchParams.get('timeZone'));
 
@@ -87,6 +72,9 @@ export async function GET(request: NextRequest) {
 
     if (statusFilter && ['draft', 'sent', 'accepted', 'declined'].includes(statusFilter)) {
       query = query.eq('status', statusFilter as 'draft' | 'sent' | 'accepted' | 'declined');
+    }
+    if (customerIdFilter) {
+      query = query.eq('customer_id', customerIdFilter);
     }
 
     let matchingCustomerIds: string[] | null = null;

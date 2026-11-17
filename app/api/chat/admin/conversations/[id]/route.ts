@@ -108,17 +108,30 @@ export async function GET(
       }
     }
 
-    const profileByUserId: Record<string, { first_name: string | null; last_name: string | null; user_picture: string | null }> = {};
+    const profileByUserId: Record<
+      string,
+      { first_name: string | null; last_name: string | null; user_picture: string | null }
+    > = {};
+    let visitorOwnsABusiness = false;
     if (row.user_id) {
-      const { data: profileRows } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name, user_picture')
-        .eq('id', row.user_id)
-        .single();
+      const [{ data: profileRows }, { data: ownedBiz }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, first_name, last_name, user_picture')
+          .eq('id', row.user_id)
+          .maybeSingle(),
+        supabase.from('businesses').select('id').eq('owner_id', row.user_id).limit(1).maybeSingle(),
+      ]);
       if (profileRows) {
-        const p = profileRows as { id: string; first_name: string | null; last_name: string | null; user_picture: string | null };
+        const p = profileRows as {
+          id: string;
+          first_name: string | null;
+          last_name: string | null;
+          user_picture: string | null;
+        };
         profileByUserId[p.id] = p;
       }
+      visitorOwnsABusiness = Boolean(ownedBiz?.id);
     }
 
     const { data: presenceRows } = await supabase
@@ -163,7 +176,15 @@ export async function GET(
     const unreadCount = (unreadRes.data ?? []) as UnreadRow[];
 
     const bid = businessIdByConv.get(row.id);
-    const participant_type = bid ? ('contractor' as const) : ('customer' as const);
+    // business_id on messages means the visitor messaged a pro — they are still the customer.
+    // participant_type=contractor only when the other party is a pro in a hub (non-business) thread.
+    const visitorMessagedABusiness = messagesList.some(
+      (m) => m.sender === 'visitor' && Boolean(m.business_id)
+    );
+    const participant_type =
+      visitorMessagedABusiness || !visitorOwnsABusiness
+        ? ('customer' as const)
+        : ('contractor' as const);
     const business_name = bid ? businessNames[bid] : undefined;
     const business_logo = bid ? (businessLogos[bid] ?? undefined) : undefined;
     const business_id = bid ?? undefined;

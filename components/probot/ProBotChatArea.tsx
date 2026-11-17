@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import Image from 'next/image';
-import { Building2, Trash2, ArrowLeft, User } from 'lucide-react';
+import { Building2, CreditCard, FileText, Receipt, Trash2, ArrowLeft, User } from 'lucide-react';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import ChatSignupForm from '@/components/chat/ChatSignupForm';
 import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
 import ChatInputBar from '@/components/chat/ChatInputBar';
+import ChatCrmDocPicker, { type ChatCrmDocKind } from '@/components/chat/ChatCrmDocPicker';
 import { ChatCamFrame } from '@/components/chat/ChatCamFrame';
 import AddCustomerForm from '@/components/chat/AddCustomerForm';
 import ProEstimateBookingFlow from '@/components/probot/ProEstimateBookingFlow';
@@ -93,6 +94,39 @@ function dedupeMessagesById(messages: ChatMessage[]): ChatMessage[] {
   });
 }
 
+/**
+ * Customer view: ProBot hub = untagged messages; a business contact = that business's thread.
+ * Legacy pro replies were often saved without business_id — keep them when they follow a
+ * customer message to this business (same rule the contractor inbox effectively uses).
+ */
+function filterMessagesForContact(
+  messages: ChatMessage[],
+  contact: ProBotContact
+): ChatMessage[] {
+  if (contact.isProBot) {
+    return messages.filter((m) => !(m.business_id ?? undefined));
+  }
+  const businessId = contact.businessId;
+  if (!businessId) return messages;
+
+  let activeBusiness: string | undefined;
+  const keep = new Set<string>();
+  for (const m of messages) {
+    const bid = m.business_id ?? undefined;
+    if (m.sender === 'visitor') {
+      activeBusiness = bid;
+    }
+    if (bid === businessId) {
+      keep.add(m.id);
+      continue;
+    }
+    if (m.sender === 'admin' && !bid && activeBusiness === businessId) {
+      keep.add(m.id);
+    }
+  }
+  return messages.filter((m) => keep.has(m.id));
+}
+
 export default function ProBotChatArea({
   selectedContact,
   hubOnline,
@@ -128,6 +162,8 @@ export default function ProBotChatArea({
   const [savingProjectUrl, setSavingProjectUrl] = useState<string | null>(null);
   const fileByUrl = useRef<Map<string, File>>(new Map());
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [crmPickerKind, setCrmPickerKind] = useState<ChatCrmDocKind | null>(null);
+  const [crmCustomerId, setCrmCustomerId] = useState<string | null>(null);
   const [uploadingAttach, setUploadingAttach] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
@@ -254,11 +290,29 @@ export default function ProBotChatArea({
     loadConversation();
   }, [loadConversation, adminViewingConversation]);
 
+  // After sign-in, re-resolve so the account thread (and its history) is used instead of a guest cookie thread.
+  useEffect(() => {
+    if (adminViewingConversation || !isAuthenticated || !user?.id || !visitorId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { conversationId: cid } = await createConversation(visitorId);
+        if (!cancelled) setConversationId(cid);
+      } catch {
+        // Keep the current conversation if resolve fails.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [adminViewingConversation, isAuthenticated, user?.id, visitorId, setConversationId]);
+
   const loadMessages = useCallback(async () => {
     if (!conversationId || !visitorId) return;
     try {
       const data = await getMessages(conversationId, {
         visitorId,
+        credentials: 'include',
         ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
       });
       const msgs = (data.messages ?? []) as ChatMessage[];
@@ -275,10 +329,12 @@ export default function ProBotChatArea({
       setMessages(dedupeMessagesById(withLink));
       setHubAgent(data.hubAgent ?? null);
       setMessagesLoadedOnce(true);
-    } catch {
+      setError(null);
+    } catch (e) {
       setMessages([]);
       setHubAgent(null);
       setMessagesLoadedOnce(true);
+      setError(e instanceof Error ? e.message : t('sendUnavailable'));
     }
   }, [conversationId, visitorId, t, locale]);
 
@@ -364,14 +420,41 @@ export default function ProBotChatArea({
 
   const isAdminView = Boolean((isAdmin || isContractor) && adminViewingConversation);
 
+  useEffect(() => {
+    if (!isAdminView || !isContractor) {
+      setCrmCustomerId(null);
+      return;
+    }
+    const portalUserId =
+      (selectedContact?.id.startsWith('customer-')
+        ? selectedContact.id.slice('customer-'.length)
+        : null) ||
+      adminViewingConversation?.user_id ||
+      null;
+    if (!portalUserId) {
+      setCrmCustomerId(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/crm/customers/by-portal-user?userId=${encodeURIComponent(portalUserId)}`, {
+      credentials: 'include',
+    })
+      .then((res) => res.json())
+      .then((data: { customer?: { id: string } | null }) => {
+        if (!cancelled) setCrmCustomerId(data.customer?.id ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setCrmCustomerId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdminView, isContractor, selectedContact?.id, adminViewingConversation?.user_id]);
+
   const filteredMessages = isAdminView
     ? messages
     : selectedContact
-      ? messages.filter((m) => {
-          const msgBusinessId = m.business_id ?? undefined;
-          if (selectedContact.isProBot) return !msgBusinessId;
-          return msgBusinessId === selectedContact.businessId;
-        })
+      ? filterMessagesForContact(messages, selectedContact)
       : [];
 
   // Notify parent so History Chat only shows ProBot when this conversation has at least one message
@@ -564,18 +647,26 @@ export default function ProBotChatArea({
   );
 
   const sendAdminReply = useCallback(
-    async (body: string, attachments?: ChatAttachment[]) => {
+    async (
+      body: string,
+      attachments?: ChatAttachment[],
+      payload?: { crmEstimate?: import('@/lib/types/chat').ChatCrmEstimateShare }
+    ) => {
       if (!adminViewingConversation?.id || sending) return;
+      const replyBusinessId =
+        contractorBusinessId ||
+        adminViewingConversation.business_id ||
+        selectedContact?.businessId ||
+        undefined;
+      // Customer→pro inbox: always reply as the business, never as ProBot.
       const sentAs =
-        isContractor && contractorBusinessId
-          ? { businessId: contractorBusinessId }
+        replyBusinessId
+          ? { businessId: replyBusinessId }
           : isAdminView
             ? 'probot'
             : selectedContact?.isProBot
               ? 'probot'
-              : selectedContact?.businessId
-                ? { businessId: selectedContact.businessId }
-                : 'probot';
+              : 'probot';
       setSending(true);
       setError(null);
       try {
@@ -585,17 +676,19 @@ export default function ProBotChatArea({
           sentAs,
           ...(attachments?.length ? { attachments } : {}),
           ...(replyTarget ? { replyToId: replyTarget.id } : {}),
+          ...(payload ? { payload } : {}),
         });
         if (data.message) {
           const msg = data.message as {
             id: string; sender: string; body: string; created_at: string;
             attachments?: ChatAttachment[]; admin_sent_as?: string; business_id?: string;
             admin_user_id?: string; admin_avatar_url?: string | null; admin_display_name?: string | null;
+            payload?: ChatMessage['payload'];
           };
           const businessName =
-            msg.admin_sent_as === 'business' && adminViewingConversation?.business_name
-              ? adminViewingConversation.business_name
-              : selectedContact && !selectedContact.isProBot ? selectedContact.name : undefined;
+            adminViewingConversation.business_name ||
+            user?.companyName ||
+            (selectedContact?.businessId ? selectedContact.name : undefined);
           setMessages((prev) => [
             ...prev,
             {
@@ -611,6 +704,7 @@ export default function ProBotChatArea({
               admin_user_id: msg.admin_user_id,
               admin_avatar_url: msg.admin_avatar_url ?? undefined,
               admin_display_name: msg.admin_display_name ?? undefined,
+              payload: msg.payload ?? payload ?? null,
             },
           ]);
         }
@@ -623,7 +717,7 @@ export default function ProBotChatArea({
         setSending(false);
       }
     },
-    [adminViewingConversation, isContractor, contractorBusinessId, selectedContact, sending, onAdminReplySent, replyTarget]
+    [adminViewingConversation, contractorBusinessId, selectedContact, sending, onAdminReplySent, replyTarget, user?.companyName, isAdminView]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -800,6 +894,93 @@ export default function ProBotChatArea({
     if (!conversationId || !visitorId || clearingMessages) return;
     setShowClearModal(true);
   }, [conversationId, visitorId, clearingMessages]);
+
+  const chatInputLabels = {
+    attachFiles: t('attachFiles'),
+    uploadFiles: t('uploadFiles'),
+    addFromGoogleDrive: t('addFromGoogleDrive'),
+    photos: t('photos'),
+    camera: t('camera'),
+    voiceNote: t('voiceNote'),
+    stopVoice: t('stopVoice'),
+    voiceDenied: t('voiceDenied'),
+    replyingTo: t('replyingTo'),
+    cancelReply: t('cancelReply'),
+    send: t('send'),
+  };
+
+  const crmActions =
+    isAdminView && isContractor
+      ? [
+          {
+            id: 'estimate',
+            label: t('crmSendEstimate'),
+            icon: <FileText className="h-4 w-4" />,
+            onSelect: () => setCrmPickerKind('estimate'),
+          },
+          {
+            id: 'invoice',
+            label: t('crmSendInvoice'),
+            icon: <Receipt className="h-4 w-4" />,
+            onSelect: () => setCrmPickerKind('invoice'),
+          },
+          {
+            id: 'payment',
+            label: t('crmSendPaymentLink'),
+            icon: <CreditCard className="h-4 w-4" />,
+            onSelect: () => setCrmPickerKind('payment'),
+          },
+        ]
+      : undefined;
+
+  const handleCrmEstimateApproved = useCallback(
+    (messageId: string, next: import('@/lib/types/chat').ChatCrmEstimateShare) => {
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== messageId) return msg;
+          return {
+            ...msg,
+            payload: {
+              ...(msg.payload ?? {}),
+              crmEstimate: next,
+            },
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const sendCrmDocLink = useCallback(
+    async (
+      kind: ChatCrmDocKind,
+      doc: {
+        label: string;
+        amountCents: number;
+        url: string;
+        estimateShare?: import('@/lib/types/chat').ChatCrmEstimateShare;
+      }
+    ) => {
+      const amount = new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: 'USD',
+      }).format(doc.amountCents / 100);
+      if (kind === 'estimate' && doc.estimateShare) {
+        const body = t('crmEstimateCardIntro', {
+          label: doc.label,
+          amount,
+        });
+        await sendAdminReply(body, undefined, { crmEstimate: doc.estimateShare });
+        return;
+      }
+      const body =
+        kind === 'payment'
+          ? t('crmPaymentMessage', { label: doc.label, amount, url: doc.url })
+          : t('crmInvoiceMessage', { label: doc.label, amount, url: doc.url });
+      await sendAdminReply(body);
+    },
+    [sendAdminReply, t]
+  );
 
   if (!selectedContact) {
     return (
@@ -1026,19 +1207,8 @@ export default function ProBotChatArea({
                             attachDisabled={uploadingAttach || pendingAttachments.length >= 10}
                             sendDisabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
                             hasText={!!(inputValue.trim() || pendingAttachments.length > 0)}
-                            labels={{
-                              attachFiles: t('attachFiles'),
-                              uploadFiles: t('uploadFiles'),
-                              addFromGoogleDrive: t('addFromGoogleDrive'),
-                              photos: t('photos'),
-                              camera: t('camera'),
-                              voiceNote: t('voiceNote'),
-                              stopVoice: t('stopVoice'),
-                              voiceDenied: t('voiceDenied'),
-                              replyingTo: t('replyingTo'),
-                              cancelReply: t('cancelReply'),
-                              send: t('send'),
-                            }}
+                            labels={chatInputLabels}
+                            crmActions={crmActions}
                           />
                         </form>
                         </ChatCamFrame>
@@ -1265,19 +1435,8 @@ export default function ProBotChatArea({
                           attachDisabled={uploadingAttach || pendingAttachments.length >= 10}
                           sendDisabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
                           hasText={!!(inputValue.trim() || pendingAttachments.length > 0)}
-                          labels={{
-                            attachFiles: t('attachFiles'),
-                            uploadFiles: t('uploadFiles'),
-                            addFromGoogleDrive: t('addFromGoogleDrive'),
-                            photos: t('photos'),
-                            camera: t('camera'),
-                            voiceNote: t('voiceNote'),
-                            stopVoice: t('stopVoice'),
-                            voiceDenied: t('voiceDenied'),
-                            replyingTo: t('replyingTo'),
-                            cancelReply: t('cancelReply'),
-                            send: t('send'),
-                          }}
+                          labels={chatInputLabels}
+                          crmActions={crmActions}
                         />
                       </form>
                       </ChatCamFrame>
@@ -1575,19 +1734,8 @@ export default function ProBotChatArea({
                         attachDisabled={uploadingAttach || pendingAttachments.length >= 10}
                         sendDisabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
                         hasText={!!(inputValue.trim() || pendingAttachments.length > 0)}
-                        labels={{
-                          attachFiles: t('attachFiles'),
-                          uploadFiles: t('uploadFiles'),
-                          addFromGoogleDrive: t('addFromGoogleDrive'),
-                          photos: t('photos'),
-                          camera: t('camera'),
-                          voiceNote: t('voiceNote'),
-                          stopVoice: t('stopVoice'),
-                          voiceDenied: t('voiceDenied'),
-                          replyingTo: t('replyingTo'),
-                          cancelReply: t('cancelReply'),
-                          send: t('send'),
-                        }}
+                        labels={chatInputLabels}
+                        crmActions={crmActions}
                       />
                   </form>
                   </ChatCamFrame>
@@ -1605,12 +1753,21 @@ export default function ProBotChatArea({
                   selectedContact={selectedContact}
                   visitorAvatarUrl={
                     isAdminView && adminViewingConversation
-                      ? adminViewingConversation.participant_type === 'contractor' && adminViewingConversation.business_logo
-                        ? adminViewingConversation.business_logo
-                        : adminViewingConversation.profile_user_picture ?? null
+                      ? // Customer bubbles always use the customer photo — never the pro/business logo.
+                        adminViewingConversation.profile_user_picture
+                        ?? selectedContact?.profile_user_picture
+                        ?? (adminViewingConversation.participant_type === 'contractor'
+                          ? adminViewingConversation.business_logo ?? null
+                          : null)
                       : isContractor && user?.businessLogo
                         ? user.businessLogo
                         : user?.userPicture ?? null
+                  }
+                  businessReplyName={
+                    adminViewingConversation?.business_name || user?.companyName || null
+                  }
+                  businessReplyLogo={
+                    adminViewingConversation?.business_logo || user?.businessLogo || null
                   }
                   confirmingStepId={confirmingStepId}
                   onConfirmEstimate={isAdminView ? undefined : confirmEstimate}
@@ -1619,6 +1776,7 @@ export default function ProBotChatArea({
                     setReplyTarget(msg);
                     messageInputRef.current?.focus();
                   }}
+                  onCrmEstimateApproved={handleCrmEstimateApproved}
                 />
               </>
             )}
@@ -1674,19 +1832,8 @@ export default function ProBotChatArea({
                   attachDisabled={uploadingAttach || pendingAttachments.length >= 10}
                   sendDisabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
                   hasText={!!(inputValue.trim() || pendingAttachments.length > 0)}
-                  labels={{
-                    attachFiles: t('attachFiles'),
-                    uploadFiles: t('uploadFiles'),
-                    addFromGoogleDrive: t('addFromGoogleDrive'),
-                    photos: t('photos'),
-                    camera: t('camera'),
-                    voiceNote: t('voiceNote'),
-                    stopVoice: t('stopVoice'),
-                    voiceDenied: t('voiceDenied'),
-                    replyingTo: t('replyingTo'),
-                    cancelReply: t('cancelReply'),
-                    send: t('send'),
-                  }}
+                  labels={chatInputLabels}
+                  crmActions={crmActions}
                 />
               </div>
               </ChatCamFrame>
@@ -1734,6 +1881,38 @@ export default function ProBotChatArea({
           </div>
         </div>
       )}
+
+      {crmPickerKind ? (
+        <ChatCrmDocPicker
+          open
+          kind={crmPickerKind}
+          locale={locale}
+          customerId={crmCustomerId}
+          title={
+            crmPickerKind === 'estimate'
+              ? t('crmPickEstimate')
+              : crmPickerKind === 'payment'
+                ? t('crmPickPayment')
+                : t('crmPickInvoice')
+          }
+          emptyLabel={
+            crmPickerKind === 'estimate'
+              ? t('crmNoEstimates')
+              : crmPickerKind === 'payment'
+                ? t('crmNoPayments')
+                : t('crmNoInvoices')
+          }
+          loadingLabel={t('loading')}
+          sendLabel={t('crmSendInChat')}
+          createNewLabel={
+            crmPickerKind === 'estimate' ? t('crmCreateEstimate') : t('crmCreateInvoice')
+          }
+          allDocsLabel={t('crmAllDocs')}
+          forCustomerLabel={t('crmThisCustomer')}
+          onClose={() => setCrmPickerKind(null)}
+          onSend={(doc) => sendCrmDocLink(crmPickerKind, doc)}
+        />
+      ) : null}
     </div>
   );
 }

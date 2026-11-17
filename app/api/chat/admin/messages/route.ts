@@ -36,7 +36,8 @@ export async function POST(request: NextRequest) {
       const msg = parsed.error.flatten().fieldErrors?.body?.[0] ?? 'Invalid request';
       return NextResponse.json({ error: msg }, { status: 400 });
     }
-    let { conversationId, body: messageBody, attachments: rawAttachments, replyToId, sentAs } = parsed.data;
+    let { conversationId, body: messageBody, attachments: rawAttachments, replyToId, sentAs, payload: messagePayload } =
+      parsed.data;
 
     const attachments = rawAttachments?.length
       ? filterAllowedAttachments(rawAttachments)
@@ -57,8 +58,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
+    const userBusinessId = await getOwnedBusinessId(user.id);
     if (!isAdmin) {
-      const userBusinessId = await getOwnedBusinessId(user.id);
       if (!userBusinessId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
@@ -73,6 +74,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
       }
       sentAs = { businessId: userBusinessId };
+    } else if (userBusinessId && sentAs !== 'hub_agent') {
+      // Hub admin who also owns this business: reply as the business in customer→pro threads.
+      const { data: msgRow } = await supabase
+        .from('probot_messages')
+        .select('id')
+        .eq('conversation_id', conversationId)
+        .eq('business_id', userBusinessId)
+        .limit(1)
+        .maybeSingle();
+      if (msgRow) {
+        sentAs = { businessId: userBusinessId };
+      }
     }
 
     let replyTo: ReturnType<typeof snapshotFromRow> = null;
@@ -97,6 +110,7 @@ export async function POST(request: NextRequest) {
       admin_sent_as?: 'probot' | 'business' | 'hub_agent';
       business_id?: string;
       admin_user_id?: string;
+      payload?: unknown;
     };
     const insertPayload: InsertPayload = {
       conversation_id: conversationId,
@@ -105,6 +119,15 @@ export async function POST(request: NextRequest) {
     };
     if (attachments?.length) insertPayload.attachments = attachments;
     if (replyTo) insertPayload.reply_to = replyTo;
+    if (messagePayload?.crmEstimate) {
+      insertPayload.payload = {
+        crmEstimate: {
+          ...messagePayload.crmEstimate,
+          depositCents: messagePayload.crmEstimate.depositCents ?? 0,
+          status: messagePayload.crmEstimate.status ?? 'sent',
+        },
+      };
+    }
     if (sentAs !== undefined) {
       if (sentAs === 'probot') {
         insertPayload.admin_sent_as = sentAs;
@@ -126,7 +149,8 @@ export async function POST(request: NextRequest) {
     }
 
     type InsertRow = Database['public']['Tables']['probot_messages']['Insert'];
-    const selectCols = 'id, conversation_id, sender, body, created_at, attachments, admin_sent_as, business_id, admin_user_id';
+    const selectCols =
+      'id, conversation_id, sender, body, created_at, attachments, admin_sent_as, business_id, admin_user_id, payload';
     let result = await supabase
       .from('probot_messages')
       .insert(insertPayload as InsertRow)
@@ -146,6 +170,7 @@ export async function POST(request: NextRequest) {
       delete insertPayload.admin_sent_as;
       delete insertPayload.business_id;
       delete insertPayload.admin_user_id;
+      delete insertPayload.payload;
       const colsFallback = 'id, conversation_id, sender, body, created_at';
       result = await supabase
         .from('probot_messages')
@@ -166,7 +191,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
     }
 
-    const message = result.data as unknown as { id: string; conversation_id: string; sender: string; body: string; created_at: string; attachments?: unknown; admin_sent_as?: string | null; business_id?: string | null; admin_user_id?: string | null };
+    const message = result.data as unknown as {
+      id: string;
+      conversation_id: string;
+      sender: string;
+      body: string;
+      created_at: string;
+      attachments?: unknown;
+      admin_sent_as?: string | null;
+      business_id?: string | null;
+      admin_user_id?: string | null;
+      payload?: unknown;
+    };
     let admin_avatar_url: string | undefined;
     let admin_display_name: string | undefined;
     if (message.admin_user_id) {
@@ -216,6 +252,7 @@ export async function POST(request: NextRequest) {
           admin_user_id: message.admin_user_id ?? undefined,
           admin_avatar_url,
           admin_display_name,
+          payload: message.payload ?? messagePayload ?? undefined,
         },
       },
       { status: 200 }

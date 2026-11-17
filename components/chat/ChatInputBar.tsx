@@ -1,6 +1,6 @@
 'use client';
 
-import { type ChangeEvent, type RefObject, useEffect, useRef, useState } from 'react';
+import { type ChangeEvent, type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
 import { Camera, Cloud, ImageIcon, Mic, Paperclip, Plus, Send, Square } from 'lucide-react';
 
 export interface ChatInputBarLabels {
@@ -15,6 +15,13 @@ export interface ChatInputBarLabels {
   replyingTo: string;
   cancelReply: string;
   send: string;
+}
+
+export interface ChatInputBarCrmAction {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  onSelect: () => void;
 }
 
 export interface ChatInputBarProps {
@@ -33,6 +40,8 @@ export interface ChatInputBarProps {
   sendDisabled: boolean;
   hasText?: boolean;
   labels: ChatInputBarLabels;
+  /** Extra + menu actions (CRM share tools for contractors). */
+  crmActions?: ChatInputBarCrmAction[];
   replyPreview?: string | null;
   onCancelReply?: () => void;
   onRecorderError?: (message: string) => void;
@@ -73,6 +82,7 @@ export default function ChatInputBar({
   sendDisabled,
   hasText = false,
   labels,
+  crmActions,
   replyPreview,
   onCancelReply,
   onRecorderError,
@@ -166,7 +176,26 @@ export default function ChatInputBar({
           {attachMenuOpen && (
             <>
               <div className="fixed inset-0 z-10" aria-hidden onClick={() => setAttachMenuOpen(false)} />
-              <div className="absolute bottom-full left-0 z-20 mb-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+              <div className="absolute bottom-full left-0 z-20 mb-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                {crmActions && crmActions.length > 0 ? (
+                  <>
+                    {crmActions.map((action) => (
+                      <button
+                        key={action.id}
+                        type="button"
+                        onClick={() => {
+                          setAttachMenuOpen(false);
+                          action.onSelect();
+                        }}
+                        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center">{action.icon}</span>
+                        {action.label}
+                      </button>
+                    ))}
+                    <div className="my-1 border-t border-gray-100" />
+                  </>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {

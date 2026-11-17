@@ -12,6 +12,7 @@ function PublicEstimateViewContent() {
   const [error, setError] = useState<string | null>(null);
   const [approveLoading, setApproveLoading] = useState(false);
   const [approveMessage, setApproveMessage] = useState<string | null>(null);
+  const [depositPaymentUrl, setDepositPaymentUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -48,10 +49,15 @@ function PublicEstimateViewContent() {
       } else {
         const depositNote = payload.depositError
           ? `Estimate approved. The deposit invoice could not be created. ${payload.depositError}`
-          : payload.depositInvoiceId
-            ? 'Estimate approved. The deposit is the first invoice on this estimate.'
-            : 'Estimate approved successfully. Thank you.';
+          : payload.depositPaymentUrl
+            ? 'Estimate approved. Pay the deposit below to get started.'
+            : payload.depositInvoiceId
+              ? 'Estimate approved. The deposit is the first invoice on this estimate.'
+              : 'Estimate approved successfully. Thank you.';
         setApproveMessage(depositNote);
+      }
+      if (typeof payload.depositPaymentUrl === 'string' && payload.depositPaymentUrl) {
+        setDepositPaymentUrl(payload.depositPaymentUrl);
       }
       setData((prev) => (prev ? { ...prev, status: 'accepted' } : prev));
     } catch (err) {
@@ -74,14 +80,31 @@ function PublicEstimateViewContent() {
   }
 
   return (
-    <CustomerEstimatePreview
-      data={data}
-      variant="public"
-      onApprove={handleApprove}
-      approveLoading={approveLoading}
-      alreadyAccepted={alreadyAccepted}
-      approveMessage={approveMessage}
-    />
+    <>
+      <CustomerEstimatePreview
+        data={data}
+        variant="public"
+        onApprove={handleApprove}
+        approveLoading={approveLoading}
+        alreadyAccepted={alreadyAccepted}
+        approveMessage={approveMessage}
+      />
+      {depositPaymentUrl ? (
+        <div className="fixed bottom-0 inset-x-0 z-20 border-t border-amber-200 bg-amber-50 p-4">
+          <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-amber-950">
+              Deposit is ready. Pay by card to start the job.
+            </p>
+            <a
+              href={depositPaymentUrl}
+              className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
+            >
+              Pay deposit
+            </a>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 

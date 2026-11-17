@@ -90,6 +90,43 @@ function asSummary(value: unknown): ProAgentEstimateSummary | null {
   };
 }
 
+function asCrmEstimate(value: unknown): ProAgentPayload['crmEstimate'] | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.token !== 'string' || !row.token.trim()) return null;
+  if (typeof row.estimateId !== 'string' || !row.estimateId.trim()) return null;
+  if (typeof row.viewUrl !== 'string' || !row.viewUrl.trim()) return null;
+  const status =
+    row.status === 'draft' || row.status === 'sent' || row.status === 'accepted' || row.status === 'declined'
+      ? row.status
+      : 'sent';
+  const lineItemsPreview = Array.isArray(row.lineItemsPreview)
+    ? row.lineItemsPreview
+        .filter((line): line is Record<string, unknown> => Boolean(line) && typeof line === 'object')
+        .slice(0, 6)
+        .map((line) => ({
+          product_or_service: typeof line.product_or_service === 'string' ? line.product_or_service : null,
+          description: typeof line.description === 'string' ? line.description : null,
+          amount_cents: typeof line.amount_cents === 'number' ? line.amount_cents : null,
+        }))
+    : undefined;
+  return {
+    token: row.token,
+    estimateId: row.estimateId,
+    estimateNumber: typeof row.estimateNumber === 'string' ? row.estimateNumber : row.estimateId.slice(0, 8),
+    amountCents: typeof row.amountCents === 'number' ? row.amountCents : 0,
+    depositCents: typeof row.depositCents === 'number' ? row.depositCents : 0,
+    status,
+    validUntilDate: typeof row.validUntilDate === 'string' ? row.validUntilDate : null,
+    businessName: typeof row.businessName === 'string' ? row.businessName : null,
+    businessLogo: typeof row.businessLogo === 'string' ? row.businessLogo : null,
+    viewUrl: row.viewUrl,
+    lineItemsPreview,
+    approvedAt: typeof row.approvedAt === 'string' ? row.approvedAt : undefined,
+    depositPaymentUrl: typeof row.depositPaymentUrl === 'string' ? row.depositPaymentUrl : null,
+  };
+}
+
 export function parseAgentPayload(value: unknown): ProAgentPayload | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
@@ -106,7 +143,9 @@ export function parseAgentPayload(value: unknown): ProAgentPayload | null {
     }
   }
   if (row.confirmed === true) payload.confirmed = true;
-  if (!payload.pros && !payload.confirm && !payload.confirmed) return null;
+  const crmEstimate = asCrmEstimate(row.crmEstimate);
+  if (crmEstimate) payload.crmEstimate = crmEstimate;
+  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate) return null;
   return payload;
 }
 

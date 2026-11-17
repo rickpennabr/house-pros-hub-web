@@ -43,6 +43,78 @@ function norm(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+const ZIP_RE = /^\d{5}(-\d{4})?$/;
+
+export interface PersonalPlaceAddressInput {
+  streetAddress: string;
+  apartment?: string | null;
+  city: string;
+  state: string;
+  zipCode: string;
+  /** Defaults to house. */
+  kind?: PlaceKind;
+  /** Defaults to the street line. */
+  name?: string;
+}
+
+/**
+ * Create or update a My Places row from a personal signup/profile address.
+ * Dedupes by street + ZIP so finish-setup and address edits do not create duplicates.
+ */
+export async function ensurePersonalPlaceFromAddress(
+  userId: string,
+  input: PersonalPlaceAddressInput
+): Promise<string | null> {
+  const street = joinMailLine(input.streetAddress.trim(), (input.apartment || '').trim()).slice(0, 160);
+  const city = input.city.trim();
+  const state = input.state.trim().toUpperCase();
+  const zipCode = input.zipCode.trim();
+  if (!street || !city || state.length !== 2 || !ZIP_RE.test(zipCode)) return null;
+
+  const admin = createServiceRoleClient();
+  const { data: places } = await admin
+    .from('customer_places')
+    .select('id, street, zip_code')
+    .eq('user_id', userId);
+
+  const streetKey = mailStreetKey(street);
+  const zipKey = norm(zipCode);
+  const match = (places ?? []).find(
+    (place) => mailStreetKey(place.street) === streetKey && norm(place.zip_code) === zipKey
+  );
+
+  const name = (input.name?.trim() || street).slice(0, 120);
+  const kind: PlaceKind = input.kind ?? 'house';
+  const payload = {
+    kind,
+    name,
+    street,
+    city,
+    state,
+    zip_code: zipCode,
+  };
+
+  if (match) {
+    const { error } = await admin.from('customer_places').update(payload).eq('id', match.id);
+    if (error) {
+      console.error('ensurePersonalPlaceFromAddress update', error.message);
+      return null;
+    }
+    return match.id;
+  }
+
+  const { data: created, error } = await admin
+    .from('customer_places')
+    .insert({ user_id: userId, ...payload })
+    .select('id')
+    .single();
+  if (error || !created) {
+    console.error('ensurePersonalPlaceFromAddress insert', error?.message);
+    return null;
+  }
+  return created.id;
+}
+
 function placeName(row: CustomerRow): string {
   const street = row.street_address?.trim();
   if (street) return street.slice(0, 120);

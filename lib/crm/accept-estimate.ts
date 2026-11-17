@@ -9,7 +9,13 @@ import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 type Client = SupabaseClient<Database>;
 
 export type AcceptEstimateResult =
-  | { ok: true; status: 'approved' | 'already_accepted'; depositInvoiceId: string | null; depositError: string | null }
+  | {
+      ok: true;
+      status: 'approved' | 'already_accepted';
+      depositInvoiceId: string | null;
+      depositPaymentUrl: string | null;
+      depositError: string | null;
+    }
   | { ok: false; status: number; error: string };
 
 /**
@@ -27,7 +33,13 @@ export async function acceptSentEstimate(
     .single();
   if (estimateErr || !estimate) return { ok: false, status: 404, error: 'Estimate not found' };
   if (estimate.status === 'accepted') {
-    return { ok: true, status: 'already_accepted', depositInvoiceId: null, depositError: null };
+    return {
+      ok: true,
+      status: 'already_accepted',
+      depositInvoiceId: null,
+      depositPaymentUrl: null,
+      depositError: null,
+    };
   }
   if (!customerCanAcceptEstimate(estimate.status)) {
     return { ok: false, status: 400, error: 'This estimate has not been sent for approval' };
@@ -85,15 +97,18 @@ export async function acceptSentEstimate(
 
   const deposit = await issueAcceptanceDeposit(supabase, estimate.id, estimate.owner_id);
   let depositError = deposit.error ?? null;
+  let depositPaymentUrl: string | null = null;
   if (deposit.invoiceId) {
     const delivery = await deliverDepositInvoice(supabase, deposit.invoiceId, options);
     if (delivery.error) depositError = delivery.error;
+    depositPaymentUrl = delivery.viewUrl ?? null;
   }
 
   return {
     ok: true,
     status: 'approved',
     depositInvoiceId: deposit.invoiceId,
+    depositPaymentUrl,
     depositError,
   };
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
+import { createServiceRoleClient } from '@/lib/supabase/server';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 
 /**
@@ -13,15 +13,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!(await hasRole(user.id, 'contractor'))) {
-      return NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 });
-    }
+    const { error: authError, user, supabase } = await requireContractor();
+    if (authError || !user) return authError;
 
     const { id } = await params;
     if (!id) return NextResponse.json({ error: 'Invoice ID required' }, { status: 400 });

@@ -32,9 +32,12 @@ export async function getMessages(
   if (options?.locale) params.set('locale', options.locale);
   const res = await fetch(`/api/chat/messages?${params}`, {
     cache: 'no-store',
-    credentials: options?.credentials,
+    credentials: options?.credentials ?? 'include',
   });
-  if (!res.ok) throw new Error('Failed to load messages');
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(typeof d.error === 'string' ? d.error : 'Failed to load messages');
+  }
   return res.json();
 }
 
@@ -42,6 +45,7 @@ export async function createConversation(visitorId: string): Promise<{ conversat
   const res = await fetch('/api/chat/conversations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ visitorId }),
   });
   if (!res.ok) {
@@ -79,6 +83,7 @@ export async function sendMessage(payload: SendMessagePayload): Promise<{
   const res = await fetch('/api/chat/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));
@@ -92,6 +97,7 @@ export async function sendAdminMessage(payload: {
   attachments?: Array<{ url: string; name: string; contentType: string }>;
   replyToId?: string;
   sentAs?: 'probot' | 'hub_agent' | { businessId: string };
+  payload?: { crmEstimate?: import('@/lib/types/chat').ChatCrmEstimateShare };
 }): Promise<{ message?: unknown }> {
   const res = await fetch('/api/chat/admin/messages', {
     method: 'POST',
@@ -109,6 +115,7 @@ export async function getVisitorDeleteToken(visitorId: string): Promise<string> 
   const res = await fetch('/api/chat/visitor-delete-token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ visitorId }),
   });
   if (!res.ok) throw new Error('Failed to get delete token');

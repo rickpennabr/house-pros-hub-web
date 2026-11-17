@@ -50,7 +50,8 @@ export function CustomerStep2({
             </span>
             <span>{tFields('searchAddressLabel')}</span>
           </span>
-        } 
+        }
+        required
         error={errors.streetAddress?.message}
         tip="Address where services will be provided."
       >
@@ -79,7 +80,7 @@ export function CustomerStep2({
       </FormField>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField label={tFields('cityLabel')} error={errors.city?.message}>
+        <FormField label={tFields('cityLabel')} required error={errors.city?.message}>
           <Input
             {...register('city')}
             id="city"
@@ -88,11 +89,12 @@ export function CustomerStep2({
             showClear
             placeholder={tFields('cityPlaceholder')}
             disabled={isSubmitting}
+            required
             error={errors.city?.message}
           />
         </FormField>
 
-        <FormField label={tFields('stateLabel')} error={errors.state?.message}>
+        <FormField label={tFields('stateLabel')} required error={errors.state?.message}>
           <Input
             {...register('state')}
             id="state"
@@ -101,12 +103,13 @@ export function CustomerStep2({
             showClear
             placeholder={tFields('statePlaceholder')}
             disabled={isSubmitting}
+            required
             error={errors.state?.message}
           />
         </FormField>
       </div>
 
-      <FormField label={tFields('zipLabel')} error={errors.zipCode?.message}>
+      <FormField label={tFields('zipLabel')} required error={errors.zipCode?.message}>
         <Input
           {...register('zipCode')}
           id="zipCode"
@@ -115,6 +118,7 @@ export function CustomerStep2({
           showClear
           placeholder={tFields('zipPlaceholder')}
           disabled={isSubmitting}
+          required
           error={errors.zipCode?.message}
         />
       </FormField>
