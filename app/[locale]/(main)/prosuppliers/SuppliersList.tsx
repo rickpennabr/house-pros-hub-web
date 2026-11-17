@@ -1,43 +1,36 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Search, AlertCircle, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertCircle } from 'lucide-react';
 import SupplierCard, { type Supplier } from './SupplierCard';
-import SuppliersMap from './SuppliersMap';
-import { loadSuppliers } from '@/lib/data/suppliers';
 import { Button } from '@/components/ui/Button';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 
-export default function SuppliersList() {
+const SuppliersMap = dynamic(() => import('./SuppliersMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full w-full items-center justify-center rounded-lg border-2 border-black bg-gray-50 text-sm text-gray-600">
+      Loading map…
+    </div>
+  ),
+});
+
+interface SuppliersListProps {
+  initialSuppliers: Supplier[];
+}
+
+export default function SuppliersList({ initialSuppliers }: SuppliersListProps) {
   const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null);
   const [hoveredSupplier, setHoveredSupplier] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [view, setView] = useState<ViewType>('list');
   const [isMobile, setIsMobile] = useState(false);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [suppliersLoading, setSuppliersLoading] = useState(true);
-  const [suppliersError, setSuppliersError] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const [mapFailed, setMapFailed] = useState(false);
+  const suppliers = initialSuppliers;
 
-  useEffect(() => {
-    let cancelled = false;
-    loadSuppliers()
-      .then((rows) => {
-        if (!cancelled) setSuppliers(rows);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setSuppliersError(err instanceof Error ? err.message : 'Could not load suppliers');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setSuppliersLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
   const canHoverPin = () =>
@@ -53,24 +46,41 @@ export default function SuppliersList() {
   };
 
   useEffect(() => {
-    if (!apiKey) {
-      console.error('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set in environment variables');
-    }
-  }, [apiKey]);
-
-  // Check if mobile on mount and resize
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
-
-    return () => {
-      window.removeEventListener('resize', checkMobile);
-    };
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Desktop always shows the map pane — wait for idle so list HTML paints first.
+  // Mobile only loads Maps when the user opens map view.
+  useEffect(() => {
+    const wantsMap = !isMobile || view === 'map';
+    if (!wantsMap) {
+      setMapReady(false);
+      return;
+    }
+    let cancelled = false;
+    const arm = () => {
+      if (!cancelled) setMapReady(true);
+    };
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      const idleId = idleWindow.requestIdleCallback(arm, { timeout: 1200 });
+      return () => {
+        cancelled = true;
+        idleWindow.cancelIdleCallback?.(idleId);
+      };
+    }
+    const timer = window.setTimeout(arm, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [isMobile, view]);
 
   const filteredSuppliers = useMemo(() => {
     const searchLower = searchTerm.trim().toLowerCase();
@@ -85,58 +95,27 @@ export default function SuppliersList() {
     });
   }, [suppliers, searchTerm]);
 
+  const showMapPane = !isMobile || view === 'map';
+
   const renderMapError = () => (
-    <div className="w-full h-full flex items-center justify-center border-2 border-black rounded-lg bg-gray-50">
-      <div className="text-center max-w-md px-4">
-        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
-        <h2 className="text-2xl font-bold text-black mb-2">Map Configuration Error</h2>
+    <div className="flex h-full w-full items-center justify-center rounded-lg border-2 border-black bg-gray-50">
+      <div className="max-w-md px-4 text-center">
+        <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
+        <h2 className="mb-2 text-2xl font-bold text-black">Map Configuration Error</h2>
         {!apiKey ? (
-          <>
-            <p className="text-gray-700 mb-4">
-              Google Maps API key is missing. Please configure it in your environment variables.
-            </p>
-            <div className="text-sm text-gray-600 text-left space-y-2 mb-4 bg-gray-100 p-4 rounded">
-              <p className="font-semibold">Setup Steps:</p>
-              <ol className="list-decimal list-inside space-y-1 ml-2">
-                <li>Create a project in Google Cloud Console</li>
-                <li>Enable <strong>Maps JavaScript API</strong></li>
-                <li>Enable <strong>Billing</strong> (required by Google)</li>
-                <li>Create an API key</li>
-                <li>Add to <code className="bg-white px-1 rounded">.env.local</code>:
-                  <div className="bg-white p-2 rounded mt-1 font-mono text-xs">
-                    NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_key_here
-                  </div>
-                </li>
-                <li>Restart your dev server</li>
-              </ol>
-            </div>
-          </>
+          <p className="mb-4 text-gray-700">
+            Google Maps API key is missing. Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY and restart the server.
+          </p>
         ) : (
-          <>
-            <p className="text-gray-700 mb-4">
-              There was an error loading Google Maps. This usually means:
-            </p>
-            <div className="text-sm text-gray-600 text-left space-y-2 mb-4 bg-gray-100 p-4 rounded">
-              <p className="font-semibold">Common issues:</p>
-              <ol className="list-decimal list-inside space-y-1 ml-2">
-                <li><strong>Maps JavaScript API</strong> not enabled</li>
-                <li><strong>Billing</strong> not set up on your Google Cloud project</li>
-                <li>API key is invalid or expired</li>
-                <li>API key restrictions block your domain</li>
-                <li><strong>RefererNotAllowedMapError</strong> on mobile or LAN: add your URL (e.g. <code>http://192.168.0.26:3000/*</code>) under API key → Application restrictions → HTTP referrers</li>
-                <li>You've exceeded your quota</li>
-              </ol>
-              <p className="text-xs text-gray-500 mt-3">
-                Check the browser console for the specific error message
-              </p>
-            </div>
-          </>
+          <p className="mb-4 text-gray-700">
+            There was an error loading Google Maps. Check billing, API enablement, and key restrictions.
+          </p>
         )}
         <a
           href="https://console.cloud.google.com/google/maps-apis"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-block px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+          className="inline-block rounded-lg bg-black px-4 py-2 text-white transition-colors hover:bg-gray-800"
         >
           Open Google Cloud Console
         </a>
@@ -149,44 +128,20 @@ export default function SuppliersList() {
       <div className={`flex min-h-0 w-full flex-col lg:w-[30%] lg:flex-none ${isMobile && view === 'map' ? 'shrink-0' : 'flex-1'}`}>
         <div className="mb-2 shrink-0 bg-white p-1 md:p-2">
           <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500" />
-              <input
-                type="text"
-                placeholder="Find all Suppliers and Materials."
-                value={searchTerm}
-                onChange={(event) => {
-                  setSearchTerm(event.target.value);
-                  setSelectedSupplier(null);
-                }}
-                className="h-10 w-full rounded-md border-2 border-red-500 bg-white pl-8 pr-8 text-base text-black placeholder:text-base focus:border-red-600 focus:outline-none md:placeholder:text-xs"
-              />
-              {searchTerm ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTerm('');
-                    setSelectedSupplier(null);
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
-                  aria-label="Clear search"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              ) : null}
-            </div>
+            <TypingSearchInput
+              value={searchTerm}
+              onChange={(value) => {
+                setSearchTerm(value);
+                setSelectedSupplier(null);
+              }}
+              placeholder="Find all Suppliers and Materials."
+              clearLabel="Clear search"
+              inputClassName="h-10 w-full rounded-md border-2 border-red-500 bg-white pl-10 pr-8 text-base text-black placeholder:text-base focus:border-red-600 focus:outline-none md:placeholder:text-xs"
+            />
           </div>
         </div>
         <div className={`min-h-0 flex-1 space-y-3 overflow-y-auto px-1 ${isMobile && view === 'map' ? 'hidden' : ''} ${isMobile ? 'pb-28' : ''}`}>
-          {suppliersLoading ? (
-            <div className="flex w-full items-center justify-center py-12 text-center">
-              <p className="text-lg text-gray-600">Loading suppliers...</p>
-            </div>
-          ) : suppliersError ? (
-            <div className="flex w-full items-center justify-center py-12 text-center">
-              <p className="text-lg text-gray-600">{suppliersError}</p>
-            </div>
-          ) : filteredSuppliers.length === 0 ? (
+          {filteredSuppliers.length === 0 ? (
             <div className="flex w-full items-center justify-center py-12 text-center">
               <p className="text-lg text-gray-600">
                 {searchTerm ? `No suppliers found matching "${searchTerm}"` : 'No suppliers found'}
@@ -208,7 +163,6 @@ export default function SuppliersList() {
       </div>
 
       <div className={`${isMobile ? (view === 'map' ? 'relative min-h-0 w-full flex-1' : 'hidden') : 'relative min-h-0 flex-1 lg:w-[70%] lg:flex-none'}`}>
-        {/* Search bar overlay on map removed on mobile - using top navigation instead */}
         {selectedSupplier !== null && (
           <Button
             variant="secondary"
@@ -221,7 +175,7 @@ export default function SuppliersList() {
         )}
         {mapFailed || !apiKey ? (
           renderMapError()
-        ) : !isMobile || view === 'map' ? (
+        ) : showMapPane && mapReady ? (
           <SuppliersMap
             apiKey={apiKey}
             suppliers={filteredSuppliers}
@@ -232,6 +186,10 @@ export default function SuppliersList() {
             onHoverEnd={clearSupplierHover}
             onError={() => setMapFailed(true)}
           />
+        ) : showMapPane ? (
+          <div className="flex h-full w-full items-center justify-center rounded-lg border-2 border-black bg-gray-50 text-sm text-gray-600">
+            Loading map…
+          </div>
         ) : null}
       </div>
       {isMobile ? (

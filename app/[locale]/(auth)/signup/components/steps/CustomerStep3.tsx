@@ -177,6 +177,7 @@ export function CustomerStep3() {
             <TipModal message="The rules and information on how the platform www.houseproshub.com operates." hoverOnly />
           </span>
         </label>
+        <p className="mt-2 text-xs text-gray-500 leading-snug">{tTerms('connectionDisclaimer')}</p>
         {errors.agreeToTerms && (
           <p className="mt-1 text-xs text-red-600">{errors.agreeToTerms.message}</p>
         )}

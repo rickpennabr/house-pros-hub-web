@@ -3,9 +3,10 @@
 import { useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { QrCode, Search, X } from 'lucide-react';
+import { QrCode } from 'lucide-react';
 import { AdminAccountButton } from './AdminAccountButton';
 import { NotificationBellDropdown } from './NotificationBellDropdown';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { useAdminSearch } from './AdminSearchContext';
 
 interface AdminHeaderProps {
@@ -19,11 +20,6 @@ interface AdminHeaderProps {
 export function AdminHeader({ userEmail, notificationCount = 0, onMarkAllRead }: AdminHeaderProps) {
   const { searchQuery, setSearchQuery } = useAdminSearch();
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  const handleClear = () => {
-    setSearchQuery('');
-    searchInputRef.current?.focus();
-  };
 
   return (
     <header className="w-full h-[60px] border-b-2 border-black px-2 md:px-2 py-2 md:py-2 bg-white sticky top-0 z-50 shrink-0">
@@ -50,27 +46,16 @@ export function AdminHeader({ userEmail, notificationCount = 0, onMarkAllRead }:
 
         {/* Center: Search bar — desktop only; on mobile search is in sidebar row */}
         <div className="flex-1 min-w-0 hidden md:flex items-center justify-center px-2">
-          <div className="relative w-full max-w-xl">
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search…"
-              className="w-full h-10 pl-9 pr-9 border-2 border-black dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a1a] focus:outline-none text-black dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm"
-            />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none w-4 h-4" />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={handleClear}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-gray-100 transition-colors cursor-pointer p-0.5"
-                aria-label="Clear search"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+          <TypingSearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search…"
+            clearLabel="Clear search"
+            inputRef={searchInputRef}
+            className="relative w-full max-w-xl"
+            inputClassName="h-10 w-full rounded-lg border-2 border-black bg-white pl-9 pr-9 text-sm text-black placeholder-gray-500 focus:outline-none dark:border-gray-600 dark:bg-[#1a1a1a] dark:text-gray-100 dark:placeholder-gray-400"
+            iconClassName="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500"
+          />
         </div>
 
         {/* Right: site QR, notifications, account */}

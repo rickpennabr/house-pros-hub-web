@@ -19,6 +19,7 @@ import {
   Umbrella,
   Sparkles,
   Hammer,
+  Hand,
   Waves,
   Sun,
   Shield,
@@ -36,7 +37,8 @@ export interface CategoryItem {
 
 export const SERVICE_CATEGORIES: CategoryItem[] = [
   { label: 'General Contractor', icon: Home, color: 'text-gray-700' },
-  { label: 'Handyman', icon: Wrench, color: 'text-orange-600' },
+  { label: 'Handyman', icon: Hand, color: 'text-orange-600' },
+  { label: 'Installer', icon: Wrench, color: 'text-slate-600' },
   { label: 'Landscape', icon: TreePine, color: 'text-green-600' },
   { label: 'Pavers', icon: Square, color: 'text-amber-700' },
   { label: 'Concrete', icon: Box, color: 'text-gray-600' },
@@ -76,7 +78,7 @@ const DEFAULT_CATEGORY_ITEM: CategoryItem = { label: '', icon: Wrench, color: 't
 
 /**
  * Return CategoryItem for a label; use SERVICE_CATEGORIES when there's an exact match,
- * otherwise return a default (e.g. for "Handyman Interior", "Handyman Exterior").
+ * otherwise return a default icon for unknown labels.
  */
 export function getCategoryItemForLabel(label: string): CategoryItem {
   if (!label) return DEFAULT_CATEGORY_ITEM;

@@ -3,14 +3,59 @@
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { HardHat, User, Wrench } from 'lucide-react';
+import { Hand, HardHat, User } from 'lucide-react';
 import { GrUserWorker } from 'react-icons/gr';
 import { FaPersonShelter } from 'react-icons/fa6';
 import Logo from '@/components/Logo';
+import { ProRoleScopeNotice } from '@/components/auth/ProRoleScopeNotice';
+import type { ProAccountRole } from '@/lib/utils/proAccountRole';
 
 interface RoleSelectionScreenProps {
   onRoleSelect: (role: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman') => void;
   isLoading?: boolean;
+}
+
+function ProRoleCard({
+  role,
+  title,
+  invitationLabel,
+  description,
+  icon,
+  disabled,
+  onSelect,
+}: {
+  role: ProAccountRole;
+  title: string;
+  invitationLabel: string;
+  description: string;
+  icon: React.ReactNode;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <div className="w-full border-2 border-black rounded-lg bg-white overflow-hidden transition-all duration-300 hover:scale-[1.02]">
+      <button
+        type="button"
+        onClick={onSelect}
+        disabled={disabled}
+        className="w-full p-2 bg-white hover:bg-gray-50 active:bg-gray-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+      >
+        <div className="flex items-center gap-4">
+          <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+            {icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-semibold text-black leading-snug">{title}</h3>
+            <p className="text-xs font-normal text-red-500">{invitationLabel}</p>
+            <p className="text-sm text-gray-600">{description}</p>
+          </div>
+        </div>
+      </button>
+      <div className="px-2 pb-2">
+        <ProRoleScopeNotice role={role} compact />
+      </div>
+    </div>
+  );
 }
 
 export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSelectionScreenProps) {
@@ -58,95 +103,45 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
           </div>
         </button>
 
-        {/* Contractor Option (invitation code required) */}
-        <button
-          type="button"
-          onClick={() => onRoleSelect('contractor')}
+        <ProRoleCard
+          role="contractor"
+          title={t('contractor.title')}
+          invitationLabel={t('contractor.invitationCodeRequired')}
+          description={t('contractor.description')}
+          icon={<GrUserWorker className="w-6 h-6 text-red-500" />}
           disabled={isLoading}
-          className="w-full p-2 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
-        >
-          <div className="flex items-center gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
-              <GrUserWorker className="w-6 h-6 text-red-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-black leading-snug">
-                {t('contractor.title')}
-              </h3>
-              <p className="text-xs font-normal text-red-500">{t('contractor.invitationCodeRequired')}</p>
-              <p className="text-sm text-gray-600">
-                {t('contractor.description')}
-              </p>
-            </div>
-          </div>
-        </button>
+          onSelect={() => onRoleSelect('contractor')}
+        />
 
-        <button
-          type="button"
-          onClick={() => onRoleSelect('installer')}
+        <ProRoleCard
+          role="installer"
+          title={t('installer.title')}
+          invitationLabel={t('installer.invitationCodeRequired')}
+          description={t('installer.description')}
+          icon={<HardHat className="w-6 h-6 text-red-500" />}
           disabled={isLoading}
-          className="w-full p-2 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
-        >
-          <div className="flex items-center gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
-              <HardHat className="w-6 h-6 text-red-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-black leading-snug">
-                {t('installer.title')}
-              </h3>
-              <p className="text-xs font-normal text-red-500">{t('installer.invitationCodeRequired')}</p>
-              <p className="text-sm text-gray-600">
-                {t('installer.description')}
-              </p>
-            </div>
-          </div>
-        </button>
+          onSelect={() => onRoleSelect('installer')}
+        />
 
-        <button
-          type="button"
-          onClick={() => onRoleSelect('handyman')}
+        <ProRoleCard
+          role="handyman"
+          title={t('handyman.title')}
+          invitationLabel={t('handyman.invitationCodeRequired')}
+          description={t('handyman.description')}
+          icon={<Hand className="w-6 h-6 text-red-500" />}
           disabled={isLoading}
-          className="w-full p-2 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
-        >
-          <div className="flex items-center gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
-              <Wrench className="w-6 h-6 text-red-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-black leading-snug">
-                {t('handyman.title')}
-              </h3>
-              <p className="text-xs font-normal text-red-500">{t('handyman.invitationCodeRequired')}</p>
-              <p className="text-sm text-gray-600">
-                {t('handyman.description')}
-              </p>
-            </div>
-          </div>
-        </button>
+          onSelect={() => onRoleSelect('handyman')}
+        />
 
-        {/* Realtor Option (invitation code required) */}
-        <button
-          type="button"
-          onClick={() => onRoleSelect('realtor')}
+        <ProRoleCard
+          role="realtor"
+          title={t('realtor.title')}
+          invitationLabel={t('realtor.invitationCodeRequired')}
+          description={t('realtor.description')}
+          icon={<FaPersonShelter className="w-6 h-6 text-red-500" />}
           disabled={isLoading}
-          className="w-full p-2 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left group"
-        >
-          <div className="flex items-center gap-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
-              <FaPersonShelter className="w-6 h-6 text-red-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-black leading-snug">
-                {t('realtor.title')}
-              </h3>
-              <p className="text-xs font-normal text-red-500">{t('realtor.invitationCodeRequired')}</p>
-              <p className="text-sm text-gray-600">
-                {t('realtor.description')}
-              </p>
-            </div>
-          </div>
-        </button>
+          onSelect={() => onRoleSelect('realtor')}
+        />
       </div>
 
       {/* Already have an account */}
@@ -173,4 +168,3 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
     </div>
   );
 }
-

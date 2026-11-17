@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ProductVariant, ProProduct } from '@/lib/products/types';
 
+/** Full product payload for detail pages and admin. */
 export const CATALOG_SELECT = `
   base_product_id,
   product_name,
@@ -22,6 +23,26 @@ export const CATALOG_SELECT = `
     color:colors(color_name),
     thickness:thicknesses(thickness_mm, thickness_in),
     images:product_images(image_path)
+  )
+`;
+
+/** Card/grid payload: no specs or variant images (use product.image_url). */
+export const CATALOG_LIST_SELECT = `
+  base_product_id,
+  product_name,
+  product_type,
+  product_note,
+  image_url,
+  created_at,
+  updated_at,
+  brand:brands(brand_name),
+  variants:product_variants(
+    variant_id,
+    size,
+    sqft_pallet,
+    sqft_layer,
+    color:colors(color_name),
+    thickness:thicknesses(thickness_mm, thickness_in)
   )
 `;
 
@@ -127,17 +148,31 @@ export function mapCatalogProduct(row: CatalogProductRow): ProProduct {
 const SPECS_EMBED = 'specs:product_specs(spec_name, spec_value, sort_order),';
 
 async function runCatalogQuery<T>(
-  run: (select: string) => PromiseLike<{ data: T; error: { message?: string } | null }>
+  run: (select: string) => PromiseLike<{ data: T; error: { message?: string } | null }>,
+  select = CATALOG_SELECT
 ): Promise<{ data: T; error: { message?: string } | null }> {
-  const withSpecs = await run(CATALOG_SELECT);
-  if (withSpecs.error && /product_specs/i.test(withSpecs.error.message ?? '')) {
+  const withSpecs = await run(select);
+  if (select === CATALOG_SELECT && withSpecs.error && /product_specs/i.test(withSpecs.error.message ?? '')) {
     return run(CATALOG_SELECT.replace(SPECS_EMBED, ''));
   }
   return withSpecs;
 }
 
+/** Full catalog rows (admin / detail-adjacent). Includes specs and variant images. */
 export async function listCatalogProducts(service: SupabaseClient): Promise<ProProduct[]> {
-  const result = await runCatalogQuery((select) => service.from('base_products').select(select).order('product_name'));
+  const result = await runCatalogQuery((select) =>
+    service.from('base_products').select(select).order('product_name')
+  );
+  if (result.error) throw result.error;
+  return ((result.data ?? []) as unknown as CatalogProductRow[]).map(mapCatalogProduct);
+}
+
+/** Public grid cards — no specs or variant images. */
+export async function listCatalogProductCards(service: SupabaseClient): Promise<ProProduct[]> {
+  const result = await runCatalogQuery(
+    (select) => service.from('base_products').select(select).order('product_name'),
+    CATALOG_LIST_SELECT
+  );
   if (result.error) throw result.error;
   return ((result.data ?? []) as unknown as CatalogProductRow[]).map(mapCatalogProduct);
 }
@@ -145,6 +180,20 @@ export async function listCatalogProducts(service: SupabaseClient): Promise<ProP
 export async function getCatalogProduct(service: SupabaseClient, id: number): Promise<ProProduct | null> {
   const result = await runCatalogQuery((select) =>
     service.from('base_products').select(select).eq('base_product_id', id).maybeSingle()
+  );
+  if (result.error) throw result.error;
+  if (!result.data) return null;
+  return mapCatalogProduct(result.data as unknown as CatalogProductRow);
+}
+
+export async function getCatalogProductByName(
+  service: SupabaseClient,
+  name: string
+): Promise<ProProduct | null> {
+  const needle = name.trim();
+  if (!needle) return null;
+  const result = await runCatalogQuery((select) =>
+    service.from('base_products').select(select).ilike('product_name', needle).limit(1).maybeSingle()
   );
   if (result.error) throw result.error;
   if (!result.data) return null;

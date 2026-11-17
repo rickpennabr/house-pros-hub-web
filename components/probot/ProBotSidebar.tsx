@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { ChevronLeft, ChevronRight, MessageCircle, Users, Building2, User, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageCircle, Users, Building2, User, X } from 'lucide-react';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 
 export interface ProBotContact {
@@ -266,28 +267,16 @@ export default function ProBotSidebar({
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Search bar at top - mobile and PC when sidebar is expanded */}
           <div className="shrink-0 min-h-[60px] w-full pl-2 pr-2 pt-3 pb-2 flex items-center justify-center border-b-2 border-black bg-white">
-            <div className="relative w-full min-w-0 flex items-center">
-              <input
-                ref={sidebarSearchInputRef}
-                type="text"
-                value={sidebarSearchQuery}
-                onChange={(e) => setSidebarSearchQuery(e.target.value)}
-                placeholder={t('searchContacts')}
-                className="w-full h-10 min-w-0 pl-9 pr-8 border-2 border-black rounded-lg bg-white text-gray-900 text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
-                aria-label={t('searchContacts')}
-              />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-              {sidebarSearchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSidebarSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1"
-                  aria-label={t('closeSearch')}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+            <TypingSearchInput
+              value={sidebarSearchQuery}
+              onChange={setSidebarSearchQuery}
+              placeholder={t('searchContacts')}
+              clearLabel={t('closeSearch')}
+              inputRef={sidebarSearchInputRef}
+              className="relative w-full min-w-0"
+              inputClassName="h-10 w-full min-w-0 rounded-lg border-2 border-black bg-white pl-9 pr-8 text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+              iconClassName="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500"
+            />
           </div>
 
           {/* Contacts list; on mobile search bar at top filters contacts */}

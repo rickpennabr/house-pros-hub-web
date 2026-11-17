@@ -20,11 +20,17 @@ export default async function TermsOfServicePage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
+  const tPage = await getTranslations({ locale, namespace: 'legal.terms' });
   const t = await getTranslations({ locale, namespace: 'legal.terms.sections' });
   return (
     <div className="max-w-4xl mx-auto pb-8 md:pb-12">
       <div className="bg-white pb-6 md:pb-8">
           <div className="prose prose-sm max-w-none text-gray-800 space-y-6">
+            <aside className="not-prose rounded-lg border-2 border-black bg-gray-50 p-4 md:p-5">
+              <h2 className="text-lg font-bold text-black mb-2">{tPage('highlightDisclaimer.title')}</h2>
+              <p className="text-sm text-gray-800 leading-relaxed">{tPage('highlightDisclaimer.content')}</p>
+            </aside>
+
             <section>
               <h2 className="text-2xl font-bold text-black mb-4">{t('agreementToTerms.title')}</h2>
               <p>
@@ -36,6 +42,18 @@ export default async function TermsOfServicePage({
               <h2 className="text-2xl font-bold text-black mb-4">{t('platformDescription.title')}</h2>
               <p>
                 {t('platformDescription.content')}
+              </p>
+              <h3 className="text-xl font-semibold text-black mt-4 mb-2">{t('platformDescription.connectionOnly.title')}</h3>
+              <p>
+                {t('platformDescription.connectionOnly.content')}
+              </p>
+              <h3 className="text-xl font-semibold text-black mt-4 mb-2">{t('platformDescription.noEmploymentOrAgency.title')}</h3>
+              <p>
+                {t('platformDescription.noEmploymentOrAgency.content')}
+              </p>
+              <h3 className="text-xl font-semibold text-black mt-4 mb-2">{t('platformDescription.scopeOfLaunch.title')}</h3>
+              <p>
+                {t('platformDescription.scopeOfLaunch.content')}
               </p>
             </section>
 
@@ -109,6 +127,14 @@ export default async function TermsOfServicePage({
               <h3 className="text-xl font-semibold text-black mt-4 mb-2">{t('platformLiability.notAParty.title')}</h3>
               <p>
                 {t('platformLiability.notAParty.content')}
+              </p>
+              <h3 className="text-xl font-semibold text-black mt-4 mb-2">{t('platformLiability.noVettingWarranty.title')}</h3>
+              <p>
+                {t('platformLiability.noVettingWarranty.content')}
+              </p>
+              <h3 className="text-xl font-semibold text-black mt-4 mb-2">{t('platformLiability.releaseForJobs.title')}</h3>
+              <p>
+                {t('platformLiability.releaseForJobs.content')}
               </p>
               <h3 className="text-xl font-semibold text-black mt-4 mb-2">{t('platformLiability.userGeneratedContent.title')}</h3>
               <p>
@@ -199,7 +225,7 @@ export default async function TermsOfServicePage({
                 {t('entireAgreement.content')}
               </p>
               <p className="mt-2 text-sm text-gray-600">
-                <strong>Last Updated:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                <strong>Last Updated:</strong> {tPage('lastUpdated')}
               </p>
             </section>
           </div>
@@ -207,4 +233,3 @@ export default async function TermsOfServicePage({
     </div>
   );
 }
-

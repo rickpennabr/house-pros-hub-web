@@ -412,10 +412,27 @@
     "empty": "Todavía no hay productos.",
     "unavailable": "Los productos todavía no están listos.",
     "back": "Volver a ProProducts",
+    "detailsTitle": "Detalles del producto",
+    "shareTitle": "Compartir producto",
+    "noPhoto": "Todavía sin foto",
     "search": "Buscar un producto...",
+    "searchHardscape": "Buscar producto de Hardscape de todas las marcas",
+    "clearSearch": "Borrar búsqueda",
+    "filter": "Filtrar productos",
+    "filtersTitle": "Opciones de búsqueda y filtro",
+    "clearFilters": "Borrar filtros",
+    "applyFilters": "Listo",
     "brand": "Marca",
     "type": "Tipo",
+    "allBrands": "Todas las marcas",
     "allTypes": "Todos los tipos",
+    "allThicknesses": "Todos los espesores",
+    "allColors": "Todos los colores",
+    "trade": "Oficio",
+    "allTrades": "Todos los oficios",
+    "trades": {
+      "hardscape": "Hardscape"
+    },
     "productData": "Datos del producto",
     "description": "Descripción",
     "noDescription": "Todavía no hay descripción.",
@@ -470,7 +487,7 @@
     "boardTitle": "ProJobs",
     "selectJob": "Selecciona un empleo para ver los detalles",
     "noJobs": "Ningún empleo coincide con estos filtros.",
-    "emptyPublic": "Ningún empleo coincide con estos filtros. Sé el primero en publicar una vacante.",
+    "emptyPublic": "Ningún empleo coincide con estos filtros. Para publicar un empleo debes ser contratista o agente inmobiliario.",
     "emptyContractor": "Ningún empleo coincide con estos filtros. Sé el primero en publicar una vacante para tu equipo.",
     "dollarReais": "Un dólar en reales",
     "mapNeedsKey": "El mapa de empleos necesita una clave de Google Maps.",
@@ -486,7 +503,7 @@
     "state": "Estado",
     "payPlaceholder": "$24–$32/h",
     "categoryRequired": "Elige un oficio.",
-    "contractorOnly": "Solo los contratistas pueden publicar empleos.",
+    "contractorOnly": "Solo contratistas o agentes inmobiliarios pueden publicar empleos.",
     "businessRequired": "Agrega un negocio activo antes de publicar un empleo.",
     "phoneRequired": "Agrega un teléfono en tu negocio antes de publicar un empleo.",
     "postFailed": "No se pudo publicar este empleo.",
@@ -883,6 +900,59 @@
         "alreadyHaveAccount": "¿Ya tienes una cuenta?",
         "signInLink": "Iniciar sesión"
       },
+      "roleScope": {
+        "hubTitle": "En el Hub puedes",
+        "lawTitle": "La ley de Nevada permite",
+        "disclaimer": "Esto no es asesoría legal. Confirma con NSCB, NRED, el municipio o tu abogado antes de aceptar trabajos. Ciudades y condados pueden agregar reglas.",
+        "contractor": {
+          "hub": [
+            "Publicar un Pro Card y perfil de negocio",
+            "Usar CRM (clientes, presupuestos, facturas, trabajos)",
+            "Usar ProDrive, mensajería y listar servicios con licencia"
+          ],
+          "law": [
+            "Actuar como contratista solo con la licencia NSCB correspondiente (NRS 624)",
+            "Trabajar solo dentro de tu clasificación licenciada (A / B / C)",
+            "Cotizar, anunciar y realizar construcción, alteraciones o mejoras permanentes cuando estés licenciado"
+          ]
+        },
+        "installer": {
+          "hub": [
+            "Crear una página de instalador compartible (no aparece en Pro Cards públicos)",
+            "Armar un ProResume y compartir el enlace de tu perfil",
+            "Conectar con contratistas para trabajos de instalación en el Hub"
+          ],
+          "law": [
+            "Nevada no tiene una licencia separada de “instalador”",
+            "Instalar productos terminados que no se vuelvan parte fija permanente de la estructura (NRS 624.031(7))",
+            "Fijaciones permanentes, trabajos con permiso, electricidad, plomería o HVAC generalmente requieren licencia de contratista"
+          ]
+        },
+        "handyman": {
+          "hub": [
+            "Crear una página de handyman compartible (no aparece en Pro Cards públicos)",
+            "Compartir el enlace de tu perfil para reparaciones pequeñas",
+            "Usar herramientas del Hub para arreglos residenciales menores"
+          ],
+          "law": [
+            "Nevada no tiene licencia de handyman; la exención de reparación menor está en NRS 624.031(6)",
+            "Reparar o mantener propiedad por menos de US$ 1,000 (mano de obra + materiales), con límites estrictos",
+            "Sin licencia de contratista no puedes: trabajos con permiso, plomería, electricidad, HVAC/refrigeración, oficios de salud/seguridad, ni dividir cotizaciones para quedar bajo el límite"
+          ]
+        },
+        "realtor": {
+          "hub": [
+            "Publicar un Pro Card como agente inmobiliario",
+            "Mostrar la correduría y la licencia de Nevada en tu perfil",
+            "Usar herramientas de realtor del Hub con clientes y socios"
+          ],
+          "law": [
+            "Debes tener licencia de la Nevada Real Estate Division (NRS 645): Salesperson, Broker-salesperson o Broker",
+            "Anuncios y listados públicos deben mostrar el nombre de la correduría y el número de licencia",
+            "Una licencia de realtor no es licencia de contratista: construcción o instalación permanente aún requiere NSCB cuando aplique"
+          ]
+        }
+      },
       "customerSignupChoice": {
         "title": "¿Cómo quieres registrarte?",
         "estimateHint": "Ingresa tu información para los presupuestos GRATIS.",
@@ -1025,7 +1095,8 @@
         "and": "y la",
         "privacyPolicy": "Política de privacidad",
         "suffix": "para crear una cuenta personal.",
-        "suffixContractor": "para crear una cuenta de contratista."
+        "suffixContractor": "para crear una cuenta de contratista.",
+        "connectionDisclaimer": "House Pros Hub solo conecta clientes con Pros independientes. No realizamos el trabajo, no somos parte de su servicio y no somos responsables de los servicios, pagos, licencias o resultados de los Pros. Consulte los Términos para el aviso completo de solo conexión (Nevada)."
       }
     },
     "welcomeEmail": {
@@ -1588,6 +1659,7 @@
     "general": "Contratista General",
     "general contractor": "Contratista General",
     "handyman": "Manitas",
+    "installer": "Instalador",
     "landscape": "Paisajismo",
     "pavers": "Adoquines",
     "concrete": "Concreto",
@@ -1814,14 +1886,31 @@
     "terms": {
       "title": "Términos de Servicio | House Pros Hub",
       "description": "Términos de Servicio para la plataforma de mercado House Pros Hub",
+      "highlightDisclaimer": {
+        "title": "Importante: House Pros Hub solo conecta",
+        "content": "House Pros Hub es solo una plataforma de conexión. No realizamos mejoras del hogar, reparaciones, instalaciones, servicios inmobiliarios u otros servicios profesionales. No somos contratista, handyman, instalador, agente inmobiliario, empleador, garante, aseguradora ni parte de su trabajo. Cualquier trabajo, pago, licencia, permiso, seguro, calidad, seguridad, plazo o disputa es exclusivamente entre usted y el profesional independiente que elija. Enfoque actual en Nevada; otros estados pueden agregarse después bajo estos Términos y cualquier Término Estatal Complementario."
+      },
+      "lastUpdated": "16 de noviembre de 2026",
       "sections": {
         "agreementToTerms": {
           "title": "1. Acuerdo de Términos",
-          "content": "Al acceder o usar House Pros Hub (\"Plataforma\", \"nosotros\", \"nos\" o \"nuestro\"), usted acepta estar sujeto a estos Términos de Servicio (\"Términos\"). Si no está de acuerdo con estos Términos, no puede acceder ni usar la Plataforma."
+          "content": "Al acceder o usar House Pros Hub (\"Plataforma\", \"nosotros\", \"nos\" o \"nuestro\"), usted acepta estar sujeto a estos Términos de Servicio (\"Términos\"). Si no está de acuerdo, no puede acceder ni usar la Plataforma. Estos Términos incluyen el aviso de solo conexión, límites de responsabilidad, indemnización, arbitraje y las disposiciones de ley de Nevada a continuación."
         },
         "platformDescription": {
-          "title": "2. Descripción de la Plataforma",
-          "content": "House Pros Hub es una plataforma de mercado que conecta a clientes que buscan servicios de mejoras y reparaciones para el hogar con contratistas y proveedores de servicios independientes. Proporcionamos una plataforma para que los usuarios descubran, se conecten y se comuniquen con proveedores de servicios. No proporcionamos los servicios nosotros mismos, ni somos parte de ningún acuerdo entre clientes y contratistas."
+          "title": "2. Descripción de la Plataforma; servicio solo de conexión",
+          "content": "House Pros Hub es un marketplace y directorio en línea que ayuda a los clientes a descubrir y conectarse con profesionales independientes (incluidos contratistas, instaladores, handymen, agentes inmobiliarios y otros proveedores, en conjunto \"Pros\"). Proporcionamos software para perfiles, mensajería, presupuestos y funciones del Hub. Nosotros no prestamos construcción, reparación, instalación, remodelación, corretaje inmobiliario u otros servicios de campo.",
+          "connectionOnly": {
+            "title": "2.1 Solo conexión — no somos parte del trabajo",
+            "content": "LA PLATAFORMA SOLO FACILITA PRESENTACIONES Y COMUNICACIÓN. Cualquier presupuesto, oferta, contrato, cita, servicio, material, mano de obra, pago, reembolso, garantía, gravamen, daño, lesión, demora o disputa que surja de un trabajo o transacción inmobiliaria es exclusivamente entre el cliente y el Pro. House Pros Hub no es comprador, vendedor, contratista, subcontratista, contratista general, gerente de proyecto, agente, corredor de registro de su transacción, empleador, joint venture ni aseguradora de ninguna parte, y no es responsable del trabajo."
+          },
+          "noEmploymentOrAgency": {
+            "title": "2.2 Sin empleo, agencia ni sociedad",
+            "content": "Los Pros son negocios o personas independientes. Nada en estos Términos crea una relación de empleo, agencia, franquicia, sociedad o joint venture entre House Pros Hub y cualquier Pro o cliente. Los Pros fijan sus propios precios, horarios, métodos, herramientas y personal, y controlan cómo realizan los servicios."
+          },
+          "scopeOfLaunch": {
+            "title": "2.3 Enfoque en Nevada; estados futuros",
+            "content": "House Pros Hub opera actualmente con enfoque principal en Nevada (incluido el mercado de Las Vegas / Condado de Clark). Podemos expandirnos a otros estados de EE. UU. En ese caso, estos Términos siguen aplicando y podemos publicar Términos Estatales Complementarios. Las reglas de licencias, permisos y publicidad las determina el estado y la localidad donde se ofrecen o realizan los servicios. Los usuarios son los únicos responsables de cumplir las leyes de cada jurisdicción en la que operan o solicitan trabajo."
+          }
         },
         "userAccounts": {
           "title": "3. Cuentas de Usuario",
@@ -1856,61 +1945,72 @@
           }
         },
         "contractorResponsibilities": {
-          "title": "5. Responsabilidades del Contratista",
-          "content": "Si es un contratista o proveedor de servicios que usa la Plataforma, usted acepta:",
+          "title": "5. Responsabilidades del Pro (proveedor)",
+          "content": "Si es un Pro (contratista, instalador, handyman, agente inmobiliario u otro proveedor) que usa la Plataforma, usted acepta:",
           "items": [
-            "Mantener todas las licencias, permisos e seguros requeridos según lo exige la ley",
-            "Proporcionar información precisa sobre su negocio, servicios y calificaciones",
-            "Cumplir con todas las leyes y regulaciones locales, estatales y federales aplicables",
-            "Realizar servicios de manera profesional y hábil",
-            "Cumplir todos los compromisos realizados a los clientes",
-            "Mantener cobertura de seguro apropiada para sus operaciones comerciales",
-            "Manejar todas las obligaciones fiscales relacionadas con su negocio de forma independiente"
+            "Mantener todas las licencias, registros, permisos, fianzas y seguros exigidos por la ley de Nevada (y por cualquier otro estado o localidad donde ofrezca o realice servicios), incluida la licencia NSCB bajo NRS Capítulo 624 cuando actúe como contratista, y la licencia NRED bajo NRS Capítulo 645 cuando actúe como agente inmobiliario",
+            "Ofrecer y realizar solo trabajos que la ley le permita (incluidas las exenciones de instalación de producto terminado o reparación menor solo cuando apliquen legalmente)",
+            "Proporcionar información precisa sobre su negocio, servicios, calificaciones, licencias y seguros",
+            "Cumplir todas las leyes y regulaciones locales, estatales y federales aplicables, incluidas publicidad, protección al consumidor y código de construcción",
+            "Realizar servicios de manera profesional bajo sus propios contratos con clientes",
+            "Cumplir todos los compromisos hechos a los clientes",
+            "Mantener seguro adecuado para sus operaciones",
+            "Manejar de forma independiente todas las obligaciones fiscales, laborales y de nómina"
           ],
-          "independentContractor": "Estado de Contratista Independiente: Usted reconoce que es un contratista independiente y no un empleado, agente o socio de House Pros Hub. Usted es el único responsable de sus propios impuestos, seguros y cumplimiento de todas las leyes aplicables."
+          "independentContractor": "Estado de contratista independiente: Usted reconoce que es un contratista independiente y no un empleado, agente, socio o joint venture de House Pros Hub. Usted es el único responsable de sus impuestos, seguros, personal, desempeño del trabajo y cumplimiento de las leyes. Estar listado o conectado en la Plataforma no hace a House Pros Hub responsable de sus trabajos."
         },
         "customerResponsibilities": {
           "title": "6. Responsabilidades del Cliente",
           "content": "Si es un cliente que usa la Plataforma, usted acepta:",
           "items": [
-            "Realizar su propia debida diligencia al seleccionar un contratista",
-            "Verificar licencias, seguros y calificaciones de contratistas de forma independiente",
-            "Celebrar acuerdos directos con contratistas para servicios",
-            "Realizar pagos directamente a contratistas según su acuerdo",
-            "Comunicarse claramente sobre los requisitos y expectativas del proyecto",
-            "Tratar a los contratistas con respeto y profesionalismo"
+            "Realizar su propia debida diligencia al seleccionar un Pro",
+            "Verificar de forma independiente licencias (por ejemplo vía NSCB o NRED), seguros, fianzas, referencias y calificaciones antes de contratar",
+            "Celebrar acuerdos escritos directos con Pros para servicios",
+            "Pagar directamente a los Pros según su acuerdo",
+            "Obtener o confirmar los permisos y aprobaciones necesarios para su proyecto",
+            "Comunicarse con claridad sobre requisitos y expectativas del proyecto",
+            "Tratar a los Pros con respeto y profesionalismo",
+            "Entender que House Pros Hub no supervisa, garantiza ni asegura ningún Pro o trabajo"
           ]
         },
         "payments": {
           "title": "7. Pagos",
-          "content": "House Pros Hub no procesa pagos entre clientes y contratistas. Todos los pagos se realizan directamente entre clientes y contratistas. No somos responsables de ninguna disputa de pago, reembolsos o transacciones financieras entre usuarios. Usted es el único responsable de todos los arreglos y acuerdos de pago con otros usuarios."
+          "content": "House Pros Hub no procesa pagos entre clientes y Pros por servicios de campo o comisiones inmobiliarias, salvo que una función específica del Hub lo declare por escrito. Salvo ese caso, todos los pagos se hacen directamente entre clientes y Pros. No somos responsables de disputas de pago, contracargos, reembolsos, impagos, gravámenes mecánicos ni ninguna transacción financiera entre usuarios."
         },
         "platformLiability": {
-          "title": "8. Limitaciones de Responsabilidad de la Plataforma",
+          "title": "8. Limitaciones de responsabilidad de la Plataforma; liberación",
           "noWarranty": {
-            "title": "8.1 Sin Garantía",
-            "content": "LA PLATAFORMA SE PROPORCIONA \"TAL CUAL\" Y \"SEGÚN DISPONIBILIDAD\" SIN GARANTÍAS DE NINGÚN TIPO, YA SEA EXPRESA O IMPLÍCITA, INCLUYENDO PERO NO LIMITADO A GARANTÍAS DE COMERCIABILIDAD, IDONEIDAD PARA UN PROPÓSITO PARTICULAR O NO INFRACCIÓN."
+            "title": "8.1 Sin garantía",
+            "content": "LA PLATAFORMA SE PROPORCIONA \"TAL CUAL\" Y \"SEGÚN DISPONIBILIDAD\" SIN GARANTÍAS DE NINGÚN TIPO, EXPRESAS O IMPLÍCITAS, INCLUIDAS COMERCIABILIDAD, IDONEIDAD PARA UN PROPÓSITO PARTICULAR, TÍTULO O NO INFRACCIÓN. NO GARANTIZAMOS QUE LA PLATAFORMA SEA ININTERRUMPIDA, SEGURA O LIBRE DE ERRORES."
           },
           "noResponsibility": {
-            "title": "8.2 Sin Responsabilidad por Servicios",
-            "content": "No somos responsables de la calidad, seguridad, legalidad o cualquier otro aspecto de los servicios proporcionados por los contratistas. No respaldamos, garantizamos ni avalamos ningún contratista o sus servicios. Usted usa la Plataforma y se relaciona con contratistas bajo su propio riesgo."
+            "title": "8.2 Sin responsabilidad por trabajos o servicios de Pros",
+            "content": "EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY, HOUSE PROS HUB NO ES RESPONSABLE DE LA CALIDAD, SEGURIDAD, LEGALIDAD, PLAZO, COSTO, MANO DE OBRA, MATERIALES, PERMISOS, ESTADO DE LICENCIA, SEGURO NI NINGÚN OTRO ASPECTO DE LOS SERVICIOS O TRANSACCIONES DE LOS PROS. No respaldamos, garantizamos, certificamos ni avalamos ningún Pro o sus servicios. Usted usa la Plataforma y contrata Pros bajo su propio riesgo."
           },
           "notAParty": {
-            "title": "8.3 No Somos Parte de los Acuerdos",
-            "content": "No somos parte de ningún acuerdo o transacción entre clientes y contratistas. Cualquier disputa entre usuarios debe resolverse directamente entre las partes involucradas."
+            "title": "8.3 No somos parte de los acuerdos",
+            "content": "No somos parte de ningún acuerdo, presupuesto, factura, orden de cambio, contrato de listado o transacción entre clientes y Pros. Cualquier disputa entre usuarios debe resolverse directamente entre esas partes. House Pros Hub no tiene obligación de mediar, arbitrar ni pagar reclamos derivados de trabajos entre usuarios."
+          },
+          "noVettingWarranty": {
+            "title": "8.4 Sin garantía de verificación o antecedentes",
+            "content": "Insignias, categorías, códigos de invitación, campos de perfil, licencias, reseñas o ubicación en el directorio son solo informativos. No significan que House Pros Hub haya verificado, monitoree continuamente o garantice la licencia, el seguro, los antecedentes penales, las habilidades o la autoridad legal de un Pro. Debe verificar de forma independiente antes de contratar."
+          },
+          "releaseForJobs": {
+            "title": "8.5 Liberación de reclamos relacionados con trabajos",
+            "content": "Usted libera y exonera para siempre a House Pros Hub y a sus funcionarios, directores, empleados, afiliados y agentes de cualquier reclamo, demanda, daño, pérdida y responsabilidad de todo tipo que surja de o se relacione con (a) servicios o conducta de cualquier Pro o cliente, (b) daño a la propiedad, lesión personal o muerte vinculados a un trabajo o visita, (c) pago o impago, (d) fallas de licencia o permiso, o (e) su confianza en información publicada por usuarios. Esta liberación pretende ser tan amplia como permita la ley de Nevada."
           },
           "userGeneratedContent": {
-            "title": "8.4 Contenido Generado por Usuarios",
-            "content": "No somos responsables del contenido generado por usuarios publicado en la Plataforma. Bajo la Sección 230 de la Ley de Decencia en las Comunicaciones, no somos responsables del contenido publicado por usuarios."
+            "title": "8.6 Contenido generado por usuarios",
+            "content": "No somos responsables del contenido generado por usuarios en la Plataforma. Bajo la Sección 230 de la Communications Decency Act (47 U.S.C. § 230), y en la máxima medida permitida por la ley, no somos responsables del contenido creado o publicado por usuarios."
           }
         },
         "limitationOfLiability": {
-          "title": "9. Limitación de Responsabilidad",
-          "content": "EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY, HOUSE PROS HUB NO SERÁ RESPONSABLE DE NINGÚN DAÑO INDIRECTO, INCIDENTAL, ESPECIAL, CONSECUENCIAL O PUNITIVO, O CUALQUIER PÉRDIDA DE GANANCIAS O INGRESOS, YA SEA INCURRIDO DIRECTA O INDIRECTAMENTE, O CUALQUIER PÉRDIDA DE DATOS, USO, BUENA VOLUNTAD U OTRAS PÉRDIDAS INTANGIBLES RESULTANTES DE SU USO DE LA PLATAFORMA."
+          "title": "9. Limitación de responsabilidad",
+          "content": "EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY, HOUSE PROS HUB Y SUS AFILIADOS, FUNCIONARIOS, DIRECTORES, EMPLEADOS Y AGENTES NO SERÁN RESPONSABLES DE DAÑOS INDIRECTOS, INCIDENTALES, ESPECIALES, CONSECUENCIALES, EJEMPLARES O PUNITIVOS, NI DE PÉRDIDA DE GANANCIAS, INGRESOS, DATOS, BUENA VOLUNTAD U OPORTUNIDAD DE NEGOCIO, QUE SURJAN DE LA PLATAFORMA, ESTOS TÉRMINOS O CUALQUIER CONEXIÓN CON UN PRO O CLIENTE, YA SEA EN CONTRATO, AGRAVIO (INCLUIDA NEGLIGENCIA), RESPONSABILIDAD ESTRICTA U OTRA BASE, AUNQUE SE HAYA ADVERTIDO DE LA POSIBILIDAD. EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY, NUESTRA RESPONSABILIDAD TOTAL POR CUALQUIER RECLAMO NO EXCEDERÁ EL MAYOR ENTRE (A) LOS MONTOS QUE USTED PAGÓ A HOUSE PROS HUB (SI LOS HUBIERA) POR ACCESO A LA PLATAFORMA EN LOS DOCE (12) MESES ANTERIORES AL RECLAMO O (B) CIEN DÓLARES ESTADOUNIDENSES (US $100)."
         },
         "indemnification": {
           "title": "10. Indemnización",
-          "content": "Usted acepta indemnizar, defender y eximir de responsabilidad a House Pros Hub, sus afiliados, funcionarios, directores, empleados y agentes de cualquier reclamo, daño, pérdida, responsabilidad y gasto (incluidos los honorarios de abogados) que surjan o se relacionen con su uso de la Plataforma, su violación de estos Términos o su violación de los derechos de otra parte."
+          "content": "Usted acepta indemnizar, defender y eximir de responsabilidad a House Pros Hub, sus afiliados, funcionarios, directores, empleados y agentes de cualquier reclamo, daño, pérdida, responsabilidad, sentencia, acuerdo y gasto (incluidos honorarios razonables de abogados) que surja de o se relacione con: (a) su uso de la Plataforma; (b) su violación de estos Términos; (c) su violación de cualquier ley o derecho de terceros; (d) cualquier trabajo, servicio, presupuesto, pago o transacción inmobiliaria con otro usuario; (e) su falta de mantener licencias, permisos o seguros requeridos; o (f) cualquier contenido que publique."
         },
         "intellectualProperty": {
           "title": "11. Propiedad Intelectual",
@@ -1926,12 +2026,12 @@
         "disputeResolution": {
           "title": "12. Resolución de Disputas",
           "platformDisputes": {
-            "title": "12.1 Disputas de la Plataforma",
-            "content": "Si tiene una disputa con otro usuario, debe intentar resolverla directamente con ese usuario. Podemos, pero no estamos obligados a, facilitar la comunicación entre usuarios."
+            "title": "12.1 Disputas entre usuarios",
+            "content": "Si tiene una disputa con otro usuario sobre un trabajo, pago o servicio, debe intentar resolverla directamente con ese usuario. House Pros Hub no está obligado a investigar, mediar, arbitrar ni pagar ningún reclamo entre usuarios. Cualquier facilitación opcional del Hub, si se ofrece, no crea deber ni responsabilidad."
           },
           "disputesWithHub": {
             "title": "12.2 Disputas con House Pros Hub",
-            "content": "Cualquier disputa que surja o se relacione con estos Términos o la Plataforma se resolverá mediante arbitraje vinculante de acuerdo con las reglas de la Asociación Estadounidense de Arbitraje, excepto donde esté prohibido por la ley. Usted renuncia a cualquier derecho a un juicio con jurado y acepta resolver disputas de forma individual."
+            "content": "Cualquier disputa que surja de o se relacione con estos Términos o la Plataforma se resolverá mediante arbitraje individual vinculante administrado por la American Arbitration Association bajo sus Reglas de Arbitraje de Consumidor o Comercial, según corresponda, con sede en el Condado de Clark, Nevada, excepto donde esté prohibido por la ley. Usted y House Pros Hub renuncian a juicio con jurado y a acciones colectivas. Cualquiera de las partes puede solicitar medidas cautelares en tribunal por uso indebido de propiedad intelectual o acceso no autorizado."
           }
         },
         "termination": {
@@ -1943,15 +2043,15 @@
           "content": "Nos reservamos el derecho de modificar estos Términos en cualquier momento. Notificaremos a los usuarios de cambios materiales publicando los Términos actualizados en la Plataforma y actualizando la fecha de \"Última Actualización\". Su uso continuo de la Plataforma después de tales modificaciones constituye su aceptación de los Términos actualizados."
         },
         "governingLaw": {
-          "title": "15. Ley Aplicable",
-          "content": "Estos Términos se regirán e interpretarán de acuerdo con las leyes del estado en el que opera House Pros Hub, sin tener en cuenta sus disposiciones de conflicto de leyes."
+          "title": "15. Ley aplicable; foro; expansión multiestado",
+          "content": "Estos Términos se rigen por las leyes del Estado de Nevada, sin tener en cuenta las reglas de conflicto de leyes, excepto que el Federal Arbitration Act rige la interpretación y ejecución del acuerdo de arbitraje. El foro exclusivo para cualquier procedimiento judicial no sujeto a arbitraje (o necesario para compelir arbitraje o confirmar un laudo) son los tribunales estatales o federales ubicados en el Condado de Clark, Nevada, y usted consiente la jurisdicción personal allí. Si House Pros Hub se expande fuera de Nevada, estos Términos siguen aplicando salvo que un Término Estatal Complementario diga lo contrario para ese mercado."
         },
         "contact": {
           "title": "16. Información de Contacto",
           "content": "Si tiene alguna pregunta sobre estos Términos, contáctenos en:",
           "email": "Correo electrónico:",
           "address": "Dirección:",
-          "addressValue": "[Su Dirección Comercial]"
+          "addressValue": "6323 Silverfield Dr, Las Vegas, Nevada 89103"
         },
         "severability": {
           "title": "17. Divisibilidad",

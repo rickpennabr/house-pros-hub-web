@@ -135,7 +135,9 @@ export default function BusinessDetailsPage() {
   const [isAdjustMode, setIsAdjustMode] = useState(false);
   
   const isOwner = !!user?.id && !!business?.userId && user.id === business.userId;
-  const showServices = ownerRoles.includes('contractor') || ownerRoles.includes('realtor');
+  const showServices = ownerRoles.some((role) =>
+    role === 'contractor' || role === 'realtor' || role === 'installer' || role === 'handyman'
+  );
 
   // Drag-to-position hero image (owner only); save on mouseup
   const heroDragPositionRef = useRef<string | null>(null);

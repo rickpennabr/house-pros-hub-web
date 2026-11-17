@@ -10,12 +10,36 @@ const supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : null;
 
 /** LAN IPv4s + .local / sslip.io / nip.io mirrors so a phone can load Next assets and finish Google OAuth. */
 function getLanDevOrigins(): string[] {
-  const origins = ['localhost', '127.0.0.1'];
+  // Private LAN wildcards so phone HMR works even if the PC IP changes after boot.
+  const origins = [
+    'localhost',
+    '127.0.0.1',
+    '192.168.*.*',
+    '10.*.*.*',
+    '172.16.*.*',
+    '172.17.*.*',
+    '172.18.*.*',
+    '172.19.*.*',
+    '172.20.*.*',
+    '172.21.*.*',
+    '172.22.*.*',
+    '172.23.*.*',
+    '172.24.*.*',
+    '172.25.*.*',
+    '172.26.*.*',
+    '172.27.*.*',
+    '172.28.*.*',
+    '172.29.*.*',
+    '172.30.*.*',
+    '172.31.*.*',
+  ];
   const machine = os.hostname().split('.')[0];
   if (machine) origins.push(`${machine}.local`);
   for (const addrs of Object.values(os.networkInterfaces())) {
     for (const addr of addrs ?? []) {
-      if (addr.family === 'IPv4' && !addr.internal) {
+      // Node may report family as 'IPv4' or 4 depending on version.
+      const isV4 = addr.family === 'IPv4' || String(addr.family) === '4';
+      if (isV4 && !addr.internal) {
         origins.push(addr.address);
         // Phone Google OAuth hops raw IPs to a hostname (Supabase rejects IP redirectTo).
         origins.push(`${addr.address.replace(/\./g, '-')}.sslip.io`);

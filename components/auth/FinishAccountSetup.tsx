@@ -1022,6 +1022,7 @@ function FinishAccountSetupModal({
                   {tTerms('suffix')}
                 </span>
               </label>
+              <p className="mt-2 text-xs text-gray-500 leading-snug">{tTerms('connectionDisclaimer')}</p>
             </div>
           </div>
         )}

@@ -381,8 +381,8 @@ interface LicenseCategorySource {
   license_type: string | null;
   license_name: string | null;
   businesses:
-    | { display_order: number | null; created_at: string }
-    | { display_order: number | null; created_at: string }[]
+    | { owner_id: string; display_order: number | null; created_at: string }
+    | { owner_id: string; display_order: number | null; created_at: string }[]
     | null;
 }
 
@@ -394,6 +394,7 @@ async function fetchDirectoryCategories(): Promise<string[]> {
       license_type,
       license_name,
       businesses!inner (
+        owner_id,
         is_active,
         display_order,
         created_at
@@ -414,14 +415,25 @@ async function fetchDirectoryCategories(): Promise<string[]> {
     return rightCreated - leftCreated;
   });
 
+  const ownerIds = rows
+    .map((row) => {
+      const business = Array.isArray(row.businesses) ? row.businesses[0] : row.businesses;
+      return business?.owner_id;
+    })
+    .filter((id): id is string => Boolean(id));
+  const ownerRoles = await loadOwnerRoles(ownerIds);
+
   const seen = new Set<string>();
   const order: string[] = [];
   for (const row of rows) {
+    const business = Array.isArray(row.businesses) ? row.businesses[0] : row.businesses;
+    const accountRole = primaryProAccountRole(ownerRoles.get(business?.owner_id ?? ''));
     const labels = getBusinessCategories({
       id: 'directory',
       businessName: 'directory',
       contractorType: '',
       links: [],
+      accountRole: accountRole ?? undefined,
       licenses: [
         {
           license: row.license_type || 'GENERAL',

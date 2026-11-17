@@ -84,7 +84,13 @@ export async function ownerCanManageServices(userId: string): Promise<boolean> {
     .eq('user_id', userId)
     .eq('is_active', true);
   if (error) return false;
-  return (data ?? []).some((row) => row.role === 'contractor' || row.role === 'realtor');
+  return (data ?? []).some(
+    (row) =>
+      row.role === 'contractor' ||
+      row.role === 'realtor' ||
+      row.role === 'installer' ||
+      row.role === 'handyman'
+  );
 }
 
 export async function ownerIsContractor(userId: string): Promise<boolean> {

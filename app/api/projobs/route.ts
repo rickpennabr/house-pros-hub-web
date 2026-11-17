@@ -79,8 +79,12 @@ function isAdminEmail(email: string | undefined): boolean {
 
 async function contractorBusiness(userId: string, isAdmin: boolean) {
   const supabase = await createClient();
-  const isContractor = await hasRole(userId, 'contractor');
-  if (!isContractor && !isAdmin) {
+  const [isContractor, isRealtor] = await Promise.all([
+    hasRole(userId, 'contractor'),
+    hasRole(userId, 'realtor'),
+  ]);
+  const canPostJobs = isContractor || isRealtor;
+  if (!canPostJobs && !isAdmin) {
     return { error: 'contractor_required' as const, business: null, phone: '', useServiceRole: false };
   }
 
@@ -114,7 +118,7 @@ async function contractorBusiness(userId: string, isAdmin: boolean) {
     return { error: 'phone_required' as const, business: null, phone: '', useServiceRole: false };
   }
 
-  return { error: null, business, phone, useServiceRole: isAdmin && !isContractor };
+  return { error: null, business, phone, useServiceRole: isAdmin && !canPostJobs };
 }
 
 /**
@@ -151,7 +155,7 @@ export async function GET() {
 
 /**
  * POST /api/projobs
- * Create a job. Admin or contractor only, plus an active business the user owns and a business phone.
+ * Create a job. Admin, contractor, or realtor only, plus an active business the user owns and a business phone.
  * Company name and phone come from that business, not from the request body.
  */
 export async function POST(request: NextRequest) {

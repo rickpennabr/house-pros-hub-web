@@ -3,10 +3,11 @@
 import { ReactNode, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Building2, HardDrive, Search, X } from 'lucide-react';
+import { Building2, HardDrive } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import ProfileIcon from '@/components/pageslayout/ProfileIcon';
 import { ProDriveMeter } from '@/components/drive/ProDriveMeter';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import type { DriveOwnerType, DriveUsage } from '@/lib/drive/types';
 
 interface BusinessOption {
@@ -67,30 +68,16 @@ export function ProDriveWorkspace({
           </div>
 
           <div className="flex min-w-0 flex-1 items-center justify-center px-1">
-            <div className="relative w-full max-w-xl">
-              <input
-                ref={searchRef}
-                type="text"
-                value={query}
-                onChange={(event) => onQueryChange(event.target.value)}
-                placeholder={t('search')}
-                className="h-10 w-full rounded-lg border-2 border-black bg-white pl-9 pr-9 text-sm text-black placeholder-gray-500 focus:outline-none"
-              />
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500" />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onQueryChange('');
-                    searchRef.current?.focus();
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer p-0.5 text-gray-500 hover:text-black"
-                  aria-label={t('cancel')}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+            <TypingSearchInput
+              value={query}
+              onChange={onQueryChange}
+              placeholder={t('search')}
+              clearLabel={t('cancel')}
+              inputRef={searchRef}
+              className="relative w-full max-w-xl"
+              inputClassName="h-10 w-full rounded-lg border-2 border-black bg-white pl-9 pr-9 text-sm text-black placeholder-gray-500 focus:outline-none"
+              iconClassName="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500"
+            />
           </div>
 
           <div className="flex shrink-0 items-center">

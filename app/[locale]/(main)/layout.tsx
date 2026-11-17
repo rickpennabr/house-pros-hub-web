@@ -28,8 +28,11 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
   const isBusinessList = pathname?.includes('/businesslist') ?? false;
   const isBlog = pathname?.includes('/blog') ?? false;
   const isBlogArticle = /\/blog\/[^/]+\/?$/.test(pathname ?? '');
+  const isProProductDetail = /\/proproducts\/[^/]+\/?$/.test(pathname ?? '');
   const isHelp = /\/help\/?$/.test(pathname ?? '');
   const isProJobs = pathname?.includes('/projobs') ?? false;
+  const isProProducts = pathname?.includes('/proproducts') ?? false;
+  const isDetailShell = isBlogArticle || isProProductDetail;
   const keepsMenuVisible =
     isProJobs ||
     (pathname?.includes('/prosuppliers') ?? false) ||
@@ -52,10 +55,10 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
           </div>
         )}
         <PageContainer transparentBg={showSkyBg}>
-          {isBlogArticle ? (
+          {isDetailShell ? (
             <div className="flex min-h-full flex-col">
               {children}
-              <Footer />
+              {!isProProductDetail ? <Footer /> : null}
             </div>
           ) : (
             <>
@@ -72,7 +75,13 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
               <Suspense fallback={<div className="h-[60px] w-full shrink-0 border-b-2 border-black" />}>
                 <PageCategories />
               </Suspense>
-              <PageContent scroll={isBlog || isHelp} flushTop={isProJobs}>{children}</PageContent>
+              <PageContent
+                scroll={isBlog || isHelp}
+                grow={isProProducts}
+                flushTop={isProJobs}
+              >
+                {children}
+              </PageContent>
               <Footer />
             </>
           )}

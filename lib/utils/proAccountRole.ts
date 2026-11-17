@@ -54,7 +54,7 @@ export function proAccountRoleIcon(role: ProAccountRole | string | null | undefi
     case 'installer':
       return 'Wrench';
     case 'handyman':
-      return 'Hammer';
+      return 'Hand';
     default:
       return 'HardHat';
   }

@@ -3,8 +3,18 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { ChevronDown, Grid, List, Search, X } from 'lucide-react';
+import { Filter } from 'lucide-react';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
+import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
+import Modal from '@/components/ui/Modal';
 import { useCategory } from '@/contexts/CategoryContext';
+import {
+  PRODUCT_TRADES,
+  hardscapeFilterOptions,
+  productMatchesHardscapeFilters,
+  productTrade,
+  showsHardscapeFilters,
+} from '@/lib/products/tradeFilters';
 import type { ProProduct } from '@/lib/products/types';
 
 interface ProductGridProps {
@@ -13,15 +23,31 @@ interface ProductGridProps {
 
 const PAGE_SIZE = 18;
 
+const EMPTY_HARDSCAPE_FILTERS = {
+  brand: '',
+  type: '',
+  thickness: '',
+  color: '',
+};
+
 export function ProductGrid({ products }: ProductGridProps) {
   const t = useTranslations('proProducts');
   const locale = useLocale();
   const { setIsSearchOpen } = useCategory();
   const [search, setSearch] = useState('');
   const [searchActive, setSearchActive] = useState(false);
+  const [trade, setTrade] = useState('');
+  const [brand, setBrand] = useState('');
   const [type, setType] = useState('');
+  const [thickness, setThickness] = useState('');
+  const [color, setColor] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [page, setPage] = useState(1);
+
+  const handleViewChange = (view: ViewType) => {
+    setViewMode(view === 'list' ? 'list' : 'grid');
+  };
 
   useEffect(() => () => setIsSearchOpen(false), [setIsSearchOpen]);
 
@@ -37,137 +63,240 @@ export function ProductGrid({ products }: ProductGridProps) {
     setIsSearchOpen(false);
   };
 
-  const types = useMemo(
-    () => Array.from(new Set(products.map((product) => product.product_type).filter(Boolean))).sort(),
-    [products]
-  );
+  const hardscapeActive = showsHardscapeFilters(trade);
+  const options = useMemo(() => hardscapeFilterOptions(products), [products]);
+  const activeFilterCount =
+    (trade ? 1 : 0) +
+    (hardscapeActive && brand ? 1 : 0) +
+    (hardscapeActive && type ? 1 : 0) +
+    (hardscapeActive && thickness ? 1 : 0) +
+    (hardscapeActive && color ? 1 : 0);
+
+  const clearAttributeFilters = () => {
+    setBrand(EMPTY_HARDSCAPE_FILTERS.brand);
+    setType(EMPTY_HARDSCAPE_FILTERS.type);
+    setThickness(EMPTY_HARDSCAPE_FILTERS.thickness);
+    setColor(EMPTY_HARDSCAPE_FILTERS.color);
+  };
+
+  const clearAllFilters = () => {
+    setTrade('');
+    clearAttributeFilters();
+  };
+
+  const onTradeChange = (value: string) => {
+    setTrade(value);
+    if (!showsHardscapeFilters(value)) clearAttributeFilters();
+  };
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const hardscapeFilters = { brand, type, thickness, color };
     return products.filter((product) => {
-      if (type && product.product_type !== type) return false;
+      if (trade && productTrade(product) !== trade) return false;
+      if (hardscapeActive && !productMatchesHardscapeFilters(product, hardscapeFilters)) return false;
       if (!query) return true;
-      return [product.name, product.brand, product.product_type, product.description, ...product.specs.flatMap((spec) => [spec.name, spec.value]), ...product.variants.flatMap((variant) => [variant.color, variant.size])]
+      return [
+        product.name,
+        product.brand,
+        product.product_type,
+        product.description,
+        ...product.specs.flatMap((spec) => [spec.name, spec.value]),
+        ...product.variants.flatMap((variant) => [variant.color, variant.size, variant.thicknessMm, variant.thicknessIn]),
+      ]
         .join(' ')
         .toLowerCase()
         .includes(query);
     });
-  }, [products, search, type]);
+  }, [products, search, trade, brand, type, thickness, color, hardscapeActive]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, type]);
+  }, [search, trade, brand, type, thickness, color]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
   const start = (safePage - 1) * PAGE_SIZE;
   const visible = filtered.slice(start, start + PAGE_SIZE);
+  const searchPlaceholder = hardscapeActive ? t('searchHardscape') : t('search');
+
+  const tradeSelect = (
+    <FilterSelect
+      label={t('trade')}
+      value={trade}
+      onChange={onTradeChange}
+      allLabel={t('allTrades')}
+      options={PRODUCT_TRADES.map((item) => ({
+        value: item,
+        label: t(`trades.${item}` as 'trades.hardscape'),
+      }))}
+    />
+  );
+
+  const hardscapeSelects = hardscapeActive ? (
+    <>
+      <FilterSelect label={t('brand')} value={brand} onChange={setBrand} allLabel={t('allBrands')} options={options.brand} />
+      <FilterSelect label={t('type')} value={type} onChange={setType} allLabel={t('allTypes')} options={options.type} />
+      <FilterSelect
+        label={t('thickness')}
+        value={thickness}
+        onChange={setThickness}
+        allLabel={t('allThicknesses')}
+        options={options.thickness}
+      />
+      <FilterSelect label={t('color')} value={color} onChange={setColor} allLabel={t('allColors')} options={options.color} />
+    </>
+  ) : null;
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="-mx-2 -mt-1 flex h-[60px] w-[calc(100%+1rem)] shrink-0 flex-row items-center gap-2 border-b-2 border-black p-1 md:-mx-4 md:-mt-2 md:w-[calc(100%+2rem)] md:px-2">
-        <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-1 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500 md:left-3" />
-          <input
-            type="text"
+      <div className="-mx-1 -mt-1 flex w-[calc(100%+0.5rem)] shrink-0 flex-col gap-2 border-b-2 border-black p-1 md:-mx-2 md:-mt-2 md:w-[calc(100%+1rem)] md:px-2">
+        <div className="flex h-10 flex-row items-center gap-2 md:h-[52px]">
+          <TypingSearchInput
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={setSearch}
+            placeholder={searchPlaceholder}
+            clearLabel={t('clearSearch')}
             onFocus={activateSearch}
             onBlur={deactivateSearch}
-            placeholder={t('search')}
-            className={`h-10 w-full rounded-md border-2 border-red-500 bg-white pl-6 text-base text-black placeholder:text-gray-500 focus:border-red-600 focus:outline-none md:pl-8 md:pr-8 ${search ? 'pr-8' : 'pr-2'}`}
+            iconClassName="pointer-events-none absolute left-1 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500 md:left-3"
+            inputClassName={`h-10 w-full rounded-md border-2 border-red-500 bg-white pl-6 text-base text-black placeholder:text-gray-500 focus:border-red-600 focus:outline-none md:pl-8 md:pr-8 ${search ? 'pr-8' : 'pr-2'}`}
           />
-          {search ? (
-            <button
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => setSearch('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-gray-500 hover:text-black"
-              aria-label={t('search')}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          ) : null}
+          <div className="hidden w-44 shrink-0 md:block">{tradeSelect}</div>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(true)}
+            className={`relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-md border-2 border-black bg-black text-white hover:bg-gray-800 md:hidden ${searchActive ? 'max-md:hidden' : ''}`}
+            aria-label={t('filter')}
+          >
+            <Filter className="h-5 w-5" />
+            {activeFilterCount > 0 ? (
+              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" aria-hidden />
+            ) : null}
+          </button>
         </div>
-        <div className={`flex shrink-0 items-center gap-2 ${searchActive ? 'max-md:hidden' : ''}`}>
-          <div className="relative h-10 w-max shrink-0 md:w-40">
-            <span aria-hidden className="invisible inline-flex h-10 items-center whitespace-nowrap pl-1 pr-5 text-sm md:hidden">
-              {type || t('allTypes')}
-            </span>
-            <select
-              value={type}
-              onChange={(event) => setType(event.target.value)}
-              className="absolute inset-0 h-10 w-full cursor-pointer appearance-none rounded-md border-2 border-black bg-white pl-1 pr-5 text-sm text-black md:static md:w-40 md:appearance-auto md:px-2"
-              aria-label={t('type')}
-            >
-              <option value="">{t('allTypes')}</option>
-              {types.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-0.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-black md:hidden" />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border-2 border-black ${viewMode === 'list' ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-100'}`}
-              aria-label={t('listView')}
-              aria-pressed={viewMode === 'list'}
-            >
-              <List className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('grid')}
-              className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border-2 border-black ${viewMode === 'grid' ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-100'}`}
-              aria-label={t('gridView')}
-              aria-pressed={viewMode === 'grid'}
-            >
-              <Grid className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
+
+        {hardscapeActive ? (
+          <div className="hidden grid-cols-4 gap-2 md:grid">{hardscapeSelects}</div>
+        ) : null}
       </div>
 
-      {visible.length === 0 ? (
-        <p className="py-12 text-center text-sm text-gray-700">{t('noMatch')}</p>
-      ) : (
-        <div className={viewMode === 'list' ? 'flex flex-col gap-2' : 'grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3'}>
-          {visible.map((product) => (
-            <ProductCard key={product.id} product={product} locale={locale} viewMode={viewMode} />
-          ))}
+      <Modal
+        isOpen={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title={t('filtersTitle')}
+        showHeader
+        maxWidth="md"
+        contentClassName="space-y-3 p-4"
+      >
+        {tradeSelect}
+        {hardscapeSelects}
+        <div className="flex gap-2 pt-2">
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="h-11 flex-1 cursor-pointer rounded-md border-2 border-black bg-white text-sm font-semibold text-black hover:bg-gray-100"
+          >
+            {t('clearFilters')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(false)}
+            className="h-11 flex-1 cursor-pointer rounded-md border-2 border-black bg-black text-sm font-semibold text-white hover:bg-gray-800"
+          >
+            {t('applyFilters')}
+          </button>
         </div>
-      )}
+      </Modal>
 
-      {filtered.length > PAGE_SIZE ? (
-        <div className="flex items-center justify-center gap-2">
-          {Array.from({ length: pageCount }, (_, index) => index + 1).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => {
-                setPage(item);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border-2 border-black text-sm font-semibold ${
-                item === safePage ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-100'
-              }`}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <div className="px-2 md:px-0">
+        {visible.length === 0 ? (
+          <p className="py-12 text-center text-sm text-gray-700">{t('noMatch')}</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            {visible.map((product) => (
+              <ProductCard key={product.id} product={product} locale={locale} viewMode={viewMode} />
+            ))}
+          </div>
+        )}
 
-      <p className="text-center text-sm text-gray-600">
-        {filtered.length === 0
-          ? t('showing', { from: 0, to: 0, total: 0 })
-          : t('showing', { from: start + 1, to: Math.min(start + PAGE_SIZE, filtered.length), total: filtered.length })}
-      </p>
+        {filtered.length > PAGE_SIZE ? (
+          <div className="mt-2 flex items-center justify-center gap-2">
+            {Array.from({ length: pageCount }, (_, index) => index + 1).map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => {
+                  setPage(item);
+                  const main = document.getElementById('main-content');
+                  const card = main?.parentElement;
+                  if (card && card.scrollHeight > card.clientHeight) {
+                    card.scrollTo({ top: 0, behavior: 'smooth' });
+                  } else {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
+                className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border-2 border-black text-sm font-semibold ${
+                  item === safePage ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-100'
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <p className="mt-2 text-center text-sm text-gray-600">
+          {filtered.length === 0
+            ? t('showing', { from: 0, to: 0, total: 0 })
+            : t('showing', { from: start + 1, to: Math.min(start + PAGE_SIZE, filtered.length), total: filtered.length })}
+        </p>
+      </div>
+
+      <ViewToggle
+        currentView={viewMode === 'list' ? 'list' : 'card'}
+        onViewChange={handleViewChange}
+        views={['card', 'list']}
+        hideBackgroundToggle
+      />
     </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  allLabel,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  allLabel: string;
+  options: string[] | Array<{ value: string; label: string }>;
+}) {
+  const normalized = options.map((option) =>
+    typeof option === 'string' ? { value: option, label: option } : option
+  );
+
+  return (
+    <label className="flex min-w-0 w-full flex-col gap-1">
+      <span className="text-xs font-semibold text-black md:sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 w-full cursor-pointer rounded-md border-2 border-black bg-white px-2 text-sm text-black"
+        aria-label={label}
+      >
+        <option value="">{value ? allLabel : label}</option>
+        {normalized.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -219,7 +348,7 @@ function ProductCard({
   const t = useTranslations('proProducts');
   const [imageFailed, setImageFailed] = useState(false);
   const variant = product.variants[0];
-  const imageSrc = variant?.images[0] || product.image_url;
+  const imageSrc = product.image_url || variant?.images[0] || null;
   const showImage = Boolean(imageSrc) && !imageFailed;
   const list = viewMode === 'list';
   const color = variant?.color ?? '';

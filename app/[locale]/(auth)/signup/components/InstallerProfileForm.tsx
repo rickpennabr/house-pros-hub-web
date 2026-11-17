@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useLocale } from 'next-intl'
 import { SignupHeader } from './SignupHeader'
+import { ProRoleScopeNotice } from '@/components/auth/ProRoleScopeNotice'
 
 export function InstallerProfileForm({ variant = 'installer' }: { variant?: 'installer' | 'handyman' }) {
   const locale = useLocale()
@@ -65,6 +66,7 @@ export function InstallerProfileForm({ variant = 'installer' }: { variant?: 'ins
               : 'This page is shareable. It does not appear as a public card in the House Pros list.'}
           </p>
         </div>
+        <ProRoleScopeNotice role={isHandyman ? 'handyman' : 'installer'} />
         <label className="block text-sm font-medium">
           {isHandyman ? 'What you repair' : 'What you install'}
           <input

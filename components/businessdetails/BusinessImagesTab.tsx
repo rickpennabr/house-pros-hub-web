@@ -59,9 +59,16 @@ export default function BusinessImagesTab({
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tagInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const dragFromRef = useRef<number | null>(null);
   const draggedRef = useRef(false);
   const [slideIndex, setSlideIndex] = useState<number | null>(null);
+
+  const focusTagInput = (url: string) => {
+    requestAnimationFrame(() => {
+      tagInputRefs.current[url]?.focus();
+    });
+  };
 
   const visible = useMemo(() => list.filter((item) => matchesQuery(item, query)), [list, query]);
   const visibleIndexes = useMemo(
@@ -264,6 +271,7 @@ export default function BusinessImagesTab({
   const onTagSubmit = (event: FormEvent, index: number, url: string) => {
     event.preventDefault();
     void addTag(index, tagDrafts[url] ?? '');
+    focusTagInput(url);
   };
 
   if (list.length === 0) {
@@ -469,11 +477,11 @@ export default function BusinessImagesTab({
               </div>
 
               {item.tags.length > 0 || (isOwner && editMode) ? (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex min-w-0 flex-nowrap gap-1 overflow-x-auto pb-0.5 scrollbar-custom">
                   {item.tags.map((tag) => (
                     <span
                       key={`${item.url}-${tag}`}
-                      className="inline-flex items-center gap-1 rounded-full border border-black/20 bg-gray-100 px-2 py-0.5 text-xs font-medium text-black"
+                      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-black/20 bg-gray-100 px-2 py-0.5 text-xs font-medium text-black"
                     >
                       {tag}
                       {isOwner && editMode ? (
@@ -495,13 +503,16 @@ export default function BusinessImagesTab({
               {isOwner && editMode ? (
                 <form onSubmit={(event) => onTagSubmit(event, index, item.url)} className="flex gap-1">
                   <input
+                    ref={(el) => {
+                      tagInputRefs.current[item.url] = el;
+                    }}
                     type="text"
                     value={draft}
                     onChange={(event) =>
                       setTagDrafts((current) => ({ ...current, [item.url]: event.target.value }))
                     }
                     placeholder={t('tagPlaceholder')}
-                    disabled={savingTags || item.tags.length >= MAX_TAGS}
+                    disabled={item.tags.length >= MAX_TAGS}
                     className="h-8 min-w-0 flex-1 rounded-lg border-2 border-black px-2 text-xs text-black placeholder:text-gray-500 focus:outline-none disabled:opacity-50"
                   />
                   <button

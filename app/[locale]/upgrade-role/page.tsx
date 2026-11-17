@@ -23,6 +23,7 @@ import {
   nevadaRealtorLicenseHint,
   normalizeNevadaRealtorLicenseNumber,
 } from '@/lib/utils/nevadaRealtorLicense';
+import { ProRoleScopeNotice } from '@/components/auth/ProRoleScopeNotice';
 import type { Locale } from '@/i18n';
 
 interface LicenseCategory {
@@ -208,6 +209,8 @@ export default function UpgradeRolePage() {
               : 'Nevada realtors need an NRED license (Salesperson, Broker-salesperson, or Broker) plus the brokerage name used in ads. No contractor license is required.'}
           </p>
         </div>
+
+        <ProRoleScopeNotice role={role} />
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error ? (

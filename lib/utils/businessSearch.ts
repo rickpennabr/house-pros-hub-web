@@ -32,8 +32,9 @@ const licenseToCategoryMap: Record<string, string> = {
   'A-10': 'Pools & Spas',
   'GENERAL': 'General Contractor',
   'HANDYMAN': 'Handyman',
-  'HANDYMAN INTERIOR': 'Handyman Interior',
-  'HANDYMAN_EXTERIOR': 'Handyman Exterior',
+  'HANDYMAN INTERIOR': 'Handyman',
+  'HANDYMAN_EXTERIOR': 'Handyman',
+  INSTALLER: 'Installer',
 };
 
 /** License codes whose mapped category label is `category`. */
@@ -44,16 +45,18 @@ export function licenseCodesForCategory(category: string): string[] {
     .map(([code]) => code);
 }
 
-/** Normalize to a single display category so "Landscape Contracting" and "Landscape" don't both appear. */
+/** Normalize to a single display category so aliases don't both appear. */
 function normalizeCategoryForDisplay(label: string): string {
-  return label?.trim() === 'Landscape Contracting' ? 'Landscape' : (label?.trim() || '');
+  const trimmed = label?.trim() || '';
+  if (trimmed === 'Landscape Contracting') return 'Landscape';
+  if (trimmed === 'Handyman Interior' || trimmed === 'Handyman Exterior') return 'Handyman';
+  return trimmed;
 }
 
 /**
  * Get all categories from a business's licenses and display fields.
- * Includes both license-derived categories and the actual display names (contractorType, tradeName)
- * so the filter bar shows real business list categories (e.g. "Handyman Interior") not only "General Contractor".
- * Normalizes "Landscape Contracting" to "Landscape" so only one category appears.
+ * Includes license-derived categories, display names, and account role when it is
+ * Handyman or Installer so the filter bar matches the roles on Pro Cards.
  */
 export function getBusinessCategories(business: ProCardData): string[] {
   const categories = new Set<string>();
@@ -78,6 +81,10 @@ export function getBusinessCategories(business: ProCardData): string[] {
   if (business.category) {
     addCategory(business.category);
   }
+
+  // Role chips: Handyman / Installer come from the owner account, not a trade license.
+  if (business.accountRole === 'handyman') addCategory('Handyman');
+  if (business.accountRole === 'installer') addCategory('Installer');
 
   // Extract categories from all license codes (for filtering by standard categories)
   if (business.licenses && business.licenses.length > 0) {

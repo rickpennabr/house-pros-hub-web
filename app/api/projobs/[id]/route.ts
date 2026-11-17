@@ -23,8 +23,11 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'contractor_required' }, { status: 401 });
     }
 
-    const isContractor = await hasRole(user.id, 'contractor');
-    if (!isContractor) {
+    const [isContractor, isRealtor] = await Promise.all([
+      hasRole(user.id, 'contractor'),
+      hasRole(user.id, 'realtor'),
+    ]);
+    if (!isContractor && !isRealtor) {
       return NextResponse.json({ error: 'contractor_required' }, { status: 403 });
     }
 

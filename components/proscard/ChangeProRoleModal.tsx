@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { HardHat, Hammer, Home, Wrench } from 'lucide-react';
+import { HardHat, Hand, Home, Wrench } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
@@ -16,6 +16,7 @@ import {
   roleRequiresInvitation,
   type ProAccountRole,
 } from '@/lib/utils/proAccountRole';
+import { ProRoleScopeNotice } from '@/components/auth/ProRoleScopeNotice';
 import type { Locale } from '@/i18n';
 
 interface ChangeProRoleModalProps {
@@ -29,7 +30,7 @@ const ROLE_ICONS: Record<ProAccountRole, React.ComponentType<{ className?: strin
   contractor: HardHat,
   realtor: Home,
   installer: Wrench,
-  handyman: Hammer,
+  handyman: Hand,
 };
 
 export function ChangeProRoleModal({
@@ -149,6 +150,8 @@ export function ChangeProRoleModal({
             );
           })}
         </div>
+
+        {selected ? <ProRoleScopeNotice role={selected} /> : null}
 
         {needsCode && !sameRole ? (
           <FormField label="Invitation code" required tip="Ask House Pros Hub for a contractor or realtor code.">

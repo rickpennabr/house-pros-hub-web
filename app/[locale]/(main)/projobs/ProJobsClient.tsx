@@ -16,22 +16,27 @@ function categoryTranslationKey(label: string): string {
   return label.toLowerCase();
 }
 
-export default function ProJobsClient() {
+interface ProJobsClientProps {
+  initialJobs?: ProJob[];
+}
+
+export default function ProJobsClient({ initialJobs = [] }: ProJobsClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const locale = useLocale();
   const t = useTranslations('proJobs');
   const tCategories = useTranslations('categories');
   const { roles, isAdmin, isLoading: authLoading, user } = useAuth();
-  const canPost = !authLoading && (isAdmin || roles.includes('contractor'));
+  const canPost =
+    !authLoading && (isAdmin || roles.includes('contractor') || roles.includes('realtor'));
   const jobParam = searchParams.get('job');
 
   const [selectedId, setSelectedId] = useState<string | null>(jobParam);
   const [ready, setReady] = useState(false);
   const [isMobile, setIsMobile] = useState(true);
   const [shareJob, setShareJob] = useState<ProJob | null>(null);
-  const [catalog, setCatalog] = useState<ProJob[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [catalog, setCatalog] = useState<ProJob[]>(initialJobs);
+  const [loaded, setLoaded] = useState(initialJobs.length > 0);
   const [loadError, setLoadError] = useState('');
   const [postOpen, setPostOpen] = useState(false);
 
@@ -43,8 +48,16 @@ export default function ProJobsClient() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  // Guests keep the SSR list. Signed-in users refresh once for "mine" flags.
   useEffect(() => {
+    if (authLoading) return;
+    if (!user && initialJobs.length > 0) {
+      setLoaded(true);
+      return;
+    }
+
     let cancelled = false;
+    const hadInitial = initialJobs.length > 0;
     fetch('/api/projobs', { credentials: 'include' })
       .then(async (response) => {
         const data = (await response.json().catch(() => ({}))) as { jobs?: ProJob[]; error?: string };
@@ -55,7 +68,7 @@ export default function ProJobsClient() {
         if (!cancelled) setCatalog(nextJobs);
       })
       .catch(() => {
-        if (!cancelled) setLoadError('load');
+        if (!cancelled && !hadInitial) setLoadError('load');
       })
       .finally(() => {
         if (!cancelled) setLoaded(true);
@@ -63,7 +76,7 @@ export default function ProJobsClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, user, initialJobs.length]);
 
   useEffect(() => {
     setSelectedId(jobParam);

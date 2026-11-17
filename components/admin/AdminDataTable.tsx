@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import { CRMSearchField } from '@/components/crm/CRMSearchField';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { createPortal } from 'react-dom';
 import {
   ArrowDownAZ,
@@ -855,28 +856,16 @@ export function AdminDataTable<T>({
           }}
           className={`flex gap-2 ${searchAside ? 'w-full min-w-0 pb-2 md:flex-1 md:pb-0' : 'max-w-md pb-2'} ${searchRowClassName} ${hideSearch ? 'hidden' : ''}`}
         >
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={clientSide ? internalSearch : searchInput}
-              onChange={(event) => handleSearchChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              className={`w-full h-10 pl-10 border-2 border-black rounded-lg text-sm bg-white text-black placeholder:text-gray-500 focus:outline-none ${
-                (clientSide ? internalSearch : searchInput) ? 'pr-10' : 'pr-3'
-              }`}
-            />
-            {(clientSide ? internalSearch : searchInput) ? (
-              <button
-                type="button"
-                onClick={() => handleSearchChange('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black cursor-pointer"
-                aria-label="Clear search"
-              >
-                <X size={16} />
-              </button>
-            ) : null}
-          </div>
+          <TypingSearchInput
+            value={clientSide ? internalSearch : searchInput}
+            onChange={handleSearchChange}
+            placeholder={searchPlaceholder}
+            clearLabel="Clear search"
+            inputClassName={`h-10 w-full rounded-lg border-2 border-black bg-white pl-10 text-sm text-black placeholder:text-gray-500 focus:outline-none ${
+              (clientSide ? internalSearch : searchInput) ? 'pr-10' : 'pr-3'
+            }`}
+            iconClassName="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500"
+          />
           {searchEndAction}
           {clientSide ? null : (
             <button

@@ -32,10 +32,10 @@ export default async function ProProductsPage({
   const { products } = await listPublishedProducts();
 
   return (
-    <div className="px-1 pb-4 md:px-2">
+    <div className="pb-4">
       <h1 className="sr-only">{t('title')}</h1>
       {products.length === 0 ? (
-        <p className="text-sm text-gray-700">{t('empty')}</p>
+        <p className="px-2 text-sm text-gray-700">{t('empty')}</p>
       ) : (
         <ProductGrid products={products} />
       )}

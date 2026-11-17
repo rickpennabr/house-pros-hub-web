@@ -25,6 +25,7 @@ import {
   LucideIcon 
 } from 'lucide-react';
 import { useAdminSearch } from './AdminSearchContext';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
 import { BsGrid3X3Gap } from 'react-icons/bs';
 
@@ -131,11 +132,6 @@ export function AdminSidebar() {
     return pathname.startsWith(itemHref + '/');
   };
 
-  const handleClear = () => {
-    setSearchQuery('');
-    searchInputRef.current?.focus();
-  };
-
   return (
     <>
       {/* Mobile: Horizontal menu in flow so it scrolls with the page */}
@@ -196,27 +192,16 @@ export function AdminSidebar() {
             }`}
           >
             <div className="flex h-full w-full items-center gap-2">
-              <div className="relative h-full min-w-0 flex-1">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search…"
-                  className="h-full w-full pl-9 pr-9 border-2 border-black dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a1a] focus:outline-none text-black dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm"
-                />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none w-4 h-4" />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={handleClear}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-gray-100 transition-colors cursor-pointer p-0.5"
-                    aria-label="Clear search"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+              <TypingSearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search…"
+                clearLabel="Clear search"
+                inputRef={searchInputRef}
+                className="relative h-full min-w-0 flex-1"
+                inputClassName="h-full w-full rounded-lg border-2 border-black bg-white pl-9 pr-9 text-sm text-black placeholder-gray-500 focus:outline-none dark:border-gray-600 dark:bg-[#1a1a1a] dark:text-gray-100 dark:placeholder-gray-400"
+                iconClassName="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500"
+              />
               <button
                 type="button"
                 onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }}

@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Modal from '@/components/ui/Modal';
 import ProCard, { type ProCardData } from '@/components/proscard/ProCard';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { matchesSearchQuery } from '@/lib/utils/businessSearch';
 
 interface BookProPickerProps {
@@ -36,6 +36,7 @@ async function loadAllPros(): Promise<ProCardData[]> {
 
 export function BookProPicker({ open, onClose }: BookProPickerProps) {
   const t = useTranslations('appointments');
+  const tCommon = useTranslations('common');
   const locale = useLocale();
   const [pros, setPros] = useState<ProCardData[]>([]);
   const [query, setQuery] = useState('');
@@ -79,17 +80,15 @@ export function BookProPicker({ open, onClose }: BookProPickerProps) {
       contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
     >
       <div className="border-b-2 border-black p-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-black" />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('searchPros')}
-            aria-label={t('searchPros')}
-            className="h-10 w-full rounded-lg border-2 border-black bg-white pl-9 pr-3 text-sm text-black placeholder:text-gray-500 focus:outline-none"
-          />
-        </div>
+        <TypingSearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder={t('searchPros')}
+          clearLabel={tCommon('button.cancel')}
+          className="relative"
+          inputClassName="h-10 w-full rounded-lg border-2 border-black bg-white pl-9 pr-8 text-sm text-black placeholder:text-gray-500 focus:outline-none"
+          iconClassName="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500"
+        />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {loading ? <p className="p-2 text-sm text-gray-600">{t('loadingPros')}</p> : null}

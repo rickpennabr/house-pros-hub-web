@@ -40,8 +40,9 @@ const licenseToCategoryMap: Record<string, string> = {
   'A-10': 'Pools & Spas',
   'GENERAL': 'General Contractor',
   [HANDYMAN_LICENSE_CODE]: 'Handyman',
-  'HANDYMAN INTERIOR': 'Handyman Interior',
-  'HANDYMAN_EXTERIOR': 'Handyman Exterior',
+  'HANDYMAN INTERIOR': 'Handyman',
+  'HANDYMAN_EXTERIOR': 'Handyman',
+  INSTALLER: 'Installer',
 };
 
 /**
@@ -74,9 +75,10 @@ const licenseToIconMap: Record<string, string> = {
   'A-7': 'Layers',
   'A-10': 'Waves',
   'GENERAL': 'Home',
-  [HANDYMAN_LICENSE_CODE]: 'Hammer',
-  'HANDYMAN INTERIOR': 'Hammer',
-  'HANDYMAN_EXTERIOR': 'Hammer',
+  [HANDYMAN_LICENSE_CODE]: 'Hand',
+  'HANDYMAN INTERIOR': 'Hand',
+  'HANDYMAN_EXTERIOR': 'Hand',
+  INSTALLER: 'Wrench',
 };
 
 /**
@@ -118,14 +120,20 @@ function getLicenseDisplayName(
     return licenseCategoriesMap.get(code)!;
   }
   if (code === 'GENERAL') return 'General Contractor';
-  if (code === HANDYMAN_LICENSE_CODE) return 'Handyman';
+  if (code === HANDYMAN_LICENSE_CODE || code === 'HANDYMAN INTERIOR' || code === 'HANDYMAN_EXTERIOR') {
+    return 'Handyman';
+  }
+  if (code === 'INSTALLER') return 'Installer';
   const licenseInfo = RESIDENTIAL_CONTRACTOR_LICENSES.find(l => l.code === code);
   return licenseInfo ? licenseInfo.name : 'General Contractor';
 }
 
-/** Use a single category label: "Landscape Contracting" displays as "Landscape". */
+/** Collapse legacy / alias labels onto the directory categories we still use. */
 function normalizeCategoryLabel(label: string): string {
-  return label?.trim() === 'Landscape Contracting' ? 'Landscape' : (label ?? '');
+  const trimmed = label?.trim() || '';
+  if (trimmed === 'Landscape Contracting') return 'Landscape';
+  if (trimmed === 'Handyman Interior' || trimmed === 'Handyman Exterior') return 'Handyman';
+  return trimmed;
 }
 
 /**

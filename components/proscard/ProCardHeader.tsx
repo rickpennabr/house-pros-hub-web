@@ -69,6 +69,10 @@ function getIconColor(iconName?: string): string {
     'Square': 'text-amber-500',
     'Fence': 'text-gray-400',
     'Layout': 'text-orange-500',
+    'Hand': 'text-gray-600',
+    'Hammer': 'text-gray-600',
+    'Wrench': 'text-gray-600',
+    'HardHat': 'text-gray-600',
   };
   return colorMap[iconName || ''] || 'text-gray-400';
 }

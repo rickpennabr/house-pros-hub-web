@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
 import { Button } from '@/components/ui/Button';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
+import { ProRoleScopeNotice } from '@/components/auth/ProRoleScopeNotice';
 
 interface InvitationCodeScreenProps {
   role?: 'contractor' | 'realtor' | 'installer' | 'handyman';
@@ -52,9 +53,11 @@ export function InvitationCodeScreen({ role = 'contractor', onValidCode, onBack 
       <h2 className="text-2xl font-semibold text-center mb-2">
         {t('invitationCodeLabel')}
       </h2>
-      <p className="text-sm text-gray-600 text-center mb-6">
+      <p className="text-sm text-gray-600 text-center mb-4">
         {t('invitationCodeDescription')}
       </p>
+
+      <ProRoleScopeNotice role={role} className="mb-6" />
 
       <FormField
         label={t('invitationCodeLabel')}

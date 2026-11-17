@@ -32,6 +32,7 @@ import { resizeImageSquare, validateFileSize } from '@/lib/utils/image';
 import { CHAT_SIGNUP_STEPS, getVisibleSteps, getGuestEstimateSteps, type ChatSignupStep } from './chatSignupSteps';
 import { useAuth } from '@/contexts/AuthContext';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
+import { ProRoleScopeNotice } from '@/components/auth/ProRoleScopeNotice';
 
 const TYPING_SPEED_MS = 30; // Fast typing for form bot
 const TYPING_INITIAL_DELAY_MS = 500;
@@ -736,60 +737,70 @@ export default function ChatSignupForm({
                         </div>
                       </div>
                     </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setValues((prev) => ({ ...prev, userType: USER_TYPES.CONTRACTOR, referral: '', referralOther: '' }));
-                        setStepIndex((i) => i + 1);
-                        setError(null);
-                        setTimeout(scrollToBottom, 100);
-                      }}
-                      className="w-full min-w-0 p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
-                          <GrUserWorker className="w-5 h-5 text-red-500" />
+                    <div className="w-full min-w-0 border-2 border-black rounded-lg bg-white overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setValues((prev) => ({ ...prev, userType: USER_TYPES.CONTRACTOR, referral: '', referralOther: '' }));
+                          setStepIndex((i) => i + 1);
+                          setError(null);
+                          setTimeout(scrollToBottom, 100);
+                        }}
+                        className="w-full p-4 bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 cursor-pointer text-left group"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+                            <GrUserWorker className="w-5 h-5 text-red-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-semibold text-black leading-snug">
+                              {tRole('contractor.title')}
+                            </h3>
+                            <p className="text-[10px] font-normal text-gray-500 mb-0.5">{tRole('contractor.invitationCodeRequired')}</p>
+                            <p className="text-xs text-gray-600">
+                              {tRole('contractor.description')}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-black leading-snug">
-                            {tRole('contractor.title')}
-                          </h3>
-                          <p className="text-[10px] font-normal text-gray-500 mb-0.5">{tRole('contractor.invitationCodeRequired')}</p>
-                          <p className="text-xs text-gray-600">
-                            {tRole('contractor.description')}
-                          </p>
-                        </div>
+                      </button>
+                      <div className="px-3 pb-3">
+                        <ProRoleScopeNotice role="contractor" compact />
                       </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setValues((prev) => ({ ...prev, userType: USER_TYPES.REALTOR, referral: '', referralOther: '' }));
-                        setStepIndex((i) => i + 1);
-                        setError(null);
-                        setTimeout(scrollToBottom, 100);
-                      }}
-                      className="w-full min-w-0 p-4 border-2 border-black rounded-lg bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 hover:scale-[1.02] cursor-pointer text-left group"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
-                          <FaPersonShelter className="w-5 h-5 text-red-500" />
+                    </div>
+                    <div className="w-full min-w-0 border-2 border-black rounded-lg bg-white overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setValues((prev) => ({ ...prev, userType: USER_TYPES.REALTOR, referral: '', referralOther: '' }));
+                          setStepIndex((i) => i + 1);
+                          setError(null);
+                          setTimeout(scrollToBottom, 100);
+                        }}
+                        className="w-full p-4 bg-white hover:bg-gray-50 active:bg-gray-100 transition-all duration-300 cursor-pointer text-left group"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-lg border-2 border-black bg-white flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+                            <FaPersonShelter className="w-5 h-5 text-red-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-semibold text-black leading-snug">
+                              {tRole('realtor.title')}
+                            </h3>
+                            <p className="text-[10px] font-normal text-gray-500 mb-0.5">{tRole('realtor.invitationCodeRequired')}</p>
+                            <p className="text-xs text-gray-600">
+                              {tRole('realtor.description')}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-black leading-snug">
-                            {tRole('realtor.title')}
-                          </h3>
-                          <p className="text-[10px] font-normal text-gray-500 mb-0.5">{tRole('realtor.invitationCodeRequired')}</p>
-                          <p className="text-xs text-gray-600">
-                            {tRole('realtor.description')}
-                          </p>
-                        </div>
+                      </button>
+                      <div className="px-3 pb-3">
+                        <ProRoleScopeNotice role="realtor" compact />
                       </div>
-                    </button>
+                    </div>
                   </div>
                 )}
               {currentStep.type === 'choice' && currentStep.id === 'referral' && (() => {
@@ -987,18 +998,26 @@ export default function ChatSignupForm({
                 </div>
               )}
               {currentStep.type === 'text' && (
-                <Input
-                  value={String(values[currentStep.field ?? ''] ?? '')}
-                  onChange={(e) => setValue(currentStep.field ?? currentStep.id, e.target.value)}
-                  placeholder={
-                    currentStep.id === 'referralOther' && referralNeedsName(String(values.referral ?? ''))
-                      ? tFields('referralNamePlaceholder')
-                      : tFields(`${currentStep.field}Placeholder` as Parameters<typeof tFields>[0])
-                  }
-                  className="rounded-xl border-2 border-black"
-                  onClear={() => setValue(currentStep.field ?? currentStep.id, '')}
-                  showClear
-                />
+                <div className="flex flex-col gap-2">
+                  {currentStep.id === 'invitationCode' &&
+                  (values.userType === USER_TYPES.CONTRACTOR || values.userType === USER_TYPES.REALTOR) ? (
+                    <ProRoleScopeNotice
+                      role={values.userType === USER_TYPES.REALTOR ? 'realtor' : 'contractor'}
+                    />
+                  ) : null}
+                  <Input
+                    value={String(values[currentStep.field ?? ''] ?? '')}
+                    onChange={(e) => setValue(currentStep.field ?? currentStep.id, e.target.value)}
+                    placeholder={
+                      currentStep.id === 'referralOther' && referralNeedsName(String(values.referral ?? ''))
+                        ? tFields('referralNamePlaceholder')
+                        : tFields(`${currentStep.field}Placeholder` as Parameters<typeof tFields>[0])
+                    }
+                    className="rounded-xl border-2 border-black"
+                    onClear={() => setValue(currentStep.field ?? currentStep.id, '')}
+                    showClear
+                  />
+                </div>
               )}
               {currentStep.type === 'email' && (
                 <Input
@@ -1077,16 +1096,17 @@ export default function ChatSignupForm({
                     />
                     <span className="text-sm text-white">
                       {tTerms('prefix')}{' '}
-                      <Link href={`/${locale}/terms`} className="text-white underline cursor-pointer" target="_blank" rel="noopener noreferrer">
+                      <Link href={`/${locale}/legal/terms`} className="text-white underline cursor-pointer" target="_blank" rel="noopener noreferrer">
                         {tTerms('termsOfService')}
                       </Link>{' '}
                       {tTerms('and')}{' '}
-                      <Link href={`/${locale}/privacy`} className="text-white underline cursor-pointer" target="_blank" rel="noopener noreferrer">
+                      <Link href={`/${locale}/legal/privacy`} className="text-white underline cursor-pointer" target="_blank" rel="noopener noreferrer">
                         {tTerms('privacyPolicy')}
                       </Link>{' '}
                       {tTerms('suffix')}
                     </span>
                   </label>
+                  <p className="text-xs text-white/80 leading-snug">{tTerms('connectionDisclaimer')}</p>
                 </div>
             )}
           </form>

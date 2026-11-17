@@ -93,7 +93,8 @@ export default function BusinessLinksTab({ links, businessName, logoSrc, appoint
     }
   };
 
-  const visibleLinks = links.filter((link) => link.type !== 'phone');
+  // Phone and email live on the Contact tab only.
+  const visibleLinks = links.filter((link) => link.type !== 'phone' && link.type !== 'email');
 
   if (visibleLinks.length === 0 && !appointmentHref) {
     return (

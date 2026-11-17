@@ -9,7 +9,9 @@ const VISITOR_ID_KEY = 'probot_visitor_id';
 
 export type ChatOpenChoice = 'account_estimate' | null;
 
-const CHAT_UNREAD_POLL_MS = 30_000;
+const CHAT_UNREAD_POLL_MS_OPEN = 30_000;
+const CHAT_UNREAD_POLL_MS_CLOSED = 60_000;
+const VISITOR_SESSION_IDLE_MS = 2_500;
 
 interface ChatContextType {
   isOpen: boolean;
@@ -41,9 +43,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { user, isAdmin } = useAuth();
   const isContractor = !isAdmin && !!user?.businessId;
 
+  // Defer visitor session until chat opens or the page is idle, so nav pages paint first.
   useEffect(() => {
+    if (visitorId) return;
     let cancelled = false;
-    (async () => {
+
+    const ensureVisitor = async () => {
+      if (cancelled) return;
+      try {
+        const existing = localStorage.getItem(VISITOR_ID_KEY);
+        if (existing) {
+          setVisitorId(existing);
+          return;
+        }
+      } catch {
+        // localStorage can be unavailable
+      }
       try {
         const res = await fetch('/api/chat/visitor-session', {
           method: 'POST',
@@ -59,16 +74,41 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // localStorage can be unavailable
           }
           setVisitorId(data.visitorId);
-          return;
         }
       } catch {
         // Leave visitor id empty until the session endpoint succeeds.
       }
-    })();
+    };
+
+    if (isOpen) {
+      void ensureVisitor();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    let idleId: number | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      idleId = idleWindow.requestIdleCallback(() => {
+        void ensureVisitor();
+      }, { timeout: VISITOR_SESSION_IDLE_MS });
+    } else {
+      timer = setTimeout(() => {
+        void ensureVisitor();
+      }, VISITOR_SESSION_IDLE_MS);
+    }
+
     return () => {
       cancelled = true;
+      if (idleId != null) idleWindow.cancelIdleCallback?.(idleId);
+      if (timer != null) clearTimeout(timer);
     };
-  }, []);
+  }, [isOpen, visitorId]);
 
   useEffect(() => {
     const fetchUnread = async () => {
@@ -89,8 +129,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // ignore
       }
     };
-    return runWhileVisible(fetchUnread, CHAT_UNREAD_POLL_MS);
-  }, [isAdmin, isContractor, visitorId]);
+    return runWhileVisible(fetchUnread, isOpen ? CHAT_UNREAD_POLL_MS_OPEN : CHAT_UNREAD_POLL_MS_CLOSED);
+  }, [isAdmin, isContractor, visitorId, isOpen]);
 
   // Sync app icon badge (e.g. iPhone home screen) with unread count. Supported in iOS 16.4+ PWA.
   useEffect(() => {

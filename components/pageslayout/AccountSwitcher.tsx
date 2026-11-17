@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Search, Share2, Users } from 'lucide-react';
+import { Share2, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Modal from '@/components/ui/Modal';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { useAccountSwitch, type SwitchAccount } from '@/contexts/AccountSwitchContext';
 import { AccountAvatar } from '@/components/pageslayout/AccountAvatar';
 
@@ -192,15 +193,15 @@ export function AccountSwitchModal({ isOpen, onClose }: AccountSwitchModalProps)
       maxWidth="lg"
       contentClassName="p-3"
     >
-      <div className="relative mb-3">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-black" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={t('searchBusinesses')}
-          className="w-full rounded-lg border-2 border-black py-2 pl-9 pr-3 text-sm text-black outline-none"
-        />
-      </div>
+      <TypingSearchInput
+        value={query}
+        onChange={setQuery}
+        placeholder={t('searchBusinesses')}
+        clearLabel="Clear search"
+        className="relative mb-3"
+        inputClassName="w-full rounded-lg border-2 border-black py-2 pl-9 pr-8 text-sm text-black outline-none placeholder:text-gray-500"
+        iconClassName="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500"
+      />
       {businesses.length > 0 ? (
         <div className="grid grid-cols-2 gap-3">
           {businesses.map((account) => {
