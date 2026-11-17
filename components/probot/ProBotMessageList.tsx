@@ -30,6 +30,11 @@ interface ProBotMessageListProps {
   onEditEstimate?: () => void;
   onReply?: (msg: ChatMessage) => void;
   onCrmEstimateApproved?: (messageId: string, next: ChatCrmEstimateShare) => void;
+  canDelete?: (msg: ChatMessage) => boolean;
+  onDelete?: (msg: ChatMessage) => void;
+  onAddPlaceToCrm?: (msg: ChatMessage) => Promise<void>;
+  onPickTime?: (msg: ChatMessage) => void;
+  onCrmQuickAction?: (kind: 'estimate' | 'invoice') => void;
 }
 
 export default function ProBotMessageList({
@@ -46,6 +51,11 @@ export default function ProBotMessageList({
   onEditEstimate,
   onReply,
   onCrmEstimateApproved,
+  canDelete,
+  onDelete,
+  onAddPlaceToCrm,
+  onPickTime,
+  onCrmQuickAction,
 }: ProBotMessageListProps) {
   const uniqueMessages = useMemo(() => dedupeMessagesById(messages), [messages]);
 
@@ -77,6 +87,10 @@ export default function ProBotMessageList({
           onEditEstimate={onEditEstimate}
           onReply={onReply}
           onCrmEstimateApproved={onCrmEstimateApproved}
+          onDelete={onDelete && canDelete?.(msg) ? onDelete : undefined}
+          onAddPlaceToCrm={onAddPlaceToCrm}
+          onPickTime={onPickTime}
+          onCrmQuickAction={onCrmQuickAction}
         />
       ))}
     </div>

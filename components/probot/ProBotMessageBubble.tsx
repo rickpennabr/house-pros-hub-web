@@ -1,9 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
-import { Building2, User, Check, CheckCheck, ImageIcon, Reply } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Building2, User, Check, CheckCheck, ImageIcon, Reply, Trash2, UserPlus, CalendarDays, Home as HomeIcon, FileText, Receipt } from 'lucide-react';
 import { ChatMediaAttachment } from '@/components/chat/ChatMediaAttachment';
 import ChatEstimateShareCard from '@/components/chat/ChatEstimateShareCard';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
@@ -25,6 +26,14 @@ interface ProBotMessageBubbleProps {
   onEditEstimate?: () => void;
   onReply?: (msg: ChatMessage) => void;
   onCrmEstimateApproved?: (messageId: string, next: ChatCrmEstimateShare) => void;
+  /** Shown on the viewer's own messages. Deletes for everyone. */
+  onDelete?: (msg: ChatMessage) => void;
+  /** Pro side: add the customer who shared a place to the CRM. */
+  onAddPlaceToCrm?: (msg: ChatMessage) => Promise<void>;
+  /** Customer side: open the shared calendar to pick a time. */
+  onPickTime?: (msg: ChatMessage) => void;
+  /** Pro view: open the estimate / invoice picker for this customer. */
+  onCrmQuickAction?: (kind: 'estimate' | 'invoice') => void;
 }
 
 export default function ProBotMessageBubble({
@@ -40,10 +49,21 @@ export default function ProBotMessageBubble({
   onEditEstimate,
   onReply,
   onCrmEstimateApproved,
+  onDelete,
+  onAddPlaceToCrm,
+  onPickTime,
+  onCrmQuickAction,
 }: ProBotMessageBubbleProps) {
+  const [addingToCrm, setAddingToCrm] = useState(false);
+  const [crmError, setCrmError] = useState<string | null>(null);
   const t = useTranslations('probot');
+  const locale = useLocale();
   const isVisitor = msg.sender === 'visitor';
+  /** WhatsApp layout: the viewer's own messages sit on the right in green. */
+  const isOwn = isAdminView ? !isVisitor : isVisitor;
   const body = typeof msg.body === 'string' ? msg.body : '';
+  /** Place cards replace their plain-text body. */
+  const showBody = Boolean(body.trim()) && !msg.payload?.placeShare && !msg.payload?.placeLinked;
 
   const renderBody = (text: string) => {
     const parts = text.split(/(https?:\/\/[^\s]+)/g);
@@ -55,7 +75,7 @@ export default function ProBotMessageBubble({
           href={part}
           target="_blank"
           rel="noopener noreferrer"
-          className={`underline break-all ${isVisitor ? 'text-blue-200' : 'text-blue-700'}`}
+          className="underline break-all text-blue-700"
         >
           {part}
         </a>
@@ -102,10 +122,10 @@ export default function ProBotMessageBubble({
   );
 
   return (
-    <div className={`flex ${isVisitor ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-3 py-2.5 text-sm flex items-start gap-2 ${
-          isVisitor ? 'bg-black text-white' : 'bg-white text-gray-900 border border-gray-200 shadow-sm'
+        className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm text-gray-900 flex items-start gap-2 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] ${
+          isOwn ? 'rounded-tr-none bg-[#d9fdd3]' : 'rounded-tl-none bg-white'
         }`}
       >
         <div className="w-8 h-8 shrink-0 rounded-lg border-2 border-black overflow-hidden bg-gray-200 flex items-center justify-center">
@@ -134,17 +154,150 @@ export default function ProBotMessageBubble({
                       : msg.replyTo.body}
             </p>
           ) : null}
-          {onReply ? (
-            <button
-              type="button"
-              onClick={() => onReply(msg)}
-              className="float-right cursor-pointer p-0.5 opacity-70 hover:opacity-100"
-              aria-label={t('reply')}
-            >
-              <Reply className="h-3.5 w-3.5" />
-            </button>
+          {showBody || onReply || onDelete ? (
+            <div className="flex items-start gap-1.5">
+              {showBody ? (
+                <p className="min-w-0 flex-1 whitespace-pre-wrap break-words">{renderBody(body)}</p>
+              ) : (
+                <span className="flex-1" />
+              )}
+              {onReply || onDelete ? (
+                <span className="flex shrink-0 items-center">
+                  {onDelete ? (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(msg)}
+                      className="cursor-pointer p-0.5 opacity-70 hover:opacity-100"
+                      aria-label={t('deleteMessage')}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                  {onReply ? (
+                    <button
+                      type="button"
+                      onClick={() => onReply(msg)}
+                      className="cursor-pointer p-0.5 opacity-70 hover:opacity-100"
+                      aria-label={t('reply')}
+                    >
+                      <Reply className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                </span>
+              ) : null}
+            </div>
           ) : null}
-          {body.trim() && <p className="whitespace-pre-wrap break-words">{renderBody(body)}</p>}
+          {msg.payload?.bookingInvite ? (
+            <div className="mt-2 rounded-lg border border-black/10 bg-white/70 p-2">
+              <p className="flex items-center gap-1.5 text-sm font-semibold">
+                <CalendarDays className="h-4 w-4 text-red-600" />
+                {t('bookingInviteTitle', { name: msg.payload.bookingInvite.businessName || businessName })}
+              </p>
+              {onPickTime ? (
+                <button
+                  type="button"
+                  onClick={() => onPickTime(msg)}
+                  className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-black px-3 text-sm font-medium text-white"
+                >
+                  {t('bookingInvitePick')}
+                </button>
+              ) : (
+                <p className="mt-1 text-xs text-gray-600">{t('bookingInviteSent')}</p>
+              )}
+            </div>
+          ) : null}
+          {msg.payload?.placeShare ? (
+            <div className="mt-1 min-w-[220px] rounded-lg border border-black/10 bg-white/80 p-2">
+              <p className="text-xs font-medium text-gray-500">{t('placeShareCardTitle')}</p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-100">
+                  <HomeIcon className="h-5 w-5 text-gray-500" aria-hidden />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-gray-900">{msg.payload.placeShare.name}</span>
+                  <span className="block truncate text-xs text-gray-500">{msg.payload.placeShare.address}</span>
+                </span>
+              </div>
+              {msg.payload.placeShare.crmCustomerId ? (
+                <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-green-700">
+                  <Check className="h-3.5 w-3.5" />
+                  {isAdminView ? t('placeShareInCrm') : t('placeShareLinkedBy', { name: businessName })}
+                </p>
+              ) : onAddPlaceToCrm ? (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    disabled={addingToCrm}
+                    onClick={async () => {
+                      setAddingToCrm(true);
+                      setCrmError(null);
+                      try {
+                        await onAddPlaceToCrm(msg);
+                      } catch (err) {
+                        setCrmError(err instanceof Error ? err.message : t('placeShareFailed'));
+                      } finally {
+                        setAddingToCrm(false);
+                      }
+                    }}
+                    className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-black px-3 text-sm font-medium text-white disabled:opacity-60"
+                  >
+                    <UserPlus className="h-4 w-4 text-red-500" />
+                    {addingToCrm ? t('placeShareAdding') : t('placeShareAddToCrm')}
+                  </button>
+                  <p className="mt-1 text-xs text-gray-500">{t('placeShareAddHint')}</p>
+                  {crmError ? <p className="mt-1 text-xs text-red-600">{crmError}</p> : null}
+                </div>
+              ) : !isAdminView ? (
+                <p className="mt-2 text-xs text-gray-500">{t('placeShareWaiting', { name: businessName })}</p>
+              ) : null}
+              {!isAdminView ? (
+                <Link
+                  href={`/${locale}/myplaces/${msg.payload.placeShare.placeId}`}
+                  className="mt-2 block text-xs font-medium text-black underline"
+                >
+                  {t('placeOpenInMyPlaces')}
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
+          {msg.payload?.placeLinked ? (
+            <div className="mt-1 min-w-[220px] rounded-lg border border-black/10 bg-white/80 p-2">
+              <p className="flex items-start gap-1.5 text-sm font-semibold text-gray-900">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                {t('placeLinkedTitle', { business: businessName, place: msg.payload.placeLinked.name })}
+              </p>
+              <p className="mt-1 text-xs text-gray-600">
+                {isAdminView ? t('placeLinkedProHint') : t('placeLinkedCustomerHint', { business: businessName })}
+              </p>
+              {isAdminView && onCrmQuickAction ? (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onCrmQuickAction('estimate')}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-black px-2 text-sm font-medium text-white"
+                  >
+                    <FileText className="h-4 w-4" />
+                    {t('crmSendEstimate')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onCrmQuickAction('invoice')}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border-2 border-black bg-white px-2 text-sm font-medium text-black"
+                  >
+                    <Receipt className="h-4 w-4" />
+                    {t('crmSendInvoice')}
+                  </button>
+                </div>
+              ) : !isAdminView ? (
+                <Link
+                  href={`/${locale}/myplaces/${msg.payload.placeLinked.placeId}`}
+                  className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg bg-black px-3 text-sm font-medium text-white"
+                >
+                  {t('placeOpenInMyPlaces')}
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
           {msg.payload?.crmEstimate ? (
             <ChatEstimateShareCard
               estimate={msg.payload.crmEstimate}
@@ -169,32 +322,32 @@ export default function ProBotMessageBubble({
             </div>
           ) : null}
           {isVisitor && !body.trim() && !msg.attachments?.length ? (
-            <div className={`flex items-center gap-2 py-2 ${isVisitor ? 'text-gray-400' : 'text-gray-500'}`}>
+            <div className={`flex items-center gap-2 py-2 text-gray-500`}>
               <ImageIcon className="w-5 h-5 shrink-0 opacity-70" />
               <span className="text-sm italic">{t('photoPlaceholder')}</span>
             </div>
           ) : null}
           {(isAdminView && msg.sender === 'admin') || (!isAdminView && msg.sender === 'visitor') ? (
             <p
-              className={`text-xs mt-1.5 flex items-center justify-end gap-1 opacity-90 ${isVisitor ? 'text-gray-300' : 'text-gray-500'}`}
+              className={`text-xs mt-1.5 flex items-center justify-end gap-1 opacity-90 text-gray-500`}
               title={msg.read_at ? t('read') : t('sent')}
             >
               <span>
                 {new Date(msg.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
               </span>
               {msg.read_at ? (
-                <CheckCheck className={`w-4 h-4 shrink-0 ${isVisitor ? 'text-blue-400' : 'text-blue-500'}`} aria-label={t('read')} />
+                <CheckCheck className={`w-4 h-4 shrink-0 text-sky-500`} aria-label={t('read')} />
               ) : (
-                <Check className={`w-4 h-4 shrink-0 ${isVisitor ? 'text-gray-400' : 'text-gray-500'}`} aria-label={t('sent')} />
+                <Check className={`w-4 h-4 shrink-0 text-gray-500`} aria-label={t('sent')} />
               )}
             </p>
           ) : (
-            <p className={`text-xs mt-1.5 flex items-center justify-end gap-1.5 opacity-90 ${isVisitor ? 'text-gray-300' : 'text-gray-500'}`}>
+            <p className={`text-xs mt-1.5 flex items-center justify-end gap-1.5 opacity-90 text-gray-500`}>
               <span>
                 {new Date(msg.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
               </span>
               {isAdminView && msg.sender === 'visitor' && msg.read_at ? (
-                <CheckCheck className={`w-4 h-4 shrink-0 ${isVisitor ? 'text-blue-400' : 'text-blue-500'}`} aria-label={t('read')} />
+                <CheckCheck className={`w-4 h-4 shrink-0 text-sky-500`} aria-label={t('read')} />
               ) : null}
               {!isAdminView && msg.read_at && (
                 <span title={msg.read_at}>

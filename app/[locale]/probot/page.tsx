@@ -2,10 +2,17 @@
 
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import ProBotSidebar, { type ProBotContact, type ProBotRecentConversation } from '@/components/probot/ProBotSidebar';
+import { useLocale, useTranslations } from 'next-intl';
+import { Building2, FolderOpen, Trash2, UserPlus } from 'lucide-react';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { deleteConversation, getVisitorDeleteToken } from '@/lib/api/chat';
+import { createLocalePath } from '@/lib/redirect';
+import type { Locale } from '@/i18n';
+import ProBotSidebar, { type ProBotContact, type ProBotContactAction, type ProBotRecentConversation } from '@/components/probot/ProBotSidebar';
 import ProBotChatArea from '@/components/probot/ProBotChatArea';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
 import { useProBotHeader } from '@/contexts/ProBotHeaderContext';
 import LoadingFallback from '@/components/ui/LoadingFallback';
 import { useProBotContacts } from '@/app/[locale]/probot/hooks/useProBotContacts';
@@ -53,10 +60,38 @@ function ProBotPageContent() {
   const pathname = usePathname();
   const contactParam = searchParams.get('contact');
   const conversationParam = searchParams.get('conversation');
+  const sharePlaceParam = searchParams.get('sharePlace');
+  const tPlaces = useTranslations('places');
+  // Keep the place id with the text: the contact effects rewrite the URL (dropping sharePlace) before the chat is ready.
+  const [pendingPlaceShare, setPendingPlaceShare] = useState<{ id: string; text: string } | null>(null);
+  useEffect(() => {
+    if (!sharePlaceParam) return;
+    const placeId = sharePlaceParam;
+    let cancelled = false;
+    fetch(`/api/places/${sharePlaceParam}`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const place = data?.place;
+        if (cancelled || !place) return;
+        const address = [place.street, [place.city, place.state].filter(Boolean).join(', '), place.zipCode].filter(Boolean).join(' ');
+        setPendingPlaceShare({ id: placeId, text: tPlaces('shareMessage', { name: place.name, address }) });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [sharePlaceParam, tPlaces]);
   const { visitorId, conversationId, chatUnreadCount } = useChat();
   const pendingUserContactParamRef = useRef<string | null>(null);
   const { isAuthenticated, user } = useAuth();
   const [selectedContact, setSelectedContact] = useState<ProBotContact>(PROBOT_CONTACT);
+  const tChat = useTranslations('probot');
+  const pageLocale = useLocale();
+  const [pendingContactDelete, setPendingContactDelete] = useState<ProBotContact | null>(null);
+  const [contactActionBusy, setContactActionBusy] = useState(false);
+  const [contactActionError, setContactActionError] = useState<string | null>(null);
+  const [contactNotice, setContactNotice] = useState<{ title: string; message: string } | null>(null);
+  const [chatRefreshKey, setChatRefreshKey] = useState(0);
   const [recentConversations, setRecentConversations] = useState<ProBotRecentConversation[] | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminViewingConversation, setAdminViewingConversation] = useState<ProBotRecentConversation | null>(null);
@@ -81,12 +116,54 @@ function ProBotPageContent() {
 
   const { setProBotHeader } = useProBotHeader();
 
-  const isContractor = Boolean(user?.businessId);
+  const { activeAccount, setActiveAccountId, businessesLoading } = useAccountSwitch();
+  const ownsBusiness = Boolean(user?.businessId) && !isAdmin;
+  /** Pros chat with customers only as their business. With the personal profile active they are a customer. */
+  const isContractor = ownsBusiness && activeAccount?.type === 'business';
+  const asProfileParam = searchParams.get('as');
+
+  // Open the profile the chat or notification belongs to: customer threads → business, pro/ProBot threads → personal.
+  // With no target, open whichever profile has unread messages when the active one has none.
+  useEffect(() => {
+    if (!ownsBusiness || !user?.businessId || businessesLoading || !activeAccount) return;
+    const target: 'business' | 'personal' | null =
+      asProfileParam === 'business' || asProfileParam === 'personal'
+        ? asProfileParam
+        : contactParam?.startsWith('customer-') || contactParam?.startsWith('visitor-') || conversationParam
+          ? 'business'
+          : contactParam
+            ? 'personal'
+            : null;
+    const switchTo = (next: 'business' | 'personal') => {
+      if (next === 'business' && activeAccount.type !== 'business') setActiveAccountId(user.businessId!);
+      if (next === 'personal' && activeAccount.type !== 'personal') setActiveAccountId(user.id);
+    };
+    if (target) {
+      switchTo(target);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/chat/unread-by-contact', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { business?: number; personal?: number } | null) => {
+        if (cancelled || !data) return;
+        const mine = activeAccount.type === 'business' ? data.business ?? 0 : data.personal ?? 0;
+        const other = activeAccount.type === 'business' ? data.personal ?? 0 : data.business ?? 0;
+        if (mine === 0 && other > 0) switchTo(activeAccount.type === 'business' ? 'personal' : 'business');
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // Run once per landing target, not on every switch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownsBusiness, businessesLoading, Boolean(activeAccount), asProfileParam, contactParam, conversationParam]);
   const visitorChatUnreadCount = !isAdmin && !isContractor ? chatUnreadCount : 0;
 
   const { contacts, setContacts, businessIds, customerUserIds, contactById } = useProBotContacts({
     isAuthenticated,
-    userBusinessId: user?.businessId,
+    userBusinessId: isContractor ? user?.businessId : undefined,
+    asPersonal: ownsBusiness && !isContractor,
   });
 
   useEffect(() => {
@@ -436,10 +513,136 @@ function ProBotPageContent() {
     return () => clearTimeout(t);
   }, [isContractor, adminViewingConversation?.id]);
 
+  const addContactToCrm = async (contact: ProBotContact) => {
+    if (!contact.conversationId) return;
+    try {
+      const res = await fetch('/api/chat/place-share', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: contact.conversationId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : tChat('placeShareFailed'));
+      setContactNotice({
+        title: tChat('crmAddedOpen'),
+        message: data.placeLinked ? tChat('contactCrmAddedPlace', { name: contact.name }) : tChat('contactCrmAdded', { name: contact.name }),
+      });
+      if (selectedContact.id === contact.id) setChatRefreshKey((key) => key + 1);
+    } catch (err) {
+      setContactNotice({ title: tChat('crmAddCustomer'), message: err instanceof Error ? err.message : tChat('placeShareFailed') });
+    }
+  };
+
+  /** ⋮ menu on each contact. Pros act on customer threads; customers on pros and ProBot. */
+  const getContactActions = (contact: ProBotContact): ProBotContactAction[] => {
+    const actions: ProBotContactAction[] = [];
+    const isCustomerThread = Boolean(contact.conversationId);
+    if (isCustomerThread && isContractor) {
+      actions.push({
+        id: 'crm',
+        label: tChat('crmAddCustomer'),
+        icon: <UserPlus className="h-4 w-4" />,
+        onSelect: () => void addContactToCrm(contact),
+      });
+      actions.push({
+        id: 'crm-open',
+        label: tChat('contactOpenCrm'),
+        icon: <FolderOpen className="h-4 w-4" />,
+        onSelect: () => router.push(createLocalePath(pageLocale as Locale, '/crm/customers')),
+      });
+    }
+    if (!isCustomerThread && !contact.isProBot && (contact.slug || contact.businessId)) {
+      actions.push({
+        id: 'profile',
+        label: tChat('contactViewProfile'),
+        icon: <Building2 className="h-4 w-4" />,
+        onSelect: () => router.push(createLocalePath(pageLocale as Locale, `/business/${contact.slug || contact.businessId}`)),
+      });
+    }
+    const canDelete = isCustomerThread
+      ? isContractor
+      : Boolean(conversationId && visitorId && (contact.isProBot || contact.businessId));
+    if (canDelete) {
+      actions.push({
+        id: 'delete',
+        label: contact.isProBot ? tChat('contactClearProBot') : tChat('deleteChat'),
+        icon: <Trash2 className="h-4 w-4" />,
+        destructive: true,
+        onSelect: () => {
+          setContactActionError(null);
+          setPendingContactDelete(contact);
+        },
+      });
+    }
+    return actions;
+  };
+
+  const performContactDelete = async () => {
+    const contact = pendingContactDelete;
+    if (!contact || contactActionBusy) return;
+    setContactActionBusy(true);
+    setContactActionError(null);
+    try {
+      if (contact.conversationId) {
+        const res = await fetch(`/api/chat/contractor/conversations/delete?conversationId=${encodeURIComponent(contact.conversationId)}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : tChat('deleteChatFailed'));
+      } else if (conversationId && visitorId) {
+        const deleteToken = await getVisitorDeleteToken(visitorId);
+        await deleteConversation(conversationId, visitorId, {
+          deleteToken,
+          ...(contact.isProBot ? { hubOnly: true } : { businessId: contact.businessId }),
+        });
+      }
+      if (!contact.isProBot) {
+        setContacts((current) => current.filter((item) => item.id !== contact.id));
+        if (selectedContact.id === contact.id) {
+          setAdminViewingConversation(null);
+          setSelectedContact(PROBOT_CONTACT);
+          router.replace(pathname, { scroll: false });
+        }
+      }
+      setChatRefreshKey((key) => key + 1);
+      setPendingContactDelete(null);
+    } catch (err) {
+      setContactActionError(err instanceof Error ? err.message : tChat('deleteChatFailed'));
+    } finally {
+      setContactActionBusy(false);
+    }
+  };
+
   return (
     <div className="flex flex-1 min-h-0 w-full overflow-hidden">
+      <ConfirmationModal
+        isOpen={Boolean(pendingContactDelete)}
+        onClose={() => setPendingContactDelete(null)}
+        title={pendingContactDelete?.isProBot ? tChat('contactClearProBot') : tChat('deleteChat')}
+        message={
+          contactActionError ??
+          (pendingContactDelete?.isProBot
+            ? tChat('contactClearProBotConfirm')
+            : tChat('contactDeleteConfirm', { name: pendingContactDelete?.name ?? '' }))
+        }
+        primaryButton={{
+          label: contactActionBusy ? tChat('deleteChatDeleting') : pendingContactDelete?.isProBot ? tChat('contactClearProBot') : tChat('deleteChat'),
+          onClick: () => void performContactDelete(),
+        }}
+        secondaryButton={{ label: tChat('deleteMessageCancel'), onClick: () => setPendingContactDelete(null) }}
+      />
+      <ConfirmationModal
+        isOpen={Boolean(contactNotice)}
+        onClose={() => setContactNotice(null)}
+        title={contactNotice?.title ?? ''}
+        message={contactNotice?.message ?? ''}
+        primaryButton={{ label: tChat('contactNoticeOk'), onClick: () => setContactNotice(null) }}
+      />
       <ProBotSidebar
         contacts={contacts}
+        getContactActions={getContactActions}
         selectedContactId={selectedContact.id}
         onSelectContact={handleSelectContact}
         inChatView={inChatView}
@@ -491,9 +694,16 @@ function ProBotPageContent() {
           isAdmin={isAdmin}
           isContractor={isContractor}
           roleKnown={roleKnown}
-          contractorBusinessId={user?.businessId ?? undefined}
+          contractorBusinessId={isContractor ? user?.businessId ?? undefined : undefined}
           adminViewingConversation={adminViewingConversation}
           onExitAdminConversation={() => setAdminViewingConversation(null)}
+          messagesRefreshKey={chatRefreshKey}
+          onConversationDeleted={(deletedId) => {
+            setContacts((current) => current.filter((contact) => contact.conversationId !== deletedId));
+            setAdminViewingConversation(null);
+            setSelectedContact(PROBOT_CONTACT);
+            router.replace(pathname, { scroll: false });
+          }}
           onVisitorProBotHasMessages={!isAdmin ? setVisitorProBotHasMessages : undefined}
           onVisitorProBotLastMessage={!isAdmin ? (preview, lastMessageTime) => { setVisitorProBotPreview(preview); setVisitorProBotLastMessageTime(lastMessageTime); } : undefined}
           onAdminReplySent={isAdmin ? () => {
@@ -507,6 +717,16 @@ function ProBotPageContent() {
               .catch(() => {});
           } : undefined}
           focusInputTrigger={contactParam ?? undefined}
+          autoSendMessage={pendingPlaceShare?.text ?? null}
+          autoSendPlaceId={pendingPlaceShare?.id ?? null}
+          onAutoSent={() => {
+            setPendingPlaceShare(null);
+            if (searchParams.get('sharePlace')) {
+              const next = new URLSearchParams(searchParams.toString());
+              next.delete('sharePlace');
+              router.replace(`?${next.toString()}`);
+            }
+          }}
           onOpenSidebar={!isAdmin ? () => setSidebarOpen(true) : undefined}
           forceWelcomeView={forceWelcomeView}
           onChatViewChange={setInChatView}

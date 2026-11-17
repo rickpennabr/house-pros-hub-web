@@ -10,6 +10,9 @@ import { matchesSearchQuery } from '@/lib/utils/businessSearch';
 interface BookProPickerProps {
   open: boolean;
   onClose: () => void;
+  /** When set, picking a pro calls this instead of opening its booking page. */
+  onPick?: (pro: ProCardData) => void;
+  title?: string;
 }
 
 interface DirectoryPage {
@@ -34,7 +37,7 @@ async function loadAllPros(): Promise<ProCardData[]> {
   }
 }
 
-export function BookProPicker({ open, onClose }: BookProPickerProps) {
+export function BookProPicker({ open, onClose, onPick, title }: BookProPickerProps) {
   const t = useTranslations('appointments');
   const tCommon = useTranslations('common');
   const locale = useLocale();
@@ -73,7 +76,7 @@ export function BookProPicker({ open, onClose }: BookProPickerProps) {
     <Modal
       isOpen={open}
       onClose={onClose}
-      title={t('pickPro')}
+      title={title ?? t('pickPro')}
       showHeader
       maxWidth="md"
       className="md:!w-[500px] md:!max-w-[500px] !overflow-hidden"
@@ -105,8 +108,9 @@ export function BookProPicker({ open, onClose }: BookProPickerProps) {
             <ProCard
               key={pro.id}
               data={pro}
-              href={`/${locale}/book/${pro.slug || pro.id}`}
+              href={onPick ? undefined : `/${locale}/book/${pro.slug || pro.id}`}
               pickOnly
+              onPick={onPick}
             />
           ))}
         </div>

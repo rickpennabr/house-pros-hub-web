@@ -82,9 +82,12 @@ interface ProCardProps {
   href?: string;
   /** The whole card is one choice. Reactions and icon buttons stay visible and do not click. */
   pickOnly?: boolean;
+  /** Pick mode without navigation: the whole card calls this. Implies pickOnly. */
+  onPick?: (pro: ProCardData) => void;
 }
 
-export default function ProCard({ data, onShare, onReaction, isListMode = false, href, pickOnly = false }: ProCardProps) {
+export default function ProCard({ data, onShare, onReaction, isListMode = false, href, pickOnly: pickOnlyProp = false, onPick }: ProCardProps) {
+  const pickOnly = pickOnlyProp || Boolean(onPick);
   const router = useRouter();
   const locale = useLocale();
   const { isAuthenticated, user, refreshRoles } = useAuth();
@@ -141,7 +144,11 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
 
     return (
       <div className="procard relative border-2 border-black rounded-lg bg-white overflow-hidden hover:shadow-lg transition-shadow w-full">
-        <Link href={cardHref} className="absolute inset-0 z-[1]" aria-label={data.businessName} />
+        {onPick ? (
+          <button type="button" onClick={() => onPick(data)} className="absolute inset-0 z-[1] cursor-pointer" aria-label={data.businessName} />
+        ) : (
+          <Link href={cardHref} className="absolute inset-0 z-[1]" aria-label={data.businessName} />
+        )}
         <div className="relative z-[2] pointer-events-none">
         <ProCardHeader
           logo={data.logo}
@@ -192,7 +199,11 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
 
   return (
     <div className="procard relative border-2 border-black rounded-lg bg-white overflow-hidden hover:shadow-lg transition-shadow w-full">
-      <Link href={cardHref} className="absolute inset-0 z-[1]" aria-label={data.businessName} />
+      {onPick ? (
+          <button type="button" onClick={() => onPick(data)} className="absolute inset-0 z-[1] cursor-pointer" aria-label={data.businessName} />
+        ) : (
+          <Link href={cardHref} className="absolute inset-0 z-[1]" aria-label={data.businessName} />
+        )}
       <div className="relative z-[2] pointer-events-none">
       <ProCardHeader
         logo={data.logo}

@@ -21,6 +21,8 @@ export const sendMessageSchema = z.object({
   userId: z.string().uuid().optional(),
   attachments: z.array(attachmentSchema).max(10).optional(),
   replyToId: z.string().uuid().optional(),
+  /** My Places property to attach as a share card. Must belong to the signed-in sender. */
+  placeShareId: z.string().uuid().optional(),
   locale: z.enum(["en", "pt", "es"]).optional(),
   /** Hub ProAgent turns can stream status + tokens over SSE. */
   stream: z.boolean().optional(),
@@ -39,6 +41,10 @@ export const deleteConversationSchema = z.object({
   conversationId: z.string().uuid(),
   visitorId: z.string().trim().min(1, 'visitorId is required').max(100),
   deleteToken: z.string().trim().min(1, 'deleteToken is required').max(500),
+  /** Only delete the thread with this pro. */
+  businessId: z.string().uuid().optional(),
+  /** Only delete the ProBot (hub) messages. */
+  hubOnly: z.boolean().optional(),
 });
 
 /** Identity the admin is replying as: ProBot, Hub Agent (themselves), or a specific business */
@@ -81,6 +87,7 @@ export const adminSendMessageSchema = z.object({
   payload: z
     .object({
       crmEstimate: crmEstimateShareSchema.optional(),
+      bookingInvite: z.object({ businessId: z.string().max(64).optional(), businessName: z.string().max(120).optional() }).optional(),
     })
     .optional(),
 }).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0 || Boolean(data.payload?.crmEstimate), {

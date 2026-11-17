@@ -267,7 +267,51 @@
     "showOnProCard": "Mostrar en ProCard",
     "calendarShareLink": "Compartir enlace del calendario",
     "calendarLinkCopied": "Enlace copiado al portapapeles",
-    "calendarLinkCopy": "Copiar enlace"
+    "calendarLinkCopy": "Copiar enlace",
+    "deleteMessage": "Eliminar mensaje",
+    "deleteMessageConfirm": "¿Eliminar este mensaje para todos?",
+    "deleteMessageFailed": "No se pudo eliminar el mensaje.",
+    "placeShareAddToCrm": "Agregar cliente a mi CRM",
+    "placeShareAdding": "Agregando…",
+    "placeShareAddHint": "Tu trabajo en este lugar aparecerá en su Mis Lugares.",
+    "placeShareInCrm": "Cliente agregado al CRM",
+    "placeShareFailed": "No se pudo agregar el cliente.",
+    "deleteMessageCancel": "Cancelar",
+    "unreadMessages": "{count} sin leer",
+    "bookingInviteShare": "Compartir mi calendario",
+    "bookingInviteBody": "Elige en mi calendario el horario que te funcione.",
+    "bookingInviteTitle": "Reserva un horario con {name}",
+    "bookingInvitePick": "Elegir horario",
+    "bookingInviteSent": "Calendario compartido. El cliente elige un horario aquí.",
+    "bookingInviteBooked": "Reservé un horario en tu calendario. ✅",
+    "crmAddCustomer": "Agregar a mi CRM",
+    "crmAddedOpen": "En mi CRM",
+    "deleteChat": "Eliminar chat",
+    "deleteChatConfirm": "¿Eliminar este chat de tu bandeja? Los mensajes con este cliente se eliminan para ambos.",
+    "deleteChatDeleting": "Eliminando…",
+    "deleteChatFailed": "No se pudo eliminar el chat.",
+    "sharePlace": "Compartir un lugar",
+    "sharePlaceTitle": "Compartir uno de mis lugares",
+    "sharePlaceLoading": "Cargando tus lugares…",
+    "sharePlaceEmpty": "Aún no tienes lugares en Mis Lugares.",
+    "sharePlaceAdd": "Agregar un lugar",
+    "sharePlaceLoadFailed": "No se pudieron cargar tus lugares.",
+    "placeShareCardTitle": "Propiedad compartida",
+    "placeShareLinkedBy": "{name} agregó este lugar",
+    "placeShareWaiting": "Esperando que {name} lo agregue a sus clientes.",
+    "placeOpenInMyPlaces": "Abrir en Mis Lugares",
+    "placeLinkedTitle": "{business} agregó {place} a sus clientes",
+    "placeLinkedCustomerHint": "Los presupuestos, facturas y visitas de {business} aparecerán en este lugar en Mis Lugares.",
+    "placeLinkedProHint": "Los presupuestos y facturas que envíes a este cliente aparecerán en sus Mis Lugares.",
+    "contactActions": "Acciones del contacto",
+    "contactViewProfile": "Ver perfil",
+    "contactOpenCrm": "Abrir mi CRM",
+    "contactClearProBot": "Borrar chat de ProBot",
+    "contactClearProBotConfirm": "¿Borrar tus mensajes con ProBot? Tus chats con profesionales se mantienen.",
+    "contactDeleteConfirm": "¿Eliminar tu chat con {name}? Los mensajes se eliminan para ambos.",
+    "contactCrmAdded": "{name} ya está en tu CRM.",
+    "contactCrmAddedPlace": "{name} ya está en tu CRM, vinculado al lugar que compartió. Tus presupuestos y facturas aparecerán en sus Mis Lugares.",
+    "contactNoticeOk": "OK"
   },
   "businessServices": {
     "tab": "Servicios",
@@ -2682,7 +2726,26 @@
     "nicknamePlaceholder": "ej. Casa, Casa de playa",
     "nicknameSave": "Guardar",
     "nicknameRequired": "Agrega un apodo.",
-    "nicknameFailed": "No se pudo guardar el apodo."
+    "nicknameFailed": "No se pudo guardar el apodo.",
+    "serviceRequest": "Solicitar servicio",
+    "request": {
+      "fixcam": {
+        "title": "FixCam",
+        "how": "Toma fotos o un video del problema. Un pro lo revisa y te responde con la solución."
+      },
+      "estimate": {
+        "title": "Estimado",
+        "how": "Describe el trabajo y tu presupuesto. Pros locales te envían un estimado gratis."
+      },
+      "probooking": {
+        "title": "ProBooking",
+        "how": "Elige un pro y un horario libre. Viene a este lugar ese día."
+      }
+    },
+    "tabsMenu": "Todas las secciones",
+    "cardMenu": "Opciones del lugar",
+    "shareWithPro": "Compartir con un pro",
+    "shareMessage": "¡Hola! Te comparto mi propiedad:\n{name}\n{address}"
   },
   "businessFeedback": {
     "title": "Comentarios",

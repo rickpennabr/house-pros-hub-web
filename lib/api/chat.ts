@@ -64,6 +64,7 @@ export interface SendMessagePayload {
   userId?: string;
   attachments?: Array<{ url: string; name: string; contentType: string }>;
   replyToId?: string;
+  placeShareId?: string;
   locale?: 'en' | 'pt' | 'es';
   stream?: boolean;
 }
@@ -214,7 +215,7 @@ export async function getVisitorDeleteToken(visitorId: string): Promise<string> 
 export async function deleteConversation(
   conversationId: string,
   visitorId: string,
-  options: { deleteToken: string }
+  options: { deleteToken: string; businessId?: string; hubOnly?: boolean }
 ): Promise<void> {
   const res = await fetch('/api/chat/conversations/delete', {
     method: 'DELETE',
@@ -223,6 +224,8 @@ export async function deleteConversation(
       conversationId,
       visitorId,
       deleteToken: options.deleteToken,
+      ...(options.businessId ? { businessId: options.businessId } : {}),
+      ...(options.hubOnly ? { hubOnly: true } : {}),
     }),
   });
   if (!res.ok) {

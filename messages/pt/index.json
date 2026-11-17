@@ -267,7 +267,51 @@
     "showOnProCard": "Mostrar no ProCard",
     "calendarShareLink": "Compartilhar link do calendário",
     "calendarLinkCopied": "Link copiado para a área de transferência",
-    "calendarLinkCopy": "Copiar link"
+    "calendarLinkCopy": "Copiar link",
+    "deleteMessage": "Excluir mensagem",
+    "deleteMessageConfirm": "Excluir esta mensagem para todos?",
+    "deleteMessageFailed": "Não foi possível excluir a mensagem.",
+    "placeShareAddToCrm": "Adicionar cliente ao meu CRM",
+    "placeShareAdding": "Adicionando…",
+    "placeShareAddHint": "Seu trabalho neste local aparecerá em Meus Lugares do cliente.",
+    "placeShareInCrm": "Cliente adicionado ao CRM",
+    "placeShareFailed": "Não foi possível adicionar o cliente.",
+    "deleteMessageCancel": "Cancelar",
+    "unreadMessages": "{count} não lidas",
+    "bookingInviteShare": "Compartilhar minha agenda",
+    "bookingInviteBody": "Escolha na minha agenda o horário que funciona para você.",
+    "bookingInviteTitle": "Agende um horário com {name}",
+    "bookingInvitePick": "Escolher horário",
+    "bookingInviteSent": "Agenda compartilhada. O cliente escolhe um horário aqui.",
+    "bookingInviteBooked": "Agendei um horário na sua agenda. ✅",
+    "crmAddCustomer": "Adicionar ao meu CRM",
+    "crmAddedOpen": "No meu CRM",
+    "deleteChat": "Excluir conversa",
+    "deleteChatConfirm": "Excluir esta conversa da sua caixa? As mensagens com este cliente são removidas para os dois.",
+    "deleteChatDeleting": "Excluindo…",
+    "deleteChatFailed": "Não foi possível excluir a conversa.",
+    "sharePlace": "Compartilhar um local",
+    "sharePlaceTitle": "Compartilhar um dos meus locais",
+    "sharePlaceLoading": "Carregando seus locais…",
+    "sharePlaceEmpty": "Você ainda não tem locais em Meus Locais.",
+    "sharePlaceAdd": "Adicionar um local",
+    "sharePlaceLoadFailed": "Não foi possível carregar seus locais.",
+    "placeShareCardTitle": "Imóvel compartilhado",
+    "placeShareLinkedBy": "{name} adicionou este local",
+    "placeShareWaiting": "Aguardando {name} adicioná-lo aos clientes.",
+    "placeOpenInMyPlaces": "Abrir em Meus Locais",
+    "placeLinkedTitle": "{business} adicionou {place} aos seus clientes",
+    "placeLinkedCustomerHint": "Orçamentos, faturas e visitas de {business} aparecerão neste local em Meus Locais.",
+    "placeLinkedProHint": "Os orçamentos e faturas que você enviar a este cliente aparecerão em Meus Locais dele.",
+    "contactActions": "Ações do contato",
+    "contactViewProfile": "Ver perfil",
+    "contactOpenCrm": "Abrir meu CRM",
+    "contactClearProBot": "Limpar conversa do ProBot",
+    "contactClearProBotConfirm": "Limpar suas mensagens com o ProBot? Suas conversas com profissionais continuam.",
+    "contactDeleteConfirm": "Excluir sua conversa com {name}? As mensagens são removidas para os dois.",
+    "contactCrmAdded": "{name} agora está no seu CRM.",
+    "contactCrmAddedPlace": "{name} agora está no seu CRM, vinculado ao local compartilhado. Seus orçamentos e faturas aparecerão em Meus Locais dele.",
+    "contactNoticeOk": "OK"
   },
   "businessServices": {
     "tab": "Serviços",
@@ -2931,7 +2975,26 @@
     "nicknamePlaceholder": "ex. Casa, Casa de praia",
     "nicknameSave": "Salvar",
     "nicknameRequired": "Adicione um apelido.",
-    "nicknameFailed": "Não foi possível salvar o apelido."
+    "nicknameFailed": "Não foi possível salvar o apelido.",
+    "serviceRequest": "Solicitar serviço",
+    "request": {
+      "fixcam": {
+        "title": "FixCam",
+        "how": "Tire fotos ou um vídeo do problema. Um pro avalia e responde com a solução."
+      },
+      "estimate": {
+        "title": "Orçamento",
+        "how": "Descreva o serviço e seu orçamento. Pros locais enviam um orçamento grátis."
+      },
+      "probooking": {
+        "title": "ProBooking",
+        "how": "Escolha um pro e um horário livre. Ele vem a este local nesse dia."
+      }
+    },
+    "tabsMenu": "Todas as seções",
+    "cardMenu": "Opções do local",
+    "shareWithPro": "Compartilhar com um pro",
+    "shareMessage": "Olá! Estou compartilhando meu imóvel com você:\n{name}\n{address}"
   },
   "businessFeedback": {
     "title": "Avaliações",

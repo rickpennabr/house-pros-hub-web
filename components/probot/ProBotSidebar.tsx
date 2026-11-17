@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { ChevronLeft, ChevronRight, MessageCircle, Users, Building2, User, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageCircle, Users, Building2, User, X, MoreVertical } from 'lucide-react';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 
@@ -22,6 +22,15 @@ export interface ProBotContact {
   visitorId?: string;
   /** Customer contact avatar from profile */
   profile_user_picture?: string | null;
+}
+
+/** One entry in a contact's ⋮ menu. */
+export interface ProBotContactAction {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  onSelect: () => void;
+  destructive?: boolean;
 }
 
 /** Admin conversation list item (from GET /api/chat/admin/conversations). Only includes conversations where admin (ProBot) sent or received a message. */
@@ -103,6 +112,8 @@ interface ProBotSidebarProps {
   onSidebarOpenChange?: (open: boolean) => void;
   /** When true and mobile, hide the expand-sidebar tab (layout shows back chevron to welcome instead) */
   inChatView?: boolean;
+  /** Actions for the ⋮ menu on each contact (none = no menu). */
+  getContactActions?: (contact: ProBotContact) => ProBotContactAction[];
 }
 
 export default function ProBotSidebar({
@@ -122,7 +133,26 @@ export default function ProBotSidebar({
   sidebarOpen: controlledSidebarOpen,
   onSidebarOpenChange,
   inChatView = false,
+  getContactActions,
 }: ProBotSidebarProps) {
+  const [unreadByContact, setUnreadByContact] = useState<Record<string, number>>({});
+  const [contactMenuId, setContactMenuId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      fetch('/api/chat/unread-by-contact', { credentials: 'include' })
+        .then((res) => (res.ok ? res.json() : { counts: {} }))
+        .then((data) => {
+          if (!cancelled) setUnreadByContact(data.counts ?? {});
+        })
+        .catch(() => {});
+    void load();
+    const timer = window.setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [selectedContactId]);
   const t = useTranslations('probot');
   // Start collapsed so mobile loads with sidebar closed; desktop expands after mount (see effect).
   const [internalSidebarOpen, setInternalSidebarOpen] = useState(false);
@@ -287,19 +317,30 @@ export default function ProBotSidebar({
               <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
                 {filteredContacts.map((contact) => {
                   const isSelected = selectedContactId === contact.id;
+                  const unreadForContact = isSelected
+                    ? 0
+                    : contact.isProBot
+                      ? unreadByContact.probot ?? 0
+                      : (contact.businessId && unreadByContact[`business:${contact.businessId}`]) ||
+                        unreadByContact[contact.id] ||
+                        (contact.conversationId ? unreadByContact[`conv:${contact.conversationId}`] ?? 0 : 0);
                   // Business contacts: logo only (never pro personal photo). Customer contacts: profile picture or logo.
                   const logoSrc = contact.isProBot ? PROBOT_ASSETS.avatar : (contact.businessId ? contact.logo : (contact.logo ?? contact.profile_user_picture ?? undefined));
                   const isCustomerContact = contact.conversationId != null;
+                  const isOnline = contact.isProBot || Boolean(contact.online);
+                  const actions = getContactActions?.(contact) ?? [];
+                  const menuOpen = contactMenuId === contact.id;
                   return (
+                    <div key={contact.id} className="relative">
                     <button
-                      key={contact.id}
                       type="button"
                       onClick={() => onSelectContact(contact)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg border-2 border-black transition-colors cursor-pointer ${
+                      className={`w-full flex items-center gap-2 px-3 py-2 ${actions.length ? 'pr-10' : ''} text-left rounded-lg border-2 border-black transition-colors cursor-pointer ${
                         isSelected ? 'bg-gray-900 text-white' : 'bg-white md:hover:bg-gray-100 text-gray-800'
                       }`}
                     >
-                      <div className="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center shrink-0 overflow-hidden bg-white relative">
+                      <span className="relative shrink-0">
+                      <div className="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center overflow-hidden bg-white">
                         {logoSrc ? (
                           contact.isProBot ? (
                             <Image
@@ -328,26 +369,68 @@ export default function ProBotSidebar({
                           )
                         )}
                       </div>
+                        <span
+                          className={`absolute -bottom-1 -left-1 h-3 w-3 rounded-full border-2 ${isSelected ? 'border-gray-900' : 'border-white'} ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}
+                          title={isOnline ? t('online') : t('offline')}
+                          aria-label={isOnline ? t('online') : t('offline')}
+                        />
+                      </span>
                       <span className="text-sm font-medium truncate flex-1">
                         {contact.name}
                       </span>
-                      {contact.isProBot && (
+                      {unreadForContact > 0 ? (
                         <span
-                          className={`w-2 h-2 rounded-full shrink-0 bg-green-500 ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900' : ''}`}
-                          title={t('online')}
-                          aria-hidden
-                        />
-                      )}
-                      {!contact.isProBot && (
-                        <span
-                          className={`w-2 h-2 rounded-full shrink-0 ${
-                            contact.online ? 'bg-green-500' : 'bg-gray-400'
-                          } ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900' : ''}`}
-                          title={contact.online ? t('online') : t('offline')}
-                          aria-hidden
-                        />
-                      )}
+                          className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-green-500 px-1.5 text-[11px] font-bold leading-none text-white"
+                          aria-label={t('unreadMessages', { count: unreadForContact })}
+                        >
+                          {unreadForContact > 99 ? '99+' : unreadForContact}
+                        </span>
+                      ) : null}
                     </button>
+                    {actions.length > 0 ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setContactMenuId(menuOpen ? null : contact.id)}
+                          className={`absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg ${
+                            isSelected ? 'text-white hover:bg-white/10' : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                          aria-label={t('contactActions')}
+                          aria-haspopup="menu"
+                          aria-expanded={menuOpen}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                        {menuOpen ? (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setContactMenuId(null)} aria-hidden />
+                            <div
+                              role="menu"
+                              className="absolute right-1 top-full z-40 mt-1 w-52 overflow-hidden rounded-lg border-2 border-black bg-white py-1 shadow-lg"
+                            >
+                              {actions.map((action) => (
+                                <button
+                                  key={action.id}
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setContactMenuId(null);
+                                    action.onSelect();
+                                  }}
+                                  className={`flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                                    action.destructive ? 'text-red-600' : 'text-gray-800'
+                                  }`}
+                                >
+                                  <span className="flex h-4 w-4 shrink-0 items-center justify-center">{action.icon}</span>
+                                  {action.label}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        ) : null}
+                      </>
+                    ) : null}
+                    </div>
                   );
                 })}
               </div>

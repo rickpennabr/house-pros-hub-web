@@ -95,6 +95,30 @@ export interface ProAgentPayload {
   confirmed?: boolean;
   /** Pro-shared CRM estimate the customer can approve in chat */
   crmEstimate?: ChatCrmEstimateShare;
+  /** Customer shared a My Places property with this pro. */
+  placeShare?: ChatPlaceShare;
+  /** Pro shared their booking calendar; the customer picks a time from it in chat. */
+  bookingInvite?: ChatBookingInvite;
+  /** Pro added the shared place to their CRM; their work now shows on the customer's My Places. */
+  placeLinked?: ChatPlaceLinked;
+}
+
+export interface ChatPlaceLinked {
+  placeId: string;
+  name: string;
+}
+
+export interface ChatBookingInvite {
+  businessId: string;
+  businessName: string;
+}
+
+export interface ChatPlaceShare {
+  placeId: string;
+  name: string;
+  address: string;
+  /** Set once the pro adds the customer to their CRM. */
+  crmCustomerId?: string;
 }
 
 export interface ChatMessage {

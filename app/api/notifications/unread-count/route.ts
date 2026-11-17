@@ -5,6 +5,7 @@ import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { getUnreadCountQuerySchema } from '@/lib/schemas/chat';
 import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
+import { loadUnreadByContact } from '@/lib/chat/unread-by-contact';
 
 /**
  * GET /api/notifications/unread-count
@@ -43,41 +44,10 @@ export async function GET(request: NextRequest) {
 
       const userBusinessId = await getOwnedBusinessId(user.id);
       if (userBusinessId) {
-        const { count: visitorCount, error: visitorError } = await supabase
-          .from('probot_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('sender', 'visitor')
-          .eq('business_id', userBusinessId)
-          .is('read_at', null);
-        if (visitorError) {
-          console.error('Notifications unread-count (contractor visitor) error:', visitorError);
-          return NextResponse.json({ error: 'Failed to get unread count' }, { status: 500 });
-        }
-        const { data: convRows } = await supabase
-          .from('probot_messages')
-          .select('conversation_id')
-          .eq('business_id', userBusinessId);
-        const conversationIds = [
-          ...new Set((convRows ?? []).map((r: { conversation_id: string }) => r.conversation_id)),
-        ];
-        if (conversationIds.length === 0) {
-          const n = typeof visitorCount === 'number' ? visitorCount : 0;
-          return NextResponse.json({ count: n, chat: n }, { status: 200 });
-        }
-        const { count: adminCount, error: adminError } = await supabase
-          .from('probot_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('sender', 'admin')
-          .in('conversation_id', conversationIds)
-          .is('read_at', null);
-        if (adminError) {
-          const n = typeof visitorCount === 'number' ? visitorCount : 0;
-          return NextResponse.json({ count: n, chat: n }, { status: 200 });
-        }
-        const total =
-          (typeof visitorCount === 'number' ? visitorCount : 0) +
-          (typeof adminCount === 'number' ? adminCount : 0);
-        return NextResponse.json({ count: total, chat: total }, { status: 200 });
+        // Both profiles: customers writing to the business + pros/ProBot replying to the personal account.
+        const { business, personal } = await loadUnreadByContact(supabase, user.id, userBusinessId);
+        const total = business + personal;
+        return NextResponse.json({ count: total, chat: total, business, personal }, { status: 200 });
       }
     }
 

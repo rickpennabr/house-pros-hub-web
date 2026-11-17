@@ -45,9 +45,10 @@ type SubscriptionTable =
   | 'visitor_push_subscriptions';
 
 /** Chat lives under the locale. /probot and / are not real pages. */
-export function chatPushUrl(locale: string | undefined): string {
+/** `as` opens ProBot on the profile the message was sent to (business inbox or personal chats). */
+export function chatPushUrl(locale: string | undefined, as?: 'business' | 'personal'): string {
   const safe: AppLocale = APP_LOCALES.includes(locale as AppLocale) ? (locale as AppLocale) : 'en';
-  return `/${safe}/probot`;
+  return as ? `/${safe}/probot?as=${as}` : `/${safe}/probot`;
 }
 
 /** Locale of the page that sent the reply, so the opened chat matches that site. */

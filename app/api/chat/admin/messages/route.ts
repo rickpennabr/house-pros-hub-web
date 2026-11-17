@@ -128,6 +128,16 @@ export async function POST(request: NextRequest) {
         },
       };
     }
+    const invite = (messagePayload as { bookingInvite?: { businessName?: unknown } } | undefined)?.bookingInvite;
+    if (invite && typeof sentAs === 'object' && sentAs && 'businessId' in sentAs) {
+      // The calendar shared is always the replying business's own.
+      insertPayload.payload = {
+        bookingInvite: {
+          businessId: (sentAs as { businessId: string }).businessId,
+          businessName: typeof invite.businessName === 'string' ? invite.businessName.slice(0, 120) : '',
+        },
+      };
+    }
     if (sentAs !== undefined) {
       if (sentAs === 'probot') {
         insertPayload.admin_sent_as = sentAs;
@@ -163,7 +173,22 @@ export async function POST(request: NextRequest) {
       String(result.error.message).includes('column')
     );
 
-    if (result.error && isColumnError) {
+    if (result.error && isColumnError && insertPayload.admin_sent_as !== undefined) {
+      // Migration 029 (admin_sent_as) is the usual missing column; keep business_id and payload cards.
+      delete insertPayload.admin_sent_as;
+      result = await supabase
+        .from('probot_messages')
+        .insert(insertPayload as InsertRow)
+        .select('id, conversation_id, sender, body, created_at, attachments, business_id, admin_user_id, payload')
+        .single();
+    }
+    const stillColumnError = result.error && (
+      result.error.code === '42703' ||
+      String(result.error.message).includes('does not exist') ||
+      String(result.error.message).includes('column')
+    );
+
+    if (result.error && stillColumnError) {
       // Retry without optional columns (migrations 028/029/040 may not be applied)
       delete insertPayload.reply_to;
       delete insertPayload.attachments;
@@ -234,7 +259,7 @@ export async function POST(request: NextRequest) {
       conversationId,
       'New reply in ProBot',
       pushBody || 'You have a new message',
-      chatPushUrl(pushLocaleFromRequest(request))
+      chatPushUrl(pushLocaleFromRequest(request), 'personal')
     );
 
     return NextResponse.json(

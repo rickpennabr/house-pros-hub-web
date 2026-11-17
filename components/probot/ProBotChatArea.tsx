@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import Image from 'next/image';
-import { Building2, CreditCard, FileText, Receipt, Trash2, ArrowLeft, User } from 'lucide-react';
+import { Building2, CreditCard, FileText, Receipt, Trash2, ArrowLeft, User, CalendarDays, Check, UserPlus, Home as HomeIcon, Loader2 } from 'lucide-react';
 import { useChat } from '@/contexts/ChatContext';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import Modal from '@/components/ui/Modal';
 import { useAuth } from '@/contexts/AuthContext';
 import ChatSignupForm from '@/components/chat/ChatSignupForm';
 import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
@@ -67,6 +69,15 @@ interface ProBotChatAreaProps {
   onChatViewChange?: (inChat: boolean) => void;
   /** Called when user makes a choice on the welcome screen (e.g. Create account, Get estimate) so parent can clear forceWelcomeView */
   onWelcomeChoiceMade?: () => void;
+  /** Sent once as the customer when a pro chat is ready (e.g. sharing a place from My Places). */
+  autoSendMessage?: string | null;
+  /** Attach this My Places property as a share card on the auto-sent message. */
+  autoSendPlaceId?: string | null;
+  onAutoSent?: () => void;
+  /** Pro deleted this customer/visitor chat from their inbox. */
+  onConversationDeleted?: (conversationId: string) => void;
+  /** Bump to reload the open thread (e.g. after a contact menu delete). */
+  messagesRefreshKey?: number;
 }
 
 const TYPING_MS = 60;
@@ -140,12 +151,18 @@ export default function ProBotChatArea({
   onVisitorProBotLastMessage,
   onAdminReplySent,
   focusInputTrigger,
+  autoSendMessage,
+  autoSendPlaceId,
+  onAutoSent,
+  onConversationDeleted,
+  messagesRefreshKey = 0,
   onOpenSidebar,
   forceWelcomeView = false,
   onChatViewChange,
   onWelcomeChoiceMade,
 }: ProBotChatAreaProps) {
   const t = useTranslations('probot');
+  const tPlaces = useTranslations('places');
   const tBot = useTranslations('bot');
   const tSuccess = useTranslations('estimate.success');
   const locale = useLocale();
@@ -153,6 +170,15 @@ export default function ProBotChatArea({
   const { user, isAuthenticated } = useAuth();
   const { visitorId, conversationId, setConversationId } = useChat();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null);
+  const [confirmDeleteChat, setConfirmDeleteChat] = useState(false);
+  const [deletingChat, setDeletingChat] = useState(false);
+  const [crmAdd, setCrmAdd] = useState<{ status: 'idle' | 'adding' | 'done' | 'error'; error?: string; conversationId?: string }>({ status: 'idle' });
+  type SharePlaceOption = { id: string; name: string; street: string | null; city: string | null; state: string | null; zipCode: string | null; photoUrl: string | null };
+  const [placePickerOpen, setPlacePickerOpen] = useState(false);
+  const [myPlaces, setMyPlaces] = useState<SharePlaceOption[] | null>(null);
+  const [myPlacesError, setMyPlacesError] = useState<string | null>(null);
+  const [bookingInvite, setBookingInvite] = useState<import('@/lib/types/chat').ChatBookingInvite | null>(null);
   const [hubAgent, setHubAgent] = useState<{ displayName: string; avatarUrl: string | null } | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
@@ -395,7 +421,7 @@ export default function ProBotChatArea({
     } else {
       loadMessages();
     }
-  }, [adminViewingConversation, loadMessages, loadAdminViewMessages]);
+  }, [adminViewingConversation, loadMessages, loadAdminViewMessages, messagesRefreshKey]);
 
   const refreshOpenThread = useCallback(() => {
     if (adminViewingConversation?.id) {
@@ -420,6 +446,8 @@ export default function ProBotChatArea({
   }, [conversationId, adminViewingConversation]);
 
   const isAdminView = Boolean((isAdmin || isContractor) && adminViewingConversation);
+  /** A pro (not the hub admin) replying in a customer thread. */
+  const isProReplying = isAdminView && !isAdmin;
 
   useEffect(() => {
     if (!isAdminView || !isContractor) {
@@ -579,7 +607,7 @@ export default function ProBotChatArea({
   }, [showWelcome, hiTypedLength, hiText.length, whereStartTypedLength, howDoYouWantToStartText.length]);
 
   const sendMessage = useCallback(
-    async (body: string) => {
+    async (body: string, extra?: { placeShareId?: string }) => {
       if (!visitorId || sending) return;
       setSending(true);
       setError(null);
@@ -597,6 +625,7 @@ export default function ProBotChatArea({
             visitorId,
             body,
             ...(businessId ? { businessId } : {}),
+            ...(extra?.placeShareId ? { placeShareId: extra.placeShareId } : {}),
             ...(displayName ? { displayName } : {}),
             ...(isAuthenticated && user?.id ? { userId: user.id } : {}),
             ...(pendingAttachments.length > 0 ? { attachments: pendingAttachments } : {}),
@@ -767,12 +796,117 @@ export default function ProBotChatArea({
       loadMessages,
     ]
   );
+  const autoSentRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoSendMessage || !visitorId || !businessId || sending) return;
+    if (autoSentRef.current === autoSendMessage) return;
+    autoSentRef.current = autoSendMessage;
+    void sendMessage(autoSendMessage, autoSendPlaceId ? { placeShareId: autoSendPlaceId } : undefined).finally(() => onAutoSent?.());
+  }, [autoSendMessage, autoSendPlaceId, visitorId, businessId, sending, sendMessage, onAutoSent]);
+
+  const canDeleteMessage = useCallback(
+    (msg: ChatMessage) => {
+      if (msg.id.startsWith('stream-') || msg.id.startsWith('temp-')) return false;
+      if (isAdminView) return Boolean(isContractor && msg.sender === 'admin' && msg.business_id && msg.business_id === contractorBusinessId);
+      return msg.sender === 'visitor';
+    },
+    [isAdminView, isContractor, contractorBusinessId]
+  );
+
+  const deleteMessage = useCallback(
+    async (msg: ChatMessage) => {
+      const params = new URLSearchParams({ id: msg.id });
+      if (msg.sender === 'visitor' && visitorId) params.set('visitorId', visitorId);
+      const res = await fetch(`/api/chat/messages?${params.toString()}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data.error === 'string' ? data.error : t('deleteMessageFailed'));
+        return;
+      }
+      setMessages((current) => current.filter((item) => item.id !== msg.id));
+    },
+    [visitorId, t]
+  );
+
+  const deleteConversationForPro = useCallback(async () => {
+    const conversationIdToDelete = adminViewingConversation?.id;
+    if (!conversationIdToDelete) return;
+    setDeletingChat(true);
+    try {
+      const res = await fetch(`/api/chat/contractor/conversations/delete?conversationId=${encodeURIComponent(conversationIdToDelete)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : t('deleteChatFailed'));
+      setMessages([]);
+      onConversationDeleted?.(conversationIdToDelete);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('deleteChatFailed'));
+    } finally {
+      setDeletingChat(false);
+      setConfirmDeleteChat(false);
+    }
+  }, [adminViewingConversation?.id, onConversationDeleted, t]);
+
+  const addConversationToCrm = useCallback(async () => {
+    const conversationIdToAdd = adminViewingConversation?.id;
+    if (!conversationIdToAdd) return;
+    setCrmAdd({ status: 'adding', conversationId: conversationIdToAdd });
+    try {
+      const res = await fetch('/api/chat/place-share', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: conversationIdToAdd }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.customerId !== 'string') throw new Error(typeof data.error === 'string' ? data.error : t('placeShareFailed'));
+      setCrmAdd({ status: 'done', conversationId: conversationIdToAdd });
+      setCrmCustomerId(data.customerId);
+      void refreshOpenThread();
+      if (typeof data.messageId === 'string') {
+        setMessages((current) =>
+          current.map((item) =>
+            item.id === data.messageId && item.payload?.placeShare
+              ? { ...item, payload: { ...item.payload, placeShare: { ...item.payload.placeShare, crmCustomerId: data.customerId } } }
+              : item
+          )
+        );
+      }
+    } catch (err) {
+      setCrmAdd({ status: 'error', conversationId: conversationIdToAdd, error: err instanceof Error ? err.message : t('placeShareFailed') });
+    }
+  }, [adminViewingConversation?.id, t, refreshOpenThread]);
+
+  const addPlaceToCrm = useCallback(async (msg: ChatMessage) => {
+    const res = await fetch('/api/chat/place-share', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId: msg.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || typeof data.customerId !== 'string') throw new Error(typeof data.error === 'string' ? data.error : t('placeShareFailed'));
+    setMessages((current) =>
+      current.map((item) =>
+        item.id === msg.id && item.payload?.placeShare
+          ? { ...item, payload: { ...item.payload, placeShare: { ...item.payload.placeShare, crmCustomerId: data.customerId } } }
+          : item
+      )
+    );
+    setCrmCustomerId(data.customerId);
+    void refreshOpenThread();
+  }, [t, refreshOpenThread]);
 
   const sendAdminReply = useCallback(
     async (
       body: string,
       attachments?: ChatAttachment[],
-      payload?: { crmEstimate?: import('@/lib/types/chat').ChatCrmEstimateShare }
+      payload?: {
+        crmEstimate?: import('@/lib/types/chat').ChatCrmEstimateShare;
+        bookingInvite?: import('@/lib/types/chat').ChatBookingInvite;
+      }
     ) => {
       if (!adminViewingConversation?.id || sending) return;
       const replyBusinessId =
@@ -1031,6 +1165,29 @@ export default function ProBotChatArea({
     send: t('send'),
   };
 
+  const openPlacePicker = () => {
+    setPlacePickerOpen(true);
+    setMyPlacesError(null);
+    fetch('/api/places', { credentials: 'include' })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : t('sharePlaceLoadFailed'));
+        setMyPlaces(Array.isArray(data.places) ? data.places : []);
+      })
+      .catch((err) => setMyPlacesError(err instanceof Error ? err.message : t('sharePlaceLoadFailed')));
+  };
+
+  const placeAddress = (place: SharePlaceOption) =>
+    [place.street, [place.city, place.state].filter(Boolean).join(', '), place.zipCode].filter(Boolean).join(' ');
+
+  const shareMyPlace = (place: SharePlaceOption) => {
+    setPlacePickerOpen(false);
+    void sendMessage(tPlaces('shareMessage', { name: place.name, address: placeAddress(place) }), { placeShareId: place.id });
+  };
+
+  /** Customers chatting with a pro can send one of their My Places. */
+  const canSharePlace = !isAdminView && isAuthenticated && Boolean(businessId) && !selectedContact?.isProBot;
+
   const crmActions =
     isAdminView && isContractor
       ? [
@@ -1052,8 +1209,28 @@ export default function ProBotChatArea({
             icon: <CreditCard className="h-4 w-4" />,
             onSelect: () => setCrmPickerKind('payment'),
           },
+          {
+            id: 'calendar',
+            label: t('bookingInviteShare'),
+            icon: <CalendarDays className="h-4 w-4" />,
+            onSelect: () => {
+              const businessName = user?.companyName?.trim() || '';
+              void sendAdminReply(t('bookingInviteBody'), undefined, {
+                bookingInvite: { businessId: contractorBusinessId ?? '', businessName },
+              });
+            },
+          },
         ]
-      : undefined;
+      : canSharePlace
+        ? [
+            {
+              id: 'place',
+              label: t('sharePlace'),
+              icon: <HomeIcon className="h-4 w-4" />,
+              onSelect: openPlacePicker,
+            },
+          ]
+        : undefined;
 
   const handleCrmEstimateApproved = useCallback(
     (messageId: string, next: import('@/lib/types/chat').ChatCrmEstimateShare) => {
@@ -1131,16 +1308,16 @@ export default function ProBotChatArea({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-800 truncate">
                     {adminViewingConversation.display_as_probot
-                      ? t('conversationWithName', { name: 'ProBot' })
+                      ? 'ProBot'
                       : adminViewingConversation.participant_type === 'contractor' && adminViewingConversation.business_name
-                        ? t('conversationWithContractor', { name: adminViewingConversation.business_name })
+                        ? adminViewingConversation.business_name
                         : (() => {
                             const profileName =
                               (adminViewingConversation.profile_first_name || adminViewingConversation.profile_last_name)
                                 ? [adminViewingConversation.profile_first_name, adminViewingConversation.profile_last_name].filter(Boolean).join(' ').trim()
                                 : undefined;
                             const name = profileName || adminViewingConversation.visitor_display_name?.trim();
-                            return name ? t('conversationWithName', { name }) : t('conversationWithCustomer');
+                            return name || t('customer');
                           })()}
                   </p>
                   {adminViewingConversation.display_as_probot && user && (
@@ -1153,8 +1330,46 @@ export default function ProBotChatArea({
                       </span>
                     </p>
                   )}
+                  {crmAdd.status === 'error' && crmAdd.conversationId === adminViewingConversation.id ? (
+                    <p className="mt-0.5 truncate text-xs text-red-600">{crmAdd.error}</p>
+                  ) : null}
                 </div>
               </div>
+              {isProReplying ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteChat(true)}
+                  disabled={deletingChat}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-60"
+                  aria-label={t('deleteChat')}
+                  title={t('deleteChat')}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              ) : null}
+              {isProReplying && adminViewingConversation.participant_type !== 'contractor' ? (
+                crmAdd.status === 'done' && crmAdd.conversationId === adminViewingConversation.id ? (
+                  <a
+                    href={`/${locale}/crm/customers`}
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border-2 border-black px-3 text-sm font-medium hover:bg-gray-50"
+                  >
+                    <Check className="h-4 w-4 text-green-600" />
+                    {t('crmAddedOpen')}
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void addConversationToCrm()}
+                    disabled={crmAdd.status === 'adding' && crmAdd.conversationId === adminViewingConversation.id}
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-black px-3 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+                  >
+                    <UserPlus className="h-4 w-4 text-red-500" />
+                    {crmAdd.status === 'adding' && crmAdd.conversationId === adminViewingConversation.id
+                      ? t('placeShareAdding')
+                      : t('crmAddCustomer')}
+                  </button>
+                )
+              ) : null}
             </>
           ) : (
           <>
@@ -1273,7 +1488,7 @@ export default function ProBotChatArea({
         <>
           {/* Scrollable messages area: flex-1 min-h-0 so it gets a bounded height and scrolls on mobile. Transparent on PC so mountains show through. */}
           <div
-            className={`h-full min-h-0 flex flex-col md:bg-transparent ${!showProBotWizardFlow ? 'overflow-y-auto overflow-x-hidden overscroll-contain' : 'overflow-hidden'}`}
+            className={`h-full min-h-0 flex flex-col ${!showProBotWizardFlow && !showWelcome ? 'bg-[#efeae2] bg-[radial-gradient(rgba(11,20,26,0.06)_1px,transparent_1px)] bg-[length:16px_16px]' : 'md:bg-transparent'} ${!showProBotWizardFlow ? 'overflow-y-auto overflow-x-hidden overscroll-contain' : 'overflow-hidden'}`}
             style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 } as React.CSSProperties}
           >
             {(showWelcome || showAdminInitialWelcome) ? (
@@ -1920,6 +2135,106 @@ export default function ProBotChatArea({
                     messageInputRef.current?.focus();
                   }}
                   onCrmEstimateApproved={handleCrmEstimateApproved}
+                  canDelete={canDeleteMessage}
+                  onDelete={setPendingDelete}
+                  onAddPlaceToCrm={isProReplying ? addPlaceToCrm : undefined}
+                  onCrmQuickAction={isAdminView && isContractor ? (kind) => setCrmPickerKind(kind) : undefined}
+                  onPickTime={isAdminView ? undefined : (msg) => msg.payload?.bookingInvite && setBookingInvite(msg.payload.bookingInvite)}
+                />
+                <Modal
+                  isOpen={placePickerOpen}
+                  onClose={() => setPlacePickerOpen(false)}
+                  title={t('sharePlaceTitle')}
+                  showHeader
+                  maxWidth="md"
+                  contentClassName="max-h-[70vh] overflow-y-auto p-3"
+                >
+                  {myPlacesError ? (
+                    <p className="p-2 text-sm text-red-600">{myPlacesError}</p>
+                  ) : myPlaces === null ? (
+                    <div className="flex justify-center p-6">
+                      <Loader2 className="h-6 w-6 animate-spin text-gray-400" aria-label={t('sharePlaceLoading')} />
+                    </div>
+                  ) : myPlaces.length === 0 ? (
+                    <div className="p-3 text-center">
+                      <p className="text-sm text-gray-600">{t('sharePlaceEmpty')}</p>
+                      <Link
+                        href={`/${locale}/myplaces`}
+                        className="mt-3 inline-flex h-10 items-center justify-center rounded-lg bg-black px-4 text-sm font-medium text-white"
+                      >
+                        {t('sharePlaceAdd')}
+                      </Link>
+                    </div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {myPlaces.map((place) => (
+                        <li key={place.id}>
+                          <button
+                            type="button"
+                            onClick={() => shareMyPlace(place)}
+                            disabled={sending}
+                            className="flex w-full items-center gap-3 rounded-lg border-2 border-black p-2 text-left hover:bg-gray-50 disabled:opacity-60"
+                          >
+                            <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+                              {place.photoUrl ? (
+                                <img src={place.photoUrl} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <HomeIcon className="h-6 w-6 text-gray-400" aria-hidden />
+                              )}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold text-gray-900">{place.name}</span>
+                              <span className="block truncate text-xs text-gray-500">{placeAddress(place)}</span>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Modal>
+                <Modal
+                  isOpen={Boolean(bookingInvite)}
+                  onClose={() => setBookingInvite(null)}
+                  title={bookingInvite ? t('bookingInviteTitle', { name: bookingInvite.businessName }) : ''}
+                  showHeader
+                  maxWidth="md"
+                  contentClassName="max-h-[80vh] overflow-y-auto p-2"
+                >
+                  {bookingInvite ? (
+                    <ProEstimateBookingFlow
+                      businessId={bookingInvite.businessId}
+                      businessName={bookingInvite.businessName}
+                      isAuthenticated={isAuthenticated}
+                      onCancel={() => setBookingInvite(null)}
+                      onSuccess={() => {
+                        setBookingInvite(null);
+                        void sendMessage(t('bookingInviteBooked'));
+                      }}
+                    />
+                  ) : null}
+                </Modal>
+                <ConfirmationModal
+                  isOpen={confirmDeleteChat}
+                  onClose={() => setConfirmDeleteChat(false)}
+                  title={t('deleteChat')}
+                  message={t('deleteChatConfirm')}
+                  primaryButton={{ label: deletingChat ? t('deleteChatDeleting') : t('deleteChat'), onClick: () => void deleteConversationForPro() }}
+                  secondaryButton={{ label: t('deleteMessageCancel'), onClick: () => setConfirmDeleteChat(false) }}
+                />
+                <ConfirmationModal
+                  isOpen={Boolean(pendingDelete)}
+                  onClose={() => setPendingDelete(null)}
+                  title={t('deleteMessage')}
+                  message={t('deleteMessageConfirm')}
+                  primaryButton={{
+                    label: t('deleteMessage'),
+                    onClick: () => {
+                      const target = pendingDelete;
+                      setPendingDelete(null);
+                      if (target) void deleteMessage(target);
+                    },
+                  }}
+                  secondaryButton={{ label: t('deleteMessageCancel'), onClick: () => setPendingDelete(null) }}
                 />
               </>
             )}

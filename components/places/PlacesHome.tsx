@@ -1,10 +1,11 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Building2, Home, Building } from 'lucide-react';
+import { Building2, Home, Building, ClipboardList, MoreVertical, Share2 } from 'lucide-react';
+import { BookProPicker } from '@/components/booking/BookProPicker';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
@@ -48,6 +49,14 @@ export function PlacesHome() {
   const [state, setState] = useState('');
   const [zip, setZip] = useState('');
   const [adding, setAdding] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [cardMenuId, setCardMenuId] = useState<string | null>(null);
+  const [sharePlaceId, setSharePlaceId] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const photoPreview = useMemo(() => (photoFile ? URL.createObjectURL(photoFile) : null), [photoFile]);
+  useEffect(() => () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+  }, [photoPreview]);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<'name' | 'street' | 'city' | 'state' | 'zip', string>>>({});
   const namePlaceholderText = t('namePlaceholder');
   const streetPlaceholderText = t('streetPlaceholder');
@@ -116,6 +125,12 @@ export function PlacesHome() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t('saveFailed'));
+      if (photoFile) {
+        // The place is saved either way; a failed photo can be added again from its details page.
+        const body = new FormData();
+        body.append('file', photoFile);
+        await fetch(`/api/places/${data.id}/photo`, { method: 'POST', credentials: 'include', body }).catch(() => null);
+      }
       window.location.href = `/${locale}/myplaces/${data.id}`;
     } catch (err) {
       setError(err instanceof Error ? err.message : t('saveFailed'));
@@ -165,10 +180,10 @@ export function PlacesHome() {
       ) : places.length === 0 ? null : (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
           {places.map((place) => (
+            <div key={place.id} className="relative">
             <Link
-              key={place.id}
               href={`/${locale}/myplaces/${place.id}`}
-              className="border-2 border-black rounded-lg p-3 flex items-center gap-3 hover:bg-gray-50"
+              className="border-2 border-black rounded-lg p-2 pr-11 flex items-center gap-3 hover:bg-gray-50"
             >
               <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 border-black bg-gray-50">
                 {place.photoUrl ? (
@@ -193,12 +208,78 @@ export function PlacesHome() {
                 </span>
               </span>
             </Link>
+            <button
+              type="button"
+              aria-label={t('cardMenu')}
+              aria-expanded={cardMenuId === place.id}
+              onClick={() => setCardMenuId((open) => (open === place.id ? null : place.id))}
+              className="absolute right-1.5 top-1.5 flex h-9 w-9 items-center justify-center rounded-lg border-2 border-transparent text-black hover:border-black"
+            >
+              <MoreVertical className="h-5 w-5" />
+            </button>
+            {cardMenuId === place.id ? (
+              <>
+                <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-10 cursor-default" onClick={() => setCardMenuId(null)} />
+                <div className="absolute right-1.5 top-11 z-20 w-52 rounded-lg border-2 border-black bg-white p-2 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCardMenuId(null);
+                      router.push(`/${locale}/myplaces/${place.id}?view=request`);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-medium hover:bg-gray-100"
+                  >
+                    <ClipboardList className="h-4 w-4 text-red-600" />
+                    {t('serviceRequest')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCardMenuId(null);
+                      setSharePlaceId(place.id);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-medium hover:bg-gray-100"
+                  >
+                    <Share2 className="h-4 w-4 text-red-600" />
+                    {t('shareWithPro')}
+                  </button>
+                </div>
+              </>
+            ) : null}
+            </div>
           ))}
         </div>
       )}
 
       {adding ? <form onSubmit={onSubmit} className="border-2 border-black rounded-lg p-4 space-y-3">
         <h2 className="font-semibold">{t('add')}</h2>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={saving}
+            aria-label={photoFile ? t('photoChange') : t('photoAdd')}
+            className="relative h-[77px] w-[77px] shrink-0 overflow-hidden rounded-xl border-2 border-black bg-gray-50 disabled:opacity-60 md:h-28 md:w-28"
+          >
+            {photoPreview ? (
+              // Local preview of the picked file (blob URL).
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoPreview} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center">
+                <KindIcon kind={kind} />
+              </span>
+            )}
+          </button>
+          <span className="text-sm text-gray-600">{photoFile ? t('photoChange') : t('photoAdd')}</span>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
+          />
+        </div>
         <FormField label={t('selectType')}>
           <div className="grid grid-cols-3 gap-2" role="group" aria-label={t('selectType')}>
             {KINDS.map((item) => {
@@ -315,6 +396,18 @@ export function PlacesHome() {
           {saving ? t('saving') : t('save')}
         </Button>
       </form> : null}
+
+      <BookProPicker
+        open={Boolean(sharePlaceId)}
+        onClose={() => setSharePlaceId(null)}
+        title={t('shareWithPro')}
+        onPick={(pro) => {
+          const placeId = sharePlaceId;
+          setSharePlaceId(null);
+          if (!placeId) return;
+          router.push(`/${locale}/probot?contact=${encodeURIComponent(pro.slug || pro.id)}&sharePlace=${placeId}`);
+        }}
+      />
 
       {places.length > 0 ? (
         <ViewToggle

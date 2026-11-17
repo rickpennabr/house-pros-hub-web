@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       const msg = parsed.error.flatten().fieldErrors?.body?.[0] ?? 'Invalid request';
       return NextResponse.json({ error: msg }, { status: 400 });
     }
-    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments, replyToId, locale } = parsed.data;
+    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments, replyToId, placeShareId, locale } = parsed.data;
     const cookieDenied = visitorCookieDenied(request, visitorId);
     if (cookieDenied) return cookieDenied;
 
@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
       business_id?: string;
       attachments?: unknown;
       reply_to?: unknown;
+      payload?: unknown;
     } = {
       conversation_id: conversationId,
       sender: 'visitor',
@@ -99,8 +100,23 @@ export async function POST(request: NextRequest) {
     if (businessId) insertPayload.business_id = businessId;
     if (attachments?.length) insertPayload.attachments = attachments;
     if (replyTo) insertPayload.reply_to = replyTo;
+    if (placeShareId && businessId) {
+      // Only the signed-in owner of the place can share it.
+      const session = await createClient();
+      const { data: { user: sessionUser } } = await session.auth.getUser();
+      if (!sessionUser) return NextResponse.json({ error: 'Sign in to share a place' }, { status: 401 });
+      const { data: place } = await supabase
+        .from('customer_places')
+        .select('id, name, street, city, state, zip_code')
+        .eq('id', placeShareId)
+        .eq('user_id', sessionUser.id)
+        .maybeSingle();
+      if (!place) return NextResponse.json({ error: 'Place not found' }, { status: 404 });
+      const address = [place.street, [place.city, place.state].filter(Boolean).join(', '), place.zip_code].filter(Boolean).join(' ');
+      insertPayload.payload = { placeShare: { placeId: place.id, name: place.name, address } };
+    }
 
-    const selectCols = 'id, conversation_id, sender, body, created_at, attachments, reply_to';
+    const selectCols = 'id, conversation_id, sender, body, created_at, business_id, attachments, reply_to, payload';
 
     type InsertRow = Database['public']['Tables']['probot_messages']['Insert'];
     let result = await supabase
@@ -112,7 +128,7 @@ export async function POST(request: NextRequest) {
     if (result.error && (result.error.code === '42703' || String(result.error.message).includes('does not exist'))) {
       delete insertPayload.reply_to;
       delete insertPayload.attachments;
-      const colsWithoutAttachments = 'id, conversation_id, sender, body, created_at';
+      const colsWithoutAttachments = 'id, conversation_id, sender, body, created_at, business_id, payload';
       result = await supabase
         .from('probot_messages')
         .insert(insertPayload as InsertRow)
@@ -170,7 +186,7 @@ export async function POST(request: NextRequest) {
     const badgeCount = typeof adminUnreadCount === 'number' && adminUnreadCount >= 0 ? Math.min(99, adminUnreadCount) : 1;
     await sendAdminPushNotification(pushTitle, pushBody, '/admin/chat', badgeCount);
     if (businessId) {
-      await sendBusinessPushNotification(businessId, pushTitle, pushBody, chatPushUrl(locale), badgeCount);
+      await sendBusinessPushNotification(businessId, pushTitle, pushBody, chatPushUrl(locale, 'business'), badgeCount);
     }
 
     const msg = message as unknown as { id: string; conversation_id: string; sender: string; body: string; created_at: string; attachments?: unknown };
@@ -283,6 +299,47 @@ export async function POST(request: NextRequest) {
  * GET /api/chat/messages?conversationId=...&visitorId=... (visitor) or conversationId only (admin)
  * Returns messages for the conversation. Visitor must pass visitorId and own the conversation.
  */
+/**
+ * DELETE /api/chat/messages?id=…&visitorId=…
+ * Removes a message for everyone in the chat. Customers delete their own messages;
+ * a pro deletes the replies sent as their business.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = request.nextUrl.searchParams.get('id') ?? '';
+    const visitorId = request.nextUrl.searchParams.get('visitorId') ?? '';
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: 'Invalid message' }, { status: 400 });
+
+    const supabase = createServiceRoleClient();
+    const { data: message } = await supabase
+      .from('probot_messages')
+      .select('id, conversation_id, sender, business_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (!message) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+
+    let allowed = false;
+    if (message.sender === 'visitor') {
+      if (!visitorId) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+      const cookieDenied = visitorCookieDenied(request, visitorId);
+      if (cookieDenied) return cookieDenied;
+      allowed = await visitorOwnsConversation(supabase, message.conversation_id, visitorId);
+    } else if (message.business_id) {
+      const session = await createClient();
+      const { data: { user } } = await session.auth.getUser();
+      if (user) allowed = (await getOwnedBusinessId(user.id)) === message.business_id;
+    }
+    if (!allowed) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+
+    const { error } = await supabase.from('probot_messages').delete().eq('id', id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/chat/messages', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function GET(request: NextRequest) {
   const rateLimitRes = await checkRateLimit(request, 'chatRead');
   if (rateLimitRes) return rateLimitRes;
@@ -388,58 +445,38 @@ export async function GET(request: NextRequest) {
     type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null; read_at?: string | null; attachments?: unknown; reply_to?: unknown; admin_sent_as?: string | null; admin_user_id?: string | null; payload?: unknown };
     let rawMessages: MessageRow[] | null = null;
 
-    const selectCols = 'id, sender, body, created_at, business_id, read_at, attachments, reply_to, admin_sent_as, admin_user_id, payload';
-    const withAttachments = await supabase
-      .from('probot_messages')
-      .select(selectCols)
-      .in('conversation_id', conversationIds)
-      .order('created_at', { ascending: true })
-      .limit(300);
-
-    if (!withAttachments.error) {
-      rawMessages = withAttachments.data as unknown as MessageRow[] | null;
-    } else if (withAttachments.error.code === '42703' || String(withAttachments.error.message).includes('does not exist')) {
-      const withoutAdminUserId = await supabase
+    // Newest columns first. Fallbacks only drop optional columns and keep the card payload while it exists.
+    const columnSets = [
+      'id, sender, body, created_at, business_id, read_at, attachments, reply_to, admin_user_id, payload',
+      'id, sender, body, created_at, business_id, read_at, attachments, payload',
+      'id, sender, body, created_at, business_id, read_at, payload',
+      'id, sender, body, created_at, business_id, read_at',
+      'id, sender, body, created_at, business_id',
+    ];
+    let lastSelectError: { code?: string; message?: string } | null = null;
+    for (const cols of columnSets) {
+      const result = await supabase
         .from('probot_messages')
-        .select('id, sender, body, created_at, business_id, read_at, attachments, admin_sent_as')
+        .select(cols)
         .in('conversation_id', conversationIds)
         .order('created_at', { ascending: true })
         .limit(300);
-      if (!withoutAdminUserId.error) {
-        rawMessages = (withoutAdminUserId.data ?? []).map((m) => ({ ...m, admin_user_id: null })) as MessageRow[];
-      } else {
-        const withReadAt = await supabase
-          .from('probot_messages')
-          .select('id, sender, body, created_at, business_id, read_at, admin_sent_as')
-          .in('conversation_id', conversationIds)
-          .order('created_at', { ascending: true })
-          .limit(300);
-        if (!withReadAt.error) {
-          rawMessages = (withReadAt.data ?? []).map((m) => ({ ...m, attachments: [], admin_user_id: null })) as MessageRow[];
-        } else {
-          const min = await supabase
-            .from('probot_messages')
-            .select('id, sender, body, created_at, business_id')
-            .in('conversation_id', conversationIds)
-            .order('created_at', { ascending: true })
-            .limit(300);
-          if (min.error) {
-            console.error('ProBot messages GET error:', min.error);
-            return NextResponse.json({ error: 'Failed to load messages' }, { status: 500 });
-          }
-          const minData = min.data ?? [];
-          rawMessages = minData.map((m) => ({
-            ...m,
-            business_id: m.business_id ?? null,
-            read_at: null,
-            attachments: [],
-            admin_sent_as: null,
-            admin_user_id: null,
-          })) as MessageRow[];
-        }
+      if (!result.error) {
+        if (lastSelectError) console.warn('ProBot messages GET fallback columns:', cols, '-', lastSelectError.message);
+        rawMessages = ((result.data ?? []) as unknown as Partial<MessageRow>[]).map((m) => ({
+          read_at: null,
+          attachments: [],
+          admin_user_id: null,
+          ...m,
+        })) as MessageRow[];
+        break;
       }
-    } else {
-      console.error('ProBot messages GET error:', withAttachments.error);
+      lastSelectError = result.error;
+      const isColumnError = result.error.code === '42703' || String(result.error.message).includes('does not exist');
+      if (!isColumnError) break;
+    }
+    if (!rawMessages) {
+      console.error('ProBot messages GET error:', lastSelectError);
       return NextResponse.json({ error: 'Failed to load messages' }, { status: 500 });
     }
 

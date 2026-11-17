@@ -267,7 +267,51 @@
     "showOnProCard": "Show on ProCard",
     "calendarShareLink": "Share calendar link",
     "calendarLinkCopied": "Link copied to clipboard",
-    "calendarLinkCopy": "Copy link"
+    "calendarLinkCopy": "Copy link",
+    "deleteMessage": "Delete message",
+    "deleteMessageConfirm": "Delete this message for everyone?",
+    "deleteMessageFailed": "Could not delete the message.",
+    "placeShareAddToCrm": "Add customer to my CRM",
+    "placeShareAdding": "Adding…",
+    "placeShareAddHint": "Your work for this place will show on their My Places.",
+    "placeShareInCrm": "Customer added to CRM",
+    "placeShareFailed": "Could not add the customer.",
+    "deleteMessageCancel": "Cancel",
+    "unreadMessages": "{count} unread",
+    "bookingInviteShare": "Share my calendar",
+    "bookingInviteBody": "Pick a time that works for you from my calendar.",
+    "bookingInviteTitle": "Book a time with {name}",
+    "bookingInvitePick": "Pick a time",
+    "bookingInviteSent": "Calendar shared. The customer picks a time here.",
+    "bookingInviteBooked": "I booked a time from your calendar. ✅",
+    "crmAddCustomer": "Add to my CRM",
+    "crmAddedOpen": "In my CRM",
+    "deleteChat": "Delete chat",
+    "deleteChatConfirm": "Delete this chat from your inbox? Your messages with this customer are removed for both of you.",
+    "deleteChatDeleting": "Deleting…",
+    "deleteChatFailed": "Could not delete the chat.",
+    "sharePlace": "Share a place",
+    "sharePlaceTitle": "Share one of my places",
+    "sharePlaceLoading": "Loading your places…",
+    "sharePlaceEmpty": "You have no places in My Places yet.",
+    "sharePlaceAdd": "Add a place",
+    "sharePlaceLoadFailed": "Could not load your places.",
+    "placeShareCardTitle": "Shared property",
+    "placeShareLinkedBy": "{name} added this place",
+    "placeShareWaiting": "Waiting for {name} to add it to their customers.",
+    "placeOpenInMyPlaces": "Open in My Places",
+    "placeLinkedTitle": "{business} added {place} to their customers",
+    "placeLinkedCustomerHint": "Estimates, invoices and visits from {business} will show under this place in My Places.",
+    "placeLinkedProHint": "Estimates and invoices you send this customer will show on their My Places.",
+    "contactActions": "Contact actions",
+    "contactViewProfile": "View profile",
+    "contactOpenCrm": "Open my CRM",
+    "contactClearProBot": "Clear ProBot chat",
+    "contactClearProBotConfirm": "Clear your ProBot messages? Your chats with pros stay.",
+    "contactDeleteConfirm": "Delete your chat with {name}? The messages are removed for both of you.",
+    "contactCrmAdded": "{name} is now in your CRM.",
+    "contactCrmAddedPlace": "{name} is now in your CRM, linked to the place they shared. Your estimates and invoices will show in their My Places.",
+    "contactNoticeOk": "OK"
   },
   "businessServices": {
     "tab": "Services",
@@ -2931,7 +2975,26 @@
     "nicknamePlaceholder": "e.g. Home, Beach House",
     "nicknameSave": "Save",
     "nicknameRequired": "Add a nickname.",
-    "nicknameFailed": "Could not save the nickname."
+    "nicknameFailed": "Could not save the nickname.",
+    "serviceRequest": "Service request",
+    "request": {
+      "fixcam": {
+        "title": "FixCam",
+        "how": "Snap photos or a video of the problem. A pro reviews it and replies with a fix."
+      },
+      "estimate": {
+        "title": "Estimate",
+        "how": "Describe the job and your budget. Local pros send you a free estimate."
+      },
+      "probooking": {
+        "title": "ProBooking",
+        "how": "Pick a pro and an open time. They come to this place on that day."
+      }
+    },
+    "tabsMenu": "All sections",
+    "cardMenu": "Place options",
+    "shareWithPro": "Share with pro",
+    "shareMessage": "Hi! I’m sharing my property with you:\n{name}\n{address}"
   },
   "businessFeedback": {
     "title": "Feedback",

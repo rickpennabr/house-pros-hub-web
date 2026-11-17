@@ -30,7 +30,10 @@ export async function GET(request: NextRequest) {
       !!user.email && user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
     // Get user's business (contractor)
-    const userBusinessId = isAdmin ? null : await getOwnedBusinessId(user.id);
+    const ownedBusinessId = isAdmin ? null : await getOwnedBusinessId(user.id);
+    // ?as=personal: a pro using their personal profile sees pros + ProBot, never their customer inbox.
+    const asPersonal = request.nextUrl.searchParams.get('as') === 'personal';
+    const userBusinessId = asPersonal ? null : ownedBusinessId;
 
     const supabase = createServiceRoleClient();
 
@@ -291,6 +294,7 @@ export async function GET(request: NextRequest) {
         .order('business_name')
         .limit(500);
       for (const b of businesses ?? []) {
+        if (ownedBusinessId && b.id === ownedBusinessId) continue;
         const row = b as { id: string; business_name: string | null; slug: string | null; business_logo: string | null };
         contacts.push({
           id: row.id,

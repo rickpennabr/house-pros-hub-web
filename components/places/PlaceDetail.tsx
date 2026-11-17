@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   Calendar,
+  CalendarCheck,
+  ClipboardList,
   FileCheck,
   FileText,
   FolderKanban,
@@ -13,18 +15,32 @@ import {
   Building,
   Building2,
   Home,
+  LayoutGrid,
   MoreVertical,
   Pencil,
   Receipt,
   Wrench,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
+import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
+import { BookProPicker } from '@/components/booking/BookProPicker';
+import { openQuickRepairCamera } from '@/lib/media/quick-repair-camera';
+import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import type { PlaceBundle } from '@/lib/places/portal';
 import {
   CustomerEstimatePreview,
   type CustomerEstimatePreviewData,
 } from '@/components/estimates/CustomerEstimatePreview';
 import { MAINTENANCE_FREQUENCY_LABELS, type MaintenanceFrequency } from '@/lib/crm/estimate-agreement';
+
+/** The header FIX camera (same animation), sized to the card tile. */
+function FixCamAnimatedIcon({ className }: { className?: string }) {
+  return (
+    <span className={className}>
+      <RepairCameraMark />
+    </span>
+  );
+}
 
 const TABS = [
   { id: 'timeline', icon: History },
@@ -74,12 +90,15 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [bundle, setBundle] = useState<PlaceBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<PlaceTab>('timeline');
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<PlaceTab | 'request'>(() => (searchParams.get('view') === 'request' ? 'request' : 'timeline'));
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editingName, setEditingName] = useState(false);
+  const [bookPickerOpen, setBookPickerOpen] = useState(false);
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -311,15 +330,27 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
   const photoUrl = bundle.place.photoUrl;
 
   return (
-    <div className="px-2 py-4 md:p-4">
+    <div className="px-2 py-2 md:p-4">
       <div className="space-y-2">
-        <Link
-          href={`/${locale}/myplaces`}
-          className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-black"
-        >
-          <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
-          {t('back')}
-        </Link>
+        <div className="flex items-center justify-between gap-2 md:py-1">
+          <Link
+            href={`/${locale}/myplaces`}
+            aria-label={t('back')}
+            className="inline-flex h-11 items-center gap-2 rounded-lg px-1 text-sm font-medium text-black hover:bg-gray-50"
+          >
+            <ArrowLeft className="h-5 w-5 shrink-0 text-red-500" />
+            {t('title')}
+          </Link>
+          <button
+            type="button"
+            onClick={() => setTab('request')}
+            aria-pressed={tab === 'request'}
+            className="inline-flex h-[37px] items-center gap-2 rounded-lg bg-black px-3 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            <ClipboardList className="h-5 w-5 shrink-0 text-red-500" />
+            {t('serviceRequest')}
+          </button>
+        </div>
 
         <div className="flex items-center gap-3">
           <button
@@ -327,7 +358,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
             aria-label={photoUrl ? t('photoChange') : t('photoAdd')}
-            className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border-2 border-black bg-gray-50 disabled:opacity-60 md:h-28 md:w-28"
+            className="relative h-[77px] w-[77px] shrink-0 overflow-hidden rounded-xl border-2 border-black bg-gray-50 disabled:opacity-60 md:h-28 md:w-28"
           >
             {photoUrl ? (
               // Property photos live on the public storage host and change when the customer replaces them.
@@ -353,7 +384,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
             onChange={(event) => void onPhoto(event.target.files?.[0])}
           />
           <div className="min-w-0 flex-1 leading-tight">
-            <p className="text-xs uppercase tracking-wide text-gray-500">{t(`kind.${bundle.place.kind}`)}</p>
+            <p className="hidden text-xs uppercase tracking-wide text-gray-500 md:block">{t(`kind.${bundle.place.kind}`)}</p>
             {editingName ? (
               <form
                 className="mt-1 flex flex-wrap items-center gap-2"
@@ -392,7 +423,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
                 {nameError ? <p className="w-full text-sm text-red-600">{nameError}</p> : null}
               </form>
             ) : (
-              <h2 className="text-2xl font-semibold leading-tight">{bundle.place.name}</h2>
+              <h2 className="text-[18.4px] font-semibold leading-tight md:text-2xl">{bundle.place.name}</h2>
             )}
             {streetLine || localityLine ? (
               <p className="text-sm text-gray-700">
@@ -466,7 +497,28 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
         {photoError ? <p className="text-sm text-red-600">{photoError}</p> : null}
       </div>
 
-      <div className="mt-2 overflow-x-auto pb-4" role="tablist">
+      <div className="mt-2 flex items-start gap-2">
+      <button
+        type="button"
+        onClick={() => setTabMenuOpen(true)}
+        aria-label={t('tabsMenu')}
+        className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-black bg-black hover:bg-gray-800 md:hidden"
+      >
+        <LayoutGrid className="h-5 w-5 text-white" />
+      </button>
+      <MobileGridActionsModal
+        isOpen={tabMenuOpen}
+        onClose={() => setTabMenuOpen(false)}
+        title={bundle.place.name}
+        items={TABS.map((item) => ({
+          id: item.id,
+          label: t(item.id),
+          icon: item.icon,
+          isActive: tab === item.id,
+          onClick: () => setTab(item.id),
+        }))}
+      />
+      <div className="min-w-0 flex-1 overflow-x-auto pb-2" role="tablist">
         <div className="flex h-10 w-max items-center gap-2 md:w-full">
           {TABS.map((item) => {
             const selected = tab === item.id;
@@ -490,6 +542,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
             );
           })}
         </div>
+      </div>
       </div>
 
       {tab === 'timeline' ? (
@@ -601,6 +654,46 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
               ) : null}
             </article>
           ))}
+        </section>
+      ) : null}
+
+      {tab === 'request' ? (
+        <section className="border-2 border-black rounded-lg p-4 space-y-4" aria-label={t('serviceRequest')}>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {(
+              [
+                { id: 'fixcam', Icon: FixCamAnimatedIcon, onClick: () => openQuickRepairCamera() },
+                { id: 'estimate', Icon: FileCheck, href: `/${locale}/estimate` },
+                { id: 'probooking', Icon: CalendarCheck, onClick: () => setBookPickerOpen(true) },
+              ] as const
+            ).map((option) => {
+              const body = (
+                <>
+                  <span className="flex aspect-square w-full items-center justify-center rounded-lg border-2 border-black bg-white text-black md:h-20 md:w-20 md:shrink-0">
+                    <option.Icon
+                      className={option.id === 'fixcam' ? 'block h-14 w-[72px] md:h-12 md:w-16' : 'h-9 w-9 text-red-500 md:h-8 md:w-8'}
+                    />
+                  </span>
+                  <span className="min-w-0 text-center md:text-left">
+                    <span className="block font-semibold leading-tight">{t(`request.${option.id}.title`)}</span>
+                    <span className="mt-1 line-clamp-2 text-xs text-gray-600">{t(`request.${option.id}.how`)}</span>
+                  </span>
+                </>
+              );
+              const className =
+                'flex flex-col items-stretch gap-2 rounded-xl border-2 border-black p-2 text-left hover:bg-gray-50 md:flex-row md:items-center md:gap-3 md:p-3';
+              return 'href' in option ? (
+                <Link key={option.id} href={option.href} className={className}>
+                  {body}
+                </Link>
+              ) : (
+                <button key={option.id} type="button" onClick={option.onClick} className={className}>
+                  {body}
+                </button>
+              );
+            })}
+          </div>
+          <BookProPicker open={bookPickerOpen} onClose={() => setBookPickerOpen(false)} />
         </section>
       ) : null}
 

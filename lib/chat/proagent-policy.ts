@@ -145,7 +145,33 @@ export function parseAgentPayload(value: unknown): ProAgentPayload | null {
   if (row.confirmed === true) payload.confirmed = true;
   const crmEstimate = asCrmEstimate(row.crmEstimate);
   if (crmEstimate) payload.crmEstimate = crmEstimate;
-  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate) return null;
+  if (row.placeShare && typeof row.placeShare === 'object') {
+    const share = row.placeShare as Record<string, unknown>;
+    if (typeof share.placeId === 'string') {
+      payload.placeShare = {
+        placeId: share.placeId,
+        name: typeof share.name === 'string' ? share.name : '',
+        address: typeof share.address === 'string' ? share.address : '',
+        ...(typeof share.crmCustomerId === 'string' ? { crmCustomerId: share.crmCustomerId } : {}),
+      };
+    }
+  }
+  if (row.bookingInvite && typeof row.bookingInvite === 'object') {
+    const invite = row.bookingInvite as Record<string, unknown>;
+    if (typeof invite.businessId === 'string') {
+      payload.bookingInvite = {
+        businessId: invite.businessId,
+        businessName: typeof invite.businessName === 'string' ? invite.businessName : '',
+      };
+    }
+  }
+  if (row.placeLinked && typeof row.placeLinked === 'object') {
+    const linked = row.placeLinked as Record<string, unknown>;
+    if (typeof linked.placeId === 'string') {
+      payload.placeLinked = { placeId: linked.placeId, name: typeof linked.name === 'string' ? linked.name : '' };
+    }
+  }
+  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.placeShare && !payload.bookingInvite && !payload.placeLinked) return null;
   return payload;
 }
 

@@ -45,9 +45,11 @@ function setCachedContacts(isAuthenticated: boolean, contacts: ProBotContact[]) 
 interface UseProBotContactsArgs {
   isAuthenticated: boolean;
   userBusinessId?: string;
+  /** Pro using their personal profile: list pros + ProBot instead of the customer inbox. */
+  asPersonal?: boolean;
 }
 
-export function useProBotContacts({ isAuthenticated, userBusinessId }: UseProBotContactsArgs) {
+export function useProBotContacts({ isAuthenticated, userBusinessId, asPersonal = false }: UseProBotContactsArgs) {
   const [contacts, setContacts] = useState<ProBotContact[]>(() => {
     const cached = getCachedContacts(isAuthenticated);
     return cached ?? FALLBACK_CONTACTS;
@@ -61,7 +63,7 @@ export function useProBotContacts({ isAuthenticated, userBusinessId }: UseProBot
       } catch {
         // ignore
       }
-      fetch('/api/chat/contacts')
+      fetch(asPersonal ? '/api/chat/contacts?as=personal' : '/api/chat/contacts')
         .then((res) => (res.ok ? res.json() : { contacts: [] }))
         .then((data) => {
           const list = (data.contacts ?? []) as ProBotContact[];
@@ -96,7 +98,7 @@ export function useProBotContacts({ isAuthenticated, userBusinessId }: UseProBot
         })
         .catch(() => setContacts(FALLBACK_CONTACTS));
     }
-  }, [isAuthenticated, userBusinessId]);
+  }, [isAuthenticated, userBusinessId, asPersonal]);
 
   const businessIds = useMemo(
     () => contacts.filter((c) => c.businessId).map((c) => c.businessId as string),
