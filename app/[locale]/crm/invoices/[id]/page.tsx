@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import Link from 'next/link';
-import { ArrowLeft, Pencil, Printer, Download, Send, FileText, Image, Loader2 } from 'lucide-react';
+import { ArrowLeft, Pencil, Printer, Download, Send, FileText, Image, Loader2, Link2, Tablet } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -28,6 +28,7 @@ export default function CRMInvoiceDetailPage() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [linkNote, setLinkNote] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
+  const [presenting, setPresenting] = useState(false);
   const [companyEditorOpen, setCompanyEditorOpen] = useState(false);
   const [companySaving, setCompanySaving] = useState(false);
   const [data, setData] = useState<{
@@ -197,6 +198,17 @@ export default function CRMInvoiceDetailPage() {
     return <div className="p-12 text-center text-gray-500 text-sm">Loading invoice…</div>;
   }
 
+  async function createPaymentLinkUrl(): Promise<string> {
+    if (!id) throw new Error('Invoice required');
+    const res = await fetch(`/api/crm/invoices/${id}/payment-link`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const payload = (await res.json()) as { url?: string; error?: string };
+    if (!res.ok || !payload.url) throw new Error(payload.error || 'Could not create a payment link');
+    return payload.url;
+  }
+
   if (error || !data) {
     return (
       <div className="p-8">
@@ -242,28 +254,52 @@ export default function CRMInvoiceDetailPage() {
             </>
           )}
           {invoice.status !== 'cancelled' && invoice.amount_cents - (invoice.payment_applied_cents ?? 0) > 0 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={linking}
-              onClick={() => {
-                setLinking(true);
-                setLinkNote(null);
-                void fetch(`/api/crm/invoices/${id}/payment-link`, { method: 'POST', credentials: 'include' })
-                  .then(async (res) => {
-                    const payload = (await res.json()) as { url?: string; error?: string };
-                    if (!res.ok || !payload.url) throw new Error(payload.error || 'Could not create a payment link');
-                    await navigator.clipboard.writeText(payload.url);
-                    setLinkNote('Payment link copied');
-                  })
-                  .catch((err: unknown) => {
-                    setLinkNote(err instanceof Error ? err.message : 'Could not create a payment link');
-                  })
-                  .finally(() => setLinking(false));
-              }}
-            >
-              {linking ? 'Creating link…' : 'Payment link'}
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={presenting}
+                className="flex items-center gap-2"
+                onClick={() => {
+                  setPresenting(true);
+                  setLinkNote(null);
+                  void createPaymentLinkUrl()
+                    .then((url) => {
+                      window.open(`${url}${url.includes('?') ? '&' : '?'}present=1`, '_blank', 'noopener,noreferrer');
+                      setLinkNote('Opened pay screen — hand the device to the customer for card payment.');
+                    })
+                    .catch((err: unknown) => {
+                      setLinkNote(err instanceof Error ? err.message : 'Could not open payment');
+                    })
+                    .finally(() => setPresenting(false));
+                }}
+              >
+                <Tablet className="w-4 h-4" />
+                {presenting ? 'Opening…' : 'Collect card on device'}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={linking}
+                className="flex items-center gap-2"
+                onClick={() => {
+                  setLinking(true);
+                  setLinkNote(null);
+                  void createPaymentLinkUrl()
+                    .then(async (url) => {
+                      await navigator.clipboard.writeText(url);
+                      setLinkNote('Payment link copied — text or email it, or open it later.');
+                    })
+                    .catch((err: unknown) => {
+                      setLinkNote(err instanceof Error ? err.message : 'Could not create a payment link');
+                    })
+                    .finally(() => setLinking(false));
+                }}
+              >
+                <Link2 className="w-4 h-4" />
+                {linking ? 'Creating link…' : 'Copy payment link'}
+              </Button>
+            </>
           )}
           <Button variant="secondary" size="sm" onClick={handlePrint} className="flex items-center gap-2">
             <Printer className="w-4 h-4" />

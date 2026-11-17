@@ -67,6 +67,8 @@ export async function POST(request: NextRequest) {
     if (insertError || !data) {
       return NextResponse.json({ error: insertError?.message || 'Could not add the place' }, { status: 500 });
     }
+    const { recordPlaceEntered } = await import('@/lib/places/timeline');
+    await recordPlaceEntered(data.id, name);
     await claimPortalCustomers(user);
     return NextResponse.json({ id: data.id }, { status: 201 });
   } catch (err) {

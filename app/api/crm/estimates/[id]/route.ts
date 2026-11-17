@@ -69,6 +69,11 @@ export async function GET(
       dueDate: row.due_date,
       validityDate: row.due_date,
       note: row.note ?? '',
+      jobArea: row.job_area ?? null,
+      agreementKind: row.agreement_kind ?? 'project',
+      maintenanceFrequency: row.maintenance_frequency ?? null,
+      signedAt: row.signed_at ?? null,
+      signerName: row.signer_name ?? null,
     });
   } catch (err) {
     console.error('GET /api/crm/estimates/[id]', err);
@@ -96,16 +101,20 @@ export async function PUT(
       validityDate: bodyRaw.validityDate ?? bodyRaw.validity_date ?? bodyRaw.valid_until,
       note: bodyRaw.note,
       depositCents: bodyRaw.depositCents ?? bodyRaw.deposit_cents,
+      jobArea: bodyRaw.jobArea ?? bodyRaw.job_area,
+      agreementKind: bodyRaw.agreementKind ?? bodyRaw.agreement_kind,
+      maintenanceFrequency: bodyRaw.maintenanceFrequency ?? bodyRaw.maintenance_frequency,
     });
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid estimate payload' }, { status: 400 });
+      const message = parsed.error.issues[0]?.message || 'Invalid estimate payload';
+      return NextResponse.json({ error: message }, { status: 400 });
     }
     const body = parsed.data;
 
     const supabase = await createClient();
     const { data: currentEstimate, error: currentEstimateError } = await supabase
       .from('pro_crm_estimates')
-      .select('status, amount_cents, deposit_cents')
+      .select('status, amount_cents, deposit_cents, agreement_kind, maintenance_frequency')
       .eq('id', id)
       .eq('owner_id', user.id)
       .single();
@@ -132,6 +141,23 @@ export async function PUT(
     }
     if (body.note !== undefined) updates.note = typeof body.note === 'string' ? body.note.trim() || null : null;
     if (body.depositCents !== undefined) updates.deposit_cents = body.depositCents;
+    if (body.jobArea !== undefined) {
+      updates.job_area = typeof body.jobArea === 'string' ? body.jobArea.trim() || null : null;
+    }
+    if (body.agreementKind !== undefined) updates.agreement_kind = body.agreementKind;
+    const nextKind =
+      typeof updates.agreement_kind === 'string' ? updates.agreement_kind : currentEstimate.agreement_kind;
+    if (body.maintenanceFrequency !== undefined || body.agreementKind !== undefined) {
+      updates.maintenance_frequency =
+        nextKind === 'maintenance'
+          ? body.maintenanceFrequency !== undefined
+            ? body.maintenanceFrequency
+            : currentEstimate.maintenance_frequency
+          : null;
+    }
+    if (nextKind === 'maintenance' && !updates.maintenance_frequency && !currentEstimate.maintenance_frequency) {
+      return NextResponse.json({ error: 'Choose how often maintenance visits run' }, { status: 400 });
+    }
     const nextAmount = typeof updates.amount_cents === 'number' ? updates.amount_cents : currentEstimate.amount_cents;
     const nextDeposit = typeof updates.deposit_cents === 'number' ? updates.deposit_cents : currentEstimate.deposit_cents ?? 0;
     const depositError = depositWithinEstimate(nextDeposit, nextAmount);

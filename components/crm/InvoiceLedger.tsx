@@ -98,7 +98,9 @@ export function InvoiceLedger({
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-base font-semibold text-gray-900">Payments</h2>
-          <p className="text-sm text-gray-500">Balance due {money(balance)}</p>
+          <p className="text-sm text-gray-500">
+            Balance due {money(balance)}. Collect cash/check on site, or use Copy payment link / Collect card on device above.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {canRecordPayment(status) && balance > 0 && (
@@ -110,7 +112,7 @@ export function InvoiceLedger({
                 setPayOpen(true);
               }}
             >
-              Record payment
+              Collect on site
             </Button>
           )}
           {status !== 'cancelled' && (
@@ -176,7 +178,8 @@ export function InvoiceLedger({
 
       <Modal isOpen={payOpen} onClose={() => !busy && setPayOpen(false)} showHeader={false} showCloseButton maxWidth="sm" preventCloseOnOverlayClick={busy}>
         <div className="p-6 space-y-4">
-          <h2 className="text-xl font-bold text-gray-900">Record payment</h2>
+          <h2 className="text-xl font-bold text-gray-900">Collect on site</h2>
+          <p className="text-sm text-gray-600 mt-1">Cash, check, or card already taken. For Stripe card on this device, use Collect card on device.</p>
           <p className="text-sm text-gray-600">Balance due {money(balance)}. Status becomes {invoiceStatusLabel(status)} until the balance is covered.</p>
           <FormField label="Amount">
             <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />

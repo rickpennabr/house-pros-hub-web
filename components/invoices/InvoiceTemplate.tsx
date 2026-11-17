@@ -1,8 +1,8 @@
 'use client';
 
-import Image from 'next/image';
 import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
 import { contactDisplayName } from '@/lib/crm/contact-name';
+import { DocumentBrandHeader } from '@/components/documents/DocumentBrandHeader';
 
 export interface InvoiceLineItem {
   product_or_service?: string | null;
@@ -103,50 +103,15 @@ export function InvoiceTemplate({
 
   return (
     <div className={`bg-white text-black ${forPrint ? 'print-invoice' : ''}`} style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      {/* Header: left = INVOICE + name + address, center = email/phone/website, right = logo + name + tagline */}
-      <header className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 pb-6 border-b-2" style={{ borderColor: themeColor }}>
-        <div>
-          <h1 className="text-2xl font-bold uppercase tracking-tight" style={{ color: themeColor }}>
-            INVOICE
-          </h1>
-          <p className="font-semibold text-black mt-1">{business.business_name}</p>
-          {businessAddress && (
-            <p className="text-sm text-gray-700 mt-1 whitespace-pre-line">{businessAddress}</p>
-          )}
-        </div>
-        <div className="flex flex-col justify-center items-center text-sm text-gray-700">
-          <div className="text-left">
-            {business.email && <span className="block">{business.email}</span>}
-            {business.phone && <span className="block">{business.phone}</span>}
-            {business.website && (
-              <a href={business.website.startsWith('http') ? business.website : `https://${business.website}`} className="text-gray-700 hover:underline block">
-                {business.website}
-              </a>
-            )}
-          </div>
-        </div>
-        <div className="flex items-start gap-3 justify-end flex-row-reverse">
-          {business.business_logo && (
-            <div className="relative w-16 h-16 rounded-full overflow-hidden shrink-0 border-2 border-gray-200">
-              <Image
-                src={business.business_logo}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="64px"
-              />
-            </div>
-          )}
-          <div className="text-right">
-            <p className="font-bold text-black">{business.business_name}</p>
-            {business.company_tagline && (
-              <p className="text-sm italic mt-0.5" style={{ color: themeColor }}>
-                {business.company_tagline}
-              </p>
-            )}
-          </div>
-        </div>
-      </header>
+      <DocumentBrandHeader
+        title="INVOICE"
+        themeColor={themeColor}
+        business={{
+          ...business,
+          address: businessAddress || business.address || null,
+        }}
+        className="mb-8 pb-6"
+      />
 
       {/* Tinted block: Bill To + Invoice details */}
       <div
@@ -198,9 +163,9 @@ export function InvoiceTemplate({
               <th className="text-left py-2 px-3 text-xs font-semibold uppercase text-gray-600">Product or service</th>
               <th className="text-left py-2 px-3 text-xs font-semibold uppercase text-gray-600">Description</th>
               <th className="text-left py-2 px-3 text-xs font-semibold uppercase text-gray-600 w-16">Unit</th>
-              <th className="text-right py-2 px-3 text-xs font-semibold uppercase text-gray-600 w-16">Qty</th>
-              <th className="text-right py-2 px-3 text-xs font-semibold uppercase text-gray-600 w-24">Rate</th>
-              <th className="text-right py-2 px-3 text-xs font-semibold uppercase text-gray-600 w-24">Amount</th>
+              <th className="text-right py-2 px-3 text-xs font-semibold uppercase text-gray-600 min-w-[5.5rem] w-[5.5rem]">Qty</th>
+              <th className="text-right py-2 px-3 text-xs font-semibold uppercase text-gray-600 min-w-[7rem] w-[7rem]">Rate</th>
+              <th className="text-right py-2 px-3 text-xs font-semibold uppercase text-gray-600 w-28">Amount</th>
             </tr>
           </thead>
           <tbody>

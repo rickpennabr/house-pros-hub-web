@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { DOCUMENT_KINDS, type DocumentKind } from '@/lib/places/portal';
 import { cleanText } from '@/lib/places/session';
 import { getExtensionFromMimeType, MAX_FILE_SIZES, validateInvoiceAttachmentMagicBytes } from '@/lib/utils/fileValidation';
+import { recordDocumentReceived } from '@/lib/places/timeline';
 
 const BUCKET = 'customer-documents';
 
@@ -75,22 +76,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
     }
 
-    const { error: insertError } = await supabase.from('pro_crm_customer_documents').insert({
-      owner_id: user.id,
-      customer_id: customerId,
-      project_id: projectId,
-      kind,
-      title,
-      file_name: file.name.slice(0, 180),
-      file_path: uploaded.path,
-      file_size_bytes: file.size,
-      content_type: validation.mimeType,
-      visible_to_customer: true,
-    });
-    if (insertError) {
+    const { data: inserted, error: insertError } = await supabase
+      .from('pro_crm_customer_documents')
+      .insert({
+        owner_id: user.id,
+        customer_id: customerId,
+        project_id: projectId,
+        kind,
+        title,
+        file_name: file.name.slice(0, 180),
+        file_path: uploaded.path,
+        file_size_bytes: file.size,
+        content_type: validation.mimeType,
+        visible_to_customer: true,
+      })
+      .select('id')
+      .single();
+    if (insertError || !inserted) {
       await supabase.storage.from(BUCKET).remove([uploaded.path]);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+      return NextResponse.json({ error: insertError?.message || 'Failed to save document' }, { status: 500 });
     }
+    await recordDocumentReceived({
+      customerId,
+      documentId: inserted.id,
+      title,
+      kind,
+      ownerId: user.id,
+    });
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err) {
     console.error('POST /api/crm/portal/documents', err);

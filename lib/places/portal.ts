@@ -1,9 +1,22 @@
 import { joinMailLine, mailStreetKey } from '@/lib/address/unit';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/types/supabase';
+import {
+  listPlaceTimeline,
+  recordPlaceEntered,
+  recordProLinked,
+  syncPlaceTimelineFromCrm,
+  type PlaceTimelineEvent,
+} from '@/lib/places/timeline';
 
 export const PLACE_KINDS = ['house', 'business', 'building'] as const;
-export const PLAN_FREQUENCIES = ['weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'] as const;
+export const PLAN_FREQUENCIES = [
+  'weekly',
+  'biweekly',
+  'monthly',
+  'quarterly',
+  'yearly',
+] as const;
 export const DOCUMENT_KINDS = ['contract', 'project_pdf', 'agreement', 'other'] as const;
 export const PHASE_STATUSES = ['planned', 'in_progress', 'done'] as const;
 
@@ -112,6 +125,7 @@ export async function ensurePersonalPlaceFromAddress(
     console.error('ensurePersonalPlaceFromAddress insert', error?.message);
     return null;
   }
+  await recordPlaceEntered(created.id, name);
   return created.id;
 }
 
@@ -155,6 +169,7 @@ async function ensurePlace(admin: Admin, userId: string, row: CustomerRow): Prom
     .select('id')
     .single();
   if (error || !created) throw new Error(error?.message || 'Could not create the place');
+  await recordPlaceEntered(created.id, placeName(row));
   return created.id;
 }
 
@@ -175,11 +190,20 @@ export async function claimPortalCustomers(user: PortalUser): Promise<void> {
     for (const row of pending ?? []) {
       if ((row.email ?? '').trim().toLowerCase() !== email.toLowerCase()) continue;
       const placeId = await ensurePlace(admin, user.id, row);
-      await admin
+      const { data: linked } = await admin
         .from('pro_crm_customers')
         .update({ portal_user_id: user.id, place_id: placeId })
         .eq('id', row.id)
-        .is('portal_user_id', null);
+        .is('portal_user_id', null)
+        .select('id, owner_id')
+        .maybeSingle();
+      if (linked) {
+        await recordProLinked({
+          placeId,
+          customerId: linked.id,
+          ownerId: linked.owner_id,
+        });
+      }
     }
   }
 
@@ -201,7 +225,19 @@ export async function relinkPortalPlaces(userId: string): Promise<void> {
 
   for (const row of unplaced ?? []) {
     const placeId = await ensurePlace(admin, userId, row);
-    await admin.from('pro_crm_customers').update({ place_id: placeId }).eq('id', row.id);
+    const { data: linked } = await admin
+      .from('pro_crm_customers')
+      .update({ place_id: placeId })
+      .eq('id', row.id)
+      .select('id, owner_id')
+      .maybeSingle();
+    if (linked) {
+      await recordProLinked({
+        placeId,
+        customerId: linked.id,
+        ownerId: linked.owner_id,
+      });
+    }
   }
 }
 
@@ -351,7 +387,8 @@ export async function listPortalPlaces(userId: string): Promise<PlaceCard[]> {
 }
 
 export interface PlaceBundle {
-  place: PlaceCard;
+  place: PlaceCard & { createdAt: string };
+  timeline: PlaceTimelineEvent[];
   projects: Array<{
     id: string;
     name: string;
@@ -385,6 +422,8 @@ export interface PlaceBundle {
     kind: DocumentKind;
     fileName: string;
     projectId: string | null;
+    proName: string;
+    receivedAt: string;
   }>;
   invoices: Array<{
     id: string;
@@ -394,6 +433,8 @@ export interface PlaceBundle {
     appliedCents: number;
     dueDate: string | null;
     invoiceDate: string;
+    proName: string;
+    receivedAt: string;
   }>;
   estimates: Array<{
     id: string;
@@ -402,6 +443,12 @@ export interface PlaceBundle {
     amountCents: number;
     depositCents: number;
     dueDate: string | null;
+    proName: string;
+    jobArea: string | null;
+    agreementKind: string;
+    maintenanceFrequency: string | null;
+    signedAt: string | null;
+    receivedAt: string;
   }>;
 }
 
@@ -410,11 +457,13 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
   const admin = createServiceRoleClient();
   const { data: place } = await admin
     .from('customer_places')
-    .select('id, kind, name, street, city, state, zip_code, photo_path, updated_at')
+    .select('id, kind, name, street, city, state, zip_code, photo_path, updated_at, created_at')
     .eq('id', placeId)
     .eq('user_id', userId)
     .maybeSingle();
   if (!place) return null;
+
+  await recordPlaceEntered(place.id, place.name, place.created_at);
 
   const { data: customers } = await admin
     .from('pro_crm_customers')
@@ -434,20 +483,25 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
     return owner ? proName(owner) : 'Your pro';
   };
 
+  const emptyPlace = {
+    id: place.id,
+    kind: place.kind,
+    name: place.name,
+    street: place.street,
+    city: place.city,
+    state: place.state,
+    zipCode: place.zip_code,
+    photoUrl: placePhotoUrl(place.photo_path, place.updated_at),
+    projectCount: 0,
+    maintenanceCount: 0,
+    createdAt: place.created_at,
+  };
+
   if (customerIds.length === 0) {
+    const timeline = await listPlaceTimeline(placeId);
     return {
-      place: {
-        id: place.id,
-        kind: place.kind,
-        name: place.name,
-        street: place.street,
-        city: place.city,
-        state: place.state,
-        zipCode: place.zip_code,
-        photoUrl: placePhotoUrl(place.photo_path, place.updated_at),
-        projectCount: 0,
-        maintenanceCount: 0,
-      },
+      place: emptyPlace,
+      timeline,
       projects: [],
       maintenance: [],
       documents: [],
@@ -455,6 +509,8 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
       estimates: [],
     };
   }
+
+  await syncPlaceTimelineFromCrm(placeId, customerIds);
 
   const [{ data: projects }, { data: plans }, { data: docs }, { data: invoices }, { data: estimates }] = await Promise.all([
     admin
@@ -471,19 +527,21 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
       .order('next_visit_date', { ascending: true }),
     admin
       .from('pro_crm_customer_documents')
-      .select('id, title, kind, file_name, project_id')
+      .select('id, customer_id, title, kind, file_name, project_id, created_at')
       .in('customer_id', customerIds)
       .eq('visible_to_customer', true)
       .order('created_at', { ascending: false }),
     admin
       .from('pro_crm_invoices')
-      .select('id, invoice_number, status, amount_cents, payment_applied_cents, due_date, invoice_date')
+      .select('id, customer_id, invoice_number, status, amount_cents, payment_applied_cents, due_date, invoice_date, created_at')
       .in('customer_id', customerIds)
       .neq('status', 'draft')
       .order('invoice_date', { ascending: false }),
     admin
       .from('pro_crm_estimates')
-      .select('id, display_id, status, amount_cents, deposit_cents, due_date')
+      .select(
+        'id, customer_id, display_id, status, amount_cents, deposit_cents, due_date, job_area, agreement_kind, maintenance_frequency, signed_at, created_at'
+      )
       .in('customer_id', customerIds)
       .neq('status', 'draft')
       .order('created_at', { ascending: false }),
@@ -498,19 +556,15 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
         .order('sort_order', { ascending: true })
     : { data: [] as Database['public']['Tables']['pro_crm_project_phases']['Row'][] };
 
+  const timeline = await listPlaceTimeline(placeId);
+
   return {
     place: {
-      id: place.id,
-      kind: place.kind,
-      name: place.name,
-      street: place.street,
-      city: place.city,
-      state: place.state,
-      zipCode: place.zip_code,
-      photoUrl: placePhotoUrl(place.photo_path, place.updated_at),
+      ...emptyPlace,
       projectCount: projects?.length ?? 0,
       maintenanceCount: plans?.length ?? 0,
     },
+    timeline,
     projects: (projects ?? []).map((project) => ({
       id: project.id,
       name: project.name,
@@ -546,6 +600,8 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
       kind: doc.kind,
       fileName: doc.file_name,
       projectId: doc.project_id,
+      proName: proForCustomer(doc.customer_id),
+      receivedAt: doc.created_at,
     })),
     invoices: (invoices ?? []).map((invoice) => ({
       id: invoice.id,
@@ -555,6 +611,8 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
       appliedCents: invoice.payment_applied_cents,
       dueDate: invoice.due_date,
       invoiceDate: invoice.invoice_date,
+      proName: proForCustomer(invoice.customer_id),
+      receivedAt: invoice.created_at,
     })),
     estimates: (estimates ?? []).map((estimate) => ({
       id: estimate.id,
@@ -563,6 +621,12 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
       amountCents: estimate.amount_cents,
       depositCents: estimate.deposit_cents ?? 0,
       dueDate: estimate.due_date,
+      proName: proForCustomer(estimate.customer_id),
+      jobArea: estimate.job_area?.trim() || null,
+      agreementKind: estimate.agreement_kind ?? 'project',
+      maintenanceFrequency: estimate.maintenance_frequency ?? null,
+      signedAt: estimate.signed_at ?? null,
+      receivedAt: estimate.created_at,
     })),
   };
 }

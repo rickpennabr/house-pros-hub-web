@@ -36,17 +36,25 @@ export async function POST(
       .maybeSingle();
     if (!customer) return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
 
+    const body = await request.json().catch(() => ({}));
+    const signerName = typeof body.signerName === 'string' ? body.signerName : null;
+    const signatureData = typeof body.signatureData === 'string' ? body.signatureData : null;
     const locale = request.headers.get('x-next-intl-locale') || 'en';
     const result = await acceptSentEstimate(supabase, estimateId, {
       baseUrl: getPublicSiteUrlForEmail(request),
       locale,
+      signerName,
+      signatureData,
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
     return NextResponse.json({
       ok: true,
       status: result.status,
       depositInvoiceId: result.depositInvoiceId,
+      depositPaymentUrl: result.depositPaymentUrl,
       depositError: result.depositError,
+      maintenancePlanId: result.maintenancePlanId,
+      maintenanceError: result.maintenanceError,
     });
   } catch (err) {
     console.error('POST /api/places/[id]/estimates/[estimateId]/approve', err);

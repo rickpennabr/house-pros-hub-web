@@ -10,6 +10,7 @@ import {
   type ProInvoiceStatus,
 } from '@/lib/crm/invoice-books';
 import { emailPaymentReceipt, type ReceiptResult } from '@/lib/crm/payment-receipt';
+import { recordInvoicePaid } from '@/lib/places/timeline';
 
 type Client = SupabaseClient<Database>;
 
@@ -125,6 +126,16 @@ export async function recordInvoicePayment(
     action: 'payment_recorded',
     payload: { payment_id: payment.id, amount_cents: input.amountCents, status, receipt },
   });
+
+  if (status === 'paid') {
+    await recordInvoicePaid({
+      customerId: invoice.customer_id,
+      invoiceId,
+      invoiceNumber: invoice.invoice_number,
+      amountCents: invoice.amount_cents,
+      ownerId,
+    });
+  }
 
   return { payment, status, paymentAppliedCents: nextPaid, receipt };
 }

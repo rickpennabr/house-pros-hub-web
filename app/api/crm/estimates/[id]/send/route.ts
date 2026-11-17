@@ -3,6 +3,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import { sendEstimateReviewEmail } from '@/lib/services/emailService';
+import { recordEstimateReceived } from '@/lib/places/timeline';
 
 /**
  * POST /api/crm/estimates/[id]/send
@@ -27,7 +28,7 @@ export async function POST(
     const supabase = await createClient();
     const { data: row, error } = await supabase
       .from('pro_crm_estimates')
-      .select('id, customer_id, display_id, amount_cents, status, due_date')
+      .select('id, customer_id, display_id, amount_cents, status, due_date, job_area')
       .eq('id', id)
       .eq('owner_id', user.id)
       .single();
@@ -114,6 +115,15 @@ export async function POST(
         .eq('id', id)
         .eq('owner_id', user.id);
     }
+
+    await recordEstimateReceived({
+      customerId: row.customer_id,
+      estimateId: row.id,
+      estimateNumber: estimateNumber,
+      amountCents: row.amount_cents ?? 0,
+      jobArea: row.job_area,
+      ownerId: user.id,
+    });
 
     console.log('[POST /api/crm/estimates/[id]/send] success', { estimateId: id, toEmail });
     return NextResponse.json({ ok: true, sentTo: toEmail });

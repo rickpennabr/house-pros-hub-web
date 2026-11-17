@@ -5,6 +5,7 @@ import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import { sendMaintenanceStoppedEmail } from '@/lib/services/emailService';
 import { sendBusinessPushNotification } from '@/lib/services/pushNotificationService';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { recordPlaceEvent } from '@/lib/places/timeline';
 
 /**
  * POST /api/places/[id]/maintenance/[planId]/stop
@@ -95,6 +96,16 @@ export async function POST(
       entityId: business?.id ?? plan.id,
       displayName: customerName,
       detail: `${plan.name} · ${proName} · ${place.name}`,
+    });
+
+    await recordPlaceEvent({
+      placeId: place.id,
+      kind: 'maintenance_stopped',
+      title: 'Maintenance stopped',
+      detail: plan.name,
+      customerId: customer.id,
+      ownerId: customer.owner_id,
+      proName,
     });
 
     return NextResponse.json({ ok: true });

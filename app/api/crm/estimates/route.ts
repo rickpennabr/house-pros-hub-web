@@ -190,9 +190,13 @@ export async function POST(request: NextRequest) {
       validityDate: rawBody.validityDate ?? rawBody.validity_date ?? rawBody.valid_until ?? null,
       note: rawBody.note ?? null,
       depositCents: rawBody.depositCents ?? rawBody.deposit_cents,
+      jobArea: rawBody.jobArea ?? rawBody.job_area ?? null,
+      agreementKind: rawBody.agreementKind ?? rawBody.agreement_kind,
+      maintenanceFrequency: rawBody.maintenanceFrequency ?? rawBody.maintenance_frequency ?? null,
     });
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid estimate payload' }, { status: 400 });
+      const message = parsed.error.issues[0]?.message || 'Invalid estimate payload';
+      return NextResponse.json({ error: message }, { status: 400 });
     }
 
     const body = parsed.data;
@@ -223,6 +227,9 @@ export async function POST(request: NextRequest) {
     const status = body.status ?? 'draft';
     const dueDate = body.validityDate ?? body.dueDate ?? getDefaultEstimateValidityDate();
     const note = body.note?.trim() || null;
+    const jobArea = body.jobArea?.trim() || null;
+    const agreementKind = body.agreementKind ?? 'project';
+    const maintenanceFrequency = agreementKind === 'maintenance' ? body.maintenanceFrequency ?? null : null;
 
     const { data: row, error } = await supabase
       .from('pro_crm_estimates')
@@ -235,6 +242,9 @@ export async function POST(request: NextRequest) {
         status,
         due_date: dueDate,
         note,
+        job_area: jobArea,
+        agreement_kind: agreementKind,
+        maintenance_frequency: maintenanceFrequency,
       })
       .select('id, display_id, created_at')
       .single();

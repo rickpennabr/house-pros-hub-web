@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/supabase';
 import { sendInvoiceEmail } from '@/lib/services/emailService';
+import { recordInvoiceReceived } from '@/lib/places/timeline';
 
 type Client = SupabaseClient<Database>;
 
@@ -71,6 +72,15 @@ export async function deliverDepositInvoice(
   }
 
   const viewUrl = `${options.baseUrl}/${options.locale}/invoices/view?token=${tokenRow.token}`;
+
+  await recordInvoiceReceived({
+    customerId: invoice.customer_id,
+    invoiceId: invoice.id,
+    invoiceNumber: invoice.invoice_number,
+    amountCents: invoice.amount_cents ?? 0,
+    ownerId: invoice.owner_id,
+  });
+
   if (!toEmail) return { emailed: false, viewUrl };
 
   const email = await sendInvoiceEmail(

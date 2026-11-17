@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
+import { recordEstimateReceived } from '@/lib/places/timeline';
 
 /**
  * POST /api/crm/estimates/[id]/share-link
@@ -21,7 +22,7 @@ export async function POST(
 
     const { data: estimate, error } = await supabase
       .from('pro_crm_estimates')
-      .select('id, status, amount_cents, deposit_cents, display_id, due_date, line_items')
+      .select('id, customer_id, status, amount_cents, deposit_cents, display_id, due_date, line_items, job_area')
       .eq('id', id)
       .eq('owner_id', user.id)
       .single();
@@ -87,6 +88,15 @@ export async function POST(
     const url = `${baseUrl}/${locale}/estimates/view?token=${token}`;
     const label = String(estimate.display_id ?? id.slice(0, 8));
 
+    await recordEstimateReceived({
+      customerId: estimate.customer_id,
+      estimateId: estimate.id,
+      estimateNumber: label,
+      amountCents: estimate.amount_cents ?? 0,
+      jobArea: estimate.job_area,
+      ownerId: user.id,
+    });
+
     return NextResponse.json({
       url,
       token,
@@ -96,6 +106,7 @@ export async function POST(
       depositCents: estimate.deposit_cents ?? 0,
       status: estimate.status === 'draft' ? 'sent' : estimate.status,
       validUntilDate: estimate.due_date,
+      jobArea: estimate.job_area?.trim() || null,
       businessName,
       businessLogo,
       lineItemsPreview,

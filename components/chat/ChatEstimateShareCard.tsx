@@ -25,6 +25,7 @@ export default function ChatEstimateShareCard({
   const t = useTranslations('probot');
   const [card, setCard] = useState(estimate);
   const [approving, setApproving] = useState(false);
+  const [signerName, setSignerName] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +77,11 @@ export default function ChatEstimateShareCard({
 
   const handleApprove = async () => {
     if (!canClickApprove) return;
+    const name = signerName.trim();
+    if (name.length < 2) {
+      setError(t('crmEstimateSignNameRequired'));
+      return;
+    }
     setApproving(true);
     setError(null);
     setMessage(null);
@@ -83,7 +89,7 @@ export default function ChatEstimateShareCard({
       const res = await fetch('/api/estimates/public/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: card.token }),
+        body: JSON.stringify({ token: card.token, signerName: name, signatureData: name }),
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload.error || t('crmEstimateApproveFailed'));
@@ -128,9 +134,19 @@ export default function ChatEstimateShareCard({
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
             {t('crmEstimateCardTitle')}
           </p>
-          <p className="truncate text-sm font-semibold text-gray-900">
-            {card.businessName || t('crmEstimateFromPro')}
-          </p>
+          <div className="flex min-w-0 items-center gap-2">
+            {card.businessLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element -- chat card; remote business logos
+              <img
+                src={card.businessLogo}
+                alt=""
+                className="h-7 w-7 shrink-0 rounded-full border border-gray-200 object-cover"
+              />
+            ) : null}
+            <p className="truncate text-sm font-semibold text-gray-900">
+              {card.businessName || t('crmEstimateFromPro')}
+            </p>
+          </div>
           <p className="text-xs text-gray-500">
             #{card.estimateNumber}
             {card.validUntilDate
@@ -190,16 +206,29 @@ export default function ChatEstimateShareCard({
           </span>
         </div>
 
+        {canClickApprove ? (
+          <label className="block text-xs text-gray-600">
+            {t('crmEstimateSignName')}
+            <input
+              value={signerName}
+              onChange={(event) => setSignerName(event.target.value)}
+              className="mt-1 w-full rounded-lg border-2 border-black px-3 py-2 text-sm text-gray-900"
+              placeholder={t('crmEstimateSignNamePlaceholder')}
+              autoComplete="name"
+            />
+          </label>
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           {canClickApprove ? (
             <button
               type="button"
               onClick={() => void handleApprove()}
-              disabled={approving}
+              disabled={approving || signerName.trim().length < 2}
               className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 disabled:cursor-wait disabled:opacity-60"
             >
               {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {approving ? t('crmEstimateApproving') : t('crmEstimateApprove')}
+              {approving ? t('crmEstimateApproving') : t('crmEstimateSignApprove')}
             </button>
           ) : accepted ? (
             <span className="inline-flex flex-1 items-center justify-center rounded-full border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800">

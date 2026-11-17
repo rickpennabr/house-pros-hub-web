@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, FileCheck, FolderPlus, Send, Loader2, Copy, Filter, LayoutGrid, FileText, Ban } from 'lucide-react';
+import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, FileCheck, FolderPlus, Send, Loader2, Copy, Filter, LayoutGrid, FileText, Ban, Tablet } from 'lucide-react';
 import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
@@ -31,6 +31,7 @@ import {
   lineItemsForEstimateForm,
   type CrmEstimateLineItemForm,
 } from '@/lib/utils/crmEstimateFormLineItems';
+import type { AgreementKind, MaintenanceFrequency } from '@/lib/crm/estimate-agreement';
 
 const PAGE_SIZE = 25;
 type SortKey = 'created_at' | 'updated_at' | 'status' | 'due_date' | 'amount_cents';
@@ -161,6 +162,10 @@ export default function CRMEstimatesPage() {
   const [formDueDate, setFormDueDate] = useState(getDefaultEstimateValidityDate());
   const [formNote, setFormNote] = useState('');
   const [formDeposit, setFormDeposit] = useState('');
+  const [formJobArea, setFormJobArea] = useState('');
+  const [formAgreementKind, setFormAgreementKind] = useState<AgreementKind>('project');
+  const [formMaintenanceFrequency, setFormMaintenanceFrequency] = useState<MaintenanceFrequency | ''>('');
+  const [presentLoadingId, setPresentLoadingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const prefillsAppliedRef = useRef(false);
@@ -287,11 +292,17 @@ export default function CRMEstimatesPage() {
         setFormDueDate(data.dueDate ? data.dueDate.slice(0, 10) : '');
         setFormNote(data.note ?? '');
         setFormDeposit(data.depositCents ? (Number(data.depositCents) / 100).toFixed(2) : '');
+        setFormJobArea(typeof data.jobArea === 'string' ? data.jobArea : '');
+        setFormAgreementKind((data.agreementKind as AgreementKind) || 'project');
+        setFormMaintenanceFrequency((data.maintenanceFrequency as MaintenanceFrequency) || '');
       })
       .catch(() => {
         if (!cancelled) {
           setEditingData({ customerId: '', amountCents: 0, status: 'draft', dueDate: '', note: '', estimateNumber: '', customerEmail: null });
           setFormDeposit('');
+          setFormJobArea('');
+          setFormAgreementKind('project');
+          setFormMaintenanceFrequency('');
         }
       });
     return () => { cancelled = true; };
@@ -393,11 +404,37 @@ export default function CRMEstimatesPage() {
       setFormDueDate(getDefaultEstimateValidityDate());
       setFormNote(draft.note);
       setFormDeposit(data.depositCents ? (Number(data.depositCents) / 100).toFixed(2) : '');
+      setFormJobArea(typeof data.jobArea === 'string' ? data.jobArea : '');
+      setFormAgreementKind((data.agreementKind as AgreementKind) || 'project');
+      setFormMaintenanceFrequency((data.maintenanceFrequency as MaintenanceFrequency) || '');
       setViewMode('add');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to duplicate estimate');
     } finally {
       setLoadingDuplicateId(null);
+    }
+  };
+
+  const presentEstimateOnDevice = async (estimateId: string) => {
+    setPresentLoadingId(estimateId);
+    setFormError(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/crm/estimates/${estimateId}/share-link`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.url !== 'string') {
+        throw new Error(typeof data.error === 'string' ? data.error : 'Could not open the agreement');
+      }
+      const presentUrl = `${data.url}${data.url.includes('?') ? '&' : '?'}present=1`;
+      window.open(presentUrl, '_blank', 'noopener,noreferrer');
+      fetchEstimates();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Could not open the agreement');
+    } finally {
+      setPresentLoadingId(null);
     }
   };
 
@@ -631,6 +668,9 @@ export default function CRMEstimatesPage() {
     }
     const deposit = depositPayload();
     if (deposit.error) return deposit.error;
+    if (formAgreementKind === 'maintenance' && !formMaintenanceFrequency) {
+      return 'Choose how often maintenance visits run';
+    }
     return null;
   };
 
@@ -658,6 +698,9 @@ export default function CRMEstimatesPage() {
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
           depositCents: depositPayload().cents,
+          jobArea: formJobArea.trim() || null,
+          agreementKind: formAgreementKind,
+          maintenanceFrequency: formAgreementKind === 'maintenance' ? formMaintenanceFrequency || null : null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -670,6 +713,9 @@ export default function CRMEstimatesPage() {
       setFormDueDate(getDefaultEstimateValidityDate());
       setFormNote('');
       setFormDeposit('');
+      setFormJobArea('');
+      setFormAgreementKind('project');
+      setFormMaintenanceFrequency('');
       fetchEstimates();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Request failed');
@@ -701,6 +747,9 @@ export default function CRMEstimatesPage() {
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
           depositCents: depositPayload().cents,
+          jobArea: formJobArea.trim() || null,
+          agreementKind: formAgreementKind,
+          maintenanceFrequency: formAgreementKind === 'maintenance' ? formMaintenanceFrequency || null : null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -781,6 +830,9 @@ export default function CRMEstimatesPage() {
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
           depositCents: depositPayload().cents,
+          jobArea: formJobArea.trim() || null,
+          agreementKind: formAgreementKind,
+          maintenanceFrequency: formAgreementKind === 'maintenance' ? formMaintenanceFrequency || null : null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1062,6 +1114,12 @@ export default function CRMEstimatesPage() {
               onNoteChange={setFormNote}
               deposit={formDeposit}
               onDepositChange={setFormDeposit}
+              jobArea={formJobArea}
+              onJobAreaChange={setFormJobArea}
+              agreementKind={formAgreementKind}
+              onAgreementKindChange={setFormAgreementKind}
+              maintenanceFrequency={formMaintenanceFrequency}
+              onMaintenanceFrequencyChange={setFormMaintenanceFrequency}
               saving={saving}
               error={formError}
               onSubmit={viewMode === 'add' ? handleSubmitAdd : handleSubmitEdit}
@@ -1076,6 +1134,12 @@ export default function CRMEstimatesPage() {
                     : undefined
               }
               reviewSending={Boolean(editingId && sendingEstimateId === editingId)}
+              onPresentOnDevice={
+                viewMode === 'edit' && editingId
+                  ? () => void presentEstimateOnDevice(editingId)
+                  : undefined
+              }
+              presentLoading={Boolean(editingId && presentLoadingId === editingId)}
               onOpenAddReusableItem={(rowIndex) => {
                 setAddItemPanelRowIndex(typeof rowIndex === 'number' ? rowIndex : null);
                 setAddItemPanelOpen(true);
@@ -1139,6 +1203,18 @@ export default function CRMEstimatesPage() {
                     <Copy className="w-3.5 h-3.5 shrink-0" />
                   )}
                   Duplicate
+                </button>
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    void presentEstimateOnDevice(openActionsId);
+                    setOpenActionsId(null);
+                    setMenuPosition(null);
+                  }}
+                  disabled={presentLoadingId === openActionsId}
+                >
+                  <Tablet className="w-3.5 h-3.5" /> Present on device
                 </button>
                 <button
                   type="button"

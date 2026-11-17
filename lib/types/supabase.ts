@@ -1507,6 +1507,103 @@ export interface Database {
         };
         Relationships: [];
       };
+      customer_place_events: {
+        Row: {
+          id: string;
+          place_id: string;
+          kind:
+            | 'place_entered'
+            | 'pro_linked'
+            | 'estimate_received'
+            | 'estimate_approved'
+            | 'estimate_declined'
+            | 'invoice_received'
+            | 'invoice_paid'
+            | 'document_received'
+            | 'project_shared'
+            | 'maintenance_started'
+            | 'maintenance_stopped';
+          occurred_at: string;
+          title: string;
+          detail: string | null;
+          pro_name: string | null;
+          owner_id: string | null;
+          customer_id: string | null;
+          estimate_id: string | null;
+          invoice_id: string | null;
+          document_id: string | null;
+          project_id: string | null;
+          job_area: string | null;
+          amount_cents: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          place_id: string;
+          kind:
+            | 'place_entered'
+            | 'pro_linked'
+            | 'estimate_received'
+            | 'estimate_approved'
+            | 'estimate_declined'
+            | 'invoice_received'
+            | 'invoice_paid'
+            | 'document_received'
+            | 'project_shared'
+            | 'maintenance_started'
+            | 'maintenance_stopped';
+          occurred_at?: string;
+          title: string;
+          detail?: string | null;
+          pro_name?: string | null;
+          owner_id?: string | null;
+          customer_id?: string | null;
+          estimate_id?: string | null;
+          invoice_id?: string | null;
+          document_id?: string | null;
+          project_id?: string | null;
+          job_area?: string | null;
+          amount_cents?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          place_id?: string;
+          kind?:
+            | 'place_entered'
+            | 'pro_linked'
+            | 'estimate_received'
+            | 'estimate_approved'
+            | 'estimate_declined'
+            | 'invoice_received'
+            | 'invoice_paid'
+            | 'document_received'
+            | 'project_shared'
+            | 'maintenance_started'
+            | 'maintenance_stopped';
+          occurred_at?: string;
+          title?: string;
+          detail?: string | null;
+          pro_name?: string | null;
+          owner_id?: string | null;
+          customer_id?: string | null;
+          estimate_id?: string | null;
+          invoice_id?: string | null;
+          document_id?: string | null;
+          project_id?: string | null;
+          job_area?: string | null;
+          amount_cents?: number | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'customer_place_events_place_id_fkey';
+            columns: ['place_id'];
+            referencedRelation: 'customer_places';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       pro_crm_project_phases: {
         Row: {
           id: string;
@@ -1562,6 +1659,7 @@ export interface Database {
           end_date: string | null;
           is_active: boolean;
           amount_cents: number | null;
+          source_estimate_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1577,6 +1675,7 @@ export interface Database {
           end_date?: string | null;
           is_active?: boolean;
           amount_cents?: number | null;
+          source_estimate_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1592,6 +1691,7 @@ export interface Database {
           end_date?: string | null;
           is_active?: boolean;
           amount_cents?: number | null;
+          source_estimate_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1700,6 +1800,25 @@ export interface Database {
           status: 'draft' | 'sent' | 'accepted' | 'declined';
           due_date: string | null;
           note: string | null;
+          job_area: string | null;
+          agreement_kind:
+            | 'project'
+            | 'maintenance'
+            | 'repair'
+            | 'renovation'
+            | 'remodel'
+            | 'addition'
+            | 'other';
+          maintenance_frequency:
+            | 'weekly'
+            | 'biweekly'
+            | 'monthly'
+            | 'quarterly'
+            | 'yearly'
+            | null;
+          signed_at: string | null;
+          signer_name: string | null;
+          signature_data: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1714,6 +1833,25 @@ export interface Database {
           status?: 'draft' | 'sent' | 'accepted' | 'declined';
           due_date?: string | null;
           note?: string | null;
+          job_area?: string | null;
+          agreement_kind?:
+            | 'project'
+            | 'maintenance'
+            | 'repair'
+            | 'renovation'
+            | 'remodel'
+            | 'addition'
+            | 'other';
+          maintenance_frequency?:
+            | 'weekly'
+            | 'biweekly'
+            | 'monthly'
+            | 'quarterly'
+            | 'yearly'
+            | null;
+          signed_at?: string | null;
+          signer_name?: string | null;
+          signature_data?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1728,6 +1866,25 @@ export interface Database {
           status?: 'draft' | 'sent' | 'accepted' | 'declined';
           due_date?: string | null;
           note?: string | null;
+          job_area?: string | null;
+          agreement_kind?:
+            | 'project'
+            | 'maintenance'
+            | 'repair'
+            | 'renovation'
+            | 'remodel'
+            | 'addition'
+            | 'other';
+          maintenance_frequency?:
+            | 'weekly'
+            | 'biweekly'
+            | 'monthly'
+            | 'quarterly'
+            | 'yearly'
+            | null;
+          signed_at?: string | null;
+          signer_name?: string | null;
+          signature_data?: string | null;
           created_at?: string;
           updated_at?: string;
         };

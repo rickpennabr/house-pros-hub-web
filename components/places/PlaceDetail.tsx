@@ -3,11 +3,27 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileCheck, FileText, FolderKanban, ImagePlus, MoreVertical, Receipt, Wrench } from 'lucide-react';
+import {
+  ArrowLeft,
+  FileCheck,
+  FileText,
+  FolderKanban,
+  History,
+  ImagePlus,
+  MoreVertical,
+  Receipt,
+  Wrench,
+} from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import type { PlaceBundle } from '@/lib/places/portal';
+import {
+  CustomerEstimatePreview,
+  type CustomerEstimatePreviewData,
+} from '@/components/estimates/CustomerEstimatePreview';
+import { MAINTENANCE_FREQUENCY_LABELS, type MaintenanceFrequency } from '@/lib/crm/estimate-agreement';
 
 const TABS = [
+  { id: 'timeline', icon: History },
   { id: 'projects', icon: FolderKanban },
   { id: 'maintenance', icon: Wrench },
   { id: 'documents', icon: FileText },
@@ -31,6 +47,19 @@ function formatDay(iso: string | null) {
   });
 }
 
+function formatWhen(iso: string | null | undefined) {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return formatDay(iso.slice(0, 10));
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 export function PlaceDetail({ placeId }: { placeId: string }) {
   const t = useTranslations('places');
   const tCommon = useTranslations('common.button');
@@ -40,7 +69,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [bundle, setBundle] = useState<PlaceBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<PlaceTab>('projects');
+  const [tab, setTab] = useState<PlaceTab>('timeline');
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -49,6 +78,11 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
   const [stopId, setStopId] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [openEstimateId, setOpenEstimateId] = useState<string | null>(null);
+  const [estimateDoc, setEstimateDoc] = useState<CustomerEstimatePreviewData | null>(null);
+  const [estimateDocLoading, setEstimateDocLoading] = useState(false);
+  const [estimateApproveMessage, setEstimateApproveMessage] = useState<string | null>(null);
+  const [depositPaymentUrl, setDepositPaymentUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/places/${placeId}`, { credentials: 'include' })
@@ -115,18 +149,63 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
     setBundle(data as PlaceBundle);
   }
 
-  async function approveEstimate(estimateId: string) {
+  async function openEstimate(estimateId: string) {
+    setOpenEstimateId(estimateId);
+    setEstimateDoc(null);
+    setEstimateApproveMessage(null);
+    setDepositPaymentUrl(null);
+    setEstimateDocLoading(true);
+    setPhotoError(null);
+    try {
+      const res = await fetch(`/api/places/${placeId}/estimates/${estimateId}`, { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || t('loadFailed'));
+      setEstimateDoc(data as CustomerEstimatePreviewData);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : t('loadFailed'));
+      setOpenEstimateId(null);
+    } finally {
+      setEstimateDocLoading(false);
+    }
+  }
+
+  async function approveEstimate(estimateId: string, signerName: string) {
     setActingId(estimateId);
     setPhotoError(null);
+    setEstimateApproveMessage(null);
     try {
       const res = await fetch(`/api/places/${placeId}/estimates/${estimateId}/approve`, {
         method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signerName, signatureData: signerName }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; depositError?: string | null };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        depositError?: string | null;
+        depositPaymentUrl?: string | null;
+        maintenanceError?: string | null;
+        maintenancePlanId?: string | null;
+      };
       if (!res.ok) throw new Error(data.error || t('approveFailed'));
       await reload();
+      if (typeof data.depositPaymentUrl === 'string' && data.depositPaymentUrl) {
+        setDepositPaymentUrl(data.depositPaymentUrl);
+      }
       if (data.depositError) setPhotoError(data.depositError);
+      if (data.maintenanceError) setEstimateApproveMessage(data.maintenanceError);
+      else if (data.maintenancePlanId) setEstimateApproveMessage(t('maintenanceStarted'));
+      else setEstimateApproveMessage(t('approvedThanks'));
+      setEstimateDoc((current) =>
+        current
+          ? {
+              ...current,
+              status: 'accepted',
+              signerName,
+              signedAt: new Date().toISOString(),
+            }
+          : current
+      );
     } catch (err) {
       setPhotoError(err instanceof Error ? err.message : t('approveFailed'));
     } finally {
@@ -229,6 +308,9 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
                 {localityLine ? <span className="block">{localityLine}</span> : null}
               </p>
             ) : null}
+            <p className="mt-1 text-xs text-gray-500">
+              {t('enteredOn')}: {formatWhen(bundle.place.createdAt)}
+            </p>
           </div>
           <div ref={menuRef} className="relative shrink-0 self-start">
             <button
@@ -307,6 +389,34 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
           })}
         </div>
       </div>
+
+      {tab === 'timeline' ? (
+        <section className="border-2 border-black rounded-lg p-4 space-y-3" role="tabpanel">
+          <p className="text-sm text-gray-600">{t('timelineIntro')}</p>
+          {bundle.timeline.length === 0 ? <p className="text-sm text-gray-600">{t('noTimeline')}</p> : null}
+          <ol className="space-y-3">
+            {bundle.timeline.map((event) => (
+              <li key={event.id} className="relative border border-black rounded-lg px-3 py-2 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium">{event.title}</p>
+                    <p className="text-xs text-gray-600">
+                      {event.proName ? `${t('with')} ${event.proName}` : null}
+                      {event.proName && event.detail ? ' · ' : null}
+                      {event.detail}
+                      {event.jobArea ? ` · ${event.jobArea}` : null}
+                      {typeof event.amountCents === 'number' ? ` · ${money(event.amountCents)}` : null}
+                    </p>
+                  </div>
+                  <time className="shrink-0 text-xs text-gray-500 whitespace-nowrap" dateTime={event.occurredAt}>
+                    {formatWhen(event.occurredAt)}
+                  </time>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       {tab === 'projects' ? (
         <section className="border-2 border-black rounded-lg p-4 space-y-4" role="tabpanel">
@@ -405,7 +515,9 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
             >
               <span>
                 <span className="block font-medium">{doc.title}</span>
-                <span className="text-xs text-gray-600">{t(`doc.${doc.kind}`)}</span>
+                <span className="text-xs text-gray-600">
+                  {t(`doc.${doc.kind}`)} · {t('with')} {doc.proName} · {t('receivedOn')} {formatWhen(doc.receivedAt)}
+                </span>
               </span>
               <span className="text-red-600 font-medium">{t('openFile')}</span>
             </a>
@@ -421,8 +533,10 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
               <span>
                 <span className="block font-medium">{invoice.number}</span>
                 <span className="text-xs text-gray-600">
-                  {invoice.status} · {t('balance')} {money(Math.max(0, invoice.amountCents - invoice.appliedCents))}
+                  {t('with')} {invoice.proName} · {invoice.status} · {t('balance')}{' '}
+                  {money(Math.max(0, invoice.amountCents - invoice.appliedCents))}
                   {invoice.dueDate ? ` · ${formatDay(invoice.dueDate)}` : ''}
+                  {` · ${t('receivedOn')} ${formatWhen(invoice.receivedAt)}`}
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-3">
@@ -448,30 +562,79 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
       {tab === 'estimates' ? (
         <section className="border-2 border-black rounded-lg p-4 space-y-2" role="tabpanel">
           {bundle.estimates.length === 0 ? <p className="text-sm text-gray-600">{t('noEstimates')}</p> : null}
-          {bundle.estimates.map((estimate) => (
-            <div key={estimate.id} className="flex items-center justify-between gap-3 border border-black rounded-lg px-3 py-2 text-sm">
-              <span>
-                <span className="block font-medium">#{estimate.number}</span>
-                <span className="text-xs text-gray-600">
-                  {money(estimate.amountCents)} · {estimate.status}
-                  {estimate.dueDate ? ` · ${formatDay(estimate.dueDate)}` : ''}
-                  {estimate.status === 'sent' && estimate.depositCents > 0
-                    ? ` · ${t('depositDue')} ${money(estimate.depositCents)}`
-                    : ''}
-                </span>
-              </span>
-              {estimate.status === 'sent' ? (
-                <button
-                  type="button"
-                  disabled={actingId === estimate.id}
-                  onClick={() => void approveEstimate(estimate.id)}
-                  className="shrink-0 rounded-lg bg-black px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
-                >
-                  {actingId === estimate.id ? t('loading') : t('approve')}
-                </button>
-              ) : null}
-            </div>
-          ))}
+          {bundle.estimates.map((estimate) => {
+            const schedule =
+              estimate.maintenanceFrequency &&
+              (MAINTENANCE_FREQUENCY_LABELS[estimate.maintenanceFrequency as MaintenanceFrequency] ||
+                estimate.maintenanceFrequency);
+            return (
+              <div key={estimate.id} className="border border-black rounded-lg px-3 py-2 text-sm space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span>
+                    <span className="block font-medium">
+                      #{estimate.number}
+                      {estimate.jobArea ? ` · ${estimate.jobArea}` : ''}
+                      {estimate.agreementKind === 'maintenance' ? ` · ${t('maintenanceAgreement')}` : ''}
+                    </span>
+                    <span className="text-xs text-gray-600">
+                      {t('with')} {estimate.proName} · {money(estimate.amountCents)} · {estimate.status}
+                      {schedule ? ` · ${schedule}` : ''}
+                      {estimate.dueDate ? ` · ${formatDay(estimate.dueDate)}` : ''}
+                      {estimate.status === 'sent' && estimate.depositCents > 0
+                        ? ` · ${t('depositDue')} ${money(estimate.depositCents)}`
+                        : ''}
+                      {` · ${t('receivedOn')} ${formatWhen(estimate.receivedAt)}`}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void openEstimate(estimate.id)}
+                    className="shrink-0 rounded-lg border-2 border-black px-3 py-1.5 text-sm font-medium"
+                  >
+                    {t('openAgreement')}
+                  </button>
+                </div>
+                {openEstimateId === estimate.id ? (
+                  <div className="border-t border-black pt-3 space-y-3">
+                    {estimateDocLoading ? <p className="text-sm text-gray-500">{t('loading')}</p> : null}
+                    {estimateDoc ? (
+                      <CustomerEstimatePreview
+                        data={estimateDoc}
+                        variant="portal"
+                        onApprove={({ signerName }) => void approveEstimate(estimate.id, signerName)}
+                        approveLoading={actingId === estimate.id}
+                        alreadyAccepted={estimateDoc.status === 'accepted'}
+                        approveMessage={estimateApproveMessage}
+                      />
+                    ) : null}
+                    {depositPaymentUrl ? (
+                      <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-sm text-amber-950">{t('payAfterSign')}</p>
+                        <a
+                          href={depositPaymentUrl}
+                          className="inline-flex items-center justify-center rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white"
+                        >
+                          {t('payNow')}
+                        </a>
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenEstimateId(null);
+                        setEstimateDoc(null);
+                        setDepositPaymentUrl(null);
+                        setEstimateApproveMessage(null);
+                      }}
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      {tCommon('close')}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </section>
       ) : null}
     </div>

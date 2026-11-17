@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
+import { loadEstimateBusinessBrand } from '@/lib/crm/estimate-business-brand';
 
 /**
  * GET /api/crm/estimates/[id]/customer-preview
@@ -42,27 +43,7 @@ export async function GET(
       .eq('id', row.customer_id)
       .single();
 
-    let business: { business_name: string; business_logo: string | null; email: string | null; phone: string | null } = {
-      business_name: 'My Business',
-      business_logo: null,
-      email: null,
-      phone: null,
-    };
-    const { data: biz } = await supabase
-      .from('businesses')
-      .select('business_name, business_logo, email, phone')
-      .eq('owner_id', row.owner_id)
-      .eq('is_active', true)
-      .limit(1)
-      .maybeSingle();
-    if (biz) {
-      business = {
-        business_name: biz.business_name,
-        business_logo: biz.business_logo,
-        email: biz.email,
-        phone: biz.phone,
-      };
-    }
+    const business = await loadEstimateBusinessBrand(supabase, row.owner_id);
 
     return NextResponse.json({
       estimateId: row.id,
@@ -73,6 +54,11 @@ export async function GET(
       status: row.status,
       validUntilDate: row.due_date,
       note: row.note,
+      jobArea: row.job_area ?? null,
+      agreementKind: row.agreement_kind ?? 'project',
+      maintenanceFrequency: row.maintenance_frequency ?? null,
+      signedAt: row.signed_at ?? null,
+      signerName: row.signer_name ?? null,
       customer: customer
         ? {
             first_name: customer.first_name,

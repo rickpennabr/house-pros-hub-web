@@ -26,9 +26,13 @@ export async function POST(request: NextRequest) {
     }
 
     const locale = request.headers.get('x-next-intl-locale') || 'en';
+    const signerName = typeof body.signerName === 'string' ? body.signerName : null;
+    const signatureData = typeof body.signatureData === 'string' ? body.signatureData : null;
     const result = await acceptSentEstimate(supabase, tokenRow.estimate_id, {
       baseUrl: getPublicSiteUrlForEmail(request),
       locale,
+      signerName,
+      signatureData,
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
     return NextResponse.json({
@@ -37,6 +41,8 @@ export async function POST(request: NextRequest) {
       depositInvoiceId: result.depositInvoiceId,
       depositPaymentUrl: result.depositPaymentUrl,
       depositError: result.depositError,
+      maintenancePlanId: result.maintenancePlanId,
+      maintenanceError: result.maintenanceError,
     });
   } catch (err) {
     console.error('POST /api/estimates/public/approve', err);

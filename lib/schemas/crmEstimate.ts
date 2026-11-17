@@ -1,6 +1,9 @@
 import { z } from 'zod';
+import { AGREEMENT_KINDS, MAINTENANCE_FREQUENCIES } from '@/lib/crm/estimate-agreement';
 
 export const crmEstimateStatusSchema = z.enum(['draft', 'sent', 'accepted', 'declined']);
+export const crmAgreementKindSchema = z.enum(AGREEMENT_KINDS);
+export const crmMaintenanceFrequencySchema = z.enum(MAINTENANCE_FREQUENCIES);
 
 export const crmEstimateLineItemSchema = z.object({
   product_or_service: z.string().trim().min(1).nullable().optional(),
@@ -11,25 +14,53 @@ export const crmEstimateLineItemSchema = z.object({
   amount_cents: z.coerce.number().int().min(0),
 });
 
-export const crmEstimateCreateSchema = z.object({
-  customerId: z.string().uuid(),
-  lineItems: z.array(crmEstimateLineItemSchema).nullable().optional(),
-  status: crmEstimateStatusSchema.default('draft'),
-  dueDate: z.string().date().nullable().optional(),
-  validityDate: z.string().date().nullable().optional(),
-  note: z.string().trim().max(5000).nullable().optional(),
-  depositCents: z.coerce.number().int().min(0).optional(),
-});
+export const crmEstimateCreateSchema = z
+  .object({
+    customerId: z.string().uuid(),
+    lineItems: z.array(crmEstimateLineItemSchema).nullable().optional(),
+    status: crmEstimateStatusSchema.default('draft'),
+    dueDate: z.string().date().nullable().optional(),
+    validityDate: z.string().date().nullable().optional(),
+    note: z.string().trim().max(5000).nullable().optional(),
+    depositCents: z.coerce.number().int().min(0).optional(),
+    /** Area of the property (Pavers, Landscape, Kitchen, …). Lands under the same My Place. */
+    jobArea: z.string().trim().min(1).max(80).nullable().optional(),
+    agreementKind: crmAgreementKindSchema.optional(),
+    maintenanceFrequency: crmMaintenanceFrequencySchema.nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    const kind = value.agreementKind ?? 'project';
+    if (kind === 'maintenance' && !value.maintenanceFrequency) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maintenanceFrequency'],
+        message: 'Choose how often maintenance visits run',
+      });
+    }
+  });
 
-export const crmEstimateUpdateSchema = z.object({
-  customerId: z.string().uuid().optional(),
-  lineItems: z.array(crmEstimateLineItemSchema).nullable().optional(),
-  status: crmEstimateStatusSchema.optional(),
-  dueDate: z.string().date().nullable().optional(),
-  validityDate: z.string().date().nullable().optional(),
-  note: z.string().trim().max(5000).nullable().optional(),
-  depositCents: z.coerce.number().int().min(0).optional(),
-});
+export const crmEstimateUpdateSchema = z
+  .object({
+    customerId: z.string().uuid().optional(),
+    lineItems: z.array(crmEstimateLineItemSchema).nullable().optional(),
+    status: crmEstimateStatusSchema.optional(),
+    dueDate: z.string().date().nullable().optional(),
+    validityDate: z.string().date().nullable().optional(),
+    note: z.string().trim().max(5000).nullable().optional(),
+    depositCents: z.coerce.number().int().min(0).optional(),
+    jobArea: z.string().trim().min(1).max(80).nullable().optional(),
+    agreementKind: crmAgreementKindSchema.optional(),
+    maintenanceFrequency: crmMaintenanceFrequencySchema.nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.agreementKind === 'maintenance' && value.maintenanceFrequency === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maintenanceFrequency'],
+        message: 'Choose how often maintenance visits run',
+      });
+    }
+  });
 
 export function normalizeEstimateAmountCents(
   lineItems: Array<{

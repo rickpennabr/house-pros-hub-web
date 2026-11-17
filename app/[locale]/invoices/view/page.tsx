@@ -8,6 +8,7 @@ import type { InvoiceTemplateInvoice, InvoiceTemplateCustomer, InvoiceTemplateBu
 function InvoiceViewContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
+  const presentMode = searchParams.get('present') === '1';
   const [data, setData] = useState<{
     invoice: InvoiceTemplateInvoice;
     customer: InvoiceTemplateCustomer | null;
@@ -89,7 +90,12 @@ function InvoiceViewContent() {
   }
 
   return (
-    <div className="min-h-screen bg-white py-8 px-4 print:py-0 print:px-0">
+    <div className={`min-h-screen bg-white py-8 px-4 print:py-0 print:px-0 ${presentMode ? 'pt-0' : ''}`}>
+      {presentMode ? (
+        <div className="no-print mb-4 bg-black px-4 py-3 text-center text-sm font-medium text-white">
+          Hand this device to the customer to pay by card.
+        </div>
+      ) : null}
       <div className="max-w-4xl mx-auto">
         <InvoiceTemplate
           invoice={invoice}
@@ -113,13 +119,15 @@ function InvoiceViewContent() {
             </button>
           ) : null}
           {payError ? <p className="text-sm text-red-600">{payError}</p> : null}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="px-4 py-2 border-2 border-black rounded-lg font-medium"
-          >
-            Print
-          </button>
+          {!presentMode ? (
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="px-4 py-2 border-2 border-black rounded-lg font-medium"
+            >
+              Print
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

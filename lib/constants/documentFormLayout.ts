@@ -11,3 +11,16 @@ export const DOCUMENT_FORM_LAYOUT = {
     'sticky bottom-0 left-0 right-0 border-t border-gray-200 bg-white px-4 md:px-8 py-4 flex flex-wrap items-center justify-between gap-3',
 } as const;
 
+/** Shared qty/rate column widths for estimate + invoice line editors (Input wraps in a div). */
+export const DOCUMENT_LINE_QTY_RATE = {
+  tableMinWidth: 720,
+  qtyTh: 'text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-[7.5rem] w-[7.5rem]',
+  rateTh: 'text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-[9.5rem] w-[9.5rem]',
+  qtyTd: 'min-w-[7.5rem] w-[7.5rem] py-1 px-2 align-top text-right',
+  rateTd: 'min-w-[9.5rem] w-[9.5rem] py-1 px-2 align-top text-right',
+  qtyWrap: 'block w-[7.5rem] min-w-[7.5rem]',
+  rateWrap: 'block w-[9.5rem] min-w-[9.5rem]',
+  qtyInput: 'text-sm py-1.5 !w-full text-right border-gray-300',
+  rateInput: 'text-sm py-1.5 !w-full text-right border-gray-300',
+} as const;
+

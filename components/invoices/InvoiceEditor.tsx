@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { InvoiceCompanyEditor } from '@/components/invoices/InvoiceCompanyEditor';
+import { DocumentBrandHeader } from '@/components/documents/DocumentBrandHeader';
 import {
   InvoiceAttachments,
   type PendingAttachment,
@@ -21,7 +21,7 @@ import type { CompanyDisplayOverride } from '@/lib/invoices/companyDisplay';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
-import { DOCUMENT_FORM_LAYOUT } from '@/lib/constants/documentFormLayout';
+import { DOCUMENT_FORM_LAYOUT, DOCUMENT_LINE_QTY_RATE } from '@/lib/constants/documentFormLayout';
 import { formatAmount } from '@/lib/invoices/format';
 import {
   emptyInvoiceLine,
@@ -199,53 +199,31 @@ export function InvoiceEditor({
               </div>
             )}
 
-            <header className={`${DOCUMENT_FORM_LAYOUT.header} border-b-2`} style={{ borderColor: themeColorHex }}>
-              <div>
-                <h2 className="text-2xl font-bold uppercase tracking-tight" style={{ color: themeColorHex }}>
-                  INVOICE
-                </h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="font-semibold text-black">{displayBusiness.business_name}</p>
+            <div className={`${DOCUMENT_FORM_LAYOUT.contentPaddingX} pt-6`}>
+              <DocumentBrandHeader
+                title="INVOICE"
+                themeColor={themeColorHex}
+                business={displayBusiness}
+                className="pb-6"
+                nameAccessory={
                   <button
                     type="button"
                     onClick={() => setCompanyEditorOpen(true)}
-                    className="p-1 rounded border border-gray-300 hover:bg-gray-100 text-gray-600"
+                    className="rounded border border-gray-300 p-1 text-gray-600 hover:bg-gray-100"
                     aria-label="Edit company information"
                     title="Edit company information"
                   >
-                    <Pencil className="w-3.5 h-3.5" />
+                    <Pencil className="h-3.5 w-3.5" />
                   </button>
-                </div>
-                {displayBusiness.address && (
-                  <p className="text-sm text-gray-700 mt-1 whitespace-pre-line">{displayBusiness.address}</p>
-                )}
-              </div>
-              <div className="flex flex-col justify-center text-sm text-gray-700">
-                {displayBusiness.email && <span>{displayBusiness.email}</span>}
-                {displayBusiness.phone && <span>{displayBusiness.phone}</span>}
-                {displayBusiness.website && (
-                  <a
-                    href={displayBusiness.website.startsWith('http') ? displayBusiness.website : `https://${displayBusiness.website}`}
-                    className="text-gray-700 hover:underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {displayBusiness.website}
-                  </a>
-                )}
-              </div>
-              <div className="flex items-start gap-3 justify-end">
-                {displayBusiness.business_logo && (
-                  <div className="relative w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden shrink-0 border-2 border-gray-200">
-                    <Image src={displayBusiness.business_logo} alt="" fill className="object-cover" sizes="64px" />
-                  </div>
-                )}
-                <div className="text-right">
-                  <p className="text-xs text-gray-500">Balance due</p>
-                  <p className="font-bold text-black">{formatAmount(totalAmountCents)}</p>
-                </div>
-              </div>
-            </header>
+                }
+                rightMeta={
+                  <>
+                    <p className="text-xs text-gray-500">Balance due</p>
+                    <p className="font-bold text-black">{formatAmount(totalAmountCents)}</p>
+                  </>
+                }
+              />
+            </div>
 
             <div className={DOCUMENT_FORM_LAYOUT.tintBlock} style={{ backgroundColor: tintBg }}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -323,15 +301,15 @@ export function InvoiceEditor({
             </div>
 
             <div className={DOCUMENT_FORM_LAYOUT.lineItemsSection}>
-              <table className="w-full border-collapse" style={{ minWidth: 640 }}>
+              <table className="w-full border-collapse" style={{ minWidth: DOCUMENT_LINE_QTY_RATE.tableMinWidth }}>
                 <thead>
                   <tr className="border-b-2 border-black">
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-8">#</th>
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Product or service</th>
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Description</th>
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-20">Unit</th>
-                    <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-32 w-32">Qty</th>
-                    <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-40 w-40">Rate</th>
+                    <th className={DOCUMENT_LINE_QTY_RATE.qtyTh}>Qty</th>
+                    <th className={DOCUMENT_LINE_QTY_RATE.rateTh}>Rate</th>
                     <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-24">Amount</th>
                     <th className="w-10" />
                   </tr>
@@ -380,58 +358,62 @@ export function InvoiceEditor({
                           placeholder="Unit"
                         />
                       </td>
-                      <td className="min-w-32 py-1 px-2 align-top text-right">
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={line.qty ?? ''}
-                          onChange={(e) => {
-                            const qty = parseFloat(e.target.value) || 0;
-                            const next = [...lineItems];
-                            next[idx] = { ...next[idx], qty, amount_cents: Math.round(qty * next[idx].rate_cents) };
-                            setLineItems(next);
-                          }}
-                          className="min-w-32 text-sm py-1.5 !w-full text-right border-gray-300"
-                        />
-                      </td>
-                      <td className="min-w-40 py-1 px-2 align-top text-right">
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={editingRateRowIndex === idx ? editingRateValue : line.rate_cents ? (line.rate_cents / 100).toFixed(2) : ''}
-                          onFocus={() => {
-                            setEditingRateRowIndex(idx);
-                            setEditingRateValue(line.rate_cents ? (line.rate_cents / 100).toFixed(2) : '');
-                          }}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            setEditingRateValue(raw);
-                            const rateCents = Math.round(parseFloat(raw || '0') * 100);
-                            const next = [...lineItems];
-                            next[idx] = {
-                              ...next[idx],
-                              rate_cents: rateCents,
-                              amount_cents: Math.round(next[idx].qty * rateCents),
-                            };
-                            setLineItems(next);
-                          }}
-                          onBlur={() => {
-                            setEditingRateRowIndex(null);
-                            const raw = editingRateValue.trim();
-                            const parsed = raw === '' ? 0 : parseFloat(raw);
-                            if (!Number.isNaN(parsed)) {
+                      <td className={DOCUMENT_LINE_QTY_RATE.qtyTd}>
+                        <div className={DOCUMENT_LINE_QTY_RATE.qtyWrap}>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={line.qty ?? ''}
+                            onChange={(e) => {
+                              const qty = parseFloat(e.target.value) || 0;
                               const next = [...lineItems];
-                              const rateCents = Math.round(parsed * 100);
+                              next[idx] = { ...next[idx], qty, amount_cents: Math.round(qty * next[idx].rate_cents) };
+                              setLineItems(next);
+                            }}
+                            className={DOCUMENT_LINE_QTY_RATE.qtyInput}
+                          />
+                        </div>
+                      </td>
+                      <td className={DOCUMENT_LINE_QTY_RATE.rateTd}>
+                        <div className={DOCUMENT_LINE_QTY_RATE.rateWrap}>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={editingRateRowIndex === idx ? editingRateValue : line.rate_cents ? (line.rate_cents / 100).toFixed(2) : ''}
+                            onFocus={() => {
+                              setEditingRateRowIndex(idx);
+                              setEditingRateValue(line.rate_cents ? (line.rate_cents / 100).toFixed(2) : '');
+                            }}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              setEditingRateValue(raw);
+                              const rateCents = Math.round(parseFloat(raw || '0') * 100);
+                              const next = [...lineItems];
                               next[idx] = {
                                 ...next[idx],
                                 rate_cents: rateCents,
                                 amount_cents: Math.round(next[idx].qty * rateCents),
                               };
                               setLineItems(next);
-                            }
-                          }}
-                          className="min-w-40 text-sm py-1.5 !w-full text-right border-gray-300"
-                        />
+                            }}
+                            onBlur={() => {
+                              setEditingRateRowIndex(null);
+                              const raw = editingRateValue.trim();
+                              const parsed = raw === '' ? 0 : parseFloat(raw);
+                              if (!Number.isNaN(parsed)) {
+                                const next = [...lineItems];
+                                const rateCents = Math.round(parsed * 100);
+                                next[idx] = {
+                                  ...next[idx],
+                                  rate_cents: rateCents,
+                                  amount_cents: Math.round(next[idx].qty * rateCents),
+                                };
+                                setLineItems(next);
+                              }
+                            }}
+                            className={DOCUMENT_LINE_QTY_RATE.rateInput}
+                          />
+                        </div>
                       </td>
                       <td className="py-1 px-2 align-top text-right text-sm text-gray-700 pt-2">
                         {formatAmount(line.amount_cents)}
@@ -524,7 +506,7 @@ export function InvoiceEditor({
             <div className="mb-3 flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-sm text-gray-800">
                 <input type="checkbox" checked={paidNow} onChange={(event) => setPaidNow(event.target.checked)} />
-                Customer paid now
+                Collected on site (cash / check / card terminal)
               </label>
               {paidNow && (
                 <div className="w-40">

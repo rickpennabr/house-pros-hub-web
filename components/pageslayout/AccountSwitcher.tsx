@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Share2, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Modal from '@/components/ui/Modal';
@@ -24,11 +24,33 @@ interface AccountSwitchRowsProps {
 /** 2px outside the avatar's black border. Stroke is 2px, so the box extends 4px. */
 const SWITCH_RING =
   'M 12 1 H 28 A 11 11 0 0 1 39 12 V 28 A 11 11 0 0 1 28 39 H 12 A 11 11 0 0 1 1 28 V 12 A 11 11 0 0 1 12 1 Z';
+/** One lap starting at the middle of the right side, so the tip never reverses. */
+const SWITCH_RING_RIGHT =
+  'M 39 20 V 28 A 11 11 0 0 1 28 39 H 12 A 11 11 0 0 1 1 28 V 12 A 11 11 0 0 1 12 1 H 28 A 11 11 0 0 1 39 12 V 20 Z';
+/** One lap starting at the middle of the left side. */
+const SWITCH_RING_LEFT =
+  'M 1 20 V 12 A 11 11 0 0 1 12 1 H 28 A 11 11 0 0 1 39 12 V 28 A 11 11 0 0 1 28 39 H 12 A 11 11 0 0 1 1 28 V 20 Z';
+
+const ACCOUNT_RING_MS = 1400;
+
+function measureRing(d: string) {
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  return { path, length: path.getTotalLength() };
+}
+
+function placeRingArrow(group: SVGGElement, path: SVGPathElement, length: number, distance: number) {
+  const at = ((distance % length) + length) % length;
+  const point = path.getPointAtLength(at);
+  const ahead = path.getPointAtLength((at + 0.75) % length);
+  const angle = (Math.atan2(ahead.y - point.y, ahead.x - point.x) * 180) / Math.PI;
+  group.setAttribute('transform', `translate(${point.x} ${point.y}) rotate(${angle})`);
+}
 
 /**
  * Red border around an account you can switch to.
- * Dashed stroke travels via CSS; arrows stay parked mid-side (SMIL animateMotion
- * lands at the SVG origin on mobile Chrome / WebKit and looks stuck top-left).
+ * Dashed stroke travels via CSS; arrows follow the same lap with getPointAtLength
+ * (SMIL animateMotion jumps to the SVG origin on mobile Chrome / WebKit).
  */
 function SwitchableAvatar({
   src,
@@ -41,6 +63,33 @@ function SwitchableAvatar({
   className?: string;
   textClassName?: string;
 }) {
+  const rightArrowRef = useRef<SVGGElement>(null);
+  const leftArrowRef = useRef<SVGGElement>(null);
+
+  useEffect(() => {
+    const rightGroup = rightArrowRef.current;
+    const leftGroup = leftArrowRef.current;
+    if (!rightGroup || !leftGroup) return;
+
+    const right = measureRing(SWITCH_RING_RIGHT);
+    const left = measureRing(SWITCH_RING_LEFT);
+    placeRingArrow(rightGroup, right.path, right.length, 0);
+    placeRingArrow(leftGroup, left.path, left.length, 0);
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const started = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - started) / ACCOUNT_RING_MS);
+      placeRingArrow(rightGroup, right.path, right.length, progress * right.length);
+      placeRingArrow(leftGroup, left.path, left.length, progress * left.length);
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   return (
     <span className="relative inline-flex shrink-0">
       <svg
@@ -61,10 +110,10 @@ function SwitchableAvatar({
           strokeLinecap="butt"
           className="account-ring-travel"
         />
-        <g transform="translate(39 20) rotate(90)">
+        <g ref={rightArrowRef} transform="translate(39 20) rotate(90)">
           <polygon points="0,-4.6 13.2,0 0,0" fill="#DC2626" />
         </g>
-        <g transform="translate(1 20) rotate(-90)">
+        <g ref={leftArrowRef} transform="translate(1 20) rotate(-90)">
           <polygon points="0,-4.6 13.2,0 0,0" fill="#DC2626" />
         </g>
       </svg>

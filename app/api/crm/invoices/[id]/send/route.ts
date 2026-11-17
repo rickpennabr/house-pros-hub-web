@@ -3,6 +3,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { hasRole } from '@/lib/utils/roles';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import { sendInvoiceEmail } from '@/lib/services/emailService';
+import { recordInvoiceReceived } from '@/lib/places/timeline';
 
 async function requireContractor() {
   const supabase = await createClient();
@@ -121,6 +122,14 @@ export async function POST(
       payload: { to: toEmail },
     });
     if (eventError) console.error('invoice sent event', eventError.message);
+
+    await recordInvoiceReceived({
+      customerId,
+      invoiceId: row.id,
+      invoiceNumber: row.invoice_number,
+      amountCents: row.amount_cents ?? 0,
+      ownerId: user.id,
+    });
 
     return NextResponse.json({ ok: true, sentTo: toEmail });
   } catch (err) {

@@ -9,9 +9,21 @@ import { Select } from '@/components/ui/Select';
 import { ProductOrServiceCombobox } from '@/components/invoices/ProductOrServiceCombobox';
 import type { ProCrmItem } from '@/components/invoices/AddProductServicePanel';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
-import { DOCUMENT_FORM_LAYOUT } from '@/lib/constants/documentFormLayout';
+import { DOCUMENT_FORM_LAYOUT, DOCUMENT_LINE_QTY_RATE } from '@/lib/constants/documentFormLayout';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
+import {
+  DocumentBrandHeader,
+  type DocumentBrandBusiness,
+} from '@/components/documents/DocumentBrandHeader';
+import {
+  AGREEMENT_KINDS,
+  AGREEMENT_KIND_LABELS,
+  MAINTENANCE_FREQUENCIES,
+  MAINTENANCE_FREQUENCY_LABELS,
+  type AgreementKind,
+  type MaintenanceFrequency,
+} from '@/lib/crm/estimate-agreement';
 
 export interface EstimateLineItemFormValue {
   product_or_service?: string;
@@ -46,6 +58,13 @@ interface EstimateDocumentFormProps {
   onNoteChange: (value: string) => void;
   deposit: string;
   onDepositChange: (value: string) => void;
+  /** Area of the property (Pavers, Landscape, …). Same My Place can hold many areas/pros. */
+  jobArea: string;
+  onJobAreaChange: (value: string) => void;
+  agreementKind: AgreementKind;
+  onAgreementKindChange: (value: AgreementKind) => void;
+  maintenanceFrequency: MaintenanceFrequency | '';
+  onMaintenanceFrequencyChange: (value: MaintenanceFrequency | '') => void;
   saving: boolean;
   error: string | null;
   onSubmit: (event: React.FormEvent) => void;
@@ -56,6 +75,9 @@ interface EstimateDocumentFormProps {
   /** Opens send-email flow; supported in create (saves draft first) and edit. */
   onReviewAndSend?: () => void;
   reviewSending?: boolean;
+  /** Opens the customer view fullscreen on this device (phone/tablet handoff). */
+  onPresentOnDevice?: () => void;
+  presentLoading?: boolean;
 }
 
 const STATUS_OPTIONS = ['draft', 'sent', 'accepted', 'declined'] as const;
@@ -88,6 +110,12 @@ export function EstimateDocumentForm({
   onNoteChange,
   deposit,
   onDepositChange,
+  jobArea,
+  onJobAreaChange,
+  agreementKind,
+  onAgreementKindChange,
+  maintenanceFrequency,
+  onMaintenanceFrequencyChange,
   saving,
   error,
   onSubmit,
@@ -97,14 +125,58 @@ export function EstimateDocumentForm({
   onOpenAddReusableItem,
   onReviewAndSend,
   reviewSending = false,
+  onPresentOnDevice,
+  presentLoading = false,
 }: EstimateDocumentFormProps) {
   const [editingRateRowIndex, setEditingRateRowIndex] = useState<number | null>(null);
   const [editingRateValue, setEditingRateValue] = useState('');
   const [importedCustomers, setImportedCustomers] = useState<EstimateCustomerOption[]>([]);
+  const [brandBusiness, setBrandBusiness] = useState<DocumentBrandBusiness | null>(null);
   const [openRowMenuIndex, setOpenRowMenuIndex] = useState<number | null>(null);
   const [rowMenuPosition, setRowMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const rowMenuRef = useRef<HTMLDivElement | null>(null);
   const rowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/me/businesses/list', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const first = Array.isArray(data.businesses) ? data.businesses[0] : null;
+        if (!first || typeof first !== 'object') return;
+        const row = first as Record<string, unknown>;
+        const website =
+          typeof row.website === 'string'
+            ? row.website
+            : Array.isArray(row.links)
+              ? String(
+                  (row.links as Array<{ url?: string }>).find((link) => typeof link?.url === 'string')?.url ??
+                    ''
+                ) || null
+              : null;
+        const addressParts = [row.streetAddress, row.city, row.state, row.zipCode]
+          .map((part) => (typeof part === 'string' ? part.trim() : ''))
+          .filter(Boolean);
+        setBrandBusiness({
+          business_name:
+            typeof row.businessName === 'string' && row.businessName.trim()
+              ? row.businessName
+              : 'Business',
+          business_logo: typeof row.businessLogo === 'string' ? row.businessLogo : null,
+          email: typeof row.email === 'string' ? row.email : null,
+          phone: typeof row.phone === 'string' ? row.phone : null,
+          website,
+          address: addressParts.length > 0 ? addressParts.join(', ') : null,
+        });
+      })
+      .catch(() => {
+        /* keep letterhead without brand if load fails */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const customerOptions = useMemo(() => {
     const seen = new Set(customers.map((customer) => customer.id));
     return [...customers, ...importedCustomers.filter((customer) => !seen.has(customer.id))];
@@ -186,18 +258,32 @@ export function EstimateDocumentForm({
             </div>
           )}
 
-          <header className={`${DOCUMENT_FORM_LAYOUT.header} border-black`}>
-            <div className="md:col-span-2">
-              <h2 className="text-2xl font-bold uppercase tracking-tight text-black">ESTIMATE</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                {mode === 'create' ? 'Create estimate draft and send when ready.' : 'Update estimate details.'}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">Total</p>
-              <p className="font-bold text-black">{formatAmount(totalAmountCents)}</p>
-            </div>
-          </header>
+          <div className={`${DOCUMENT_FORM_LAYOUT.contentPaddingX} pt-6`}>
+            <DocumentBrandHeader
+              title={
+                agreementKind === 'maintenance'
+                  ? 'MAINTENANCE AGREEMENT'
+                  : agreementKind === 'repair'
+                    ? 'REPAIR ESTIMATE'
+                    : agreementKind === 'renovation' ||
+                        agreementKind === 'remodel' ||
+                        agreementKind === 'addition'
+                      ? 'PROJECT ESTIMATE'
+                      : 'ESTIMATE'
+              }
+              business={brandBusiness}
+              subtitle={
+                mode === 'create' ? 'Create estimate draft and send when ready.' : 'Update estimate details.'
+              }
+              className="pb-6"
+              rightMeta={
+                <>
+                  <p className="text-xs text-gray-500">Total</p>
+                  <p className="font-bold text-black">{formatAmount(totalAmountCents)}</p>
+                </>
+              }
+            />
+          </div>
 
           <div className={`${DOCUMENT_FORM_LAYOUT.tintBlock} bg-gray-100`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 text-sm">
@@ -258,20 +344,64 @@ export function EstimateDocumentForm({
                   <label className="text-gray-600">Valid until</label>
                   <Input type="date" value={validUntilDate} onChange={(e) => onValidUntilDateChange(e.target.value)} />
                 </div>
+                <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
+                  <label className="text-gray-600">Job area</label>
+                  <Input
+                    value={jobArea}
+                    onChange={(e) => onJobAreaChange(e.target.value)}
+                    placeholder="Pavers, Landscape, Kitchen…"
+                    maxLength={80}
+                  />
+                </div>
+                <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
+                  <label className="text-gray-600">Agreement</label>
+                  <Select
+                    value={agreementKind}
+                    onChange={(e) => {
+                      const next = e.target.value as AgreementKind;
+                      onAgreementKindChange(next);
+                      if (next !== 'maintenance') onMaintenanceFrequencyChange('');
+                    }}
+                  >
+                    {AGREEMENT_KINDS.map((kind) => (
+                      <option key={kind} value={kind}>
+                        {AGREEMENT_KIND_LABELS[kind]}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                {agreementKind === 'maintenance' ? (
+                  <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
+                    <label className="text-gray-600">Visit schedule</label>
+                    <Select
+                      value={maintenanceFrequency}
+                      onChange={(e) =>
+                        onMaintenanceFrequencyChange((e.target.value || '') as MaintenanceFrequency | '')
+                      }
+                    >
+                      <option value="">Select schedule</option>
+                      {MAINTENANCE_FREQUENCIES.map((frequency) => (
+                        <option key={frequency} value={frequency}>
+                          {MAINTENANCE_FREQUENCY_LABELS[frequency]}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
 
           <div className={DOCUMENT_FORM_LAYOUT.lineItemsSection}>
-            <table className="w-full border-collapse" style={{ minWidth: 520 }}>
+            <table className="w-full border-collapse" style={{ minWidth: DOCUMENT_LINE_QTY_RATE.tableMinWidth }}>
               <thead>
                 <tr className="border-b-2 border-black">
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-8">#</th>
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Product or service</th>
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Description</th>
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-20">Unit</th>
-                  <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-24">Qty</th>
-                  <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-32">Rate</th>
+                  <th className={DOCUMENT_LINE_QTY_RATE.qtyTh}>Qty</th>
+                  <th className={DOCUMENT_LINE_QTY_RATE.rateTh}>Rate</th>
                   <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-24">Amount</th>
                   <th className="w-10" />
                 </tr>
@@ -331,54 +461,58 @@ export function EstimateDocumentForm({
                         }`}
                       />
                     </td>
-                    <td className="py-1 px-2 align-top text-right">
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={line.qty ?? ''}
-                        onChange={(e) => {
-                          const qty = parseFloat(e.target.value) || 0;
-                          const next = [...lineItems];
-                          next[index] = { ...next[index], qty, amount_cents: Math.round(qty * next[index].rate_cents) };
-                          onLineItemsChange(next);
-                        }}
-                        className={`text-sm py-1.5 w-20 text-right border-gray-300 ${
-                          duplicateRowIndices.has(index) ? 'border-red-500 focus:border-red-500' : ''
-                        }`}
-                      />
-                    </td>
-                    <td className="py-1 px-2 align-top text-right">
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={editingRateRowIndex === index ? editingRateValue : (line.rate_cents ? (line.rate_cents / 100).toFixed(2) : '')}
-                        onFocus={() => {
-                          setEditingRateRowIndex(index);
-                          setEditingRateValue(line.rate_cents ? (line.rate_cents / 100).toFixed(2) : '');
-                        }}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          setEditingRateValue(raw);
-                          const rateCents = Math.round(parseFloat(raw || '0') * 100);
-                          const next = [...lineItems];
-                          next[index] = { ...next[index], rate_cents: rateCents, amount_cents: Math.round(next[index].qty * rateCents) };
-                          onLineItemsChange(next);
-                        }}
-                        onBlur={() => {
-                          setEditingRateRowIndex(null);
-                          const raw = editingRateValue.trim();
-                          const parsed = raw === '' ? 0 : parseFloat(raw);
-                          if (!Number.isNaN(parsed)) {
+                    <td className={DOCUMENT_LINE_QTY_RATE.qtyTd}>
+                      <div className={DOCUMENT_LINE_QTY_RATE.qtyWrap}>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.qty ?? ''}
+                          onChange={(e) => {
+                            const qty = parseFloat(e.target.value) || 0;
                             const next = [...lineItems];
-                            const rateCents = Math.round(parsed * 100);
+                            next[index] = { ...next[index], qty, amount_cents: Math.round(qty * next[index].rate_cents) };
+                            onLineItemsChange(next);
+                          }}
+                          className={`${DOCUMENT_LINE_QTY_RATE.qtyInput} ${
+                            duplicateRowIndices.has(index) ? 'border-red-500 focus:border-red-500' : ''
+                          }`}
+                        />
+                      </div>
+                    </td>
+                    <td className={DOCUMENT_LINE_QTY_RATE.rateTd}>
+                      <div className={DOCUMENT_LINE_QTY_RATE.rateWrap}>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={editingRateRowIndex === index ? editingRateValue : (line.rate_cents ? (line.rate_cents / 100).toFixed(2) : '')}
+                          onFocus={() => {
+                            setEditingRateRowIndex(index);
+                            setEditingRateValue(line.rate_cents ? (line.rate_cents / 100).toFixed(2) : '');
+                          }}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setEditingRateValue(raw);
+                            const rateCents = Math.round(parseFloat(raw || '0') * 100);
+                            const next = [...lineItems];
                             next[index] = { ...next[index], rate_cents: rateCents, amount_cents: Math.round(next[index].qty * rateCents) };
                             onLineItemsChange(next);
-                          }
-                        }}
-                        className={`text-sm py-1.5 w-28 text-right border-gray-300 ${
-                          duplicateRowIndices.has(index) ? 'border-red-500 focus:border-red-500' : ''
-                        }`}
-                      />
+                          }}
+                          onBlur={() => {
+                            setEditingRateRowIndex(null);
+                            const raw = editingRateValue.trim();
+                            const parsed = raw === '' ? 0 : parseFloat(raw);
+                            if (!Number.isNaN(parsed)) {
+                              const next = [...lineItems];
+                              const rateCents = Math.round(parsed * 100);
+                              next[index] = { ...next[index], rate_cents: rateCents, amount_cents: Math.round(next[index].qty * rateCents) };
+                              onLineItemsChange(next);
+                            }
+                          }}
+                          className={`${DOCUMENT_LINE_QTY_RATE.rateInput} ${
+                            duplicateRowIndices.has(index) ? 'border-red-500 focus:border-red-500' : ''
+                          }`}
+                        />
+                      </div>
                     </td>
                     <td className="py-1 px-2 align-top text-right text-sm text-gray-700 pt-2">{formatAmount(line.amount_cents)}</td>
                     <td className="py-1 px-2 align-top">
@@ -492,7 +626,18 @@ export function EstimateDocumentForm({
             <Button type="button" variant="secondary" size="sm" onClick={onCancel} disabled={saving}>
               Cancel
             </Button>
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex flex-wrap items-center gap-2 ml-auto">
+              {onPresentOnDevice ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={onPresentOnDevice}
+                  disabled={saving || presentLoading}
+                >
+                  {presentLoading ? 'Opening…' : 'Present on device'}
+                </Button>
+              ) : null}
               {onReviewAndSend && (
                 <Button
                   type="button"
