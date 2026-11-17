@@ -18,9 +18,10 @@ import type { PlaceCard, PlaceKind } from '@/lib/places/portal';
 const KINDS: PlaceKind[] = ['house', 'business', 'building'];
 
 function KindIcon({ kind }: { kind: PlaceKind }) {
-  if (kind === 'business') return <Building2 className="w-5 h-5 text-red-600" />;
-  if (kind === 'building') return <Building className="w-5 h-5 text-red-600" />;
-  return <Home className="w-5 h-5 text-red-600" />;
+  // Sized for the 64px card placeholder.
+  if (kind === 'business') return <Building2 className="w-7 h-7 text-red-600" />;
+  if (kind === 'building') return <Building className="w-7 h-7 text-red-600" />;
+  return <Home className="w-7 h-7 text-red-600" />;
 }
 
 function placeAddress(place: PlaceCard): string {
@@ -167,10 +168,20 @@ export function PlacesHome() {
             <Link
               key={place.id}
               href={`/${locale}/myplaces/${place.id}`}
-              className="border-2 border-black rounded-lg p-4 flex items-start gap-3 hover:bg-gray-50"
+              className="border-2 border-black rounded-lg p-3 flex items-center gap-3 hover:bg-gray-50"
             >
-              <KindIcon kind={place.kind} />
-              <span>
+              <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 border-black bg-gray-50">
+                {place.photoUrl ? (
+                  // Property photo from public storage; changes when the owner replaces it.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={place.photoUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center">
+                    <KindIcon kind={place.kind} />
+                  </span>
+                )}
+              </span>
+              <span className="min-w-0">
                 <span className="block font-medium">{place.name}</span>
                 <span className="block text-xs text-gray-600">
                   {t(`kind.${place.kind}`)}

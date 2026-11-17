@@ -254,7 +254,7 @@ export interface PersonalPlaceAddressInput {
   zipCode: string;
   /** Defaults to house. */
   kind?: PlaceKind;
-  /** Defaults to the street line. */
+  /** Property nickname. Defaults to the street line for a new place; an existing name is kept when omitted. */
   name?: string;
 }
 
@@ -296,7 +296,11 @@ export async function ensurePersonalPlaceFromAddress(
   };
 
   if (match) {
-    const { error } = await admin.from('customer_places').update(payload).eq('id', match.id);
+    const { name: _defaultName, ...withoutName } = payload;
+    const { error } = await admin
+      .from('customer_places')
+      .update(input.name?.trim() ? payload : withoutName)
+      .eq('id', match.id);
     if (error) {
       console.error('ensurePersonalPlaceFromAddress update', error.message);
       return null;

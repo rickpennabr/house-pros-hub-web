@@ -37,6 +37,19 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
     const name = cleanText(body.name, 120);
+
+    // Nickname only: leave type and address untouched.
+    if (body.kind === undefined && body.street === undefined && body.city === undefined) {
+      if (!name) return NextResponse.json({ error: 'Name is required.' }, { status: 400 });
+      const { error: renameError } = await supabase
+        .from('customer_places')
+        .update({ name })
+        .eq('id', id)
+        .eq('user_id', user.id);
+      if (renameError) return NextResponse.json({ error: renameError.message }, { status: 500 });
+      return NextResponse.json({ ok: true, name });
+    }
+
     const kind = PLACE_KINDS.includes(body.kind) ? (body.kind as PlaceKind) : null;
     if (!kind || !name) {
       return NextResponse.json({ error: 'Name and place type are required.' }, { status: 400 });

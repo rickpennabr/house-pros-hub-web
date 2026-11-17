@@ -39,6 +39,19 @@ export function CustomerStep2({
 
   return (
     <div className="space-y-6 flex-1 animate-fade-in">
+      <FormField label={tFields('placeNicknameLabel')} tip={tFields('placeNicknameTip')}>
+        <Input
+          {...register('placeNickname')}
+          id="placeNickname"
+          type="text"
+          maxLength={120}
+          onClear={() => setValue('placeNickname', '')}
+          showClear
+          placeholder={tFields('placeNicknamePlaceholder')}
+          disabled={isSubmitting}
+        />
+      </FormField>
+
       <FormField 
         label={
           <span className="flex items-center">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCrmScope } from '@/lib/crm/crm-scope';
 import { PRO_DRIVE_BUCKET, PRO_DRIVE_SIGNED_URL_SECONDS } from '@/lib/drive/constants';
+import { driveFileBelongsToScope } from '@/lib/crm/maintenance-plants-db';
 
 const postSchema = z.object({
   driveFileId: z.string().uuid(),
@@ -110,11 +111,8 @@ export async function POST(
       return NextResponse.json({ error: 'Visit is closed' }, { status: 400 });
     }
 
-    const { data: file } = await scope.supabase
-      .from('pro_drive_files')
-      .select('id, mime_type, name')
-      .eq('id', parsed.data.driveFileId)
-      .maybeSingle();
+    // Only files this business uploaded; otherwise any file id could be served back signed.
+    const file = await driveFileBelongsToScope(scope, parsed.data.driveFileId);
     if (!file) return NextResponse.json({ error: 'Drive file not found' }, { status: 404 });
 
     const mime = (file.mime_type ?? '').toLowerCase();

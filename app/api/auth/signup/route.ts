@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, password, firstName, lastName, phone, referral, referralOther, streetAddress, apartment, city, state, zipCode, gateCode, addressNote, companyName, companyRole, userPicture, userType, invitationCode } = body;
+    const { email, password, firstName, lastName, phone, referral, referralOther, placeNickname, streetAddress, apartment, city, state, zipCode, gateCode, addressNote, companyName, companyRole, userPicture, userType, invitationCode } = body;
 
     // Trim and normalize all string fields (convert empty strings to null)
     const normalizeString = (value: string | undefined | null): string | null => {
@@ -328,6 +328,7 @@ export async function POST(request: NextRequest) {
           city: cityValue || city || '',
           state: stateValue || state || '',
           zipCode: zipValue || zipCode || '',
+          name: typeof placeNickname === 'string' ? placeNickname.trim().slice(0, 120) || undefined : undefined,
         });
       }
     }

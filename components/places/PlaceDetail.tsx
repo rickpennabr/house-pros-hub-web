@@ -10,8 +10,11 @@ import {
   FileText,
   FolderKanban,
   History,
-  ImagePlus,
+  Building,
+  Building2,
+  Home,
   MoreVertical,
+  Pencil,
   Receipt,
   Wrench,
 } from 'lucide-react';
@@ -76,6 +79,10 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [stopId, setStopId] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
@@ -261,6 +268,44 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
   if (error) return <div className="p-4 md:p-6 text-red-600">{error}</div>;
   if (!bundle) return <div className="p-4 md:p-6 text-gray-500">{t('loading')}</div>;
 
+  const startRename = () => {
+    setNameDraft(bundle.place.name);
+    setNameError(null);
+    setEditingName(true);
+    setMenuOpen(false);
+  };
+
+  const saveName = async () => {
+    const next = nameDraft.trim() || bundle.place.street?.trim() || '';
+    if (!next) {
+      setNameError(t('nicknameRequired'));
+      return;
+    }
+    if (next === bundle.place.name) {
+      setEditingName(false);
+      return;
+    }
+    setSavingName(true);
+    setNameError(null);
+    try {
+      const response = await fetch(`/api/places/${bundle.place.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: next }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : t('nicknameFailed'));
+      const saved = typeof data.name === 'string' ? data.name : next;
+      setBundle((current) => (current ? { ...current, place: { ...current.place, name: saved } } : current));
+      setEditingName(false);
+    } catch (err) {
+      setNameError(err instanceof Error ? err.message : t('nicknameFailed'));
+    } finally {
+      setSavingName(false);
+    }
+  };
+
   const streetLine = bundle.place.street?.trim() || '';
   const localityLine = [bundle.place.city, bundle.place.state, bundle.place.zipCode].filter(Boolean).join(', ');
   const photoUrl = bundle.place.photoUrl;
@@ -289,8 +334,14 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={photoUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              <span className="flex h-full w-full items-center justify-center text-gray-500">
-                <ImagePlus className="h-5 w-5" />
+              <span className="flex h-full w-full items-center justify-center text-red-600">
+                {bundle.place.kind === 'business' ? (
+                  <Building2 className="h-8 w-8" />
+                ) : bundle.place.kind === 'building' ? (
+                  <Building className="h-8 w-8" />
+                ) : (
+                  <Home className="h-8 w-8" />
+                )}
               </span>
             )}
           </button>
@@ -303,7 +354,46 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
           />
           <div className="min-w-0 flex-1 leading-tight">
             <p className="text-xs uppercase tracking-wide text-gray-500">{t(`kind.${bundle.place.kind}`)}</p>
-            <h2 className="text-2xl font-semibold leading-tight">{bundle.place.name}</h2>
+            {editingName ? (
+              <form
+                className="mt-1 flex flex-wrap items-center gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void saveName();
+                }}
+              >
+                <input
+                  autoFocus
+                  value={nameDraft}
+                  maxLength={120}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') setEditingName(false);
+                  }}
+                  aria-label={t('nicknameLabel')}
+                  placeholder={t('nicknamePlaceholder')}
+                  disabled={savingName}
+                  className="min-w-0 flex-1 rounded-lg border-2 border-black px-3 py-1.5 text-lg font-semibold"
+                />
+                <button
+                  type="submit"
+                  disabled={savingName}
+                  className="rounded-lg bg-black px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  {savingName ? t('loading') : t('nicknameSave')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingName(false)}
+                  className="rounded-lg border-2 border-black px-3 py-1.5 text-sm font-medium"
+                >
+                  {tCommon('cancel')}
+                </button>
+                {nameError ? <p className="w-full text-sm text-red-600">{nameError}</p> : null}
+              </form>
+            ) : (
+              <h2 className="text-2xl font-semibold leading-tight">{bundle.place.name}</h2>
+            )}
             {streetLine || localityLine ? (
               <p className="text-sm text-gray-700">
                 {streetLine ? <span className="block">{streetLine}</span> : null}
@@ -328,7 +418,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
               <MoreVertical className="h-5 w-5" />
             </button>
             {menuOpen ? (
-              <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-lg border-2 border-black bg-white p-2 shadow-lg">
+              <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border-2 border-black bg-white p-2 shadow-lg">
                 {confirmDelete ? (
                   <div className="space-y-2">
                     <p className="text-sm">{t('deleteConfirm')}</p>
@@ -350,6 +440,15 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
                     </button>
                   </div>
                 ) : (
+                  <>
+                  <button
+                    type="button"
+                    onClick={startRename}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-medium hover:bg-gray-100"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    {t('nicknameEdit')}
+                  </button>
                   <button
                     type="button"
                     onClick={() => setConfirmDelete(true)}
@@ -357,6 +456,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
                   >
                     {t('delete')}
                   </button>
+                  </>
                 )}
               </div>
             ) : null}

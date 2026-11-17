@@ -22,6 +22,7 @@ const finishSchema = z
     firstName: z.string().trim().min(1).max(80).optional(),
     lastName: z.string().trim().min(1).max(80).optional(),
     userPicture: z.string().trim().max(2_000_000).optional(),
+    placeNickname: z.string().trim().max(120).optional(),
     streetAddress: z.string().trim().min(1).max(200),
     apartment: z.string().trim().max(50).optional(),
     city: z.string().trim().min(1).max(100),
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
       firstName,
       lastName,
       userPicture,
+      placeNickname,
       streetAddress,
       apartment,
       city,
@@ -183,6 +185,7 @@ export async function POST(request: NextRequest) {
       city,
       state,
       zipCode,
+      name: placeNickname || undefined,
     });
 
     const email = user.email?.trim().toLowerCase() ?? '';

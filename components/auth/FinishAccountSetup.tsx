@@ -40,6 +40,7 @@ interface Draft {
   referral: string;
   referralOther: string;
   phone: string;
+  placeNickname: string;
   address: string;
   streetAddress: string;
   apartment: string;
@@ -57,6 +58,7 @@ export type FinishSetupPatch = {
   firstName?: string;
   lastName?: string;
   userPicture?: string;
+  placeNickname?: string;
   streetAddress?: string;
   apartment?: string;
   city?: string;
@@ -79,6 +81,7 @@ function emptyDraft(seed?: { firstName?: string; lastName?: string; userPicture?
     referral: '',
     referralOther: '',
     phone: '',
+    placeNickname: '',
     address: '',
     streetAddress: '',
     apartment: '',
@@ -164,6 +167,7 @@ function readDraft(
       referral: typeof parsed.referral === 'string' ? parsed.referral : '',
       referralOther: typeof parsed.referralOther === 'string' ? parsed.referralOther : '',
       phone: typeof parsed.phone === 'string' ? parsed.phone : '',
+      placeNickname: typeof parsed.placeNickname === 'string' ? parsed.placeNickname : '',
       address: typeof parsed.address === 'string' ? parsed.address : '',
       streetAddress: typeof parsed.streetAddress === 'string' ? parsed.streetAddress : '',
       apartment: typeof parsed.apartment === 'string' ? parsed.apartment : '',
@@ -443,6 +447,7 @@ function FinishAccountSetupModal({
           firstName: askNames ? draft.firstName.trim() : undefined,
           lastName: askNames ? draft.lastName.trim() : undefined,
           userPicture: draft.userPicture.trim() || undefined,
+          placeNickname: draft.placeNickname.trim() || undefined,
           streetAddress: street,
           apartment: draft.apartment.trim() || undefined,
           city: draft.city.trim(),
@@ -467,6 +472,7 @@ function FinishAccountSetupModal({
         firstName: askNames ? draft.firstName.trim() : firstName,
         lastName: askNames ? draft.lastName.trim() : lastName,
         userPicture: draft.userPicture.trim() || undefined,
+        placeNickname: draft.placeNickname.trim() || undefined,
         streetAddress: street,
         apartment: draft.apartment.trim() || undefined,
         city: draft.city.trim(),
@@ -889,6 +895,19 @@ function FinishAccountSetupModal({
           </div>
         ) : (
           <div className="flex flex-col gap-6 animate-fade-in">
+            <FormField label={tFields('placeNicknameLabel')} tip={tFields('placeNicknameTip')}>
+              <Input
+                id="finish-place-nickname"
+                value={draft.placeNickname}
+                maxLength={120}
+                showClear
+                onClear={() => setDraft((current) => ({ ...current, placeNickname: '' }))}
+                onChange={(event) => setDraft((current) => ({ ...current, placeNickname: event.target.value }))}
+                placeholder={tFields('placeNicknamePlaceholder')}
+                disabled={saving}
+              />
+            </FormField>
+
             <FormField
               label={tFields('searchAddressLabel')}
               required

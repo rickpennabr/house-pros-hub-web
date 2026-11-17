@@ -1126,7 +1126,10 @@
         "locationPhoneLabel": "Teléfono de la ubicación",
         "locationPhonePlaceholder": "Teléfono de la ubicación",
         "mobilePhoneLabel": "Teléfono móvil",
-        "mobilePhonePlaceholder": "Número de teléfono móvil"
+        "mobilePhonePlaceholder": "Número de teléfono móvil",
+        "placeNicknameLabel": "Apodo de la propiedad",
+        "placeNicknamePlaceholder": "ej. Casa, Casa de playa, Casa de mamá",
+        "placeNicknameTip": "Aparece en Mis Lugares arriba de la dirección."
       },
       "stepLabels": {
         "customerPersonal": "Información personal",
@@ -2344,7 +2347,38 @@
     "status_in_progress": "En curso",
     "status_on_break": "En descanso",
     "status_completed": "Completada",
-    "status_cancelled": "Cancelada"
+    "status_cancelled": "Cancelada",
+    "plants": {
+      "title": "Plantas en esta propiedad",
+      "summary": "{kinds} tipos · {total} plantas",
+      "add": "Agregar planta",
+      "namePlaceholder": "Nombre de la planta, ej. Texas Ranger, Agave, Palma reina",
+      "quantity": "Cant.",
+      "areaChoose": "Área (opcional)",
+      "area_front": "Patio delantero",
+      "area_back": "Patio trasero",
+      "area_side": "Patio lateral",
+      "area_pool": "Área de piscina",
+      "area_patio": "Terraza",
+      "area_planters": "Macetas / jardineras",
+      "area_parkway": "Banqueta / calle",
+      "notesPlaceholder": "Notas: estado, riego, poda…",
+      "addPhotos": "Agregar fotos",
+      "photosPicked": "{count, plural, one {# foto lista} other {# fotos listas}}",
+      "save": "Guardar planta",
+      "cancel": "Cancelar",
+      "empty": "Aún no hay plantas. Agrega todas las plantas de esta casa; la lista queda para la próxima visita.",
+      "remove": "Quitar planta",
+      "removeConfirm": "¿Quitar {name} de esta propiedad?",
+      "removePhoto": "Quitar foto",
+      "viewPhoto": "Ver foto",
+      "nameRequired": "Agrega el nombre de la planta.",
+      "loadFailed": "No se pudieron cargar las plantas.",
+      "saveFailed": "No se pudo guardar la planta.",
+      "photoFailed": "No se pudo guardar la foto.",
+      "photoLimit": "Hasta {count} fotos por planta.",
+      "noBusiness": "Agrega un negocio antes de guardar fotos de plantas en ProDrive."
+    }
   },
   "jobsite": {
     "title": "Obra",
@@ -2642,7 +2676,13 @@
       "project_pdf": "PDF del proyecto",
       "agreement": "Acuerdo de mantenimiento",
       "other": "Documento"
-    }
+    },
+    "nicknameEdit": "Editar apodo",
+    "nicknameLabel": "Apodo de la propiedad",
+    "nicknamePlaceholder": "ej. Casa, Casa de playa",
+    "nicknameSave": "Guardar",
+    "nicknameRequired": "Agrega un apodo.",
+    "nicknameFailed": "No se pudo guardar el apodo."
   },
   "businessFeedback": {
     "title": "Comentarios",

@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { JobCameraSession } from '@/components/media/JobCameraSession';
+import { MaintenancePlantsPanel } from '@/components/maintenance/MaintenancePlantsPanel';
 import { uploadProDriveFile } from '@/lib/drive/upload-client';
 import { formatDurationClock } from '@/lib/crm/maintenance-defaults';
 import { computeActiveSeconds, formatLaborHours } from '@/lib/crm/maintenance-time';
@@ -56,6 +57,7 @@ interface ServiceOption {
 
 interface VisitState {
   id: string;
+  customerId: string;
   status: string;
   startedAt: string;
   endedAt: string | null;
@@ -102,6 +104,7 @@ type ApiVisit = Partial<VisitState> & { id: string; status: string; startedAt: s
 function toVisitState(raw: ApiVisit, fallbackName = 'Customer'): VisitState {
   return {
     id: raw.id,
+    customerId: raw.customerId ?? '',
     status: raw.status,
     startedAt: raw.startedAt,
     endedAt: raw.endedAt ?? null,
@@ -1019,6 +1022,8 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
               </Button>
             </div>
           </div>
+
+          {visit.customerId && <MaintenancePlantsPanel customerId={visit.customerId} businessId={businessId} />}
 
           <FormField label={t('notes')}>
             <textarea

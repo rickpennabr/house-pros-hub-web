@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import React from 'react';
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer';
+import { listPlants } from '@/lib/crm/maintenance-plants-db';
 import { requireCrmScope } from '@/lib/crm/crm-scope';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import {
@@ -119,6 +120,15 @@ export async function GET(
         responsibleCrew?.display_name ??
         (responsibleContact ? contactDisplayName(responsibleContact) : null),
       mediaCounts,
+      plants: (
+        await listPlants(scope.supabase, scope.ownerId, visit.customer_id, { withImageUrls: false }).catch(() => [])
+      ).map((plant) => ({
+        name: plant.name,
+        quantity: plant.quantity,
+        area: plant.area,
+        notes: plant.notes,
+        photoCount: plant.images.length,
+      })),
     };
 
     const buffer = await renderToBuffer(

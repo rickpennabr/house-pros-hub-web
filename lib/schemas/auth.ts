@@ -38,6 +38,8 @@ const signupSchemaBaseObject = z.object({
   userPicture: z.string().optional(),
   
   // Personal address is required for customer (and installer/handyman) signup.
+  /** Shown as the place name on My Places. */
+  placeNickname: z.string().trim().max(120).optional(),
   streetAddress: z.string().trim().optional(),
   city: z.string().trim().optional(),
   state: z.string().trim().optional().or(z.literal('')),

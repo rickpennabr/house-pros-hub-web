@@ -42,6 +42,18 @@ export type MaintenanceReportPdfProps = {
   notes: string | null;
   responsibleName: string | null;
   mediaCounts: { beforePhotos: number; beforeVideos: number; afterPhotos: number; afterVideos: number };
+  /** Plant inventory at the property (shared by every visit). */
+  plants?: Array<{ name: string; quantity: number; area: string | null; notes: string | null; photoCount: number }>;
+};
+
+const AREA_LABELS: Record<string, string> = {
+  front: 'Front yard',
+  back: 'Back yard',
+  side: 'Side yard',
+  pool: 'Pool area',
+  patio: 'Patio',
+  planters: 'Planters / pots',
+  parkway: 'Parkway / street',
 };
 
 function formatWhen(iso: string | null) {
@@ -117,6 +129,29 @@ export function MaintenanceReportPdfDocument(props: MaintenanceReportPdfProps) {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Notes / out of scope</Text>
             <Text style={styles.notes}>{props.notes}</Text>
+          </View>
+        ) : null}
+
+        {props.plants && props.plants.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Plants on property ({props.plants.reduce((sum, plant) => sum + plant.quantity, 0)})
+            </Text>
+            {props.plants.map((plant, index) => (
+              <View key={`${plant.name}-${index}`} style={styles.row}>
+                <Text style={styles.label}>{plant.quantity} ×</Text>
+                <Text style={styles.value}>
+                  {[
+                    plant.name,
+                    plant.area ? AREA_LABELS[plant.area] ?? plant.area : null,
+                    plant.notes,
+                    plant.photoCount ? `${plant.photoCount} photo(s)` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              </View>
+            ))}
           </View>
         ) : null}
 

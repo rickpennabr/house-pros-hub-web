@@ -1126,7 +1126,10 @@
         "locationPhoneLabel": "Location Phone",
         "locationPhonePlaceholder": "Location phone number",
         "mobilePhoneLabel": "Mobile Phone",
-        "mobilePhonePlaceholder": "Mobile phone number"
+        "mobilePhonePlaceholder": "Mobile phone number",
+        "placeNicknameLabel": "Property Nickname",
+        "placeNicknamePlaceholder": "e.g. Home, Beach House, Mom’s House",
+        "placeNicknameTip": "Shown on My Places above the address."
       },
       "stepLabels": {
         "customerPersonal": "Personal Information",
@@ -2593,7 +2596,38 @@
     "status_in_progress": "In progress",
     "status_on_break": "On break",
     "status_completed": "Completed",
-    "status_cancelled": "Cancelled"
+    "status_cancelled": "Cancelled",
+    "plants": {
+      "title": "Plants at this property",
+      "summary": "{kinds} kinds · {total} plants",
+      "add": "Add plant",
+      "namePlaceholder": "Plant name, e.g. Texas Ranger, Agave, Queen palm",
+      "quantity": "Qty",
+      "areaChoose": "Area (optional)",
+      "area_front": "Front yard",
+      "area_back": "Back yard",
+      "area_side": "Side yard",
+      "area_pool": "Pool area",
+      "area_patio": "Patio",
+      "area_planters": "Planters / pots",
+      "area_parkway": "Parkway / street",
+      "notesPlaceholder": "Notes: condition, watering, pruning…",
+      "addPhotos": "Add photos",
+      "photosPicked": "{count, plural, one {# photo} other {# photos}} ready",
+      "save": "Save plant",
+      "cancel": "Cancel",
+      "empty": "No plants yet. Add every plant at this house; the list stays for the next visit.",
+      "remove": "Remove plant",
+      "removeConfirm": "Remove {name} from this property?",
+      "removePhoto": "Remove photo",
+      "viewPhoto": "View photo",
+      "nameRequired": "Add the plant name.",
+      "loadFailed": "Could not load plants.",
+      "saveFailed": "Could not save the plant.",
+      "photoFailed": "Could not save the photo.",
+      "photoLimit": "Up to {count} photos per plant.",
+      "noBusiness": "Add a business before saving plant photos to ProDrive."
+    }
   },
   "jobsite": {
     "title": "Jobsite",
@@ -2891,7 +2925,13 @@
       "project_pdf": "Project PDF",
       "agreement": "Maintenance agreement",
       "other": "Document"
-    }
+    },
+    "nicknameEdit": "Edit nickname",
+    "nicknameLabel": "Property nickname",
+    "nicknamePlaceholder": "e.g. Home, Beach House",
+    "nicknameSave": "Save",
+    "nicknameRequired": "Add a nickname.",
+    "nicknameFailed": "Could not save the nickname."
   },
   "businessFeedback": {
     "title": "Feedback",
