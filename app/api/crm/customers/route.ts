@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/types/supabase';
-import { hasRole } from '@/lib/utils/roles';
 import {
   assignDefaultCustomerRole,
   billableContactIds,
@@ -15,22 +15,6 @@ import { openBalanceByCustomer } from '@/lib/crm/contact-books';
 import { safeTimeZone } from '@/lib/crm/estimate-chart';
 import { buildContactChart, type ContactChart } from '@/lib/crm/list-charts';
 import { attachHubLogin } from '@/lib/crm/hub-customer';
-
-async function requireContractor() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
-  }
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) {
-    return { error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }), user: null };
-  }
-  return { error: null, user };
-}
 
 const VALID_SORT = ['created_at', 'updated_at', 'display_id', 'last_name', 'first_name', 'company_name', 'display_name', 'city', 'state', 'phone', 'email'] as const;
 

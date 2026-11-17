@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
+import { userCanAccessCrm } from '@/lib/crm/require-contractor';
 
 const patchSchema = z.object({
   done: z.boolean().optional(),
@@ -15,7 +15,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const supabase = await createClient();
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!(await hasRole(user.id, 'contractor'))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!(await userCanAccessCrm(user.id))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const { id, photoId, taskId } = await context.params;
     const body = patchSchema.parse(await request.json());

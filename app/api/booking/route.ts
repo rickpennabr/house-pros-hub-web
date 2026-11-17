@@ -13,6 +13,7 @@ import { isMissingCatalogTable } from '@/lib/crm/catalog-db';
 import { slotIsOpen } from '@/lib/booking/openSlots';
 import { appointmentManageUrl, bookingLocale } from '@/lib/booking/appointmentPolicy';
 import { originFromRequest } from '@/lib/booking/appointmentNotice';
+import { recordBookingPlaceEvent } from '@/lib/places/timeline';
 
 /**
  * POST /api/booking
@@ -231,6 +232,20 @@ export async function POST(request: NextRequest) {
       entityId: booking.id,
       displayName: customerName,
       detail: [business.businessName, serviceName, slotDisplay].filter(Boolean).join(' · '),
+    });
+
+    await recordBookingPlaceEvent({
+      bookingId: booking.id,
+      kind: 'appointment_booked',
+      title: 'Appointment booked',
+      detail: [serviceName, slotDisplay].filter(Boolean).join(' · ') || null,
+      occurredAt: booking.created_at,
+      proName: business.businessName || 'Your pro',
+      ownerId: business.ownerId,
+      customerUserId,
+      guestEmail: guestEmail || null,
+      street: visit.visit.street,
+      zip: visit.visit.zip,
     });
 
     const managePath = manageUrl ? new URL(manageUrl).pathname : null;

@@ -4,7 +4,7 @@ import { cleanText, deny, requirePortalUser } from '@/lib/places/session';
 
 /**
  * GET /api/places/[id]
- * Projects, maintenance, documents, invoices, and estimates published to this place.
+ * Projects, maintenance, documents, invoices, estimates, and appointments for this place.
  */
 export async function GET(
   _request: NextRequest,
@@ -14,7 +14,7 @@ export async function GET(
     const { error, user } = await requirePortalUser();
     if (error || !user) return deny(error);
     const { id } = await params;
-    const bundle = await loadPlaceBundle(user.id, id);
+    const bundle = await loadPlaceBundle(user.id, id, user.email);
     if (!bundle) return NextResponse.json({ error: 'Place not found' }, { status: 404 });
     return NextResponse.json(bundle);
   } catch (err) {

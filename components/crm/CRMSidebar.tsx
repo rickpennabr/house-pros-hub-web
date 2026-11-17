@@ -21,6 +21,7 @@ import {
   Home,
   QrCode,
   GripVertical,
+  Wrench,
   LucideIcon,
 } from 'lucide-react';
 import { BsGrid3X3Gap } from 'react-icons/bs';
@@ -63,6 +64,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     { href: `${base}/projects`, labelKey: 'crmProjects', icon: FolderKanban },
     { href: `${base}/portal`, labelKey: 'crmPortal', icon: Home },
     { href: `${base}/jobsite`, labelKey: 'crmJobsite', icon: Camera },
+    { href: `${base}/maintenance`, labelKey: 'crmMaintenance', icon: Wrench },
     { href: `${base}/expenses`, labelKey: 'crmExpenses', icon: Receipt },
     { href: `${base}/mileage`, labelKey: 'crmMileage', icon: Car },
     { href: `${base}/reports`, labelKey: 'crmReports', icon: BarChart3 },

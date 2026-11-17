@@ -1,31 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
 import { applyCompanyDisplay, sanitizeCompanyDisplay } from '@/lib/invoices/companyDisplay';
 import { getDefaultCompanyForInvoice } from '@/lib/invoices/defaultCompany';
 import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
 import { syncBilledExpenses } from '@/lib/crm/job-costs';
 import { parsePaidNow, settleInvoicePaidInFull } from '@/lib/crm/invoice-payments';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
-
-async function requireContractor() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
-  }
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) {
-    return {
-      error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }),
-      user: null,
-    };
-  }
-  return { error: null, user };
-}
 
 export async function GET(
   _request: NextRequest,

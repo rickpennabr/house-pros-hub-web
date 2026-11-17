@@ -181,11 +181,137 @@ function readToolCalls(message: { tool_calls?: unknown }): ModelToolCall[] {
   return calls
 }
 
+export interface CompleteChatOptions {
+  /** When set, request provider SSE and forward text deltas. Tool rounds still accumulate fully. */
+  onToken?: (token: string) => void
+}
+
+function buildAssistantMessage(content: string | null, toolCalls: ModelToolCall[]): ChatCompletionMessage {
+  return {
+    role: "assistant",
+    content,
+    ...(toolCalls.length
+      ? {
+          tool_calls: toolCalls.map((call) => ({
+            id: call.id,
+            type: "function" as const,
+            function: { name: call.name, arguments: call.arguments },
+          })),
+        }
+      : {}),
+  }
+}
+
+async function completeChatStream(
+  endpoint: ChatEndpoint,
+  messages: ChatCompletionMessage[],
+  tools: Array<{ type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } }> | undefined,
+  onToken: (token: string) => void,
+): Promise<ModelCompletion> {
+  const response = await fetch(`${endpoint.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${endpoint.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: endpoint.model,
+      temperature: 0.4,
+      max_tokens: tools?.length ? 700 : 500,
+      messages,
+      stream: true,
+      ...(tools?.length ? { tools, tool_choice: "auto" } : {}),
+    }),
+    signal: AbortSignal.timeout(45000),
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "")
+    throw new Error(`${endpoint.name} ${response.status} ${detail.slice(0, 180)}`)
+  }
+  if (!response.body) throw new Error(`${endpoint.name} missing stream body`)
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  let content = ""
+  const toolAcc = new Map<number, { id: string; name: string; arguments: string }>()
+  let sawToolCall = false
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const parts = buffer.split("\n")
+    buffer = parts.pop() ?? ""
+    for (const rawLine of parts) {
+      const line = rawLine.trim()
+      if (!line.startsWith("data:")) continue
+      const payload = line.slice(5).trim()
+      if (!payload || payload === "[DONE]") continue
+      let json: {
+        choices?: Array<{
+          delta?: {
+            content?: string | null
+            tool_calls?: Array<{
+              index?: number
+              id?: string
+              function?: { name?: string; arguments?: string }
+            }>
+          }
+        }>
+      }
+      try {
+        json = JSON.parse(payload) as typeof json
+      } catch {
+        continue
+      }
+      const delta = json.choices?.[0]?.delta
+      if (!delta) continue
+      if (typeof delta.content === "string" && delta.content) {
+        content += delta.content
+        if (!sawToolCall) onToken(delta.content)
+      }
+      if (Array.isArray(delta.tool_calls)) {
+        sawToolCall = true
+        for (const call of delta.tool_calls) {
+          const index = typeof call.index === "number" ? call.index : 0
+          const current = toolAcc.get(index) ?? { id: "", name: "", arguments: "" }
+          if (typeof call.id === "string" && call.id) current.id = call.id
+          if (typeof call.function?.name === "string" && call.function.name) current.name += call.function.name
+          if (typeof call.function?.arguments === "string") current.arguments += call.function.arguments
+          toolAcc.set(index, current)
+        }
+      }
+    }
+  }
+
+  const toolCalls: ModelToolCall[] = [...toolAcc.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, call], index) => ({
+      id: call.id || `call_${index}`,
+      name: call.name,
+      arguments: call.arguments || "{}",
+    }))
+    .filter((call) => call.name.length > 0)
+
+  const finalContent = content || null
+  return {
+    content: finalContent,
+    toolCalls,
+    assistantMessage: buildAssistantMessage(finalContent, toolCalls),
+  }
+}
+
 export async function completeChat(
   endpoint: ChatEndpoint,
   messages: ChatCompletionMessage[],
   tools?: Array<{ type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } }>,
+  options?: CompleteChatOptions,
 ): Promise<ModelCompletion> {
+  if (options?.onToken) {
+    return completeChatStream(endpoint, messages, tools, options.onToken)
+  }
+
   const response = await fetch(`${endpoint.baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -214,19 +340,7 @@ export async function completeChat(
   return {
     content,
     toolCalls,
-    assistantMessage: {
-      role: "assistant",
-      content,
-      ...(toolCalls.length
-        ? {
-            tool_calls: toolCalls.map((call) => ({
-              id: call.id,
-              type: "function" as const,
-              function: { name: call.name, arguments: call.arguments },
-            })),
-          }
-        : {}),
-    },
+    assistantMessage: buildAssistantMessage(content, toolCalls),
   }
 }
 

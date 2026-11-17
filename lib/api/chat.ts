@@ -65,28 +65,116 @@ export interface SendMessagePayload {
   attachments?: Array<{ url: string; name: string; contentType: string }>;
   replyToId?: string;
   locale?: 'en' | 'pt' | 'es';
+  stream?: boolean;
 }
 
-export async function sendMessage(payload: SendMessagePayload): Promise<{
+export type SendMessageBot = {
+  id: string;
+  conversationId: string;
+  sender: 'admin';
+  body: string;
+  created_at: string;
+  admin_sent_as: 'probot';
+  payload?: import('@/lib/types/chat').ProAgentPayload | null;
+};
+
+export type SendMessageResult = {
   message?: unknown;
   conversationId?: string;
-  botMessage?: {
-    id: string;
-    conversationId: string;
-    sender: 'admin';
-    body: string;
-    created_at: string;
-    admin_sent_as: 'probot';
-    payload?: import('@/lib/types/chat').ProAgentPayload | null;
+  botMessage?: SendMessageBot;
+};
+
+export type SendMessageStreamHandlers = {
+  onMessage?: (message: unknown) => void;
+  onStatus?: (label: string) => void;
+  onToken?: (text: string) => void;
+  onBot?: (bot: SendMessageBot) => void;
+};
+
+async function readSendMessageSse(
+  res: Response,
+  handlers: SendMessageStreamHandlers
+): Promise<SendMessageResult> {
+  if (!res.body) throw new Error('Failed to send');
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let eventName = 'message';
+  const result: SendMessageResult = {};
+
+  const dispatch = (event: string, raw: string) => {
+    let data: unknown = null;
+    try {
+      data = JSON.parse(raw) as unknown;
+    } catch {
+      return;
+    }
+    if (event === 'message') {
+      result.message = data;
+      handlers.onMessage?.(data);
+      return;
+    }
+    if (event === 'status' && data && typeof data === 'object' && 'label' in data) {
+      const label = (data as { label?: unknown }).label;
+      if (typeof label === 'string') handlers.onStatus?.(label);
+      return;
+    }
+    if (event === 'token' && data && typeof data === 'object' && 'text' in data) {
+      const text = (data as { text?: unknown }).text;
+      if (typeof text === 'string' && text) handlers.onToken?.(text);
+      return;
+    }
+    if (event === 'bot' && data && typeof data === 'object') {
+      result.botMessage = data as SendMessageBot;
+      handlers.onBot?.(result.botMessage);
+      return;
+    }
+    if (event === 'error' && data && typeof data === 'object' && 'error' in data) {
+      const error = (data as { error?: unknown }).error;
+      throw new Error(typeof error === 'string' ? error : 'Failed to send');
+    }
   };
-}> {
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventName = line.slice(6).trim() || 'message';
+        continue;
+      }
+      if (line.startsWith('data:')) {
+        dispatch(eventName, line.slice(5).trim());
+        eventName = 'message';
+      }
+    }
+  }
+
+  return result;
+}
+
+export async function sendMessage(
+  payload: SendMessagePayload,
+  handlers?: SendMessageStreamHandlers
+): Promise<SendMessageResult> {
+  const useStream = Boolean(payload.stream);
   const res = await fetch('/api/chat/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(useStream ? { Accept: 'text/event-stream' } : {}),
+    },
     credentials: 'include',
     body: JSON.stringify(payload),
   });
-  const data = await res.json().catch(() => ({}));
+  const contentType = res.headers.get('content-type') ?? '';
+  if (useStream && res.ok && contentType.includes('text/event-stream')) {
+    return readSendMessageSse(res, handlers ?? {});
+  }
+  const data = (await res.json().catch(() => ({}))) as SendMessageResult & { error?: string };
   if (!res.ok) throw new Error(data.error ?? 'Failed to send');
   return data;
 }

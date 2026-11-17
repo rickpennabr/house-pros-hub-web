@@ -11,7 +11,15 @@ import ProReactions from '@/components/proscard/ProReactions';
 import ProLinks from '@/components/proscard/ProLinks';
 import BusinessDetailsTabs, { type BusinessDetailsTab } from '@/components/businessdetails/BusinessDetailsTabs';
 import BusinessServicesTab from '@/components/businessdetails/BusinessServicesTab';
+import BusinessProductsTab from '@/components/businessdetails/BusinessProductsTab';
+import BusinessPropertiesTab from '@/components/businessdetails/BusinessPropertiesTab';
+import BusinessTradesTab from '@/components/businessdetails/BusinessTradesTab';
 import BusinessContactInfo from '@/components/businessdetails/BusinessContactInfo';
+import {
+  defaultTabsForRole,
+  normalizeTabsForRole,
+  resolveProDetailsRole,
+} from '@/lib/constants/proDetailsTabs';
 import SignInRequiredModal from '@/components/auth/SignInRequiredModal';
 import { HphQrCodeModal } from '@/components/qr/HphQrCodeModal';
 import { publicPageUrl } from '@/lib/qr/public-origin';
@@ -116,11 +124,14 @@ export default function BusinessDetailsPage() {
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isSignInRequiredOpen, setIsSignInRequiredOpen] = useState(false);
   const [business, setBusiness] = useState<BusinessWithMeta | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('contact');
+  const [selectedTab, setActiveTab] = useState<TabType>('contact');
   const appliedSharedTab = useRef(false);
   const tabSaveSeq = useRef(0);
   const [tabScrollNonce, setTabScrollNonce] = useState(0);
   const [ownerRoles, setOwnerRoles] = useState<string[]>([]);
+  const [profileProductCount, setProfileProductCount] = useState(0);
+  const [ownerTrades, setOwnerTrades] = useState<string[]>([]);
+  const [ownerServiceArea, setOwnerServiceArea] = useState<string | null>(null);
   const [bookingSettings, setBookingSettings] = useState<BookingSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -135,9 +146,23 @@ export default function BusinessDetailsPage() {
   const [isAdjustMode, setIsAdjustMode] = useState(false);
   
   const isOwner = !!user?.id && !!business?.userId && user.id === business.userId;
-  const showServices = ownerRoles.some((role) =>
-    role === 'contractor' || role === 'realtor' || role === 'installer' || role === 'handyman'
-  );
+  const detailsRole = resolveProDetailsRole(ownerRoles);
+  const roleTabs = normalizeTabsForRole(detailsRole, business?.tabOrder);
+  const showServices = detailsRole === 'contractor' || detailsRole === 'handyman';
+  const showProducts =
+    (detailsRole === 'contractor' || detailsRole === 'installer') &&
+    (isOwner || profileProductCount > 0);
+  const showProperties = detailsRole === 'realtor';
+  const showTrades = detailsRole === 'installer' || detailsRole === 'handyman';
+  const visibleTabs = roleTabs.filter((tab) => {
+    if (tab === 'services') return showServices;
+    if (tab === 'products') return showProducts;
+    if (tab === 'properties') return showProperties;
+    if (tab === 'trades') return showTrades;
+    return true;
+  });
+  const activeTab: TabType =
+    visibleTabs.length === 0 || visibleTabs.includes(selectedTab) ? selectedTab : visibleTabs[0];
 
   // Drag-to-position hero image (owner only); save on mouseup
   const heroDragPositionRef = useRef<string | null>(null);
@@ -233,16 +258,23 @@ export default function BusinessDetailsPage() {
     };
   }, [tabScrollNonce]);
 
-  // Open Services or Images when a shared link includes ?tab=
+  // Open a section when a shared link includes ?tab=
   useEffect(() => {
     if (loading || appliedSharedTab.current) return;
-    const requested = searchParams.get('tab');
-    if (requested !== 'images' && requested !== 'services') return;
+    const requested = searchParams.get('tab') as BusinessDetailsTab | null;
+    if (!requested) return;
+    const allowed = new Set(defaultTabsForRole(detailsRole));
+    if (!allowed.has(requested)) return;
     if (requested === 'services' && !showServices) return;
+    if (requested === 'products' && !showProducts) return;
+    if (requested === 'properties' && !showProperties) return;
+    if (requested === 'trades' && !showTrades) return;
     appliedSharedTab.current = true;
     setActiveTab(requested);
     setTabScrollNonce((n) => n + 1);
-  }, [loading, searchParams, showServices]);
+  }, [loading, searchParams, detailsRole, showServices, showProducts, showProperties, showTrades]);
+
+  // (Active tab is derived below so a hidden role tab falls back to the first visible one.)
 
   useEffect(() => {
     const FETCH_TIMEOUT_MS = 15000;
@@ -355,6 +387,55 @@ export default function BusinessDetailsPage() {
       settle();
     };
   }, [slug]);
+
+  useEffect(() => {
+    if (!business?.id) return;
+    let cancelled = false;
+    const loadExtras = async () => {
+      try {
+        const productRes = await fetch(`/api/businesses/${business.id}/products`, { credentials: 'include' });
+        if (productRes.ok) {
+          const productData = await productRes.json().catch(() => ({}));
+          const profile = (productData.profileProducts ?? []) as { id: string }[];
+          if (!cancelled) setProfileProductCount(profile.length);
+        }
+      } catch {
+        if (!cancelled) setProfileProductCount(0);
+      }
+
+      const role = resolveProDetailsRole(ownerRoles);
+      if (role !== 'installer' && role !== 'handyman') {
+        if (!cancelled) {
+          setOwnerTrades([]);
+          setOwnerServiceArea(null);
+        }
+        return;
+      }
+      if (!business.userId) return;
+      try {
+        const supabase = createClient();
+        const table = role === 'installer' ? 'installer_profiles' : 'handyman_profiles';
+        const { data } = await supabase
+          .from(table)
+          .select('trades, service_area')
+          .eq('user_id', business.userId)
+          .maybeSingle();
+        if (!cancelled) {
+          setOwnerTrades(Array.isArray(data?.trades) ? data.trades : []);
+          setOwnerServiceArea(typeof data?.service_area === 'string' ? data.service_area : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setOwnerTrades([]);
+          setOwnerServiceArea(null);
+        }
+      }
+    };
+    void loadExtras();
+    return () => {
+      cancelled = true;
+    };
+  }, [business?.id, business?.userId, ownerRoles]);
 
   if (loading) {
     return (
@@ -662,8 +743,12 @@ export default function BusinessDetailsPage() {
             setActiveTab(tab);
             setTabScrollNonce((n) => n + 1);
           }}
+          allowedTabs={roleTabs}
           showServices={showServices}
-          tabOrder={business.tabOrder}
+          showProducts={showProducts}
+          showProperties={showProperties}
+          showTrades={showTrades}
+          tabOrder={roleTabs}
           canReorder={isOwner}
           onReorder={(order) => {
             void saveTabOrder(order);
@@ -733,6 +818,28 @@ export default function BusinessDetailsPage() {
               isOwner={isOwner}
               fallbackNames={business.services}
               bookingEnabled={bookingSettings?.enabled === true}
+            />
+          </div>
+        )}
+
+        {activeTab === 'products' && showProducts && (
+          <div>
+            <BusinessProductsTab businessId={business.id} isOwner={isOwner} />
+          </div>
+        )}
+
+        {activeTab === 'properties' && showProperties && (
+          <div>
+            <BusinessPropertiesTab businessId={business.id} isOwner={isOwner} />
+          </div>
+        )}
+
+        {activeTab === 'trades' && showTrades && (
+          <div>
+            <BusinessTradesTab
+              trades={ownerTrades}
+              serviceArea={ownerServiceArea}
+              roleLabel={detailsRole === 'installer' ? 'Installer' : 'Handyman'}
             />
           </div>
         )}

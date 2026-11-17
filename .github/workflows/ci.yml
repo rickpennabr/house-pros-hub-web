@@ -28,6 +28,9 @@ jobs:
       - name: Type check
         run: npm run type-check
 
+      - name: ProBot policy checks
+        run: npm run probot:check
+
       - name: Build
         run: npm run build
 

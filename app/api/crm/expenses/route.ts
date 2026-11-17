@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
 import { categoryNeedsSupplier, cleanExpenseText, parseExpenseOrderFields, resolveOwnedSupplierId, supplierNamesById } from '@/lib/crm/expense-supplier';
 import { MILEAGE_SETUP_ERROR, mileageSchemaMissing, resolveVehicleId } from '@/lib/crm/mileage';
 import { safeTimeZone } from '@/lib/crm/estimate-chart';
 import { buildExpenseChart, type ExpenseChart } from '@/lib/crm/list-charts';
-
-async function requireContractor() {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) return { error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }), user: null };
-  return { error: null, user };
-}
 
 const VALID_SORT = ['created_at', 'expense_date', 'amount_cents', 'category'] as const;
 

@@ -1,10 +1,13 @@
 import { joinMailLine, mailStreetKey } from '@/lib/address/unit';
+import { canChangeAppointment } from '@/lib/booking/appointmentPolicy';
+import { safeTimeZone } from '@/lib/booking/dayOfReminder';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/types/supabase';
 import {
   listPlaceTimeline,
   recordPlaceEntered,
   recordProLinked,
+  syncPlaceAppointmentTimeline,
   syncPlaceTimelineFromCrm,
   type PlaceTimelineEvent,
 } from '@/lib/places/timeline';
@@ -56,7 +59,192 @@ function norm(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function zipKey(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase().slice(0, 5);
+}
+
 const ZIP_RE = /^\d{5}(-\d{4})?$/;
+
+export type PlaceAppointmentStatus = 'confirmed' | 'cancelled' | 'completed';
+export type PlaceAppointmentSource = 'booking' | 'task';
+export type PlaceAppointmentTaskType =
+  | 'estimate_appointment'
+  | 'business_meeting'
+  | 'follow_up'
+  | 'other';
+
+export interface PlaceAppointment {
+  id: string;
+  source: PlaceAppointmentSource;
+  token: string | null;
+  taskType: PlaceAppointmentTaskType | null;
+  serviceName: string | null;
+  startAt: string;
+  endAt: string;
+  status: PlaceAppointmentStatus;
+  timezone: string;
+  proName: string;
+  canChange: boolean;
+  createdAt: string;
+  ownerId: string | null;
+  customerId: string | null;
+}
+
+function bookingMatchesPlace(
+  booking: { visit_street: string | null; visit_zip: string | null },
+  place: { street: string | null; zip_code: string | null },
+  aloneOnAccount: boolean
+): boolean {
+  const bookingStreet = mailStreetKey(booking.visit_street);
+  const placeStreet = mailStreetKey(place.street);
+  if (bookingStreet && placeStreet) {
+    if (bookingStreet !== placeStreet) return false;
+    const bookingZip = zipKey(booking.visit_zip);
+    const placeZip = zipKey(place.zip_code);
+    if (bookingZip && placeZip && bookingZip !== placeZip) return false;
+    return true;
+  }
+  // Older bookings without a visit address land on the only place on the account.
+  return aloneOnAccount && !bookingStreet;
+}
+
+const TASK_LABEL: Record<PlaceAppointmentTaskType, string> = {
+  estimate_appointment: 'Estimate appointment',
+  business_meeting: 'Meeting',
+  follow_up: 'Follow-up',
+  other: 'Appointment',
+};
+
+async function listPlaceAppointments(
+  admin: Admin,
+  userId: string,
+  email: string | null | undefined,
+  place: { street: string | null; zip_code: string | null },
+  aloneOnAccount: boolean,
+  customerIds: string[]
+): Promise<PlaceAppointment[]> {
+  const columns =
+    'id, business_id, manage_token, service_name, slot_start_at, slot_end_at, status, visit_street, visit_zip, created_at';
+  const emailKey = email?.trim().toLowerCase() ?? '';
+  const [byUser, byEmail, tasksResult] = await Promise.all([
+    admin
+      .from('pro_estimate_bookings')
+      .select(columns)
+      .eq('customer_user_id', userId)
+      .order('slot_start_at', { ascending: false })
+      .limit(40),
+    emailKey
+      ? admin
+          .from('pro_estimate_bookings')
+          .select(columns)
+          .eq('guest_email', emailKey)
+          .order('slot_start_at', { ascending: false })
+          .limit(40)
+      : Promise.resolve({ data: [] as never[], error: null }),
+    customerIds.length
+      ? admin
+          .from('pro_crm_tasks')
+          .select('id, owner_id, customer_id, task_type, other_label, start_at, end_at, created_at')
+          .in('customer_id', customerIds)
+          .in('task_type', ['estimate_appointment', 'follow_up', 'business_meeting', 'other'])
+          .order('start_at', { ascending: false })
+          .limit(40)
+      : Promise.resolve({ data: [] as never[], error: null }),
+  ]);
+  if (byUser.error) throw new Error(byUser.error.message);
+  if (byEmail.error) throw new Error(byEmail.error.message);
+  if (tasksResult.error) throw new Error(tasksResult.error.message);
+
+  const merged = new Map<string, NonNullable<typeof byUser.data>[number]>();
+  for (const row of [...(byUser.data ?? []), ...(byEmail.data ?? [])]) {
+    if (!bookingMatchesPlace(row, place, aloneOnAccount)) continue;
+    merged.set(row.id, row);
+  }
+
+  const taskRows = tasksResult.data ?? [];
+  const businessIds = [...new Set([...merged.values()].map((row) => row.business_id))];
+  const ownerIds = [...new Set(taskRows.map((row) => row.owner_id))];
+  const [{ data: businesses }, { data: ownerBusinesses }] = await Promise.all([
+    businessIds.length
+      ? admin.from('businesses').select('id, business_name, timezone, owner_id').in('id', businessIds)
+      : Promise.resolve({ data: [] as { id: string; business_name: string | null; timezone: string | null; owner_id: string }[] }),
+    ownerIds.length
+      ? admin.from('businesses').select('owner_id, business_name, timezone').in('owner_id', ownerIds)
+      : Promise.resolve({ data: [] as { owner_id: string; business_name: string | null; timezone: string | null }[] }),
+  ]);
+
+  const businessById = new Map(
+    (businesses ?? []).map((biz) => [
+      biz.id,
+      {
+        name: biz.business_name?.trim() || 'Your pro',
+        timezone: safeTimeZone(biz.timezone),
+        ownerId: biz.owner_id,
+      },
+    ])
+  );
+  const businessByOwner = new Map(
+    (ownerBusinesses ?? []).map((biz) => [
+      biz.owner_id,
+      {
+        name: biz.business_name?.trim() || 'Your pro',
+        timezone: safeTimeZone(biz.timezone),
+      },
+    ])
+  );
+
+  const now = new Date();
+  const fromBookings: PlaceAppointment[] = [...merged.values()].map((row) => {
+    const business = businessById.get(row.business_id);
+    const status: PlaceAppointmentStatus =
+      row.status === 'cancelled' || row.status === 'completed' ? row.status : 'confirmed';
+    return {
+      id: row.id,
+      source: 'booking' as const,
+      token: row.manage_token,
+      taskType: null,
+      serviceName: row.service_name,
+      startAt: row.slot_start_at,
+      endAt: row.slot_end_at,
+      status,
+      timezone: business?.timezone ?? 'America/Los_Angeles',
+      proName: business?.name ?? 'Your pro',
+      canChange: canChangeAppointment(new Date(row.slot_start_at), now, status),
+      createdAt: row.created_at,
+      ownerId: business?.ownerId ?? null,
+      customerId: null,
+    };
+  });
+
+  const fromTasks: PlaceAppointment[] = taskRows.map((row) => {
+    const business = businessByOwner.get(row.owner_id);
+    const taskType = row.task_type as PlaceAppointmentTaskType;
+    const past = Date.parse(row.end_at) < now.getTime();
+    const status: PlaceAppointmentStatus = past ? 'completed' : 'confirmed';
+    const label =
+      taskType === 'other' && row.other_label?.trim()
+        ? row.other_label.trim()
+        : TASK_LABEL[taskType] || TASK_LABEL.other;
+    return {
+      id: row.id,
+      source: 'task' as const,
+      token: null,
+      taskType,
+      serviceName: label,
+      startAt: row.start_at,
+      endAt: row.end_at,
+      status,
+      timezone: business?.timezone ?? 'America/Los_Angeles',
+      proName: business?.name ?? 'Your pro',
+      canChange: false,
+      createdAt: row.created_at,
+      ownerId: row.owner_id,
+      customerId: row.customer_id,
+    };
+  });
+
+  return [...fromBookings, ...fromTasks].sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+}
 
 export interface PersonalPlaceAddressInput {
   streetAddress: string;
@@ -245,7 +433,7 @@ export async function portalBriefForUser(userId: string): Promise<string> {
   const admin = createServiceRoleClient();
   const { data: places } = await admin
     .from('customer_places')
-    .select('id, kind, name, street, city, state')
+    .select('id, kind, name, street, city, state, zip_code')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (!places?.length) return '';
@@ -255,11 +443,31 @@ export async function portalBriefForUser(userId: string): Promise<string> {
     .select('id, place_id, owner_id')
     .eq('portal_user_id', userId);
   const customerIds = (customers ?? []).map((row) => row.id);
+  const aloneOnAccount = places.length <= 1;
+
   if (customerIds.length === 0) {
-    return places
-      .map((place) => `${place.kind} "${place.name}"${place.city ? `, ${place.city}` : ''}: no work published yet.`)
-      .join('\n')
-      .slice(0, 3500);
+    const lines: string[] = [];
+    for (const place of places) {
+      const visits = await listPlaceAppointments(
+        admin,
+        userId,
+        null,
+        { street: place.street, zip_code: place.zip_code },
+        aloneOnAccount,
+        []
+      );
+      if (visits.length === 0) {
+        lines.push(`${place.kind} "${place.name}"${place.city ? `, ${place.city}` : ''}: no work published yet.`);
+        continue;
+      }
+      lines.push(`${place.kind} "${place.name}"${place.city ? `, ${place.city}` : ''}`);
+      for (const visit of visits) {
+        lines.push(
+          `  Appointment with ${visit.proName}: ${visit.status}. ${visit.startAt}.${visit.serviceName ? ` ${visit.serviceName}.` : ''}`
+        );
+      }
+    }
+    return lines.join('\n').slice(0, 3500);
   }
 
   const [{ data: projects }, { data: plans }, { data: docs }, { data: invoices }] = await Promise.all([
@@ -319,6 +527,22 @@ export async function portalBriefForUser(userId: string): Promise<string> {
       const balance = Math.max(0, invoice.amount_cents - invoice.payment_applied_cents) / 100;
       lines.push(
         `  Invoice ${invoice.invoice_number}: ${invoice.status}. Balance ${balance.toFixed(2)} USD. Due ${invoice.due_date ?? 'not set'}.`
+      );
+    }
+    const placeCustomerIds = (customers ?? [])
+      .filter((row) => row.place_id === place.id)
+      .map((row) => row.id);
+    const visits = await listPlaceAppointments(
+      admin,
+      userId,
+      null,
+      { street: place.street, zip_code: place.zip_code },
+      aloneOnAccount,
+      placeCustomerIds
+    );
+    for (const visit of visits) {
+      lines.push(
+        `  Appointment with ${visit.proName}: ${visit.status}. ${visit.startAt}.${visit.serviceName ? ` ${visit.serviceName}.` : ''}`
       );
     }
   }
@@ -450,9 +674,14 @@ export interface PlaceBundle {
     signedAt: string | null;
     receivedAt: string;
   }>;
+  appointments: PlaceAppointment[];
 }
 
-export async function loadPlaceBundle(userId: string, placeId: string): Promise<PlaceBundle | null> {
+export async function loadPlaceBundle(
+  userId: string,
+  placeId: string,
+  email?: string | null
+): Promise<PlaceBundle | null> {
   await relinkPortalPlaces(userId);
   const admin = createServiceRoleClient();
   const { data: place } = await admin
@@ -465,13 +694,20 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
 
   await recordPlaceEntered(place.id, place.name, place.created_at);
 
-  const { data: customers } = await admin
-    .from('pro_crm_customers')
-    .select('id, owner_id')
-    .eq('portal_user_id', userId)
-    .eq('place_id', placeId);
+  const [{ data: customers }, { count: placeCount }] = await Promise.all([
+    admin
+      .from('pro_crm_customers')
+      .select('id, owner_id')
+      .eq('portal_user_id', userId)
+      .eq('place_id', placeId),
+    admin
+      .from('customer_places')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId),
+  ]);
   const rows = customers ?? [];
   const customerIds = rows.map((row) => row.id);
+  const aloneOnAccount = (placeCount ?? 0) <= 1;
   const ownerIds = [...new Set(rows.map((row) => row.owner_id))];
   const { data: businesses } = ownerIds.length
     ? await admin.from('businesses').select('owner_id, business_name').in('owner_id', ownerIds)
@@ -497,7 +733,30 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
     createdAt: place.created_at,
   };
 
+  const appointments = await listPlaceAppointments(
+    admin,
+    userId,
+    email,
+    { street: place.street, zip_code: place.zip_code },
+    aloneOnAccount,
+    customerIds
+  );
+
   if (customerIds.length === 0) {
+    await syncPlaceAppointmentTimeline(
+      placeId,
+      appointments.map((visit) => ({
+        id: visit.id,
+        source: visit.source,
+        serviceName: visit.serviceName,
+        status: visit.status,
+        startAt: visit.startAt,
+        createdAt: visit.createdAt,
+        proName: visit.proName,
+        ownerId: visit.ownerId,
+        customerId: visit.customerId,
+      }))
+    );
     const timeline = await listPlaceTimeline(placeId);
     return {
       place: emptyPlace,
@@ -507,10 +766,25 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
       documents: [],
       invoices: [],
       estimates: [],
+      appointments,
     };
   }
 
   await syncPlaceTimelineFromCrm(placeId, customerIds);
+  await syncPlaceAppointmentTimeline(
+    placeId,
+    appointments.map((visit) => ({
+      id: visit.id,
+      source: visit.source,
+      serviceName: visit.serviceName,
+      status: visit.status,
+      startAt: visit.startAt,
+      createdAt: visit.createdAt,
+      proName: visit.proName,
+      ownerId: visit.ownerId,
+      customerId: visit.customerId,
+    }))
+  );
 
   const [{ data: projects }, { data: plans }, { data: docs }, { data: invoices }, { data: estimates }] = await Promise.all([
     admin
@@ -628,5 +902,6 @@ export async function loadPlaceBundle(userId: string, placeId: string): Promise<
       signedAt: estimate.signed_at ?? null,
       receivedAt: estimate.created_at,
     })),
+    appointments,
   };
 }

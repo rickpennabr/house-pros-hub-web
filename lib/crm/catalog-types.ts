@@ -41,6 +41,8 @@ export interface CrmProduct {
   description: string | null;
   unit: string;
   price_cents: number;
+  /** When true, this product appears on the public pro details Products tab. */
+  show_on_profile: boolean;
   images: CrmImage[];
   specs: CrmProductSpec[];
   created_at: string;

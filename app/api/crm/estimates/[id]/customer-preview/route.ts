@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
+import { userCanAccessCrm } from '@/lib/crm/require-contractor';
 import { loadEstimateBusinessBrand } from '@/lib/crm/estimate-business-brand';
 
 /**
@@ -20,8 +20,7 @@ export async function GET(
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const isContractor = await hasRole(user.id, 'contractor');
-    if (!isContractor) {
+    if (!(await userCanAccessCrm(user.id))) {
       return NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 });
     }
 

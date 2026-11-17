@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
+import { userCanAccessCrm } from '@/lib/crm/require-contractor';
 
 async function requireContractorAndAttachment(invoiceId: string, attachmentId: string) {
   const supabase = await createClient();
@@ -11,8 +11,7 @@ async function requireContractorAndAttachment(invoiceId: string, attachmentId: s
   if (authError || !user) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), supabase: null };
   }
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) {
+  if (!(await userCanAccessCrm(user.id))) {
     return {
       error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }),
       supabase: null,

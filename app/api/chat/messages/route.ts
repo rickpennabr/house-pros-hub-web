@@ -7,6 +7,7 @@ import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { filterAllowedAttachments } from '@/lib/utils/chatAttachmentAllowlist';
 import { chatPushUrl, sendAdminPushNotification, sendBusinessPushNotification } from '@/lib/services/pushNotificationService';
 import { answerHubThread } from '@/lib/chat/hub-agent-reply';
+import { claimHubReply, releaseHubReply } from '@/lib/chat/hub-reply-lock';
 import { parseAgentPayload } from '@/lib/chat/proagent-policy';
 import type { ProbotTurn } from '@/lib/chat/probot-ai';
 import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
@@ -183,8 +184,73 @@ export async function POST(request: NextRequest) {
       admin_sent_as: 'probot';
     } | undefined;
 
+    const visitorMessage = {
+      id: msg.id,
+      conversationId: msg.conversation_id,
+      sender: msg.sender,
+      body: msg.body,
+      created_at: msg.created_at,
+      businessId: businessId ?? undefined,
+      attachments: msg.attachments ?? attachments ?? [],
+      replyTo: replyTo ?? undefined,
+    };
+
+    const wantsStream =
+      Boolean(parsed.data.stream) &&
+      !businessId &&
+      Boolean(conversationId) &&
+      (request.headers.get('accept') ?? '').includes('text/event-stream');
+
     // Hub thread only. A message to a pro waits for that pro.
-    if (!businessId && conversationId && claimHubReply(conversationId)) {
+    if (!businessId && conversationId && wantsStream) {
+      const claimed = await claimHubReply(conversationId);
+      if (!claimed) {
+        return NextResponse.json({ message: visitorMessage }, { status: 200 });
+      }
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          const send = (event: string, data: unknown) => {
+            controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+          };
+          try {
+            send('message', visitorMessage);
+            const history = await recentHubTurns(supabase, conversationId);
+            const answered = await answerHubThread({
+              conversationId,
+              locale,
+              history: history.slice(0, -1),
+              body: messageBody ?? '',
+              userId: await sessionUserId(),
+              onProgress: (progress) => {
+                if (progress.type === 'status') send('status', { label: progress.label });
+                if (progress.type === 'token') send('token', { text: progress.text });
+              },
+            });
+            if (answered) send('bot', answered);
+            send('done', {});
+          } catch (error) {
+            console.error('ProBot messages stream error:', error);
+            send('error', { error: 'Internal server error' });
+          } finally {
+            await releaseHubReply(conversationId);
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+        },
+      });
+    }
+
+    if (!businessId && conversationId && (await claimHubReply(conversationId))) {
       try {
         const history = await recentHubTurns(supabase, conversationId);
         const answered = await answerHubThread({
@@ -196,22 +262,13 @@ export async function POST(request: NextRequest) {
         });
         if (answered) botMessage = answered;
       } finally {
-        releaseHubReply(conversationId);
+        await releaseHubReply(conversationId);
       }
     }
 
     return NextResponse.json(
       {
-        message: {
-          id: msg.id,
-          conversationId: msg.conversation_id,
-          sender: msg.sender,
-          body: msg.body,
-          created_at: msg.created_at,
-          businessId: businessId ?? undefined,
-          attachments: msg.attachments ?? attachments ?? [],
-          replyTo: replyTo ?? undefined,
-        },
+        message: visitorMessage,
         ...(botMessage ? { botMessage } : {}),
       },
       { status: 200 }
@@ -397,40 +454,42 @@ export async function GET(request: NextRequest) {
     if (isVisitorContext && !contractorReadBusinessId) {
       const hubRows = rows.filter((m) => !m.business_id);
       const lastHub = hubRows[hubRows.length - 1];
-      if (lastHub?.sender === 'visitor' && lastHub.body.trim() && claimHubReply(parsed.data.conversationId)) {
+      if (
+        lastHub?.sender === 'visitor' &&
+        lastHub.body.trim() &&
+        (await claimHubReply(parsed.data.conversationId))
+      ) {
         try {
-        const history = hubRows
-          .slice(0, -1)
-          .map((row) => ({
-            sender: row.sender === 'admin' ? 'admin' as const : 'visitor' as const,
+          const history = hubRows.slice(0, -1).map((row) => ({
+            sender: row.sender === 'admin' ? ('admin' as const) : ('visitor' as const),
             body: row.body,
           }));
-        const answered = await answerHubThread({
-          conversationId: parsed.data.conversationId,
-          locale: parsed.data.locale,
-          history,
-          body: lastHub.body,
-          userId: await sessionUserId(),
-        });
-        if (answered) {
-          rows = [
-            ...rows,
-            {
-              id: answered.id,
-              sender: answered.sender,
-              body: answered.body,
-              created_at: answered.created_at,
-              business_id: null,
-              read_at: null,
-              attachments: [],
-              admin_sent_as: 'probot',
-              admin_user_id: null,
-              payload: answered.payload,
-            },
-          ];
-        }
+          const answered = await answerHubThread({
+            conversationId: parsed.data.conversationId,
+            locale: parsed.data.locale,
+            history,
+            body: lastHub.body,
+            userId: await sessionUserId(),
+          });
+          if (answered) {
+            rows = [
+              ...rows,
+              {
+                id: answered.id,
+                sender: answered.sender,
+                body: answered.body,
+                created_at: answered.created_at,
+                business_id: null,
+                read_at: null,
+                attachments: [],
+                admin_sent_as: 'probot',
+                admin_user_id: null,
+                payload: answered.payload,
+              },
+            ];
+          }
         } finally {
-          releaseHubReply(parsed.data.conversationId);
+          await releaseHubReply(parsed.data.conversationId);
         }
       }
     }
@@ -544,18 +603,6 @@ export async function GET(request: NextRequest) {
     console.error('ProBot messages GET error:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
-
-const hubReplyInFlight = new Set<string>();
-
-function claimHubReply(conversationId: string): boolean {
-  if (hubReplyInFlight.has(conversationId)) return false;
-  hubReplyInFlight.add(conversationId);
-  return true;
-}
-
-function releaseHubReply(conversationId: string): void {
-  hubReplyInFlight.delete(conversationId);
 }
 
 async function recentHubTurns(

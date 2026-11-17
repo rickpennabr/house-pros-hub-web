@@ -51,6 +51,7 @@ interface ProductRow {
   description: string | null;
   unit: string;
   price_cents: number;
+  show_on_profile?: boolean | null;
   created_at: string;
 }
 
@@ -165,6 +166,7 @@ function mapProduct(row: ProductRow, images: CrmImage[], specs: CrmProductSpec[]
     description: row.description,
     unit: row.unit,
     price_cents: row.price_cents,
+    show_on_profile: row.show_on_profile === true,
     images,
     specs,
     created_at: row.created_at,
@@ -210,7 +212,7 @@ export async function listServices(supabase: Db, ownerId: string): Promise<CrmSe
 export async function listProducts(supabase: Db, ownerId: string): Promise<CrmProduct[]> {
   const products = await supabase
     .from('pro_crm_products')
-    .select('id, name, brand, sku, upc, category, description, unit, price_cents, created_at')
+    .select('id, name, brand, sku, upc, category, description, unit, price_cents, show_on_profile, created_at')
     .eq('owner_id', ownerId)
     .order('name', { ascending: true });
   if (products.error) throw products.error;
@@ -527,6 +529,7 @@ export async function createProduct(supabase: Db, ownerId: string, input: Produc
       description: input.description || null,
       unit: input.unit,
       price_cents: input.price_cents,
+      show_on_profile: input.show_on_profile === true,
     })
     .select('id')
     .single();
@@ -564,6 +567,7 @@ export async function updateProduct(
       description: input.description || null,
       unit: input.unit,
       price_cents: input.price_cents,
+      show_on_profile: input.show_on_profile === true,
     })
     .eq('id', productId)
     .eq('owner_id', ownerId)
@@ -575,6 +579,30 @@ export async function updateProduct(
   await rememberProductVocabulary(supabase, ownerId, input);
   const product = (await listProducts(supabase, ownerId)).find((row) => row.id === productId) ?? null;
   return { product, removedPaths };
+}
+
+/** Toggle whether a CRM product appears on the public pro details page. */
+export async function setProductShowOnProfile(
+  supabase: Db,
+  ownerId: string,
+  productId: string,
+  showOnProfile: boolean
+): Promise<CrmProduct | null> {
+  const updated = await supabase
+    .from('pro_crm_products')
+    .update({ show_on_profile: showOnProfile })
+    .eq('id', productId)
+    .eq('owner_id', ownerId)
+    .select('id');
+  if (updated.error) throw updated.error;
+  if (!updated.data?.length) return null;
+  return (await listProducts(supabase, ownerId)).find((row) => row.id === productId) ?? null;
+}
+
+/** Public-facing CRM products the owner opted into on their details page. */
+export async function listProfileProducts(supabase: Db, ownerId: string): Promise<CrmProduct[]> {
+  const products = await listProducts(supabase, ownerId);
+  return products.filter((product) => product.show_on_profile);
 }
 
 export async function deleteProduct(supabase: Db, ownerId: string, productId: string): Promise<string[]> {
@@ -691,6 +719,7 @@ export async function createLegacyItem(supabase: Db, ownerId: string, input: Leg
       description: input.description,
       unit: input.unit,
       price_cents: input.priceCents,
+      show_on_profile: false,
       images: [],
       specs: [],
     });
@@ -770,6 +799,7 @@ export async function updateLegacyItem(
         description: input.description,
         unit: input.unit,
         price_cents: input.priceCents,
+        show_on_profile: product.show_on_profile,
         images: [],
         specs: product.specs.map((spec) => ({ name: spec.name, value: spec.value })),
       },

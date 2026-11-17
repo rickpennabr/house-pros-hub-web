@@ -13,7 +13,7 @@
     "test": "tsx --test lib/**/*.test.ts",
     "analyze": "next build",
     "audit": "npm audit",
-    "probot:check": "npx --yes tsx --test lib/chat/probot-eval.test.ts",
+    "probot:check": "npx --yes tsx --test lib/chat/probot-eval.test.ts lib/agent/place-tools.test.ts",
     "probot:eval": "npx --yes tsx scripts/probot-eval.ts"
   },
   "dependencies": {

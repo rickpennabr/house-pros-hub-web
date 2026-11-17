@@ -22,6 +22,8 @@ export const sendMessageSchema = z.object({
   attachments: z.array(attachmentSchema).max(10).optional(),
   replyToId: z.string().uuid().optional(),
   locale: z.enum(["en", "pt", "es"]).optional(),
+  /** Hub ProAgent turns can stream status + tokens over SSE. */
+  stream: z.boolean().optional(),
 }).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0, {
   message: 'Message cannot be empty',
   path: ['body'],

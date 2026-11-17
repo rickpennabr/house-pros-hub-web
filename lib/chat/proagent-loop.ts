@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { AGENT_RULE, PROAGENT_MAX_STEPS, PROAGENT_POLICY, siteOrigin } from '@/lib/agent/constants'
 import { prosFromToolData, proAgentOpenAiTools, runDirectoryTool } from '@/lib/agent/tools'
+import { isPlaceTool, placeOpenAiTools, runPlaceTool } from '@/lib/agent/place-tools'
 import { estimateSchema } from '@/lib/schemas/estimate'
 import {
   directoryToolInput,
@@ -21,7 +22,7 @@ import {
   type ChatCompletionMessage,
   type ProbotTurn,
 } from '@/lib/chat/probot-ai'
-import type { ProAgentPayload, ProAgentProCard } from '@/lib/types/chat'
+import type { ChatCrmEstimateShare, ProAgentPayload, ProAgentProCard } from '@/lib/types/chat'
 
 export interface AgentStepDraft {
   id: string
@@ -30,6 +31,22 @@ export interface AgentStepDraft {
   latencyMs: number
   input: unknown
   output: unknown
+}
+
+export type ProAgentProgress =
+  | { type: 'status'; label: string }
+  | { type: 'token'; text: string }
+
+const TOOL_STATUS: Record<string, string> = {
+  list_categories: 'listing_categories',
+  search_pros: 'searching_pros',
+  get_pro: 'reading_pro',
+  create_estimate: 'drafting_estimate',
+  get_my_places: 'reading_places',
+  get_place_details: 'reading_places',
+  get_place_timeline: 'reading_places',
+  search_my_places: 'searching_places',
+  approve_estimate: 'opening_estimate',
 }
 
 export interface ProAgentTurnResult {
@@ -68,7 +85,7 @@ function issueFields(issues: { path: PropertyKey[] }[]): string[] {
   return issues.map((issue) => issue.path.map(String).filter(Boolean).join('.')).filter(Boolean).slice(0, 12)
 }
 
-function agentPrompt(locale: string | undefined, playbook: string, portalBrief: string): string {
+function agentPrompt(locale: string | undefined, playbook: string, portalBrief: string, signedIn: boolean): string {
   const language = locale === 'pt' ? 'Portuguese' : locale === 'es' ? 'Spanish' : 'English'
   const notes = playbook
     ? `\n\nThe visitor is asking about a job. Use the playbook for hardscape and landscape in Las Vegas. Follow its rules. Do not invent anything it does not say.\n\n${playbook}`
@@ -76,7 +93,12 @@ function agentPrompt(locale: string | undefined, playbook: string, portalBrief: 
   const places = portalBrief
     ? `\n\nThis person is signed in. Their places are below. For a question about their project, maintenance, contract, or invoice, answer only from this record. You may repeat a date, a balance, or a document title written here. If a date or file is missing, say it is not on the place yet. Tell them to open My Places for the files.\n\n${portalBrief}`
     : ''
-  const moneyRule = portalBrief
+  const placeTools = signedIn
+    ? `
+- Their own places: use get_my_places, get_place_details, get_place_timeline, or search_my_places for anything not in the summary. Answer only from what these tools return.
+- approve_estimate only shows an approval card. It never approves. Use it only when they ask to approve or accept a specific sent estimate. Then tell them to review the card, type their name, and tap Approve.`
+    : ''
+  const moneyRule = portalBrief || signedIn
     ? '- Never state a dollar amount, a rebate amount, or a start date unless that figure is written in their place record.'
     : '- Never state a dollar amount, a rebate amount, or a date the work will start.'
   return `You are ProAgent, the assistant on House Pros Hub (houseproshub.com).
@@ -89,7 +111,7 @@ How to work:
 - create_estimate only when every required field came from the homeowner in this chat. If a field is missing, ask for it. Do not invent contact details, an address, a budget, or a timeline.
 ${moneyRule}
 - Reply in ${language} unless the user clearly wrote in another language.
-- 2 to 5 sentences. No markdown headings.${notes}${places}`
+- 2 to 5 sentences. No markdown headings.${placeTools}${notes}${places}`
 }
 
 function rememberPros(found: ProAgentProCard[], data: unknown, locale: string): ProAgentProCard[] {
@@ -113,6 +135,7 @@ function finish(input: {
   pros: ProAgentProCard[]
   steps: AgentStepDraft[]
   confirm: ProAgentPayload['confirm']
+  crmEstimate?: ChatCrmEstimateShare
   endpoint: { name: string; model: string }
   playbookAttached: boolean
   started: number
@@ -127,9 +150,10 @@ function finish(input: {
   const payload: ProAgentPayload = {}
   if (input.pros.length) payload.pros = input.pros
   if (input.confirm) payload.confirm = input.confirm
+  if (input.crmEstimate) payload.crmEstimate = input.crmEstimate
   return {
     body,
-    payload: payload.pros || payload.confirm ? payload : null,
+    payload: payload.pros || payload.confirm || payload.crmEstimate ? payload : null,
     steps: input.steps,
     outcome: input.outcome,
     provider: input.endpoint.name,
@@ -148,12 +172,17 @@ export async function runProAgentTurn(input: {
   locale?: string
   history: ProbotTurn[]
   portalBrief?: string
+  /** Session user id. Turns on the My Places tools. Never take this from the request body. */
+  userId?: string
+  onProgress?: (event: ProAgentProgress) => void
 }): Promise<ProAgentTurnResult> {
   const scripted = probotAutoReply(input.body, input.locale)
   const fallback = probotAutoReply(' ', input.locale)
   const trimmed = input.body.trim()
   const started = Date.now()
+  const progress = input.onProgress
   if (trimmed && scripted !== fallback) {
+    progress?.({ type: 'token', text: scripted })
     return {
       body: scripted,
       payload: null,
@@ -168,6 +197,7 @@ export async function runProAgentTurn(input: {
 
   const configured = configuredChatEndpoints()
   if (configured.length === 0 || !trimmed) {
+    progress?.({ type: 'token', text: fallback })
     return {
       body: fallback,
       payload: null,
@@ -187,10 +217,11 @@ export async function runProAgentTurn(input: {
     body: redactForModel(turn.body),
   }))
   const playbook = jobPlaybookFor(safeBody, safeHistory)
-  const tools = proAgentOpenAiTools()
+  const signedIn = Boolean(input.userId)
+  const tools = signedIn ? [...proAgentOpenAiTools(), ...placeOpenAiTools()] : proAgentOpenAiTools()
   const origin = siteOrigin()
   const messages: ChatCompletionMessage[] = [
-    { role: 'system', content: agentPrompt(input.locale, playbook, input.portalBrief?.trim() ?? '') },
+    { role: 'system', content: agentPrompt(input.locale, playbook, input.portalBrief?.trim() ?? '', signedIn) },
     ...safeHistory
       .map((turn) => ({
         role: turn.sender === 'admin' ? 'assistant' : 'user',
@@ -203,14 +234,27 @@ export async function runProAgentTurn(input: {
 
   const steps: AgentStepDraft[] = []
   let pros: ProAgentProCard[] = []
+  let crmEstimate: ChatCrmEstimateShare | undefined
+  // Figures the model may repeat: the place summary plus what place tools returned.
+  let grounding = input.portalBrief ?? ''
   let lastEndpoint = configured[0]
+  progress?.({ type: 'status', label: 'thinking' })
 
   try {
     for (let step = 0; step < PROAGENT_MAX_STEPS; step += 1) {
       let completion: Awaited<ReturnType<typeof completeChat>> | null = null
+      let streamedText = ''
       for (const endpoint of configured) {
         try {
-          completion = await completeChat(endpoint, messages, tools)
+          streamedText = ''
+          completion = await completeChat(endpoint, messages, tools, {
+            onToken: progress
+              ? (token) => {
+                  streamedText += token
+                  progress({ type: 'token', text: token })
+                }
+              : undefined,
+          })
           lastEndpoint = endpoint
           break
         } catch (error) {
@@ -222,14 +266,20 @@ export async function runProAgentTurn(input: {
       if (completion.toolCalls.length === 0) {
         const reply = completion.content ? parseModelReply(completion.content) : null
         if (!reply) break
+        // If the model wrapped JSON and we streamed raw tokens, replace with the clean reply.
+        if (progress && streamedText && streamedText.trim() !== reply) {
+          progress({ type: 'status', label: 'writing' })
+          progress({ type: 'token', text: reply })
+        }
         return finish({
           body: reply,
           pros,
           steps,
           confirm: undefined,
+          crmEstimate,
           endpoint: lastEndpoint,
           playbookAttached: playbook.length > 0,
-          portalBrief: input.portalBrief,
+          portalBrief: grounding,
           started,
           outcome: 'model',
           locale,
@@ -242,6 +292,7 @@ export async function runProAgentTurn(input: {
         if (steps.length >= PROAGENT_MAX_STEPS) break
         const args = parseArgs(call.arguments)
         const stepStarted = Date.now()
+        progress?.({ type: 'status', label: TOOL_STATUS[call.name] ?? call.name })
         if (toolNeedsHomeownerConfirm(call.name)) {
           const parsed = estimateSchema.safeParse(normalizeEstimateArgs(args))
           if (!parsed.success) {
@@ -274,8 +325,10 @@ export async function runProAgentTurn(input: {
             output: null,
           })
           const spoken = completion.content ? parseModelReply(completion.content) : null
+          const body = spoken || CONFIRM_COPY[locale]
+          progress?.({ type: 'token', text: body })
           return finish({
-            body: spoken || CONFIRM_COPY[locale],
+            body,
             pros,
             steps,
             confirm: { stepId, summary: estimateSummary(parsed.data as unknown as Record<string, unknown>) },
@@ -286,6 +339,27 @@ export async function runProAgentTurn(input: {
             locale,
             fallback,
           })
+        }
+
+        if (isPlaceTool(call.name)) {
+          const place = input.userId
+            ? await runPlaceTool(call.name, args, { userId: input.userId, locale })
+            : { data: { error: 'Sign in to read places.' }, isError: true }
+          const output = JSON.stringify(place?.data ?? { error: 'Unknown tool' }).slice(0, 6000)
+          if (place?.crmEstimate) crmEstimate = place.crmEstimate
+          if (place && !place.isError) grounding += `
+${output}`
+          steps.push({
+            id: randomUUID(),
+            toolName: call.name,
+            status: place?.isError ? 'failed' : 'ok',
+            latencyMs: Date.now() - stepStarted,
+            // Place data is private; the step log keeps only arguments and outcome.
+            input: args,
+            output: place?.crmEstimate ? { estimateId: place.crmEstimate.estimateId, card: true } : { ok: !place?.isError },
+          })
+          messages.push({ role: 'tool', tool_call_id: call.id, content: output })
+          continue
         }
 
         const directory = await runDirectoryTool(call.name, args, origin)
@@ -321,6 +395,7 @@ export async function runProAgentTurn(input: {
           content: JSON.stringify(directory.data).slice(0, 6000),
         })
       }
+      progress?.({ type: 'status', label: 'thinking' })
     }
   } catch (error) {
     console.error('ProAgent loop failed:', error instanceof Error ? error.message : error)
@@ -333,7 +408,10 @@ export async function runProAgentTurn(input: {
   })
   return {
     body: replyInventsPrice(body) ? fallback : body,
-    payload: pros.length ? { pros } : null,
+    payload:
+      pros.length || crmEstimate
+        ? { ...(pros.length ? { pros } : {}), ...(crmEstimate ? { crmEstimate } : {}) }
+        : null,
     steps,
     outcome: 'fallback',
     provider: lastEndpoint.name,

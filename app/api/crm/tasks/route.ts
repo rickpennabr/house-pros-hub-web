@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requirePro } from '@/lib/crm/require-pro';
+import { recordCustomerPlaceEvent } from '@/lib/places/timeline';
 
 const TASK_TYPES = ['estimate_appointment', 'business_meeting', 'follow_up', 'other'] as const;
 
@@ -95,6 +96,28 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message || 'Failed to create task' }, { status: 500 });
+
+    if (row.customer_id) {
+      const label =
+        taskType === 'estimate_appointment'
+          ? 'Estimate appointment'
+          : taskType === 'follow_up'
+            ? 'Follow-up'
+            : taskType === 'business_meeting'
+              ? 'Meeting'
+              : typeof body.other_label === 'string' && body.other_label.trim()
+                ? body.other_label.trim()
+                : 'Appointment';
+      await recordCustomerPlaceEvent(row.customer_id, {
+        kind: 'appointment_booked',
+        title: 'Appointment booked',
+        detail: `${label} · ${row.start_at}`,
+        occurredAt: row.created_at,
+        ownerId: user.id,
+        taskId: row.id,
+      });
+    }
+
     return NextResponse.json(row, { status: 201 });
   } catch (err) {
     console.error('POST /api/crm/tasks', err);

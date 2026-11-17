@@ -409,6 +409,31 @@ export interface Database {
         };
         Relationships: [];
       };
+      probot_hub_reply_locks: {
+        Row: {
+          conversation_id: string;
+          locked_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          conversation_id: string;
+          locked_at?: string;
+          expires_at: string;
+        };
+        Update: {
+          conversation_id?: string;
+          locked_at?: string;
+          expires_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "probot_hub_reply_locks_conversation_id_fkey";
+            columns: ["conversation_id"];
+            referencedRelation: "probot_conversations";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       probot_messages: {
         Row: {
           id: string;
@@ -1522,7 +1547,11 @@ export interface Database {
             | 'document_received'
             | 'project_shared'
             | 'maintenance_started'
-            | 'maintenance_stopped';
+            | 'maintenance_stopped'
+            | 'appointment_booked'
+            | 'appointment_cancelled'
+            | 'appointment_completed'
+            | 'appointment_rescheduled';
           occurred_at: string;
           title: string;
           detail: string | null;
@@ -1533,6 +1562,8 @@ export interface Database {
           invoice_id: string | null;
           document_id: string | null;
           project_id: string | null;
+          booking_id: string | null;
+          task_id: string | null;
           job_area: string | null;
           amount_cents: number | null;
           created_at: string;
@@ -1551,7 +1582,11 @@ export interface Database {
             | 'document_received'
             | 'project_shared'
             | 'maintenance_started'
-            | 'maintenance_stopped';
+            | 'maintenance_stopped'
+            | 'appointment_booked'
+            | 'appointment_cancelled'
+            | 'appointment_completed'
+            | 'appointment_rescheduled';
           occurred_at?: string;
           title: string;
           detail?: string | null;
@@ -1562,6 +1597,8 @@ export interface Database {
           invoice_id?: string | null;
           document_id?: string | null;
           project_id?: string | null;
+          booking_id?: string | null;
+          task_id?: string | null;
           job_area?: string | null;
           amount_cents?: number | null;
           created_at?: string;
@@ -1580,7 +1617,11 @@ export interface Database {
             | 'document_received'
             | 'project_shared'
             | 'maintenance_started'
-            | 'maintenance_stopped';
+            | 'maintenance_stopped'
+            | 'appointment_booked'
+            | 'appointment_cancelled'
+            | 'appointment_completed'
+            | 'appointment_rescheduled';
           occurred_at?: string;
           title?: string;
           detail?: string | null;
@@ -1591,6 +1632,8 @@ export interface Database {
           invoice_id?: string | null;
           document_id?: string | null;
           project_id?: string | null;
+          booking_id?: string | null;
+          task_id?: string | null;
           job_area?: string | null;
           amount_cents?: number | null;
           created_at?: string;
@@ -3279,6 +3322,7 @@ export interface Database {
           description: string | null;
           unit: string;
           price_cents: number;
+          show_on_profile: boolean;
           status: 'active' | 'draft';
           display_order: number;
           created_at: string;
@@ -3296,6 +3340,7 @@ export interface Database {
           description?: string | null;
           unit?: string;
           price_cents?: number;
+          show_on_profile?: boolean;
           status?: 'active' | 'draft';
           display_order?: number;
           created_at?: string;
@@ -3313,6 +3358,7 @@ export interface Database {
           description?: string | null;
           unit?: string;
           price_cents?: number;
+          show_on_profile?: boolean;
           status?: 'active' | 'draft';
           display_order?: number;
           created_at?: string;
@@ -3723,6 +3769,72 @@ export interface Database {
         };
         Relationships: [];
       };
+      realtor_properties: {
+        Row: {
+          id: string;
+          owner_id: string;
+          business_id: string | null;
+          title: string;
+          street_address: string | null;
+          city: string | null;
+          state: string | null;
+          zip_code: string | null;
+          price_cents: number | null;
+          beds: number | null;
+          baths: number | null;
+          sqft: number | null;
+          status: string;
+          description: string | null;
+          image_url: string | null;
+          show_on_profile: boolean;
+          display_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          business_id?: string | null;
+          title: string;
+          street_address?: string | null;
+          city?: string | null;
+          state?: string | null;
+          zip_code?: string | null;
+          price_cents?: number | null;
+          beds?: number | null;
+          baths?: number | null;
+          sqft?: number | null;
+          status?: string;
+          description?: string | null;
+          image_url?: string | null;
+          show_on_profile?: boolean;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          business_id?: string | null;
+          title?: string;
+          street_address?: string | null;
+          city?: string | null;
+          state?: string | null;
+          zip_code?: string | null;
+          price_cents?: number | null;
+          beds?: number | null;
+          baths?: number | null;
+          sqft?: number | null;
+          status?: string;
+          description?: string | null;
+          image_url?: string | null;
+          show_on_profile?: boolean;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       saved_businesses: {
         Row: {
           user_id: string;
@@ -3775,6 +3887,19 @@ export interface Database {
           p_max: number;
         };
         Returns: { allowed: boolean; retry_after_seconds: number };
+      };
+      claim_hub_reply: {
+        Args: {
+          p_conversation_id: string;
+          p_ttl_ms?: number;
+        };
+        Returns: boolean;
+      };
+      release_hub_reply: {
+        Args: {
+          p_conversation_id: string;
+        };
+        Returns: undefined;
       };
       hub_customer_contact_by_email: {
         Args: { p_email: string };

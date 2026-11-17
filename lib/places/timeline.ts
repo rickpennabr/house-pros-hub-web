@@ -1,3 +1,4 @@
+import { mailStreetKey } from '@/lib/address/unit';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 
 export const PLACE_EVENT_KINDS = [
@@ -12,6 +13,10 @@ export const PLACE_EVENT_KINDS = [
   'project_shared',
   'maintenance_started',
   'maintenance_stopped',
+  'appointment_booked',
+  'appointment_cancelled',
+  'appointment_completed',
+  'appointment_rescheduled',
 ] as const;
 
 export type PlaceEventKind = (typeof PLACE_EVENT_KINDS)[number];
@@ -29,6 +34,8 @@ export interface PlaceTimelineEvent {
   invoiceId: string | null;
   documentId: string | null;
   projectId: string | null;
+  bookingId: string | null;
+  taskId: string | null;
 }
 
 export interface RecordPlaceEventInput {
@@ -44,8 +51,22 @@ export interface RecordPlaceEventInput {
   invoiceId?: string | null;
   documentId?: string | null;
   projectId?: string | null;
+  bookingId?: string | null;
+  taskId?: string | null;
   jobArea?: string | null;
   amountCents?: number | null;
+}
+
+export interface PlaceAppointmentTimelineRow {
+  id: string;
+  source: 'booking' | 'task';
+  serviceName: string | null;
+  status: 'confirmed' | 'cancelled' | 'completed';
+  startAt: string;
+  createdAt: string;
+  proName: string;
+  ownerId?: string | null;
+  customerId?: string | null;
 }
 
 type Admin = ReturnType<typeof createServiceRoleClient>;
@@ -90,12 +111,165 @@ export async function recordPlaceEvent(input: RecordPlaceEventInput): Promise<vo
     invoice_id: input.invoiceId || null,
     document_id: input.documentId || null,
     project_id: input.projectId || null,
+    booking_id: input.bookingId || null,
+    task_id: input.taskId || null,
     job_area: cleanArea(input.jobArea),
     amount_cents: typeof input.amountCents === 'number' ? input.amountCents : null,
   });
 
   if (error && error.code !== '23505') {
     console.error('[recordPlaceEvent]', input.kind, error.message);
+  }
+}
+
+function zipKey(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase().slice(0, 5);
+}
+
+function visitMatchesPlace(
+  visit: { street?: string | null; zip?: string | null },
+  place: { street: string | null; zip_code: string | null },
+  aloneOnAccount: boolean
+): boolean {
+  const visitStreet = mailStreetKey(visit.street);
+  const placeStreet = mailStreetKey(place.street);
+  if (visitStreet && placeStreet) {
+    if (visitStreet !== placeStreet) return false;
+    const visitZip = zipKey(visit.zip);
+    const placeZip = zipKey(place.zip_code);
+    if (visitZip && placeZip && visitZip !== placeZip) return false;
+    return true;
+  }
+  return aloneOnAccount && !visitStreet;
+}
+
+/**
+ * Resolve My Places rows for a visit address (signed-in user or guest email on a CRM contact).
+ */
+export async function findPlaceIdsForVisit(params: {
+  customerUserId?: string | null;
+  guestEmail?: string | null;
+  street?: string | null;
+  zip?: string | null;
+}): Promise<string[]> {
+  const admin = createServiceRoleClient();
+  const ids = new Set<string>();
+  const street = params.street ?? null;
+  const zip = params.zip ?? null;
+
+  if (params.customerUserId) {
+    const { data: places } = await admin
+      .from('customer_places')
+      .select('id, street, zip_code')
+      .eq('user_id', params.customerUserId);
+    const alone = (places ?? []).length <= 1;
+    for (const place of places ?? []) {
+      if (visitMatchesPlace({ street, zip }, place, alone)) ids.add(place.id);
+    }
+  }
+
+  const email = params.guestEmail?.trim().toLowerCase();
+  if (email) {
+    const { data: customers } = await admin
+      .from('pro_crm_customers')
+      .select('place_id')
+      .ilike('email', email)
+      .not('place_id', 'is', null);
+    const placeIds = [...new Set((customers ?? []).map((row) => row.place_id).filter(Boolean))] as string[];
+    if (placeIds.length) {
+      const { data: places } = await admin
+        .from('customer_places')
+        .select('id, street, zip_code')
+        .in('id', placeIds);
+      const alone = (places ?? []).length <= 1;
+      for (const place of places ?? []) {
+        if (visitMatchesPlace({ street, zip }, place, alone)) ids.add(place.id);
+      }
+    }
+  }
+
+  return [...ids];
+}
+
+/** Idempotent timeline rows for appointments already loaded on a place. */
+export async function syncPlaceAppointmentTimeline(
+  placeId: string,
+  appointments: PlaceAppointmentTimelineRow[]
+): Promise<void> {
+  if (!placeId || appointments.length === 0) return;
+
+  for (const visit of appointments) {
+    const detail = [visit.serviceName, visit.startAt].filter(Boolean).join(' · ') || null;
+    const bookingId = visit.source === 'booking' ? visit.id : null;
+    const taskId = visit.source === 'task' ? visit.id : null;
+    const base = {
+      placeId,
+      detail,
+      proName: visit.proName,
+      ownerId: visit.ownerId,
+      customerId: visit.customerId,
+      bookingId,
+      taskId,
+    };
+
+    await recordPlaceEvent({
+      ...base,
+      kind: 'appointment_booked',
+      title: 'Appointment booked',
+      occurredAt: visit.createdAt || visit.startAt,
+    });
+
+    if (visit.status === 'cancelled') {
+      await recordPlaceEvent({
+        ...base,
+        kind: 'appointment_cancelled',
+        title: 'Appointment cancelled',
+        occurredAt: visit.startAt,
+      });
+    } else if (visit.status === 'completed' || Date.parse(visit.startAt) < Date.now()) {
+      // Past confirmed CRM tasks count as completed on the timeline.
+      if (visit.status === 'completed' || visit.source === 'task') {
+        await recordPlaceEvent({
+          ...base,
+          kind: 'appointment_completed',
+          title: 'Appointment completed',
+          occurredAt: visit.startAt,
+        });
+      }
+    }
+  }
+}
+
+export async function recordBookingPlaceEvent(params: {
+  bookingId: string;
+  kind: 'appointment_booked' | 'appointment_cancelled' | 'appointment_completed' | 'appointment_rescheduled';
+  title: string;
+  detail?: string | null;
+  occurredAt?: string | null;
+  proName?: string | null;
+  ownerId?: string | null;
+  customerUserId?: string | null;
+  guestEmail?: string | null;
+  street?: string | null;
+  zip?: string | null;
+}): Promise<void> {
+  const placeIds = await findPlaceIdsForVisit({
+    customerUserId: params.customerUserId,
+    guestEmail: params.guestEmail,
+    street: params.street,
+    zip: params.zip,
+  });
+  for (const placeId of placeIds) {
+    await recordPlaceEvent({
+      placeId,
+      kind: params.kind,
+      title: params.title,
+      detail: params.detail,
+      occurredAt: params.occurredAt,
+      proName: params.proName,
+      ownerId: params.ownerId,
+      bookingId: params.bookingId,
+    });
   }
 }
 
@@ -395,7 +569,7 @@ export async function listPlaceTimeline(placeId: string): Promise<PlaceTimelineE
   const { data, error } = await admin
     .from('customer_place_events')
     .select(
-      'id, kind, occurred_at, title, detail, pro_name, job_area, amount_cents, estimate_id, invoice_id, document_id, project_id'
+      'id, kind, occurred_at, title, detail, pro_name, job_area, amount_cents, estimate_id, invoice_id, document_id, project_id, booking_id, task_id'
     )
     .eq('place_id', placeId)
     .order('occurred_at', { ascending: false })
@@ -417,5 +591,7 @@ export async function listPlaceTimeline(placeId: string): Promise<PlaceTimelineE
     invoiceId: row.invoice_id,
     documentId: row.document_id,
     projectId: row.project_id,
+    bookingId: row.booking_id,
+    taskId: row.task_id,
   }));
 }

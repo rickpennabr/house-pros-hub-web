@@ -64,6 +64,7 @@ export function ProductEditor({ open, initial, terms, onClose, onSaved, onTermsC
   const [description, setDescription] = useState('');
   const [unit, setUnit] = useState(DEFAULT_UNIT);
   const [priceCents, setPriceCents] = useState(0);
+  const [showOnProfile, setShowOnProfile] = useState(false);
   const [images, setImages] = useState<DraftImage[]>([]);
   const [specs, setSpecs] = useState<SpecDraft[]>([]);
   const [saving, setSaving] = useState(false);
@@ -79,6 +80,7 @@ export function ProductEditor({ open, initial, terms, onClose, onSaved, onTermsC
     setDescription(initial?.description ?? '');
     setUnit(initial?.unit || DEFAULT_UNIT);
     setPriceCents(initial?.price_cents ?? 0);
+    setShowOnProfile(initial?.show_on_profile === true);
     setImages(draftsFromProduct(initial));
     setSpecs(
       (initial?.specs ?? []).map((spec) => ({ key: spec.id, name: spec.name, value: spec.value }))
@@ -171,6 +173,7 @@ export function ProductEditor({ open, initial, terms, onClose, onSaved, onTermsC
           description: description.trim(),
           unit: unit.trim() || DEFAULT_UNIT,
           price_cents: priceCents,
+          show_on_profile: showOnProfile,
           images: uploaded,
           specs: cleanSpecs,
         }),
@@ -230,6 +233,20 @@ export function ProductEditor({ open, initial, terms, onClose, onSaved, onTermsC
             }}
             onRemove={removeTerm}
           />
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-black p-3">
+            <input
+              type="checkbox"
+              checked={showOnProfile}
+              onChange={(event) => setShowOnProfile(event.target.checked)}
+              className="mt-1 h-4 w-4 accent-black"
+            />
+            <span>
+              <span className="block text-sm font-medium text-black">Show on details page</span>
+              <span className="block text-xs text-gray-600">
+                When on, this product appears on your public Products tab. Keep it off for quote-only items.
+              </span>
+            </span>
+          </label>
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-gray-700">Description</span>
             <textarea

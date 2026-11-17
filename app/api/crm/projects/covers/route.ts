@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
+import { userCanAccessCrm } from '@/lib/crm/require-contractor';
 import { PRO_DRIVE_BUCKET, PRO_DRIVE_SIGNED_URL_SECONDS } from '@/lib/drive/constants';
 
 function projectRank(status: string): number {
@@ -23,8 +23,7 @@ export async function GET() {
     const supabase = await createClient();
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const isContractor = await hasRole(user.id, 'contractor');
-    if (!isContractor) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!(await userCanAccessCrm(user.id))) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const { data: projects, error: projectError } = await supabase
       .from('pro_crm_projects')

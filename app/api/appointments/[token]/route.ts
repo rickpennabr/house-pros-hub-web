@@ -5,6 +5,7 @@ import { CHANGE_LOCKED_ERROR, isManageToken, slotIsFarEnough } from '@/lib/booki
 import { notifyBookingChange, originFromRequest } from '@/lib/booking/appointmentNotice';
 import { appointmentCard, loadManageBooking } from '@/lib/booking/loadManageBooking';
 import { slotIsOpen } from '@/lib/booking/openSlots';
+import { recordBookingPlaceEvent } from '@/lib/places/timeline';
 
 /**
  * GET /api/appointments/[token]
@@ -79,6 +80,34 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ t
       origin: originFromRequest(request),
       previousStart,
     });
+
+    const { data: bookingRow } = await service
+      .from('pro_estimate_bookings')
+      .select(
+        'id, customer_user_id, guest_email, service_name, slot_start_at, visit_street, visit_zip, business_id'
+      )
+      .eq('id', booking.id)
+      .maybeSingle();
+    if (bookingRow) {
+      const { data: business } = await service
+        .from('businesses')
+        .select('owner_id, business_name')
+        .eq('id', bookingRow.business_id)
+        .maybeSingle();
+      await recordBookingPlaceEvent({
+        bookingId: bookingRow.id,
+        kind: action === 'cancel' ? 'appointment_cancelled' : 'appointment_rescheduled',
+        title: action === 'cancel' ? 'Appointment cancelled' : 'Appointment rescheduled',
+        detail: [bookingRow.service_name, bookingRow.slot_start_at].filter(Boolean).join(' · ') || null,
+        occurredAt: new Date().toISOString(),
+        proName: business?.business_name?.trim() || booking.businessName,
+        ownerId: business?.owner_id,
+        customerUserId: bookingRow.customer_user_id,
+        guestEmail: bookingRow.guest_email,
+        street: bookingRow.visit_street,
+        zip: bookingRow.visit_zip,
+      });
+    }
 
     const updated = await loadManageBooking(service, token);
     return NextResponse.json({ appointment: updated ? appointmentCard(updated) : null });

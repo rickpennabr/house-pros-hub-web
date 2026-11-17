@@ -1,25 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
 import { parseRoleIds, replaceContactRoles, rolesByContactId } from '@/lib/crm/contact-role';
 import { DISPLAY_NAME_TAKEN, displayNameTaken, resolveContactDisplayName } from '@/lib/crm/display-name';
 import { attachHubLogin } from '@/lib/crm/hub-customer';
-
-async function requireContractor() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
-  }
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) {
-    return { error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }), user: null };
-  }
-  return { error: null, user };
-}
 
 /**
  * GET /api/crm/customers/[id]

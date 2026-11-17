@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getUserRoles } from '@/lib/utils/roles';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { userCanAccessCrm } from '@/lib/crm/require-contractor';
 import { CRMLayout } from '@/components/crm/CRMLayout';
 
 interface CRMLayoutWrapperProps {
@@ -26,8 +26,7 @@ export default async function CRMLayoutWrapper({ children, params }: CRMLayoutWr
     redirect('/admin');
   }
 
-  const roles = await getUserRoles(user.id);
-  if (!roles.includes('contractor') && !roles.includes('realtor')) {
+  if (!(await userCanAccessCrm(user.id))) {
     redirect(`/${locale}/account-management`);
   }
 

@@ -50,8 +50,13 @@ export const productWriteSchema = z.object({
   description: z.string().trim().max(4000).optional().default(''),
   unit: z.string().trim().min(1).max(40).optional().default('each'),
   price_cents: cents.optional().default(0),
+  show_on_profile: z.boolean().optional().default(false),
   images: z.array(catalogImageSchema).max(PRODUCT_IMAGE_LIMIT).optional().default([]),
   specs: z.array(specSchema).max(40).optional().default([]),
+});
+
+export const productProfileVisibilitySchema = z.object({
+  show_on_profile: z.boolean(),
 });
 
 export const catalogTermWriteSchema = z

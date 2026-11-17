@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
-
-async function requireContractor() {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), supabase, user: null };
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }), supabase, user: null };
-  return { error: null, supabase, user };
-}
 
 const postSchema = z.object({
   title: z.string().trim().min(1).max(200),

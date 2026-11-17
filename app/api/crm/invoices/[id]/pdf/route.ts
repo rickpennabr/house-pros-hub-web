@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
+import { userCanAccessCrm } from '@/lib/crm/require-contractor';
 import { applyCompanyDisplay } from '@/lib/invoices/companyDisplay';
 import { getDefaultCompanyForInvoice } from '@/lib/invoices/defaultCompany';
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer';
@@ -28,7 +28,7 @@ export async function GET(
     const { data: row, error } = await supabase.from('pro_crm_invoices').select('*').eq('id', id).single();
     if (error || !row) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
 
-    const isOwner = (await hasRole(user.id, 'contractor')) && row.owner_id === user.id;
+    const isOwner = (await userCanAccessCrm(user.id)) && row.owner_id === user.id;
     let isCustomer = false;
     if (!isOwner && row.status !== 'draft') {
       const { data: customer } = await supabase

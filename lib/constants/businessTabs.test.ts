@@ -10,13 +10,17 @@ describe('business tab order', () => {
       'contact',
       'hours',
       'services',
+      'products',
+      'properties',
+      'trades',
       'links',
     ]);
   });
 
-  it('keeps a hidden services tab in place while visible tabs move', () => {
+  it('keeps hidden tabs in place while visible tabs move', () => {
     const full = normalizeBusinessTabOrder(['contact', 'hours', 'services', 'links', 'images', 'about']);
-    const visible = full.filter((tab) => tab !== 'services');
+    const hidden = new Set(['services', 'products', 'properties', 'trades']);
+    const visible = full.filter((tab) => !hidden.has(tab));
     const images = visible.indexOf('images');
     const links = visible.indexOf('links');
     assert.deepEqual(reorderVisibleTabs(full, visible, images, links), [
@@ -26,6 +30,9 @@ describe('business tab order', () => {
       'images',
       'links',
       'about',
+      'products',
+      'properties',
+      'trades',
     ]);
   });
 });

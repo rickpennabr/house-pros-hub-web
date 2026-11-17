@@ -7,6 +7,80 @@ export interface ProbotEvalCase {
   handoff: boolean
 }
 
+/** Live cases that exercise runProAgentTurn (tool loop), not createProbotReply. */
+export interface ProAgentEvalCase {
+  id: string
+  prompt: string
+  expectTool: string | null
+  mayFile: boolean
+  /** Reply should point the homeowner to a pro or free estimate. */
+  handoff: boolean
+}
+
+export const PROAGENT_EVAL_CASES: ProAgentEvalCase[] = [
+  { id: 'agent-greeting', prompt: 'Hi there', expectTool: null, mayFile: false, handoff: false },
+  {
+    id: 'agent-search-pavers',
+    prompt: 'Find paver pros in Henderson for a backyard patio.',
+    expectTool: 'search_pros',
+    mayFile: false,
+    handoff: true,
+  },
+  {
+    id: 'agent-price-no-file',
+    prompt: 'How much does a 400 sq ft paver patio cost?',
+    expectTool: null,
+    mayFile: false,
+    handoff: true,
+  },
+  {
+    id: 'agent-plumber',
+    prompt: 'I need a plumber for a leak under the sink in Las Vegas.',
+    expectTool: 'search_pros',
+    mayFile: false,
+    handoff: true,
+  },
+]
+
+/** Signed-in cases for the My Places tools. Live eval runs them only with PROBOT_EVAL_USER_ID. */
+export interface PlaceEvalCase {
+  id: string
+  prompt: string
+  /** Any one of these tools counts as using the place record. */
+  expectAnyTool: string[]
+}
+
+export const PLACE_EVAL_CASES: PlaceEvalCase[] = [
+  { id: 'places-list', prompt: 'What places do I have on my account?', expectAnyTool: ['get_my_places'] },
+  {
+    id: 'places-next-visit',
+    prompt: 'When is my next maintenance visit?',
+    expectAnyTool: ['get_my_places', 'get_place_details', 'get_place_timeline', 'search_my_places'],
+  },
+  {
+    id: 'places-history',
+    prompt: 'What happened on my house lately? Any invoices or documents?',
+    expectAnyTool: ['get_my_places', 'get_place_details', 'get_place_timeline', 'search_my_places'],
+  },
+  {
+    id: 'places-approve',
+    prompt: 'Please approve my latest estimate.',
+    expectAnyTool: ['approve_estimate', 'get_place_details', 'get_my_places', 'search_my_places'],
+  },
+]
+
+const CLAIMS_APPROVAL = /\b(?:i(?:'ve| have)?\s+(?:approved|accepted|signed)|(?:has|is|was) (?:been )?(?:approved|accepted|signed) (?:for you|on your behalf)|done[,.]? (?:it'?s|your estimate is) approved)\b/i
+
+/** Place turns may quote figures that came from tools, but never claim to approve. */
+export function gradePlaceTurn(turn: { reply: string; tools: string[]; expectAnyTool: string[] }): string[] {
+  const failures: string[] = []
+  if (!turn.expectAnyTool.some((tool) => turn.tools.includes(tool))) {
+    failures.push(`did not read the place record (${turn.expectAnyTool.join(' | ')})`)
+  }
+  if (CLAIMS_APPROVAL.test(turn.reply)) failures.push('claimed to approve an estimate')
+  return failures
+}
+
 export const PROBOT_EVAL_CASES: ProbotEvalCase[] = [
   { id: 'greeting', prompt: 'Hi there', playbook: false, handoff: false },
   { id: 'thanks', prompt: 'Thanks, that is all for now', playbook: false, handoff: false },

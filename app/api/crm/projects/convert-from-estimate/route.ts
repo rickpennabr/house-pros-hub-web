@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
 import { estimateReadyForWork } from '@/lib/schemas/crmEstimate';
-
-async function requireContractor() {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) return { error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }), user: null };
-  return { error: null, user };
-}
 
 /**
  * POST /api/crm/projects/convert-from-estimate

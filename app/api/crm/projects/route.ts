@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
 import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { safeTimeZone } from '@/lib/crm/estimate-chart';
 import { buildProjectChart, type ProjectChart } from '@/lib/crm/list-charts';
-
-async function requireContractor() {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) return { error: NextResponse.json({ error: 'Forbidden - Contractor access required' }, { status: 403 }), user: null };
-  return { error: null, user };
-}
 
 const VALID_SORT = ['created_at', 'updated_at', 'name', 'status', 'start_date', 'end_date'] as const;
 

@@ -3,7 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { isMissingColumnError } from '@/lib/chat/probot-reply'
 import { recordProbotTrace } from '@/lib/chat/probot-trace'
 import { parseAgentPayload } from '@/lib/chat/proagent-policy'
-import { runProAgentTurn, type AgentStepDraft } from '@/lib/chat/proagent-loop'
+import { runProAgentTurn, type AgentStepDraft, type ProAgentProgress } from '@/lib/chat/proagent-loop'
 import type { ProbotTurn } from '@/lib/chat/probot-ai'
 import type { ProAgentPayload } from '@/lib/types/chat'
 import { portalBriefForUser } from '@/lib/places/portal'
@@ -69,6 +69,7 @@ export async function answerHubThread(input: {
   history: ProbotTurn[]
   body: string
   userId?: string
+  onProgress?: (event: ProAgentProgress) => void
 }): Promise<HubBotMessage | null> {
   if (await conversationPaused(input.conversationId)) return null
   await supersedePendingDrafts(input.conversationId)
@@ -87,6 +88,8 @@ export async function answerHubThread(input: {
     locale: input.locale,
     history: input.history,
     portalBrief,
+    userId: input.userId,
+    onProgress: input.onProgress,
   })
 
   const supabase = createServiceRoleClient()

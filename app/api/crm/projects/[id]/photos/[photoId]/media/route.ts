@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
-import { hasRole } from '@/lib/utils/roles';
 import { PRO_DRIVE_BUCKET } from '@/lib/drive/constants';
 import { remuxQuickTimeToMp4 } from '@/lib/media/remux-quicktime';
 
 const cache = new Map<string, Uint8Array>();
 const CACHE_LIMIT = 8;
-
-async function requireContractor() {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), supabase, user: null };
-  const isContractor = await hasRole(user.id, 'contractor');
-  if (!isContractor) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }), supabase, user: null };
-  return { error: null, supabase, user };
-}
 
 /** GET /api/crm/projects/[id]/photos/[photoId]/media — QuickTime clip as an MP4 Chrome can play. */
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string; photoId: string }> }) {

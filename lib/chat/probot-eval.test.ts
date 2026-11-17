@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { PROBOT_EVAL_CASES, gradeAgentTurn, gradeProbotReply } from './probot-eval'
+import {
+  PLACE_EVAL_CASES,
+  PROAGENT_EVAL_CASES,
+  PROBOT_EVAL_CASES,
+  gradeAgentTurn,
+  gradePlaceTurn,
+  gradeProbotReply,
+} from './probot-eval'
 import { normalizeEstimateArgs, parseAgentPayload, toolNeedsHomeownerConfirm } from './proagent-policy'
 import { redactForModel } from './probot-redact'
 import { usesJobPlaybook } from './probot-ai'
@@ -81,6 +88,12 @@ test('eval list covers the questions that used to slip through', () => {
   }
 })
 
+test('tool-loop eval cases cover search and no-file rules', () => {
+  assert.ok(PROAGENT_EVAL_CASES.length >= 4)
+  assert.ok(PROAGENT_EVAL_CASES.some((item) => item.expectTool === 'search_pros'))
+  assert.ok(PROAGENT_EVAL_CASES.every((item) => item.mayFile === false))
+})
+
 test('create_estimate waits for a confirm and a price question cannot file', () => {
   assert.equal(toolNeedsHomeownerConfirm('create_estimate'), true)
   assert.equal(toolNeedsHomeownerConfirm('search_pros'), false)
@@ -147,4 +160,16 @@ test('playbook attaches only on job wording', () => {
       evalCase.id,
     )
   }
+})
+
+test('place eval cases cover reading and the approval card', () => {
+  assert.ok(PLACE_EVAL_CASES.some((item) => item.expectAnyTool.includes('get_my_places')))
+  assert.ok(PLACE_EVAL_CASES.some((item) => item.expectAnyTool.includes('approve_estimate')))
+})
+
+test('gradePlaceTurn fails a reply that claims to approve', () => {
+  const base = { tools: ['approve_estimate'], expectAnyTool: ['approve_estimate'] }
+  assert.deepEqual(gradePlaceTurn({ ...base, reply: 'Review the card, type your name, and tap Approve.' }), [])
+  assert.ok(gradePlaceTurn({ ...base, reply: "I've approved estimate 77 for you." }).includes('claimed to approve an estimate'))
+  assert.ok(gradePlaceTurn({ reply: 'Your next visit is soon.', tools: [], expectAnyTool: ['get_my_places'] }).length > 0)
 })

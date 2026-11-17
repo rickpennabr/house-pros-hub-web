@@ -59,7 +59,9 @@ export interface ProCardData {
   /** Gallery photos with the tags used by the Images search. */
   gallery?: { url: string; tags: string[] }[];
   /** Saved public tab order: contact, hours, services, links, images, about. */
-  tabOrder?: Array<'contact' | 'hours' | 'services' | 'links' | 'images' | 'about'>;
+  tabOrder?: Array<
+    'contact' | 'hours' | 'services' | 'products' | 'properties' | 'trades' | 'links' | 'images' | 'about'
+  >;
   links: LinkItem[];
   reactions?: {
     love?: number;

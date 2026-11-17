@@ -22,6 +22,7 @@ const COLUMNS: AdminDataTableColumn<CrmProduct>[] = [
   { id: 'unit', label: 'Sold by', width: 100 },
   { id: 'price', label: 'Price', width: 110 },
   { id: 'specs', label: 'Specs', width: 90 },
+  { id: 'on_page', label: 'On details', width: 110 },
   { id: 'actions', label: 'Actions', resizable: false },
 ];
 
@@ -41,6 +42,8 @@ function cellText(product: CrmProduct, columnId: string): string {
       return formatCents(product.price_cents);
     case 'specs':
       return String(product.specs.length);
+    case 'on_page':
+      return product.show_on_profile ? 'On' : 'Off';
     default:
       return '';
   }
@@ -119,6 +122,7 @@ export default function CRMProductsPage() {
         description: product.description ?? '',
         unit: product.unit,
         price_cents: product.price_cents,
+        show_on_profile: false,
         images: product.images.map((image) => ({
           image_url: image.image_url,
           storage_path: image.storage_path,
@@ -133,6 +137,31 @@ export default function CRMProductsPage() {
       return;
     }
     setProducts((current) => [...current, data.product as CrmProduct]);
+  };
+
+  const toggleShowOnProfile = async (product: CrmProduct) => {
+    setError(null);
+    const next = !product.show_on_profile;
+    setProducts((current) =>
+      current.map((row) => (row.id === product.id ? { ...row, show_on_profile: next } : row))
+    );
+    const response = await fetch(`/api/crm/products/${product.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ show_on_profile: next }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setProducts((current) =>
+        current.map((row) => (row.id === product.id ? { ...row, show_on_profile: product.show_on_profile } : row))
+      );
+      setError(data.error || 'Could not update details visibility');
+      return;
+    }
+    if (data.product) {
+      setProducts((current) => current.map((row) => (row.id === product.id ? (data.product as CrmProduct) : row)));
+    }
   };
 
   const removeIds = async (ids: string[]) => {
@@ -159,7 +188,7 @@ export default function CRMProductsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 md:text-2xl">Products</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Materials you sell or quote. Specifications change by category, so pavers and plants can share this list.</p>
+          <p className="mt-0.5 text-sm text-gray-500">Materials you sell or quote. Turn on &quot;On details&quot; to show a product on your public Products tab.</p>
         </div>
         <Button
           variant="primary"
@@ -205,6 +234,30 @@ export default function CRMProductsPage() {
             return photo ? <img src={photo} alt="" className="h-8 w-8 rounded object-cover" /> : <span className="inline-block h-8 w-8 rounded bg-neutral-100" />;
           }
           if (columnId === 'specs') return String(row.specs.length);
+          if (columnId === 'on_page') {
+            return (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={row.show_on_profile}
+                aria-label={`Show ${row.name} on details page`}
+                title={row.show_on_profile ? 'Shown on your details page' : 'Hidden from your details page'}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void toggleShowOnProfile(row);
+                }}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-black transition-colors ${
+                  row.show_on_profile ? 'bg-black' : 'bg-white'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 rounded-full transition-transform ${
+                    row.show_on_profile ? 'translate-x-5 bg-white' : 'translate-x-0.5 bg-black'
+                  }`}
+                />
+              </button>
+            );
+          }
           return cellText(row, columnId) || '—';
         }}
         renderActions={(row) => (

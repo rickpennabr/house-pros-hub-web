@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { catalogErrorResponse } from '@/lib/crm/catalog-http';
-import { deleteProduct, releaseStoragePaths, updateProduct } from '@/lib/crm/catalog-db';
-import { productWriteSchema } from '@/lib/schemas/crm-catalog';
+import { deleteProduct, releaseStoragePaths, setProductShowOnProfile, updateProduct } from '@/lib/crm/catalog-db';
+import { productProfileVisibilitySchema, productWriteSchema } from '@/lib/schemas/crm-catalog';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -11,14 +11,29 @@ interface RouteContext {
 
 /**
  * PATCH /api/crm/products/[id]
- * Update a product, its photo order, thumbnail, and specifications.
+ * Update a product, or only its show-on-profile toggle for the details page.
  */
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { error: authError, user, supabase } = await requireContractor();
     if (authError || !user) return authError;
     const { id } = await context.params;
-    const parsed = productWriteSchema.safeParse(await request.json().catch(() => null));
+    const body = await request.json().catch(() => null);
+
+    const visibilityOnly = productProfileVisibilitySchema.safeParse(body);
+    if (
+      visibilityOnly.success &&
+      body &&
+      typeof body === 'object' &&
+      Object.keys(body as object).length === 1 &&
+      'show_on_profile' in (body as object)
+    ) {
+      const product = await setProductShowOnProfile(supabase, user.id, id, visibilityOnly.data.show_on_profile);
+      if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+      return NextResponse.json({ product });
+    }
+
+    const parsed = productWriteSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid product' }, { status: 400 });
     }

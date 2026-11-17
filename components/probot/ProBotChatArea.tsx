@@ -169,6 +169,7 @@ export default function ProBotChatArea({
   const messageInputRef = useRef<HTMLInputElement>(null);
   const [confirmingStepId, setConfirmingStepId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hiTypedLength, setHiTypedLength] = useState(0);
@@ -582,68 +583,189 @@ export default function ProBotChatArea({
       if (!visitorId || sending) return;
       setSending(true);
       setError(null);
+      setAgentStatus(null);
+      const useHubStream = Boolean(selectedContact?.isProBot && !businessId);
+      const draftBotId = useHubStream ? `stream-${Date.now()}` : null;
       try {
         const displayName =
           isAuthenticated && user
             ? [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
             : undefined;
-        const data = await sendMessageApi({
-          conversationId: conversationId ?? undefined,
-          visitorId,
-          body,
-          ...(businessId ? { businessId } : {}),
-          ...(displayName ? { displayName } : {}),
-          ...(isAuthenticated && user?.id ? { userId: user.id } : {}),
-          ...(pendingAttachments.length > 0 ? { attachments: pendingAttachments } : {}),
-          ...(replyTarget ? { replyToId: replyTarget.id } : {}),
-          ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
-        });
+        const data = await sendMessageApi(
+          {
+            conversationId: conversationId ?? undefined,
+            visitorId,
+            body,
+            ...(businessId ? { businessId } : {}),
+            ...(displayName ? { displayName } : {}),
+            ...(isAuthenticated && user?.id ? { userId: user.id } : {}),
+            ...(pendingAttachments.length > 0 ? { attachments: pendingAttachments } : {}),
+            ...(replyTarget ? { replyToId: replyTarget.id } : {}),
+            ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
+            ...(useHubStream ? { stream: true } : {}),
+          },
+          useHubStream
+            ? {
+                onMessage: (raw) => {
+                  const msg = raw as {
+                    id: string;
+                    conversationId?: string;
+                    sender: string;
+                    body: string;
+                    created_at: string;
+                    attachments?: ChatAttachment[];
+                  };
+                  const newMsg: ChatMessage = {
+                    ...msg,
+                    sender: msg.sender as 'visitor' | 'admin',
+                    attachments: msg.attachments ?? [],
+                  };
+                  setMessages((prev) => [...prev, newMsg]);
+                  if (!conversationId && msg.conversationId) setConversationId(msg.conversationId);
+                  if (draftBotId) {
+                    setMessages((prev) => [
+                      ...prev,
+                      {
+                        id: draftBotId,
+                        sender: 'admin',
+                        body: '',
+                        created_at: new Date().toISOString(),
+                        admin_sent_as: 'probot',
+                      },
+                    ]);
+                  }
+                },
+                onStatus: (label) => {
+                  setAgentStatus(label);
+                  if (!draftBotId) return;
+                  // Tool rounds may stream partial content before tool_calls; reset the draft.
+                  if (label !== 'writing' && label !== 'thinking') {
+                    setMessages((prev) =>
+                      prev.map((row) => (row.id === draftBotId ? { ...row, body: '' } : row))
+                    );
+                  }
+                },
+                onToken: (text) => {
+                  if (!draftBotId) return;
+                  setMessages((prev) =>
+                    prev.map((row) =>
+                      row.id === draftBotId ? { ...row, body: `${row.body}${text}` } : row
+                    )
+                  );
+                },
+                onBot: (bot) => {
+                  setAgentStatus(null);
+                  const isEstimateReply = bot.body === t('replyAccountEstimate');
+                  setMessages((prev) => {
+                    const withoutDraft = draftBotId
+                      ? prev.filter((row) => row.id !== draftBotId)
+                      : prev;
+                    return [
+                      ...withoutDraft,
+                      {
+                        id: bot.id,
+                        sender: 'admin' as const,
+                        body: bot.body,
+                        created_at: bot.created_at,
+                        admin_sent_as: 'probot' as const,
+                        ...(bot.payload ? { payload: bot.payload } : {}),
+                        ...(isEstimateReply
+                          ? {
+                              replyLinkUrl: `/${locale}/estimate`,
+                              replyLinkLabel: t('replyAccountEstimateLink'),
+                            }
+                          : {}),
+                      },
+                    ];
+                  });
+                },
+              }
+            : undefined
+        );
         if (data.message) {
-          const msg = data.message as { id: string; conversationId?: string; sender: string; body: string; created_at: string; attachments?: ChatAttachment[]; payload?: ChatMessage['payload'] };
-          const newMsg: ChatMessage = { ...msg, sender: msg.sender as 'visitor' | 'admin', attachments: msg.attachments ?? [] };
+          const msg = data.message as {
+            id: string;
+            conversationId?: string;
+            sender: string;
+            body: string;
+            created_at: string;
+            attachments?: ChatAttachment[];
+            payload?: ChatMessage['payload'];
+          };
           const bot = data.botMessage;
           setMessages((prev) => {
-            const next: ChatMessage[] = [...prev, newMsg];
-            if (bot && selectedContact?.isProBot && !businessId) {
+            const already = prev.some((row) => row.id === msg.id);
+            let next = already
+              ? prev
+              : [
+                  ...prev,
+                  {
+                    ...msg,
+                    sender: msg.sender as 'visitor' | 'admin',
+                    attachments: msg.attachments ?? [],
+                  } satisfies ChatMessage,
+                ];
+            if (bot && selectedContact?.isProBot && !businessId && !next.some((row) => row.id === bot.id)) {
               const isEstimateReply = bot.body === t('replyAccountEstimate');
-              const botPayload = (bot as { payload?: ChatMessage['payload'] }).payload;
-              next.push({
-                id: bot.id,
-                sender: 'admin',
-                body: bot.body,
-                created_at: bot.created_at,
-                admin_sent_as: 'probot',
-                ...(botPayload ? { payload: botPayload } : {}),
-                ...(isEstimateReply
-                  ? {
-                      replyLinkUrl: `/${locale}/estimate`,
-                      replyLinkLabel: t('replyAccountEstimateLink'),
-                    }
-                  : {}),
-              });
+              const botPayload = bot.payload;
+              next = next.filter((row) => row.id !== draftBotId);
+              next = [
+                ...next,
+                {
+                  id: bot.id,
+                  sender: 'admin',
+                  body: bot.body,
+                  created_at: bot.created_at,
+                  admin_sent_as: 'probot',
+                  ...(botPayload ? { payload: botPayload } : {}),
+                  ...(isEstimateReply
+                    ? {
+                        replyLinkUrl: `/${locale}/estimate`,
+                        replyLinkLabel: t('replyAccountEstimateLink'),
+                      }
+                    : {}),
+                },
+              ];
             }
             return next;
           });
+          if (!conversationId && msg.conversationId) setConversationId(msg.conversationId);
           if (!conversationId && (data as { conversationId?: string }).conversationId) {
             setConversationId((data as { conversationId?: string }).conversationId ?? null);
           }
-          if (pendingAttachments.length > 0) setPendingAttachments([]);
-          setReplyTarget(null);
-          // Refetch so read receipts (blue ticks) update if admin read while visitor was typing
-          loadMessages();
-          // Dismiss welcome so the sent message shows in the chat area; persist so welcome shows only once
-          if (selectedContact?.isProBot && !businessId) {
-            setHasChosenThisVisit(true);
-            markProBotWelcomeSeen();
-          }
+        }
+        if (pendingAttachments.length > 0) setPendingAttachments([]);
+        setReplyTarget(null);
+        loadMessages();
+        if (selectedContact?.isProBot && !businessId) {
+          setHasChosenThisVisit(true);
+          markProBotWelcomeSeen();
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to send');
+        if (draftBotId) {
+          setMessages((prev) => prev.filter((row) => row.id !== draftBotId));
+        }
       } finally {
         setSending(false);
+        setAgentStatus(null);
       }
     },
-    [visitorId, conversationId, businessId, setConversationId, sending, selectedContact?.isProBot, t, locale, isAuthenticated, user, pendingAttachments, replyTarget, loadMessages]
+    [
+      visitorId,
+      conversationId,
+      businessId,
+      setConversationId,
+      sending,
+      selectedContact?.isProBot,
+      t,
+      locale,
+      isAuthenticated,
+      user,
+      pendingAttachments,
+      replyTarget,
+      loadMessages,
+    ]
   );
 
   const sendAdminReply = useCallback(
@@ -1745,6 +1867,27 @@ export default function ProBotChatArea({
               <>
                 {error && (
                   <p className="text-sm text-red-600 px-4 pt-4">{error}</p>
+                )}
+                {agentStatus && sending && selectedContact?.isProBot && !businessId && (
+                  <p className="px-4 pt-2 text-xs text-gray-500" aria-live="polite">
+                    {agentStatus === 'searching_pros'
+                      ? 'Searching pros…'
+                      : agentStatus === 'listing_categories'
+                        ? 'Listing categories…'
+                        : agentStatus === 'drafting_estimate'
+                          ? 'Drafting estimate…'
+                          : agentStatus === 'reading_pro'
+                            ? 'Opening pro profile…'
+                            : agentStatus === 'reading_places'
+                              ? 'Checking your places…'
+                              : agentStatus === 'searching_places'
+                                ? 'Searching your places…'
+                                : agentStatus === 'opening_estimate'
+                                  ? 'Opening the estimate…'
+                            : agentStatus === 'writing'
+                              ? 'Writing…'
+                              : 'Thinking…'}
+                  </p>
                 )}
                 <ProBotMessageList
                   messages={filteredMessages}

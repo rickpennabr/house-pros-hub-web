@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { CheckSquare, Clock, Link as LinkIcon, Building2, Images, Wrench } from 'lucide-react';
+import { CheckSquare, Clock, Home, Link as LinkIcon, Building2, Images, Package, Wrench } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
   normalizeBusinessTabOrder,
@@ -15,7 +15,12 @@ export type { BusinessDetailsTab };
 interface BusinessDetailsTabsProps {
   activeTab: BusinessDetailsTab;
   onTabChange: (tab: BusinessDetailsTab) => void;
+  /** Tabs allowed for this pro role (already filtered). */
+  allowedTabs?: BusinessDetailsTab[];
   showServices?: boolean;
+  showProducts?: boolean;
+  showProperties?: boolean;
+  showTrades?: boolean;
   /** Saved order. Missing tabs are filled from the default sequence. */
   tabOrder?: BusinessDetailsTab[];
   /** Owner can drag tabs. The new full order is passed back. */
@@ -25,19 +30,29 @@ interface BusinessDetailsTabsProps {
   sectionShare?: ProSectionShareTarget;
 }
 
-const TAB_META: Record<BusinessDetailsTab, { labelKey?: 'hours' | 'services'; fallback: string; icon: typeof CheckSquare }> = {
-  contact: { fallback: 'Contact', icon: CheckSquare },
+const TAB_META: Record<
+  BusinessDetailsTab,
+  { labelKey: string; fallback: string; icon: typeof CheckSquare }
+> = {
+  contact: { labelKey: 'contact', fallback: 'Contact', icon: CheckSquare },
   hours: { labelKey: 'hours', fallback: 'Hours', icon: Clock },
   services: { labelKey: 'services', fallback: 'Services', icon: Wrench },
-  links: { fallback: 'Links', icon: LinkIcon },
-  images: { fallback: 'Images', icon: Images },
-  about: { fallback: 'About', icon: Building2 },
+  products: { labelKey: 'products', fallback: 'Products', icon: Package },
+  properties: { labelKey: 'properties', fallback: 'Properties', icon: Home },
+  trades: { labelKey: 'trades', fallback: 'Trades', icon: Wrench },
+  links: { labelKey: 'links', fallback: 'Links', icon: LinkIcon },
+  images: { labelKey: 'images', fallback: 'Images', icon: Images },
+  about: { labelKey: 'about', fallback: 'About', icon: Building2 },
 };
 
 export default function BusinessDetailsTabs({
   activeTab,
   onTabChange,
+  allowedTabs,
   showServices = false,
+  showProducts = false,
+  showProperties = false,
+  showTrades = false,
   tabOrder,
   canReorder = false,
   onReorder,
@@ -47,19 +62,43 @@ export default function BusinessDetailsTabs({
   const tHours = useTranslations('businessHours');
   const tTabs = useTranslations('businessTabs');
   const tImages = useTranslations('businessForm.images');
+  const tProducts = useTranslations('businessProducts');
+  const tProperties = useTranslations('businessProperties');
+  const tTrades = useTranslations('businessTrades');
   const dragFrom = useRef<number | null>(null);
   const didDrag = useRef(false);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const fullOrder = normalizeBusinessTabOrder(tabOrder);
-  const tabs = fullOrder
-    .filter((id) => id !== 'services' || showServices)
-    .map((id) => {
-      const meta = TAB_META[id];
-      const label = meta.labelKey === 'hours' ? tHours('tab') : meta.labelKey === 'services' ? t('tab') : meta.fallback;
-      return { id, label, icon: meta.icon };
-    });
+  const fullOrder = (allowedTabs && allowedTabs.length > 0
+    ? allowedTabs
+    : normalizeBusinessTabOrder(tabOrder)
+  ).filter((id) => {
+    if (id === 'services') return showServices;
+    if (id === 'products') return showProducts;
+    if (id === 'properties') return showProperties;
+    if (id === 'trades') return showTrades;
+    return true;
+  });
+
+  const tabs = fullOrder.map((id) => {
+    const meta = TAB_META[id];
+    let label = meta.fallback;
+    try {
+      if (id === 'hours') label = tHours('tab');
+      else if (id === 'services') label = t('tab');
+      else if (id === 'products') label = tProducts('tab');
+      else if (id === 'properties') label = tProperties('tab');
+      else if (id === 'trades') label = tTrades('tab');
+      else if (id === 'images') label = tTabs('images');
+      else if (id === 'contact') label = tTabs('contact');
+      else if (id === 'links') label = tTabs('links');
+      else if (id === 'about') label = tTabs('about');
+    } catch {
+      label = meta.fallback;
+    }
+    return { id, label, icon: meta.icon };
+  });
 
   const reorderEnabled = canReorder && Boolean(onReorder) && tabs.length > 1;
 

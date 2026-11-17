@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
+  Calendar,
   FileCheck,
   FileText,
   FolderKanban,
@@ -26,6 +27,7 @@ const TABS = [
   { id: 'timeline', icon: History },
   { id: 'projects', icon: FolderKanban },
   { id: 'maintenance', icon: Wrench },
+  { id: 'appointments', icon: Calendar },
   { id: 'documents', icon: FileText },
   { id: 'invoices', icon: Receipt },
   { id: 'estimates', icon: FileCheck },
@@ -499,6 +501,56 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
               ) : null}
             </article>
           ))}
+        </section>
+      ) : null}
+
+      {tab === 'appointments' ? (
+        <section className="border-2 border-black rounded-lg p-4 space-y-2" role="tabpanel">
+          {bundle.appointments.length === 0 ? <p className="text-sm text-gray-600">{t('noAppointments')}</p> : null}
+          {bundle.appointments.map((visit) => {
+            const when = new Date(visit.startAt).toLocaleString(locale, {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+              timeZone: visit.timezone,
+            });
+            const title =
+              visit.serviceName?.trim() ||
+              (visit.taskType ? t(`taskType.${visit.taskType}`) : t('appointmentVisit'));
+            const meta = (
+              <span>
+                <span className="block font-medium">{title}</span>
+                <span className="text-xs text-gray-600">
+                  {t('with')} {visit.proName} · {t(`appointmentStatus.${visit.status}`)} · {when}
+                  {visit.source === 'task' ? ` · ${t('scheduledByPro')}` : ''}
+                </span>
+              </span>
+            );
+            if (visit.token) {
+              return (
+                <Link
+                  key={visit.id}
+                  href={`/${locale}/appointments/${visit.token}`}
+                  className="flex items-center justify-between gap-3 border border-black rounded-lg px-3 py-2 text-sm hover:bg-gray-50"
+                >
+                  {meta}
+                  <span className="text-red-600 font-medium">
+                    {visit.canChange ? t('manageAppointment') : t('openAppointment')}
+                  </span>
+                </Link>
+              );
+            }
+            return (
+              <div
+                key={visit.id}
+                className="flex items-center justify-between gap-3 border border-black rounded-lg px-3 py-2 text-sm"
+              >
+                {meta}
+              </div>
+            );
+          })}
         </section>
       ) : null}
 
