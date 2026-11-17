@@ -519,11 +519,15 @@ function FileCard({
   const t = useTranslations('prodrive');
   return (
     <div
-      className="border-2 border-black rounded-lg p-3 bg-white"
+      className={`border-2 border-black rounded-lg p-3 bg-white ${selectionMode ? '' : 'cursor-grab active:cursor-grabbing'}`}
       draggable={!selectionMode}
       onDragStart={(event) => event.dataTransfer.setData('text/prodrive-file', file.id)}
     >
-      <button type="button" className="w-full text-left cursor-pointer" onClick={selectionMode ? onSelect : onDownload}>
+      <button
+        type="button"
+        className={`w-full text-left ${selectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
+        onClick={selectionMode ? onSelect : onDownload}
+      >
         {file.previewUrl ? (
           // Signed Supabase URLs are not in the Next image allowlist for every project.
           // eslint-disable-next-line @next/next/no-img-element
@@ -673,7 +677,7 @@ function WorkspaceFileRow({
   });
   return (
     <tr
-      className="border-b border-black/10 hover:bg-gray-50"
+      className={`border-b border-black/10 hover:bg-gray-50 ${renaming === null ? 'cursor-grab active:cursor-grabbing' : ''}`}
       draggable={renaming === null}
       onDragStart={(event) => event.dataTransfer.setData('text/prodrive-file', file.id)}
     >
@@ -697,7 +701,7 @@ function WorkspaceFileRow({
               className="h-8 min-w-0 flex-1 rounded-lg border-2 border-black px-2 text-sm"
             />
           ) : (
-            <button type="button" className="min-w-0 truncate text-left text-sm font-medium cursor-pointer" onClick={onDownload}>
+            <button type="button" className="min-w-0 truncate text-left text-sm font-medium cursor-grab active:cursor-grabbing" onClick={onDownload}>
               {file.name}
             </button>
           )}

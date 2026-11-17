@@ -507,6 +507,11 @@ export default function BusinessDetailsPage() {
         logo={business.logo || business.businessLogo}
         businessName={business.businessName}
         contractorType={business.contractorType}
+        subtitle={
+          business.accountRole
+            ? business.accountRole.charAt(0).toUpperCase() + business.accountRole.slice(1)
+            : business.contractorType
+        }
         isOwner={isOwner}
       />
       

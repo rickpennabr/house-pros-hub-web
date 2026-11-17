@@ -698,7 +698,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Skip session check to prevent hanging - the API will validate authentication
     // This makes the form more responsive and prevents timeouts from blocking updates
 
-    // Get CSRF token for API request (with timeout)
+    // CSRF is required for PUT /api/profile — do not continue without it.
     let csrfToken = '';
     try {
       const csrfController = new AbortController();
@@ -709,12 +709,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signal: csrfController.signal,
       });
       clearTimeout(csrfTimeout);
-      if (csrfResponse.ok) {
-        const csrfData = await csrfResponse.json();
-        csrfToken = csrfData.csrfToken;
+      if (!csrfResponse.ok) {
+        throw new Error('Failed to get CSRF token');
+      }
+      const csrfData = await csrfResponse.json();
+      csrfToken = typeof csrfData.csrfToken === 'string' ? csrfData.csrfToken.trim() : '';
+      if (!csrfToken) {
+        throw new Error('CSRF token is required');
       }
     } catch (error) {
-      console.warn('Failed to get CSRF token, continuing anyway:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('CSRF token request timed out. Please try again.');
+      }
+      throw error instanceof Error ? error : new Error('CSRF token is required');
     }
 
     // Call profile update API endpoint with timeout
@@ -727,10 +734,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          ...(csrfToken && { 'X-CSRF-Token': csrfToken }),
+          'X-CSRF-Token': csrfToken,
         },
         credentials: 'include',
-        body: JSON.stringify(updates),
+        body: JSON.stringify({ ...updates, csrfToken }),
         signal: controller.signal,
       });
     } catch (error) {

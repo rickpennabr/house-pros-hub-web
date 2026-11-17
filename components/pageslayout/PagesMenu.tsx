@@ -283,7 +283,7 @@ export default function PagesMenu({ children }: PagesMenuProps) {
   }, [pathname]);
 
   const menuItemClasses = (path: string, labelKey: string) => {
-    const baseClasses = 'group h-10 min-w-max shrink-0 border-2 transition-all duration-300 font-medium flex items-center justify-center cursor-pointer hover:scale-[1.02]';
+    const baseClasses = 'group h-10 min-w-max shrink-0 border-2 transition-all duration-300 font-medium flex items-center justify-center cursor-grab active:cursor-grabbing hover:scale-[1.02]';
     const itemGap = 'gap-1 md:gap-2.5';
     const itemPadding = 'px-2.5 md:px-4';
     const activeClasses = 'bg-black border-black text-white rounded-lg';
@@ -293,7 +293,7 @@ export default function PagesMenu({ children }: PagesMenuProps) {
     const pathWithLocale = `/${locale}${path}`;
     const isActive = pathname === pathWithLocale || pathname.startsWith(`${pathWithLocale}/`);
     if (labelKey === 'quickRepair') {
-      return 'relative flex h-10 w-[52px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 md:hidden';
+      return 'relative flex h-10 w-[52px] shrink-0 cursor-grab items-center justify-center border-0 bg-transparent p-0 active:cursor-grabbing md:hidden';
     }
     return isActive
       ? `${baseClasses} ${itemGap} ${itemPadding} ${activeClasses}`

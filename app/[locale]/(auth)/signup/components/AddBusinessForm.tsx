@@ -22,11 +22,14 @@ import type { BusinessFormValues } from '@/lib/schemas/business';
 interface AddBusinessFormProps {
   personalData?: PersonalData;
   onSubmit: (formData: BusinessFormValues) => Promise<void>;
+  /** Realtor signup uses Nevada real-estate license types, not contractor codes. */
+  licenseRole?: 'contractor' | 'realtor';
 }
 
 export function AddBusinessForm({
   personalData,
   onSubmit,
+  licenseRole = 'contractor',
 }: AddBusinessFormProps) {
   const t = useTranslations('businessForm');
   const tSignup = useTranslations('auth.signup.navigation');
@@ -87,7 +90,7 @@ export function AddBusinessForm({
       case 1:
         return <BusinessStep1 />;
       case 2:
-        return <BusinessStepLicenses reorderLicenses={reorderLicenses} />;
+        return <BusinessStepLicenses reorderLicenses={reorderLicenses} licenseRole={licenseRole} />;
       case 3:
         return <BusinessStepServices reorderServices={reorderServices} />;
       case 4:

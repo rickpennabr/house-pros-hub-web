@@ -304,7 +304,7 @@ export function ContractorStepLinks({ updateLink, reorderLinks, personalData }: 
                           draggable 
                           onDragStart={(e) => handleDragStart(e, index)} 
                           onDragEnd={() => setDraggedIndex(null)} 
-                          className="-ml-1 cursor-move transition-transform duration-200 hover:scale-110 active:scale-95"
+                          className="-ml-1 cursor-grab transition-transform duration-200 hover:scale-110 active:scale-95 active:cursor-grabbing"
                         >
                           <GripVertical className="w-5 h-5 text-black transition-colors duration-200" />
                         </div>

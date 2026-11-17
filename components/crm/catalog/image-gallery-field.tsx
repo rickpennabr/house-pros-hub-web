@@ -114,7 +114,7 @@ export function ImageGalleryField({ images, max, onChange }: ImageGalleryFieldPr
               next.splice(index, 0, item);
               onChange(next);
             }}
-            className={`relative overflow-hidden rounded-lg border-2 bg-neutral-100 ${
+            className={`relative cursor-grab overflow-hidden rounded-lg border-2 bg-neutral-100 active:cursor-grabbing ${
               image.isThumbnail ? 'border-black' : 'border-gray-300'
             }`}
           >

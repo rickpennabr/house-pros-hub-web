@@ -356,6 +356,7 @@ function SignUpForm() {
               <AddBusinessForm
                 personalData={getPersonalData()}
                 onSubmit={handleBusinessSubmit}
+                licenseRole={selectedRole === 'realtor' ? 'realtor' : 'contractor'}
               />
             ) : formState.businessSuccessMessage ? (
               <>

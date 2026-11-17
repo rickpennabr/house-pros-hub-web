@@ -7,6 +7,11 @@ import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
 import { NEVADA_BUSINESS_LICENSE_DIGITS, isValidNevadaBusinessLicense } from '@/lib/schemas/business';
+import {
+  isValidNevadaRealtorLicenseNumber,
+  nevadaRealtorLicenseHint,
+  normalizeNevadaRealtorLicenseNumber,
+} from '@/lib/utils/nevadaRealtorLicense';
 import { X, FileText, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import type { BusinessFormValues } from '@/lib/schemas/business';
 
@@ -17,15 +22,22 @@ export interface LicenseCategoryFromApi {
   description?: string;
   requires_contractor_license: boolean;
   sort_order: number;
+  role?: 'contractor' | 'realtor';
 }
 
 interface BusinessStepLicensesProps {
   reorderLicenses?: (fromIndex: number, toIndex: number) => void;
+  /** Filters Nevada license types. Realtors never see contractor classifications. */
+  licenseRole?: 'contractor' | 'realtor';
 }
 
-export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesProps) {
+export function BusinessStepLicenses({
+  reorderLicenses,
+  licenseRole = 'contractor',
+}: BusinessStepLicensesProps) {
   const t = useTranslations('businessForm.licenses');
   const { register, control, setValue, watch, setError, clearErrors, formState: { errors, isSubmitting } } = useFormContext<BusinessFormValues>();
+  const isRealtor = licenseRole === 'realtor';
   
   const { fields, prepend, remove, move } = useFieldArray({
     control,
@@ -39,13 +51,13 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
   const [categories, setCategories] = useState<LicenseCategoryFromApi[]>([]);
 
   useEffect(() => {
-    fetch('/api/license-categories')
+    fetch(`/api/license-categories?role=${licenseRole}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.categories?.length) setCategories(data.categories);
       })
       .catch(() => {});
-  }, []);
+  }, [licenseRole]);
 
   const nonContractorCodes = useMemo(
     () => categories.filter((c) => !c.requires_contractor_license).map((c) => c.code),
@@ -56,6 +68,17 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
     [categories]
   );
   const isNonContractorLicense = (code: string) => nonContractorCodes.includes(code);
+  const categoryOptions = useMemo(() => {
+    if (isRealtor) {
+      return [...categories].sort((a, b) => a.sort_order - b.sort_order);
+    }
+    return [
+      ...nonContractorCategories,
+      ...categories
+        .filter((c) => c.requires_contractor_license)
+        .sort((a, b) => a.sort_order - b.sort_order),
+    ];
+  }, [categories, isRealtor, nonContractorCategories]);
 
   const licenseErrors = errors.licenses as unknown as
     | Array<{
@@ -120,10 +143,13 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
         <div className="flex items-center justify-between gap-8">
           <div>
             <label className="block text-sm font-medium mb-1 text-gray-700">
-              {t('contractorLicensesLabel')} <span className="text-red-500">*</span>
+              {isRealtor ? 'Nevada real estate licenses' : t('contractorLicensesLabel')}{' '}
+              <span className="text-red-500">*</span>
             </label>
             <span className="text-xs text-gray-500">
-              {t('contractorLicensesHelp')}
+              {isRealtor
+                ? 'Salesperson (S.), Broker-salesperson (BS.), or Broker (B.). Ads must also show your brokerage name.'
+                : t('contractorLicensesHelp')}
             </span>
           </div>
           <button
@@ -197,7 +223,7 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
                           draggable 
                           onDragStart={(e) => handleDragStart(e, index)} 
                           onDragEnd={() => setDraggedIndex(null)} 
-                          className="-ml-1 cursor-move transition-transform duration-200 hover:scale-110 active:scale-95"
+                          className="-ml-1 cursor-grab transition-transform duration-200 hover:scale-110 active:scale-95 active:cursor-grabbing"
                         >
                           <GripVertical className="w-5 h-5 text-black transition-colors duration-200" />
                         </div>
@@ -244,33 +270,53 @@ export function BusinessStepLicenses({ reorderLicenses }: BusinessStepLicensesPr
                           disabled={isSubmitting}
                         >
                           <option value="">{t('licenseClassificationPlaceholder')}</option>
-                          {[...nonContractorCategories, ...categories.filter((c) => c.requires_contractor_license).sort((a, b) => a.sort_order - b.sort_order)].map((cat) => (
+                          {categoryOptions.map((cat) => (
                             <option key={cat.id} value={cat.code}>
-                              {cat.code} - {cat.name}
+                              {isRealtor ? cat.name : `${cat.code} - ${cat.name}`}
                             </option>
                           ))}
                         </select>
                       </FormField>
 
                       <FormField 
-                        label={isNonContractorLicense(licenses?.[index]?.license ?? '') ? t('licenseNumberLabelHandyman') : t('licenseNumberLabel')} 
+                        label={
+                          isRealtor
+                            ? 'Nevada real estate license number'
+                            : isNonContractorLicense(licenses?.[index]?.license ?? '')
+                              ? t('licenseNumberLabelHandyman')
+                              : t('licenseNumberLabel')
+                        } 
                         required
-                        tip={isNonContractorLicense(licenses?.[index]?.license ?? '') ? t('licenseNumberTipHandyman') : t('licenseNumberTip')}
+                        tip={
+                          isRealtor
+                            ? nevadaRealtorLicenseHint(licenses?.[index]?.license)
+                            : isNonContractorLicense(licenses?.[index]?.license ?? '')
+                              ? t('licenseNumberTipHandyman')
+                              : t('licenseNumberTip')
+                        }
                         error={licenseErrors?.[index]?.licenseNumber?.message}
                       >
                         <Input
                           {...register(`licenses.${index}.licenseNumber` as FieldPath<BusinessFormValues>, {
                             validate: (value) => {
                               const license = licenses?.[index]?.license;
-                              if (!license || !isNonContractorLicense(license)) return true;
                               const str: string = typeof value === 'string' ? value : Array.isArray(value) ? (typeof value[0] === 'string' ? value[0] : '') : '';
+                              if (isRealtor) {
+                                if (!str.trim()) return 'License number is required';
+                                return (
+                                  isValidNevadaRealtorLicenseNumber(str, license) ||
+                                  nevadaRealtorLicenseHint(license)
+                                );
+                              }
+                              if (!license || !isNonContractorLicense(license)) return true;
                               return isValidNevadaBusinessLicense(str) || `Nevada Business License must be ${NEVADA_BUSINESS_LICENSE_DIGITS} digits (spaces or dashes are ignored)`;
                             },
                           })}
                           type="text"
                           value={licenses?.[index]?.licenseNumber || ''}
                           onChange={(e) => {
-                            const val = e.target.value.trim();
+                            const raw = e.target.value.trim();
+                            const val = isRealtor ? normalizeNevadaRealtorLicenseNumber(raw) : raw;
                             // Check if this license number is already entered in another field
                             const isDuplicate = licenses?.some((l, i) => i !== index && l.licenseNumber?.trim() === val && val !== '');
                             

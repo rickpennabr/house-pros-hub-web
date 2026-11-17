@@ -163,6 +163,8 @@ export function transformBusinessToProCardData(
     userId: string;
     /** When true, show calendar/booking icon on ProCard and add link to public booking page */
     showCalendarOnProCard?: boolean;
+    /** Owner account role from user_roles (shown under the business name). */
+    accountRole?: 'contractor' | 'realtor' | 'installer' | 'handyman';
   },
   options?: TransformBusinessOptions
 ): ProCardData & { userId: string } {
@@ -257,6 +259,7 @@ export function transformBusinessToProCardData(
     businessBackgroundPosition: businessData.businessBackgroundPosition ?? '50% 50%',
     businessName: businessData.businessName,
     contractorType,
+    accountRole: businessData.accountRole,
     category,
     tradeIcon,
     licenses: processedLicenses,

@@ -11,8 +11,10 @@ import ProLinks from './ProLinks';
 import ProReactions from './ProReactions';
 import ShareBusinessModal from '@/components/businessdetails/ShareBusinessModal';
 import SignInRequiredModal from '@/components/auth/SignInRequiredModal';
+import { ChangeProRoleModal } from '@/components/proscard/ChangeProRoleModal';
 import { HphQrCodeModal } from '@/components/qr/HphQrCodeModal';
 import { publicPageUrl } from '@/lib/qr/public-origin';
+import type { ProAccountRole } from '@/lib/utils/proAccountRole';
 
 import { LinkItem } from './ProLinks';
 import type { Locale } from '@/i18n';
@@ -26,6 +28,10 @@ export interface ProCardData {
   businessBackgroundPosition?: string;
   businessName: string;
   contractorType: string;
+  /** Owner account role from user_roles — shown under the business name. */
+  accountRole?: 'contractor' | 'realtor' | 'installer' | 'handyman';
+  /** Owner user id — used so the owner can change their role from the card. */
+  userId?: string;
   tradeIcon?: string; // Icon name from lucide-react (deprecated - use licenses array)
   category?: string; // Category for filtering (e.g., 'Roofing', 'Plumbing', 'Tile', etc.)
   licenses?: Array<{ license: string; licenseNumber: string; tradeName?: string; tradeIcon?: string }>;
@@ -79,10 +85,17 @@ interface ProCardProps {
 export default function ProCard({ data, onShare, onReaction, isListMode = false, href, pickOnly = false }: ProCardProps) {
   const router = useRouter();
   const locale = useLocale();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, refreshRoles } = useAuth();
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isSignInRequiredOpen, setIsSignInRequiredOpen] = useState(false);
+  const [isChangeRoleOpen, setIsChangeRoleOpen] = useState(false);
+  const [accountRole, setAccountRole] = useState(data.accountRole);
+  const isOwner = Boolean(user?.id && data.userId && user.id === data.userId);
+
+  useEffect(() => {
+    setAccountRole(data.accountRole);
+  }, [data.accountRole]);
   const profileHref = createLocalePath(locale as Locale, `/business/${data.slug || data.id}`);
   const cardHref = href || profileHref;
   const [shareBusinessUrl, setShareBusinessUrl] = useState('');
@@ -132,6 +145,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
           logo={data.logo}
           businessName={data.businessName}
           contractorType={data.contractorType}
+          accountRole={accountRole}
           tradeIcon={data.tradeIcon}
           category={data.category}
           licenses={data.licenses}
@@ -148,6 +162,8 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
           }}
           onPhoneClick={!isAuthenticated ? handlePhoneClick : undefined}
           actionsEnabled={!pickOnly}
+          canChangeRole={isOwner && !pickOnly}
+          onChangeRole={() => setIsChangeRoleOpen(true)}
         />
         </div>
         <ShareBusinessModal
@@ -157,6 +173,15 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
           contractorType={data.contractorType}
           logo={data.logo}
           businessUrl={shareBusinessUrl}
+        />
+        <ChangeProRoleModal
+          isOpen={isChangeRoleOpen}
+          onClose={() => setIsChangeRoleOpen(false)}
+          currentRole={accountRole ?? null}
+          onChanged={async (role: ProAccountRole) => {
+            setAccountRole(role);
+            await refreshRoles();
+          }}
         />
         <SignInRequiredModal isOpen={isSignInRequiredOpen} onClose={() => setIsSignInRequiredOpen(false)} />
       </div>
@@ -171,6 +196,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
         logo={data.logo}
         businessName={data.businessName}
         contractorType={data.contractorType}
+        accountRole={accountRole}
         tradeIcon={data.tradeIcon}
         category={data.category}
         licenses={data.licenses}
@@ -184,6 +210,8 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
           }
         }}
         actionsEnabled={!pickOnly}
+        canChangeRole={isOwner && !pickOnly}
+        onChangeRole={() => setIsChangeRoleOpen(true)}
       />
       <div className={pickOnly ? undefined : 'pointer-events-auto relative z-20'}>
       <ProLinks
@@ -200,7 +228,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
         logo={data.logo}
         businessId={data.id}
         businessSlug={data.slug}
-        ownerUserId={(data as { userId?: string }).userId}
+        ownerUserId={data.userId}
         onSignInRequired={!isAuthenticated ? showSignInRequired : undefined}
       />
       </div>
@@ -213,6 +241,15 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
         contractorType={data.contractorType}
         logo={data.logo}
         businessUrl={shareBusinessUrl}
+      />
+      <ChangeProRoleModal
+        isOpen={isChangeRoleOpen}
+        onClose={() => setIsChangeRoleOpen(false)}
+        currentRole={accountRole ?? null}
+        onChanged={async (role: ProAccountRole) => {
+          setAccountRole(role);
+          await refreshRoles();
+        }}
       />
       <HphQrCodeModal
         isOpen={isQrModalOpen}

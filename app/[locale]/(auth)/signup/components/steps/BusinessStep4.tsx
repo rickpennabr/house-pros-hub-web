@@ -298,7 +298,7 @@ export function BusinessStep4({ updateLink, reorderLinks, personalData }: Busine
                           draggable 
                           onDragStart={(e) => handleDragStart(e, index)} 
                           onDragEnd={() => setDraggedIndex(null)} 
-                          className="cursor-move transition-transform duration-200 hover:scale-110 active:scale-95"
+                          className="cursor-grab transition-transform duration-200 hover:scale-110 active:scale-95 active:cursor-grabbing"
                         >
                           <GripVertical className="w-5 h-5 text-black transition-colors duration-200" />
                         </div>

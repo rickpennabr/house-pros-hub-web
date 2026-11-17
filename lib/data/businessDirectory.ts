@@ -15,6 +15,7 @@ import { transformBusinessToProCardData } from '@/lib/utils/businessTransform';
 import { normalizeLinks } from '@/lib/utils/normalizeLinks';
 import { getBusinessCategories, licenseCodesForCategory } from '@/lib/utils/businessSearch';
 import { DIRECTORY_CARD_PAGE_SIZE, DIRECTORY_MAX_PAGE_SIZE } from '@/lib/constants/businessDirectory';
+import { primaryProAccountRole } from '@/lib/utils/proAccountRole';
 import type { ProCardData } from '@/components/proscard/ProCard';
 
 export { sanitizeDirectoryCategory, sanitizeDirectoryCity, sanitizeDirectorySearch } from '@/lib/data/directoryParams';
@@ -121,7 +122,39 @@ const getCachedLicenseCategories = unstable_cache(loadLicenseCategories, ['licen
   tags: [BUSINESS_DIRECTORY_CACHE_TAG],
 });
 
-function toCards(rows: DbBusinessRow[], licenseCategories: Array<{ code: string; name: string }>): ProCardData[] {
+async function loadOwnerRoles(ownerIds: string[]): Promise<Map<string, string[]>> {
+  const unique = [...new Set(ownerIds.filter(Boolean))];
+  const map = new Map<string, string[]>();
+  if (unique.length === 0) return map;
+
+  const supabase = createServiceRoleClient();
+  const { data } = await supabase
+    .from('user_roles')
+    .select('user_id, role')
+    .in('user_id', unique)
+    .eq('is_active', true);
+
+  for (const row of data ?? []) {
+    const list = map.get(row.user_id) ?? [];
+    list.push(row.role);
+    map.set(row.user_id, list);
+  }
+  return map;
+}
+
+async function toCardsWithRoles(
+  rows: DbBusinessRow[],
+  licenseCategories: Array<{ code: string; name: string }>
+): Promise<ProCardData[]> {
+  const ownerRoles = await loadOwnerRoles(rows.map((row) => row.owner_id));
+  return toCards(rows, licenseCategories, ownerRoles);
+}
+
+function toCards(
+  rows: DbBusinessRow[],
+  licenseCategories: Array<{ code: string; name: string }>,
+  ownerRoles: Map<string, string[]> = new Map()
+): ProCardData[] {
   return rows.map((business) => {
     const licenses = (business.licenses || []).map((license) => ({
       license: license.license_type || 'GENERAL',
@@ -132,6 +165,7 @@ function toCards(rows: DbBusinessRow[], licenseCategories: Array<{ code: string;
       licenses.push({ license: 'GENERAL', licenseNumber: '', trade: '' });
     }
     const address = Array.isArray(business.addresses) ? business.addresses[0] : business.addresses;
+    const accountRole = primaryProAccountRole(ownerRoles.get(business.owner_id));
     const transformed = transformBusinessToProCardData(
       {
         id: business.id,
@@ -153,13 +187,12 @@ function toCards(rows: DbBusinessRow[], licenseCategories: Array<{ code: string;
         links: normalizeLinks(business.links),
         userId: business.owner_id,
         showCalendarOnProCard: business.show_calendar_on_procard ?? false,
+        accountRole: accountRole ?? undefined,
       },
       { licenseCategories }
     );
     if (!transformed.category) transformed.category = 'General';
-    const { userId: _userId, ...card } = transformed;
-    void _userId;
-    return card;
+    return transformed;
   });
 }
 
@@ -178,8 +211,9 @@ async function queryPlainDirectory(limit: number, offset: number): Promise<Direc
     throw new Error(error.message);
   }
 
+  const rows = (data ?? []) as unknown as DbBusinessRow[];
   return {
-    businesses: toCards((data ?? []) as unknown as DbBusinessRow[], licenseCategories),
+    businesses: await toCardsWithRoles(rows, licenseCategories),
     total: count ?? data?.length ?? 0,
   };
 }
@@ -241,7 +275,7 @@ async function queryFilteredDirectory(
   const rows = (businesses as unknown as DbBusinessRow[]).slice().sort(
     (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
   );
-  return { businesses: toCards(rows, licenseCategories), total };
+  return { businesses: await toCardsWithRoles(rows, licenseCategories), total };
 }
 
 async function queryFilteredFallback(
@@ -289,7 +323,7 @@ async function queryFilteredFallback(
   });
 
   return {
-    businesses: toCards(rows, licenseCategories),
+    businesses: await toCardsWithRoles(rows, licenseCategories),
     total: count ?? rows.length,
   };
 }
@@ -306,7 +340,7 @@ export async function listBookableBusinesses(limit = 48): Promise<ProCardData[]>
     .order('business_name', { ascending: true })
     .limit(Math.min(Math.max(limit, 1), 60));
   if (error) throw new Error(error.message);
-  return toCards((data ?? []) as unknown as DbBusinessRow[], licenseCategories);
+  return toCardsWithRoles((data ?? []) as unknown as DbBusinessRow[], licenseCategories);
 }
 
 async function queryBusinessDirectory(params: DirectoryQuery): Promise<DirectoryPage> {
@@ -425,7 +459,8 @@ async function loadPublicBusiness(idOrSlug: string): Promise<ProCardData | null>
   const { data, error } = await (isUUID ? query.eq('id', idOrSlug) : query.eq('slug', idOrSlug)).maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
-  return toCards([data as unknown as DbBusinessRow], licenseCategories)[0] ?? null;
+  const cards = await toCardsWithRoles([data as unknown as DbBusinessRow], licenseCategories);
+  return cards[0] ?? null;
 }
 
 export const getPublicBusiness = cache(loadPublicBusiness);
@@ -523,7 +558,7 @@ export async function searchBusinessesForAgents(params: DirectoryQuery & { city?
     seen.add(row.id);
     return true;
   });
-  let cards = toCards(rows, licenseCategories);
+  let cards = await toCardsWithRoles(rows, licenseCategories);
   if (search) cards = cards.filter((card) => matchesAgentSearch(card, search));
   if (category) cards = cards.filter((card) => matchesAgentCategory(card, category));
 

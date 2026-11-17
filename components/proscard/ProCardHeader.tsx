@@ -2,9 +2,14 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { Share2, Phone, MessageCircle } from 'lucide-react';
+import { Share2, Phone, MessageCircle, ChevronDown } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import {
+  proAccountRoleIcon,
+  proAccountRoleLabel,
+  type ProAccountRole,
+} from '@/lib/utils/proAccountRole';
 
 interface LicenseInfo {
   license: string;
@@ -17,6 +22,8 @@ interface ProCardHeaderProps {
   logo?: string;
   businessName: string;
   contractorType: string;
+  /** Owner account role shown under the business name. */
+  accountRole?: ProAccountRole | string | null;
   tradeIcon?: string; // Deprecated - use licenses array
   category?: string;
   licenses?: LicenseInfo[];
@@ -29,6 +36,9 @@ interface ProCardHeaderProps {
   online?: boolean;
   /** When false, share, message, and phone stay visible but do not take clicks. */
   actionsEnabled?: boolean;
+  /** Owner can open the role-change flow from the subtitle. */
+  canChangeRole?: boolean;
+  onChangeRole?: () => void;
 }
 
 function getInitials(name: string): string {
@@ -151,6 +161,7 @@ export default function ProCardHeader({
   logo, 
   businessName, 
   contractorType,
+  accountRole,
   tradeIcon,
   licenses,
   phone,
@@ -160,6 +171,8 @@ export default function ProCardHeader({
   onPhoneClick,
   online,
   actionsEnabled = true,
+  canChangeRole = false,
+  onChangeRole,
 }: ProCardHeaderProps) {
   const t = useTranslations('estimate.options.trades');
   const initials = getInitials(businessName);
@@ -168,20 +181,18 @@ export default function ProCardHeader({
     hasError: false,
   }));
   const imageError = imageErrorState.logo === logo ? imageErrorState.hasError : false;
-  
-  // Use licenses array if available, otherwise fall back to contractorType/tradeIcon
-  const displayLicenses: Array<{ tradeName: string; tradeIcon?: string }> = licenses && licenses.length > 0
-    ? licenses.map(license => ({
-        tradeName: license.tradeName || contractorType.replace(/\s*Contractor\s*/gi, '').trim(),
-        tradeIcon: license.tradeIcon,
-      }))
-    : [{
-        tradeName: contractorType.replace(/\s*Contractor\s*/gi, '').trim(),
-        tradeIcon: tradeIcon,
-      }];
+
+  const roleLabel = proAccountRoleLabel(accountRole) || contractorType.replace(/\s*Contractor\s*/gi, '').trim();
+  const roleIconName = accountRole ? proAccountRoleIcon(accountRole) : tradeIcon || licenses?.[0]?.tradeIcon;
+  const RoleIcon =
+    roleIconName && roleIconName in LucideIcons
+      ? (LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }>>)[roleIconName]
+      : null;
 
   // Don't show category if we have licenses array - licenses should be the source of truth
   const showCategory = false;
+  void t;
+  void licenses;
 
   // Right-side actions: grouped at right-2. Use same padding as card mode so content alignment matches.
   const rightPadding = isListMode
@@ -227,43 +238,36 @@ export default function ProCardHeader({
         <div className="flex-1 min-w-0">
           <h3 className="text-[11.5px] lg:text-[12.65px] font-bold text-black truncate leading-tight">{businessName}</h3>
           <div className="flex flex-col gap-0.5 min-w-0 mt-0.5">
-            {/* Licenses - Show all with icons, pipe-separated, with ellipsis on overflow */}
             <div className="min-w-0 overflow-hidden">
-              <p className="text-[10px] font-medium text-gray-600 truncate">
-                {displayLicenses.map((license, index) => {
-                  const IconComponent = license.tradeIcon && license.tradeIcon in LucideIcons
-                    ? (LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }>>)[license.tradeIcon]
-                    : null;
-                  
-                  return (
-                    <React.Fragment key={index}>
-                      {IconComponent && (
-                        <IconComponent className={`inline-block w-3.5 h-3.5 align-middle mr-1.5 ${getIconColor(license.tradeIcon).replace('-400', '-600').replace('-500', '-700')}`} />
-                      )}
-                      <span>
-                        {(() => {
-                          if (!license.tradeName) {
-                            return license.tradeName;
-                          }
-                          const translationKey = getTradeTranslationKey(license.tradeName);
-                          if (!translationKey) {
-                            return license.tradeName;
-                          }
-                          // Only translate if we have a valid key
-                          try {
-                            return t(translationKey as Parameters<typeof t>[0]);
-                          } catch {
-                            return license.tradeName;
-                          }
-                        })()}
-                      </span>
-                      {index < displayLicenses.length - 1 && (
-                        <span className="text-gray-400 mx-1.5">|</span>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </p>
+              {canChangeRole && onChangeRole ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onChangeRole();
+                  }}
+                  className="pointer-events-auto relative z-20 inline-flex max-w-full items-center gap-1 text-[10px] font-medium text-gray-600 hover:text-black truncate"
+                  aria-label="Change professional role"
+                >
+                  {RoleIcon && (
+                    <RoleIcon
+                      className={`inline-block w-3.5 h-3.5 shrink-0 ${getIconColor(roleIconName).replace('-400', '-600').replace('-500', '-700')}`}
+                    />
+                  )}
+                  <span className="truncate">{roleLabel || 'Choose role'}</span>
+                  <ChevronDown className="w-3 h-3 shrink-0 text-gray-500" />
+                </button>
+              ) : (
+                <p className="text-[10px] font-medium text-gray-600 truncate">
+                  {RoleIcon && (
+                    <RoleIcon
+                      className={`inline-block w-3.5 h-3.5 align-middle mr-1.5 ${getIconColor(roleIconName).replace('-400', '-600').replace('-500', '-700')}`}
+                    />
+                  )}
+                  <span>{roleLabel}</span>
+                </p>
+              )}
             </div>
           </div>
         </div>
