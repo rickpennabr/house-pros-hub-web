@@ -54,8 +54,17 @@ export function useProBotContacts({ isAuthenticated, userBusinessId, asPersonal 
     const cached = getCachedContacts(isAuthenticated);
     return cached ?? FALLBACK_CONTACTS;
   });
+  /** Which request the current list came from, so callers know when this profile's contacts are in. */
+  const requestKey = `${isAuthenticated ? 'auth' : 'guest'}|${userBusinessId ?? ''}|${asPersonal ? 'personal' : ''}`;
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    const apply = (next: ProBotContact[]) => {
+      if (cancelled) return;
+      setContacts(next);
+      setLoadedKey(requestKey);
+    };
     if (isAuthenticated) {
       // Bust stale session cache so inbox order/membership matches the server after chat fixes.
       try {
@@ -72,10 +81,10 @@ export function useProBotContacts({ isAuthenticated, userBusinessId, asPersonal 
             userBusinessId
               ? next.map((c) => (c.businessId === userBusinessId ? { ...c, online: true } : c))
               : next;
-          setContacts(updated);
-          setCachedContacts(true, updated);
+          apply(updated);
+          if (!cancelled) setCachedContacts(true, updated);
         })
-        .catch(() => setContacts(FALLBACK_CONTACTS));
+        .catch(() => apply(FALLBACK_CONTACTS));
     } else {
       fetch('/api/businesses?limit=50')
         .then((res) => (res.ok ? res.json() : { businesses: [] }))
@@ -93,12 +102,15 @@ export function useProBotContacts({ isAuthenticated, userBusinessId, asPersonal 
             })
           );
           const next = [PROBOT_CONTACT, ...proContacts];
-          setContacts(next);
-          setCachedContacts(false, next);
+          apply(next);
+          if (!cancelled) setCachedContacts(false, next);
         })
-        .catch(() => setContacts(FALLBACK_CONTACTS));
+        .catch(() => apply(FALLBACK_CONTACTS));
     }
-  }, [isAuthenticated, userBusinessId, asPersonal]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, userBusinessId, asPersonal, requestKey]);
 
   const businessIds = useMemo(
     () => contacts.filter((c) => c.businessId).map((c) => c.businessId as string),
@@ -123,5 +135,5 @@ export function useProBotContacts({ isAuthenticated, userBusinessId, asPersonal 
     return map;
   }, [contacts]);
 
-  return { contacts, setContacts, businessIds, customerUserIds, contactById };
+  return { contacts, setContacts, businessIds, customerUserIds, contactById, contactsLoaded: loadedKey === requestKey };
 }

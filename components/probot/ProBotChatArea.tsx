@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import Image from 'next/image';
-import { Building2, CreditCard, FileText, Receipt, Trash2, ArrowLeft, User, CalendarDays, Check, UserPlus, Home as HomeIcon, Loader2 } from 'lucide-react';
+import { Building2, CreditCard, FileText, FolderOpen, Receipt, Trash2, ArrowLeft, User, CalendarDays, Check, UserPlus, Home as HomeIcon, Loader2 } from 'lucide-react';
 import { useChat } from '@/contexts/ChatContext';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import Modal from '@/components/ui/Modal';
@@ -14,6 +14,8 @@ import ChatSignupForm from '@/components/chat/ChatSignupForm';
 import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
 import ChatInputBar from '@/components/chat/ChatInputBar';
 import ChatCrmDocPicker, { type ChatCrmDocKind } from '@/components/chat/ChatCrmDocPicker';
+import ChatQuickDocComposer, { type QuickDocKind } from '@/components/chat/ChatQuickDocComposer';
+import { createEstimateShare, createInvoiceShare, type SharedCrmDoc } from '@/lib/chat/crm-doc-share';
 import { ChatCamFrame } from '@/components/chat/ChatCamFrame';
 import AddCustomerForm from '@/components/chat/AddCustomerForm';
 import ProEstimateBookingFlow from '@/components/probot/ProEstimateBookingFlow';
@@ -78,6 +80,11 @@ interface ProBotChatAreaProps {
   onConversationDeleted?: (conversationId: string) => void;
   /** Bump to reload the open thread (e.g. after a contact menu delete). */
   messagesRefreshKey?: number;
+  /** A message was sent in the open chat, so the page can move it to the top of the contact list. */
+  onThreadActivity?: () => void;
+  /** Back from the CRM editor with a saved document: post it in this chat as a card. */
+  autoShareDoc?: { kind: QuickDocKind; id: string } | null;
+  onAutoShareDone?: () => void;
 }
 
 const TYPING_MS = 60;
@@ -107,35 +114,29 @@ function dedupeMessagesById(messages: ChatMessage[]): ChatMessage[] {
 
 /**
  * Customer view: ProBot hub = untagged messages; a business contact = that business's thread.
- * Legacy pro replies were often saved without business_id — keep them when they follow a
- * customer message to this business (same rule the contractor inbox effectively uses).
+ * Pro replies saved without business_id (older rows, or a failed insert retry) belong to the business
+ * the customer last wrote to. File them there only, never in ProBot too, and show them as that business.
  */
 function filterMessagesForContact(
   messages: ChatMessage[],
   contact: ProBotContact
 ): ChatMessage[] {
+  let activeBusiness: string | undefined;
+  const threadOf = new Map<string, string | undefined>();
+  for (const m of messages) {
+    const bid = m.business_id ?? undefined;
+    if (m.sender === 'visitor') activeBusiness = bid;
+    const explicitHub = m.admin_sent_as === 'probot' || m.admin_sent_as === 'hub_agent';
+    threadOf.set(m.id, bid ?? (m.sender === 'admin' && !explicitHub ? activeBusiness : undefined));
+  }
   if (contact.isProBot) {
-    return messages.filter((m) => !(m.business_id ?? undefined));
+    return messages.filter((m) => !threadOf.get(m.id));
   }
   const businessId = contact.businessId;
   if (!businessId) return messages;
-
-  let activeBusiness: string | undefined;
-  const keep = new Set<string>();
-  for (const m of messages) {
-    const bid = m.business_id ?? undefined;
-    if (m.sender === 'visitor') {
-      activeBusiness = bid;
-    }
-    if (bid === businessId) {
-      keep.add(m.id);
-      continue;
-    }
-    if (m.sender === 'admin' && !bid && activeBusiness === businessId) {
-      keep.add(m.id);
-    }
-  }
-  return messages.filter((m) => keep.has(m.id));
+  return messages
+    .filter((m) => threadOf.get(m.id) === businessId)
+    .map((m) => (m.business_id ? m : { ...m, business_id: businessId }));
 }
 
 export default function ProBotChatArea({
@@ -156,6 +157,9 @@ export default function ProBotChatArea({
   onAutoSent,
   onConversationDeleted,
   messagesRefreshKey = 0,
+  onThreadActivity,
+  autoShareDoc = null,
+  onAutoShareDone,
   onOpenSidebar,
   forceWelcomeView = false,
   onChatViewChange,
@@ -190,9 +194,13 @@ export default function ProBotChatArea({
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [crmPickerKind, setCrmPickerKind] = useState<ChatCrmDocKind | null>(null);
   const [crmCustomerId, setCrmCustomerId] = useState<string | null>(null);
+  /** In-chat quick estimate / invoice / payment request form. */
+  const [composerKind, setComposerKind] = useState<QuickDocKind | null>(null);
   const [uploadingAttach, setUploadingAttach] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
+  /** The scrolling messages panel; the message list keeps it pinned to the newest message. */
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
   const [confirmingStepId, setConfirmingStepId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [agentStatus, setAgentStatus] = useState<string | null>(null);
@@ -766,6 +774,7 @@ export default function ProBotChatArea({
         if (pendingAttachments.length > 0) setPendingAttachments([]);
         setReplyTarget(null);
         loadMessages();
+        onThreadActivity?.();
         if (selectedContact?.isProBot && !businessId) {
           setHasChosenThisVisit(true);
           markProBotWelcomeSeen();
@@ -794,6 +803,7 @@ export default function ProBotChatArea({
       pendingAttachments,
       replyTarget,
       loadMessages,
+      onThreadActivity,
     ]
   );
   const autoSentRef = useRef<string | null>(null);
@@ -905,10 +915,11 @@ export default function ProBotChatArea({
       attachments?: ChatAttachment[],
       payload?: {
         crmEstimate?: import('@/lib/types/chat').ChatCrmEstimateShare;
+        crmInvoice?: import('@/lib/types/chat').ChatCrmInvoiceShare;
         bookingInvite?: import('@/lib/types/chat').ChatBookingInvite;
       }
-    ) => {
-      if (!adminViewingConversation?.id || sending) return;
+    ): Promise<boolean> => {
+      if (!adminViewingConversation?.id || sending) return false;
       const replyBusinessId =
         contractorBusinessId ||
         adminViewingConversation.business_id ||
@@ -967,13 +978,16 @@ export default function ProBotChatArea({
         if (attachments?.length) setPendingAttachments([]);
         setReplyTarget(null);
         onAdminReplySent?.();
+        onThreadActivity?.();
+        return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to send');
+        return false;
       } finally {
         setSending(false);
       }
     },
-    [adminViewingConversation, contractorBusinessId, selectedContact, sending, onAdminReplySent, replyTarget, user?.companyName, isAdminView]
+    [adminViewingConversation, contractorBusinessId, selectedContact, sending, onAdminReplySent, onThreadActivity, replyTarget, user?.companyName, isAdminView]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1192,22 +1206,28 @@ export default function ProBotChatArea({
     isAdminView && isContractor
       ? [
           {
-            id: 'estimate',
-            label: t('crmSendEstimate'),
+            id: 'new-estimate',
+            label: t('crmNewEstimate'),
             icon: <FileText className="h-4 w-4" />,
-            onSelect: () => setCrmPickerKind('estimate'),
+            onSelect: () => setComposerKind('estimate'),
           },
           {
-            id: 'invoice',
-            label: t('crmSendInvoice'),
+            id: 'new-invoice',
+            label: t('crmNewInvoice'),
             icon: <Receipt className="h-4 w-4" />,
-            onSelect: () => setCrmPickerKind('invoice'),
+            onSelect: () => setComposerKind('invoice'),
           },
           {
-            id: 'payment',
-            label: t('crmSendPaymentLink'),
+            id: 'request-payment',
+            label: t('crmRequestPayment'),
             icon: <CreditCard className="h-4 w-4" />,
-            onSelect: () => setCrmPickerKind('payment'),
+            onSelect: () => setComposerKind('payment'),
+          },
+          {
+            id: 'send-saved',
+            label: t('crmSendSaved'),
+            icon: <FolderOpen className="h-4 w-4" />,
+            onSelect: () => setCrmPickerKind('estimate'),
           },
           {
             id: 'calendar',
@@ -1250,36 +1270,104 @@ export default function ProBotChatArea({
     []
   );
 
+  /** Post a CRM document as a card: estimates get Approve, invoices and payment requests get Pay. */
   const sendCrmDocLink = useCallback(
-    async (
-      kind: ChatCrmDocKind,
-      doc: {
-        label: string;
-        amountCents: number;
-        url: string;
-        estimateShare?: import('@/lib/types/chat').ChatCrmEstimateShare;
-      }
-    ) => {
+    async (kind: ChatCrmDocKind, doc: SharedCrmDoc) => {
       const amount = new Intl.NumberFormat(undefined, {
         style: 'currency',
         currency: 'USD',
       }).format(doc.amountCents / 100);
+      let sent: boolean;
       if (kind === 'estimate' && doc.estimateShare) {
-        const body = t('crmEstimateCardIntro', {
-          label: doc.label,
-          amount,
+        sent = await sendAdminReply(t('crmEstimateCardIntro', { label: doc.label, amount }), undefined, {
+          crmEstimate: doc.estimateShare,
         });
-        await sendAdminReply(body, undefined, { crmEstimate: doc.estimateShare });
-        return;
+      } else if (doc.invoiceShare) {
+        sent = await sendAdminReply(
+          t(kind === 'payment' ? 'crmPaymentCardIntro' : 'crmInvoiceCardIntro', { label: doc.label, amount }),
+          undefined,
+          { crmInvoice: doc.invoiceShare }
+        );
+      } else {
+        const body =
+          kind === 'payment'
+            ? t('crmPaymentMessage', { label: doc.label, amount, url: doc.url })
+            : t('crmInvoiceMessage', { label: doc.label, amount, url: doc.url });
+        sent = await sendAdminReply(body);
       }
-      const body =
-        kind === 'payment'
-          ? t('crmPaymentMessage', { label: doc.label, amount, url: doc.url })
-          : t('crmInvoiceMessage', { label: doc.label, amount, url: doc.url });
-      await sendAdminReply(body);
+      if (!sent) throw new Error(t('crmDocShareFailed'));
     },
     [sendAdminReply, t]
   );
+
+  /** The open chat's CRM customer. Documents need one, so the customer is added to the CRM first when missing. */
+  const ensureCrmCustomerId = useCallback(async (): Promise<string> => {
+    if (crmCustomerId) {
+      const res = await fetch(`/api/crm/customers/${encodeURIComponent(crmCustomerId)}/billable`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === 'string' ? data.error : t('crmComposerFailed'));
+      }
+      return crmCustomerId;
+    }
+    const conversationIdToAdd = adminViewingConversation?.id;
+    if (!conversationIdToAdd) throw new Error(t('crmDocShareFailed'));
+    const res = await fetch('/api/chat/place-share', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId: conversationIdToAdd }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || typeof data.customerId !== 'string') {
+      throw new Error(typeof data.error === 'string' ? data.error : t('placeShareFailed'));
+    }
+    setCrmCustomerId(data.customerId);
+    setCrmAdd({ status: 'done', conversationId: conversationIdToAdd });
+    void refreshOpenThread();
+    return data.customerId;
+  }, [crmCustomerId, adminViewingConversation?.id, t, refreshOpenThread]);
+
+  const shareCrmDocById = useCallback(
+    async (kind: QuickDocKind, id: string) => {
+      const shared =
+        kind === 'estimate'
+          ? await createEstimateShare(id)
+          : await createInvoiceShare(id, kind === 'payment' ? 'payment' : 'invoice');
+      await sendCrmDocLink(kind, shared);
+    },
+    [sendCrmDocLink]
+  );
+
+  /** Full CRM editor; it brings the pro back to this chat, which then posts the saved document. */
+  const openCrmEditor = useCallback(
+    async (kind: QuickDocKind) => {
+      const customerId = await ensureCrmCustomerId();
+      const contactKey = selectedContact?.slug ?? selectedContact?.id ?? '';
+      const returnTo = `/${locale}/probot?contact=${encodeURIComponent(contactKey)}${kind === 'payment' ? '&docKind=payment' : ''}`;
+      router.push(
+        kind === 'estimate'
+          ? `/${locale}/crm/estimates?new=1&customerId=${encodeURIComponent(customerId)}&returnTo=${encodeURIComponent(returnTo)}`
+          : `/${locale}/crm/invoices/new?customerId=${encodeURIComponent(customerId)}&returnTo=${encodeURIComponent(returnTo)}`
+      );
+    },
+    [ensureCrmCustomerId, selectedContact?.slug, selectedContact?.id, locale, router]
+  );
+
+  // Back from the CRM editor: post the document that was just saved, once, as a card.
+  const autoSharedDocRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoShareDoc || !isProReplying || !isContractor || !adminViewingConversation?.id || sending) return;
+    const key = `${autoShareDoc.kind}:${autoShareDoc.id}`;
+    if (autoSharedDocRef.current === key) return;
+    autoSharedDocRef.current = key;
+    shareCrmDocById(autoShareDoc.kind, autoShareDoc.id)
+      .catch((err) => setError(err instanceof Error ? err.message : t('crmDocShareFailed')))
+      .finally(() => onAutoShareDone?.());
+  }, [autoShareDoc, isProReplying, isContractor, adminViewingConversation?.id, sending, shareCrmDocById, onAutoShareDone, t]);
 
   if (!selectedContact) {
     return (
@@ -1348,7 +1436,7 @@ export default function ProBotChatArea({
                 </button>
               ) : null}
               {isProReplying && adminViewingConversation.participant_type !== 'contractor' ? (
-                crmAdd.status === 'done' && crmAdd.conversationId === adminViewingConversation.id ? (
+                crmCustomerId || (crmAdd.status === 'done' && crmAdd.conversationId === adminViewingConversation.id) ? (
                   <a
                     href={`/${locale}/crm/customers`}
                     className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border-2 border-black px-3 text-sm font-medium hover:bg-gray-50"
@@ -1488,6 +1576,7 @@ export default function ProBotChatArea({
         <>
           {/* Scrollable messages area: flex-1 min-h-0 so it gets a bounded height and scrolls on mobile. Transparent on PC so mountains show through. */}
           <div
+            ref={messagesScrollRef}
             className={`h-full min-h-0 flex flex-col ${!showProBotWizardFlow && !showWelcome ? 'bg-[#efeae2] bg-[radial-gradient(rgba(11,20,26,0.06)_1px,transparent_1px)] bg-[length:16px_16px]' : 'md:bg-transparent'} ${!showProBotWizardFlow ? 'overflow-y-auto overflow-x-hidden overscroll-contain' : 'overflow-hidden'}`}
             style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 } as React.CSSProperties}
           >
@@ -2106,6 +2195,7 @@ export default function ProBotChatArea({
                 )}
                 <ProBotMessageList
                   messages={filteredMessages}
+                  scrollContainerRef={messagesScrollRef}
                   isAdminView={isAdminView}
                   adminViewingConversation={adminViewingConversation ?? null}
                   selectedContact={selectedContact}
@@ -2138,7 +2228,7 @@ export default function ProBotChatArea({
                   canDelete={canDeleteMessage}
                   onDelete={setPendingDelete}
                   onAddPlaceToCrm={isProReplying ? addPlaceToCrm : undefined}
-                  onCrmQuickAction={isAdminView && isContractor ? (kind) => setCrmPickerKind(kind) : undefined}
+                  onCrmQuickAction={isAdminView && isContractor ? (kind) => setComposerKind(kind) : undefined}
                   onPickTime={isAdminView ? undefined : (msg) => msg.payload?.bookingInvite && setBookingInvite(msg.payload.bookingInvite)}
                 />
                 <Modal
@@ -2346,13 +2436,13 @@ export default function ProBotChatArea({
           kind={crmPickerKind}
           locale={locale}
           customerId={crmCustomerId}
-          title={
-            crmPickerKind === 'estimate'
-              ? t('crmPickEstimate')
-              : crmPickerKind === 'payment'
-                ? t('crmPickPayment')
-                : t('crmPickInvoice')
-          }
+          title={t('crmSendSaved')}
+          onKindChange={setCrmPickerKind}
+          tabLabels={{ estimate: t('crmTabEstimates'), invoice: t('crmTabInvoices'), payment: t('crmTabUnpaid') }}
+          onCreateNew={() => {
+            setComposerKind(crmPickerKind);
+            setCrmPickerKind(null);
+          }}
           emptyLabel={
             crmPickerKind === 'estimate'
               ? t('crmNoEstimates')
@@ -2363,12 +2453,32 @@ export default function ProBotChatArea({
           loadingLabel={t('loading')}
           sendLabel={t('crmSendInChat')}
           createNewLabel={
-            crmPickerKind === 'estimate' ? t('crmCreateEstimate') : t('crmCreateInvoice')
+            crmPickerKind === 'estimate'
+              ? t('crmCreateEstimateHere')
+              : crmPickerKind === 'payment'
+                ? t('crmCreatePaymentHere')
+                : t('crmCreateInvoiceHere')
           }
           allDocsLabel={t('crmAllDocs')}
           forCustomerLabel={t('crmThisCustomer')}
           onClose={() => setCrmPickerKind(null)}
           onSend={(doc) => sendCrmDocLink(crmPickerKind, doc)}
+        />
+      ) : null}
+      {composerKind ? (
+        <ChatQuickDocComposer
+          key={composerKind}
+          open
+          kind={composerKind}
+          customerName={selectedContact?.name}
+          ensureCustomerId={ensureCrmCustomerId}
+          onCreated={({ kind, id }) => shareCrmDocById(kind, id)}
+          onOpenFullEditor={() => openCrmEditor(composerKind)}
+          onPickSaved={() => {
+            setCrmPickerKind(composerKind);
+            setComposerKind(null);
+          }}
+          onClose={() => setComposerKind(null)}
         />
       ) : null}
     </div>

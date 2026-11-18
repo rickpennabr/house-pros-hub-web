@@ -32,6 +32,7 @@ import {
   type CrmEstimateLineItemForm,
 } from '@/lib/utils/crmEstimateFormLineItems';
 import type { AgreementKind, MaintenanceFrequency } from '@/lib/crm/estimate-agreement';
+import { chatReturnWithDoc, safeChatReturnTo } from '@/lib/chat/crm-doc-share';
 
 const PAGE_SIZE = 25;
 type SortKey = 'created_at' | 'updated_at' | 'status' | 'due_date' | 'amount_cents';
@@ -118,6 +119,8 @@ export default function CRMEstimatesPage() {
   const router = useRouter();
   const locale = useLocale();
   const searchParams = useSearchParams();
+  /** Opened from a chat: go back to it after saving, and the chat attaches the estimate. */
+  const chatReturnTo = safeChatReturnTo(searchParams.get('returnTo'));
   const crmChrome = useCRMChrome();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [statusSummary, setStatusSummary] = useState<EstimateStatusSummary>(emptyEstimateStatusSummary());
@@ -706,6 +709,10 @@ export default function CRMEstimatesPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to create estimate');
       await syncEstimateLinesToReusableItems(lineItemsToSend ?? []);
+      if (chatReturnTo && typeof data.id === 'string') {
+        router.push(chatReturnWithDoc(chatReturnTo, 'estimate', data.id));
+        return;
+      }
       setViewMode('table');
       setFormCustomerId('');
       setFormLineItems([{ product_or_service: '', description: '', unit: DEFAULT_UNIT, qty: 1, rate_cents: 0, amount_cents: 0 }]);
@@ -757,6 +764,11 @@ export default function CRMEstimatesPage() {
       const newId = typeof data.id === 'string' ? data.id : null;
       if (!newId) throw new Error('Invalid response from server');
       await syncEstimateLinesToReusableItems(lineItemsToSend ?? []);
+      if (chatReturnTo) {
+        // The chat sends it as an approval card, so skip the email send dialog.
+        router.push(chatReturnWithDoc(chatReturnTo, 'estimate', newId));
+        return;
+      }
       setEditingId(newId);
       setViewMode('edit');
       openSendDialog(newId);

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, MessageCircle, Users, Building2, User, X, MoreVertical } from 'lucide-react';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
+import { sortContactsByActivity } from '@/lib/chat/contact-activity';
 
 export interface ProBotContact {
   id: string;
@@ -22,6 +23,8 @@ export interface ProBotContact {
   visitorId?: string;
   /** Customer contact avatar from profile */
   profile_user_picture?: string | null;
+  /** Newest message in this chat (ISO). Drives the WhatsApp-style order: newest chat first under ProBot. */
+  lastActivityAt?: string;
 }
 
 /** One entry in a contact's ⋮ menu. */
@@ -136,6 +139,7 @@ export default function ProBotSidebar({
   getContactActions,
 }: ProBotSidebarProps) {
   const [unreadByContact, setUnreadByContact] = useState<Record<string, number>>({});
+  const [latestByContact, setLatestByContact] = useState<Record<string, string>>({});
   const [contactMenuId, setContactMenuId] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -143,7 +147,9 @@ export default function ProBotSidebar({
       fetch('/api/chat/unread-by-contact', { credentials: 'include' })
         .then((res) => (res.ok ? res.json() : { counts: {} }))
         .then((data) => {
-          if (!cancelled) setUnreadByContact(data.counts ?? {});
+          if (cancelled) return;
+          setUnreadByContact(data.counts ?? {});
+          setLatestByContact(data.latest ?? {});
         })
         .catch(() => {});
     void load();
@@ -184,9 +190,10 @@ export default function ProBotSidebar({
 
   const qContacts = sidebarSearchQuery.trim().toLowerCase();
   const filteredContacts = useMemo(() => {
-    if (!qContacts) return contacts;
-    return contacts.filter((c) => c.name.toLowerCase().includes(qContacts));
-  }, [contacts, qContacts]);
+    const ordered = sortContactsByActivity(contacts, latestByContact);
+    if (!qContacts) return ordered;
+    return ordered.filter((c) => c.name.toLowerCase().includes(qContacts));
+  }, [contacts, latestByContact, qContacts]);
 
   // Only expand on hover on desktop (md+). On mobile, no hover—expand only via chevron tap.
   const handlePointerEnter = (e: React.PointerEvent) => {
@@ -370,7 +377,7 @@ export default function ProBotSidebar({
                         )}
                       </div>
                         <span
-                          className={`absolute -bottom-1 -left-1 h-3 w-3 rounded-full border-2 ${isSelected ? 'border-gray-900' : 'border-white'} ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}
+                          className={`absolute bottom-[-5px] right-[-5px] z-10 h-3 w-3 rounded-full border-2 ${isSelected ? 'border-gray-900' : 'border-white'} ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}
                           title={isOnline ? t('online') : t('offline')}
                           aria-label={isOnline ? t('online') : t('offline')}
                         />

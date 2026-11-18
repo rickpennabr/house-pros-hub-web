@@ -186,7 +186,11 @@ export async function sendAdminMessage(payload: {
   attachments?: Array<{ url: string; name: string; contentType: string }>;
   replyToId?: string;
   sentAs?: 'probot' | 'hub_agent' | { businessId: string };
-  payload?: { crmEstimate?: import('@/lib/types/chat').ChatCrmEstimateShare };
+  payload?: {
+    crmEstimate?: import('@/lib/types/chat').ChatCrmEstimateShare;
+    crmInvoice?: import('@/lib/types/chat').ChatCrmInvoiceShare;
+    bookingInvite?: import('@/lib/types/chat').ChatBookingInvite;
+  };
 }): Promise<{ message?: unknown }> {
   const res = await fetch('/api/chat/admin/messages', {
     method: 'POST',

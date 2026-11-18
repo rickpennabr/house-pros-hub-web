@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Building2, User, Check, CheckCheck, ImageIcon, Reply, Trash2, UserPlus, CalendarDays, Home as HomeIcon, FileText, Receipt } from 'lucide-react';
 import { ChatMediaAttachment } from '@/components/chat/ChatMediaAttachment';
 import ChatEstimateShareCard from '@/components/chat/ChatEstimateShareCard';
+import ChatInvoiceShareCard from '@/components/chat/ChatInvoiceShareCard';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import type { ChatCrmEstimateShare, ChatMessage } from '@/lib/types/chat';
 import ProAgentCards from './ProAgentCards';
@@ -304,6 +305,9 @@ export default function ProBotMessageBubble({
               canApprove={!isAdminView}
               onApproved={(next) => onCrmEstimateApproved?.(msg.id, next)}
             />
+          ) : null}
+          {msg.payload?.crmInvoice ? (
+            <ChatInvoiceShareCard invoice={msg.payload.crmInvoice} canPay={!isAdminView} />
           ) : null}
           {msg.payload && (msg.payload.pros || msg.payload.confirm || msg.payload.confirmed) ? (
             <ProAgentCards

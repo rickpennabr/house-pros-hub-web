@@ -128,6 +128,19 @@ export async function POST(request: NextRequest) {
         },
       };
     }
+    if (messagePayload?.crmInvoice) {
+      const share = messagePayload.crmInvoice;
+      insertPayload.payload = {
+        crmInvoice: {
+          token: share.token,
+          invoiceId: share.invoiceId,
+          invoiceNumber: share.invoiceNumber,
+          amountCents: share.amountCents,
+          dueDate: share.dueDate ?? null,
+          kind: share.kind,
+        },
+      };
+    }
     const invite = (messagePayload as { bookingInvite?: { businessName?: unknown } } | undefined)?.bookingInvite;
     if (invite && typeof sentAs === 'object' && sentAs && 'businessId' in sentAs) {
       // The calendar shared is always the replying business's own.
@@ -189,14 +202,15 @@ export async function POST(request: NextRequest) {
     );
 
     if (result.error && stillColumnError) {
-      // Retry without optional columns (migrations 028/029/040 may not be applied)
+      console.warn('ProBot admin message insert: retrying without optional columns', result.error);
+      // Retry without the newer optional columns (migrations 028/029/040 may not be applied).
+      // Never drop business_id: without it a pro's reply lands in the customer's ProBot chat.
       delete insertPayload.reply_to;
       delete insertPayload.attachments;
       delete insertPayload.admin_sent_as;
-      delete insertPayload.business_id;
       delete insertPayload.admin_user_id;
       delete insertPayload.payload;
-      const colsFallback = 'id, conversation_id, sender, body, created_at';
+      const colsFallback = 'id, conversation_id, sender, body, created_at, business_id';
       result = await supabase
         .from('probot_messages')
         .insert(insertPayload as InsertRow)
@@ -206,7 +220,7 @@ export async function POST(request: NextRequest) {
         const d = result.data as unknown as Record<string, unknown>;
         d.attachments = attachments ?? [];
         d.admin_sent_as = sentAs === 'probot' ? sentAs : sentAs === 'hub_agent' ? 'hub_agent' : 'probot';
-        d.business_id = typeof sentAs === 'object' && sentAs && 'businessId' in sentAs ? (sentAs as { businessId: string }).businessId : undefined;
+        d.business_id = d.business_id ?? (typeof sentAs === 'object' && sentAs && 'businessId' in sentAs ? (sentAs as { businessId: string }).businessId : undefined);
         d.admin_user_id = sentAs === 'hub_agent' ? user.id : undefined;
       }
     }

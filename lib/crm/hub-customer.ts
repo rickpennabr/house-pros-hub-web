@@ -83,7 +83,8 @@ function toOption(row: Pick<OwnedRow, 'id' | 'first_name' | 'last_name' | 'displ
   };
 }
 
-async function ensureBillable(supabase: Client, contactId: string): Promise<{ error: string; status: number } | null> {
+/** Give a contact the default Customer role when it has none that can be invoiced. */
+export async function ensureBillable(supabase: Client, contactId: string): Promise<{ error: string; status: number } | null> {
   if (await contactCanBeInvoiced(supabase, contactId)) return null;
   return assignDefaultCustomerRole(supabase, contactId);
 }

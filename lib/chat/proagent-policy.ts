@@ -90,6 +90,20 @@ function asSummary(value: unknown): ProAgentEstimateSummary | null {
   };
 }
 
+function asCrmInvoice(value: unknown): ProAgentPayload['crmInvoice'] | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.token !== 'string' || !row.token || typeof row.invoiceId !== 'string') return null;
+  return {
+    token: row.token,
+    invoiceId: row.invoiceId,
+    invoiceNumber: typeof row.invoiceNumber === 'string' ? row.invoiceNumber : row.invoiceId.slice(0, 8),
+    amountCents: typeof row.amountCents === 'number' ? row.amountCents : 0,
+    dueDate: typeof row.dueDate === 'string' ? row.dueDate : null,
+    kind: row.kind === 'payment' ? 'payment' : 'invoice',
+  };
+}
+
 function asCrmEstimate(value: unknown): ProAgentPayload['crmEstimate'] | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
@@ -143,6 +157,8 @@ export function parseAgentPayload(value: unknown): ProAgentPayload | null {
     }
   }
   if (row.confirmed === true) payload.confirmed = true;
+  const crmInvoice = asCrmInvoice(row.crmInvoice);
+  if (crmInvoice) payload.crmInvoice = crmInvoice;
   const crmEstimate = asCrmEstimate(row.crmEstimate);
   if (crmEstimate) payload.crmEstimate = crmEstimate;
   if (row.placeShare && typeof row.placeShare === 'object') {
@@ -171,7 +187,7 @@ export function parseAgentPayload(value: unknown): ProAgentPayload | null {
       payload.placeLinked = { placeId: linked.placeId, name: typeof linked.name === 'string' ? linked.name : '' };
     }
   }
-  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.placeShare && !payload.bookingInvite && !payload.placeLinked) return null;
+  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.crmInvoice && !payload.placeShare && !payload.bookingInvite && !payload.placeLinked) return null;
   return payload;
 }
 

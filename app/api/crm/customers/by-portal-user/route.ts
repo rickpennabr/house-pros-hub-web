@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
       .select('id, first_name, last_name, display_name, company_name, email')
       .eq('owner_id', user.id)
       .eq('portal_user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!row) return NextResponse.json({ customer: null });

@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCrmScope } from '@/lib/crm/crm-scope';
 import { parseAgentPayload } from '@/lib/chat/proagent-policy';
+import { ensureBillable } from '@/lib/crm/hub-customer';
 import type { ChatPlaceShare } from '@/lib/types/chat';
+
+/** Last 10 digits, so "(702) 555-0100" and "+1 702-555-0100" match. Too short to trust → null. */
+function phoneDigits(value: string | null | undefined): string | null {
+  const digits = (value ?? '').replace(/\D/g, '');
+  return digits.length >= 10 ? digits.slice(-10) : null;
+}
 
 /**
  * POST /api/chat/place-share  { messageId } or { conversationId }
@@ -71,7 +78,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'messageId or conversationId is required' }, { status: 400 });
     }
 
-    if (share?.crmCustomerId) return NextResponse.json({ customerId: share.crmCustomerId, placeLinked: true });
+    if (share?.crmCustomerId) {
+      const billable = await ensureBillable(db, share.crmCustomerId);
+      if (billable) console.error('place-share: could not make the customer billable', billable.error);
+      return NextResponse.json({ customerId: share.crmCustomerId, placeLinked: true });
+    }
 
     const { data: conversation } = await db
       .from('probot_conversations')
@@ -107,11 +118,31 @@ export async function POST(request: NextRequest) {
       .eq('owner_id', scope.ownerId)
       .or(place ? `place_id.eq.${place.id},portal_user_id.eq.${customerUserId}` : `portal_user_id.eq.${customerUserId}`)
       .order('created_at', { ascending: true });
-    const match =
+    let match =
       (place ? existing?.find((row) => row.place_id === place!.id) : undefined) ??
       existing?.find((row) => !row.place_id) ??
       (place ? undefined : existing?.[0]) ??
       null;
+
+    // Then a contact the pro already entered by hand: same email, else same phone, not linked to another login.
+    if (!match) {
+      const { data: unlinked } = await db
+        .from('pro_crm_customers')
+        .select('id, place_id, portal_user_id, email, phone')
+        .eq('owner_id', scope.ownerId)
+        .is('portal_user_id', null)
+        .order('created_at', { ascending: true });
+      const loginEmail = (email ?? '').trim().toLowerCase();
+      const loginPhone = phoneDigits(profile?.phone);
+      const sameEmail = loginEmail
+        ? unlinked?.find((row) => (row.email ?? '').trim().toLowerCase() === loginEmail)
+        : undefined;
+      const samePhone = loginPhone
+        ? unlinked?.find((row) => phoneDigits(row.phone) === loginPhone)
+        : undefined;
+      const handEntered = sameEmail ?? samePhone;
+      if (handEntered) match = { id: handEntered.id, place_id: handEntered.place_id, portal_user_id: null };
+    }
 
     let customerId: string;
     if (match) {
@@ -142,6 +173,10 @@ export async function POST(request: NextRequest) {
       if (error || !created) return NextResponse.json({ error: error?.message || 'Could not add customer' }, { status: 500 });
       customerId = created.id;
     }
+
+    // Chat customers get estimates and invoices from the chat, so the contact must be billable.
+    const billable = await ensureBillable(db, customerId);
+    if (billable) console.error('place-share: could not make the customer billable', billable.error);
 
     if (shareMessage && share && place) {
       await db

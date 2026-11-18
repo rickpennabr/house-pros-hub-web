@@ -16,6 +16,7 @@ import {
   type InvoiceEditorDraft,
 } from '@/lib/invoices/draft';
 import { todayISO } from '@/lib/invoices/format';
+import { chatReturnWithDoc, safeChatReturnTo } from '@/lib/chat/crm-doc-share';
 
 function blankDraft(customerId = ''): InvoiceEditorDraft {
   const today = todayISO();
@@ -47,6 +48,8 @@ export default function CRMNewInvoicePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Opened from a chat: go back to it after saving, and the chat attaches the invoice. */
+  const chatReturnTo = safeChatReturnTo(searchParams.get('returnTo'));
 
   useEffect(() => {
     Promise.all([
@@ -108,7 +111,7 @@ export default function CRMNewInvoicePage() {
     try {
       const id = await createInvoice(form);
       await uploadPendingAttachments(id, form.pendingAttachments);
-      router.push(`/${locale}/crm/invoices`);
+      router.push(chatReturnTo ? chatReturnWithDoc(chatReturnTo, 'invoice', id) : `/${locale}/crm/invoices`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
     } finally {
@@ -122,7 +125,7 @@ export default function CRMNewInvoicePage() {
     try {
       const id = await createInvoice(form);
       await uploadPendingAttachments(id, form.pendingAttachments);
-      router.push(`/${locale}/crm/invoices/${id}`);
+      router.push(chatReturnTo ? chatReturnWithDoc(chatReturnTo, 'invoice', id) : `/${locale}/crm/invoices/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
     } finally {
@@ -140,8 +143,8 @@ export default function CRMNewInvoicePage() {
 
   return (
     <InvoiceEditor
-      title="New Invoice"
-      backHref={`/${locale}/crm/invoices`}
+      title={chatReturnTo ? 'New Invoice · sends in chat when saved' : 'New Invoice'}
+      backHref={chatReturnTo ?? `/${locale}/crm/invoices`}
       invoiceNumber={context.nextInvoiceNumber}
       themeColorHex={context.themeColorHex}
       business={context.business}

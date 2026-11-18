@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
+import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
 
 /**
  * POST /api/crm/invoices/[id]/payment-link
@@ -21,7 +22,7 @@ export async function POST(
 
     const { data: invoice, error } = await supabase
       .from('pro_crm_invoices')
-      .select('id, status, amount_cents, payment_applied_cents')
+      .select('id, status, amount_cents, payment_applied_cents, invoice_number, invoice_date, due_date, payment_terms')
       .eq('id', id)
       .eq('owner_id', user.id)
       .single();
@@ -56,7 +57,15 @@ export async function POST(
     const baseUrl = getPublicSiteUrlForEmail(request);
     const locale = request.headers.get('x-next-intl-locale') || 'en';
     const url = `${baseUrl}/${locale}/invoices/view?token=${tokenRow.token}`;
-    return NextResponse.json({ url });
+    // The chat attaches this invoice as a card; it needs the token and the numbers, not just the link.
+    return NextResponse.json({
+      url,
+      token: tokenRow.token,
+      invoiceId: id,
+      invoiceNumber: invoice.invoice_number,
+      balanceCents: invoice.amount_cents - invoice.payment_applied_cents,
+      dueDate: resolveInvoiceDueDate(invoice.invoice_date, invoice.due_date, invoice.payment_terms),
+    });
   } catch (err) {
     console.error('POST /api/crm/invoices/[id]/payment-link', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

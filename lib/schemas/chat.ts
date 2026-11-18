@@ -63,7 +63,8 @@ const crmEstimateShareSchema = z.object({
   validUntilDate: z.string().nullable().optional(),
   businessName: z.string().max(200).nullable().optional(),
   businessLogo: z.string().max(2000).nullable().optional(),
-  viewUrl: z.string().url(),
+  // http(s) only: the card renders this as a link for the customer.
+  viewUrl: z.string().url().refine((url) => /^https?:\/\//i.test(url), 'Invalid link'),
   lineItemsPreview: z
     .array(
       z.object({
@@ -74,6 +75,15 @@ const crmEstimateShareSchema = z.object({
     )
     .max(6)
     .optional(),
+});
+
+const crmInvoiceShareSchema = z.object({
+  token: z.string().min(1).max(200),
+  invoiceId: z.string().uuid(),
+  invoiceNumber: z.string().max(64),
+  amountCents: z.number().int().nonnegative(),
+  dueDate: z.string().max(40).nullable().optional(),
+  kind: z.enum(['invoice', 'payment']),
 });
 
 export const adminSendMessageSchema = z.object({
@@ -87,10 +97,11 @@ export const adminSendMessageSchema = z.object({
   payload: z
     .object({
       crmEstimate: crmEstimateShareSchema.optional(),
+      crmInvoice: crmInvoiceShareSchema.optional(),
       bookingInvite: z.object({ businessId: z.string().max(64).optional(), businessName: z.string().max(120).optional() }).optional(),
     })
     .optional(),
-}).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0 || Boolean(data.payload?.crmEstimate), {
+}).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0 || Boolean(data.payload?.crmEstimate) || Boolean(data.payload?.crmInvoice), {
   message: 'Message cannot be empty',
   path: ['body'],
 });

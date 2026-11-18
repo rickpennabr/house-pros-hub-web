@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import ProBotMessageBubble from './ProBotMessageBubble';
 import type { ChatCrmEstimateShare, ChatMessage } from '@/lib/types/chat';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
@@ -58,20 +58,63 @@ export default function ProBotMessageList({
   onCrmQuickAction,
 }: ProBotMessageListProps) {
   const uniqueMessages = useMemo(() => dedupeMessagesById(messages), [messages]);
+  const listRef = useRef<HTMLDivElement>(null);
+  /** WhatsApp-style: follow new messages only while the reader is at the bottom. */
+  const stickToBottomRef = useRef(true);
+  const lastMessageIdRef = useRef<string | null>(null);
+  const threadKey = adminViewingConversation?.id ?? selectedContact?.id ?? '';
 
-  // Scroll to end when messages change. Use scroll container ref so only the messages panel scrolls (no page scroll on mobile).
+  // Opening a chat starts at the newest message.
+  useEffect(() => {
+    stickToBottomRef.current = true;
+    lastMessageIdRef.current = null;
+  }, [threadKey]);
+
+  // Scrolling up to read history stops the auto-follow; scrolling back down resumes it.
   useEffect(() => {
     const container = scrollContainerRef?.current;
-    if (container && uniqueMessages.length > 0) {
-      const scrollToEnd = () => {
-        container.scrollTop = container.scrollHeight - container.clientHeight;
-      };
-      requestAnimationFrame(scrollToEnd);
+    if (!container) return;
+    const onScroll = () => {
+      const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+      stickToBottomRef.current = distance < 80;
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, [scrollContainerRef]);
+
+  // New message: always jump down for your own message (or the first load), otherwise only when already at the bottom.
+  // Scrolls only the messages panel, never the page (no page jump on mobile).
+  useEffect(() => {
+    const container = scrollContainerRef?.current;
+    const last = uniqueMessages[uniqueMessages.length - 1];
+    if (!container || !last) return;
+    if (last.id !== lastMessageIdRef.current) {
+      const mine = isAdminView ? last.sender === 'admin' : last.sender === 'visitor';
+      if (mine || lastMessageIdRef.current === null) stickToBottomRef.current = true;
+      lastMessageIdRef.current = last.id;
     }
-  }, [uniqueMessages, scrollContainerRef]);
+    if (!stickToBottomRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [uniqueMessages, scrollContainerRef, isAdminView]);
+
+  // Cards, photos and streamed replies grow after render: keep the newest message in view while following.
+  useEffect(() => {
+    const container = scrollContainerRef?.current;
+    const list = listRef.current;
+    if (!container || !list || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (stickToBottomRef.current) container.scrollTop = container.scrollHeight;
+    });
+    observer.observe(list);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [scrollContainerRef]);
 
   return (
-    <div className="p-4 space-y-3 min-h-0">
+    <div ref={listRef} className="p-4 space-y-3 min-h-0">
       {uniqueMessages.map((msg) => (
         <ProBotMessageBubble
           key={msg.id}

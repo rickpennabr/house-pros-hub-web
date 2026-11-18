@@ -85,6 +85,19 @@ export interface ChatCrmEstimateShare {
   depositPaymentUrl?: string | null;
 }
 
+/** CRM invoice or payment request shared in chat. The customer pays from the card. */
+export interface ChatCrmInvoiceShare {
+  /** Public view token; the card links to /{locale}/invoices/view?token= and reads live status with it. */
+  token: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  /** Balance due when it was sent. The card refreshes it. */
+  amountCents: number;
+  dueDate?: string | null;
+  /** payment = a deposit or one-off payment request; invoice = a regular invoice */
+  kind: 'invoice' | 'payment';
+}
+
 /** Cards attached to a ProAgent chat message. Plain text stays in body. */
 export interface ProAgentPayload {
   pros?: ProAgentProCard[];
@@ -101,6 +114,8 @@ export interface ProAgentPayload {
   bookingInvite?: ChatBookingInvite;
   /** Pro added the shared place to their CRM; their work now shows on the customer's My Places. */
   placeLinked?: ChatPlaceLinked;
+  /** Pro-shared CRM invoice or payment request the customer can pay from the chat */
+  crmInvoice?: ChatCrmInvoiceShare;
 }
 
 export interface ChatPlaceLinked {

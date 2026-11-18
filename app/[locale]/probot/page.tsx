@@ -61,6 +61,17 @@ function ProBotPageContent() {
   const contactParam = searchParams.get('contact');
   const conversationParam = searchParams.get('conversation');
   const sharePlaceParam = searchParams.get('sharePlace');
+  // Back from the CRM editor: the saved document to attach in the chat (kept in state; the contact effects rewrite the URL).
+  const sendEstimateParam = searchParams.get('sendEstimate');
+  const sendInvoiceParam = searchParams.get('sendInvoice');
+  const docKindParam = searchParams.get('docKind');
+  const [pendingDocShare, setPendingDocShare] = useState<{ kind: 'estimate' | 'invoice' | 'payment'; id: string } | null>(() =>
+    sendEstimateParam
+      ? { kind: 'estimate', id: sendEstimateParam }
+      : sendInvoiceParam
+        ? { kind: docKindParam === 'payment' ? 'payment' : 'invoice', id: sendInvoiceParam }
+        : null
+  );
   const tPlaces = useTranslations('places');
   // Keep the place id with the text: the contact effects rewrite the URL (dropping sharePlace) before the chat is ready.
   const [pendingPlaceShare, setPendingPlaceShare] = useState<{ id: string; text: string } | null>(null);
@@ -83,7 +94,7 @@ function ProBotPageContent() {
   }, [sharePlaceParam, tPlaces]);
   const { visitorId, conversationId, chatUnreadCount } = useChat();
   const pendingUserContactParamRef = useRef<string | null>(null);
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isLoading: authLoading } = useAuth();
   const [selectedContact, setSelectedContact] = useState<ProBotContact>(PROBOT_CONTACT);
   const tChat = useTranslations('probot');
   const pageLocale = useLocale();
@@ -160,11 +171,83 @@ function ProBotPageContent() {
   }, [ownsBusiness, businessesLoading, Boolean(activeAccount), asProfileParam, contactParam, conversationParam]);
   const visitorChatUnreadCount = !isAdmin && !isContractor ? chatUnreadCount : 0;
 
-  const { contacts, setContacts, businessIds, customerUserIds, contactById } = useProBotContacts({
+  const { contacts, setContacts, businessIds, customerUserIds, contactById, contactsLoaded } = useProBotContacts({
     isAuthenticated,
     userBusinessId: isContractor ? user?.businessId : undefined,
     asPersonal: ownsBusiness && !isContractor,
   });
+
+  // WhatsApp-style: leaving /probot and coming back reopens the chat that was open, per account and profile.
+  const lastContactKey = `hph_probot_last_contact:${user?.id ?? 'guest'}:${isContractor ? 'business' : 'personal'}`;
+  const rememberContact = useCallback(
+    (value: string | null) => {
+      try {
+        if (value) window.localStorage.setItem(lastContactKey, value);
+        else window.localStorage.removeItem(lastContactKey);
+      } catch {
+        // storage blocked (private mode): just open ProBot next time
+      }
+    },
+    [lastContactKey]
+  );
+  /** Account and profile are known, so the saved chat for this profile can be read (holds the welcome screen until then). */
+  const lastContactReady = !authLoading && (!ownsBusiness || Boolean(activeAccount));
+  const lastContactRestoreDoneRef = useRef(false);
+  /** Contact reopened from storage; dropped if it is no longer in this profile's list. */
+  const restoredContactRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (lastContactRestoreDoneRef.current || !lastContactReady) return;
+    lastContactRestoreDoneRef.current = true;
+    // Links that already say where to go (contact, conversation, notification profile, place share) win.
+    if (isAdmin || contactParam || conversationParam || sharePlaceParam || asProfileParam) return;
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(lastContactKey);
+    } catch {
+      stored = null;
+    }
+    if (!stored || stored === 'probot') return;
+    restoredContactRef.current = stored;
+    // A business chat implies the personal profile and a customer chat the business one; stay on the profile in use.
+    const impliedProfile = stored.startsWith('customer-') || stored.startsWith('visitor-') ? 'business' : 'personal';
+    const keepProfile =
+      ownsBusiness && activeAccount && activeAccount.type !== impliedProfile ? `&as=${activeAccount.type}` : '';
+    router.replace(`${pathname}?contact=${encodeURIComponent(stored)}${keepProfile}`, { scroll: false });
+  }, [lastContactReady, ownsBusiness, activeAccount, isAdmin, contactParam, conversationParam, sharePlaceParam, asProfileParam, lastContactKey, pathname, router]);
+
+  useEffect(() => {
+    const restored = restoredContactRef.current;
+    if (!restored || !contactsLoaded) return;
+    restoredContactRef.current = null;
+    if (contactById.has(restored)) return;
+    // The saved chat is gone (deleted or no longer listed): forget it and open ProBot.
+    rememberContact(null);
+    if (contactParam === restored) {
+      setSelectedContact(PROBOT_CONTACT);
+      router.replace(pathname, { scroll: false });
+    }
+  }, [contactsLoaded, contactById, contactParam, pathname, router, rememberContact]);
+
+  useEffect(() => {
+    // Wait for this profile's own list: right after a profile switch the old list and selection are still showing.
+    if (!lastContactRestoreDoneRef.current || isAdmin || !contactsLoaded) return;
+    if (selectedContact.isProBot) {
+      // The default ProBot on load is not a choice; only an explicit ?contact=probot is.
+      if (contactParam === 'probot') rememberContact('probot');
+      return;
+    }
+    // Only chats from this profile's list, so a link that is still switching profiles is not saved under the wrong one.
+    if (!contacts.some((contact) => contact.id === selectedContact.id)) return;
+    rememberContact(selectedContact.slug ?? selectedContact.id);
+  }, [selectedContact, contacts, contactsLoaded, contactParam, isAdmin, rememberContact]);
+
+  /** A message was just sent in the open chat: move it to the top like WhatsApp. */
+  const bumpSelectedContactActivity = useCallback(() => {
+    const id = selectedContact.id;
+    const now = new Date().toISOString();
+    setContacts((current) => current.map((contact) => (contact.id === id ? { ...contact, lastActivityAt: now } : contact)));
+  }, [selectedContact.id, setContacts]);
 
   useEffect(() => {
     if (!conversationParam || !isContractor) return;
@@ -483,10 +566,11 @@ function ProBotPageContent() {
   // Wire layout header: on mobile when in chat show back chevron that goes to ProBot welcome page.
   const onBackToWelcome = useCallback(() => {
     setSelectedContact(PROBOT_CONTACT);
+    rememberContact('probot');
     router.replace(pathname, { scroll: false });
     setSidebarOpen(false);
     setForceWelcomeView(true);
-  }, [router, pathname]);
+  }, [router, pathname, rememberContact]);
 
   useEffect(() => {
     setProBotHeader({ inChat: inChatView, onBackToWelcome });
@@ -603,6 +687,7 @@ function ProBotPageContent() {
         if (selectedContact.id === contact.id) {
           setAdminViewingConversation(null);
           setSelectedContact(PROBOT_CONTACT);
+          rememberContact('probot');
           router.replace(pathname, { scroll: false });
         }
       }
@@ -682,7 +767,7 @@ function ProBotPageContent() {
         unreadConversationIds={isAdmin ? unreadConversationIds : undefined}
         visitorProBotConversation={!isAdmin && (conversationId && (visitorProBotHasMessages || visitorChatUnreadCount > 0 || visitorProBotPreview)) ? { id: conversationId ?? '', preview: visitorProBotPreview, lastMessageTime: visitorProBotLastMessageTime, unread: visitorChatUnreadCount > 0, unreadCount: visitorChatUnreadCount } : null}
         visitorUnreadCount={!isAdmin ? visitorChatUnreadCount : 0}
-        onSelectVisitorProBot={!isAdmin ? () => setSelectedContact(PROBOT_CONTACT) : undefined}
+        onSelectVisitorProBot={!isAdmin ? () => { setSelectedContact(PROBOT_CONTACT); rememberContact('probot'); } : undefined}
         historyChatLoading={historyChatLoading}
         sidebarOpen={sidebarOpen}
         onSidebarOpenChange={setSidebarOpen}
@@ -693,7 +778,7 @@ function ProBotPageContent() {
           hubOnline={selectedContact?.id === 'probot' ? hubOnline : undefined}
           isAdmin={isAdmin}
           isContractor={isContractor}
-          roleKnown={roleKnown}
+          roleKnown={roleKnown && lastContactReady}
           contractorBusinessId={isContractor ? user?.businessId ?? undefined : undefined}
           adminViewingConversation={adminViewingConversation}
           onExitAdminConversation={() => setAdminViewingConversation(null)}
@@ -702,7 +787,21 @@ function ProBotPageContent() {
             setContacts((current) => current.filter((contact) => contact.conversationId !== deletedId));
             setAdminViewingConversation(null);
             setSelectedContact(PROBOT_CONTACT);
+            rememberContact('probot');
             router.replace(pathname, { scroll: false });
+          }}
+          onThreadActivity={bumpSelectedContactActivity}
+          autoShareDoc={pendingDocShare}
+          onAutoShareDone={() => {
+            setPendingDocShare(null);
+            const next = new URLSearchParams(window.location.search);
+            if (next.has('sendEstimate') || next.has('sendInvoice') || next.has('docKind')) {
+              next.delete('sendEstimate');
+              next.delete('sendInvoice');
+              next.delete('docKind');
+              const query = next.toString();
+              router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+            }
           }}
           onVisitorProBotHasMessages={!isAdmin ? setVisitorProBotHasMessages : undefined}
           onVisitorProBotLastMessage={!isAdmin ? (preview, lastMessageTime) => { setVisitorProBotPreview(preview); setVisitorProBotLastMessageTime(lastMessageTime); } : undefined}

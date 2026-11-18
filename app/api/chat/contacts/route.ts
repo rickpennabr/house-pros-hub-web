@@ -3,6 +3,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
+import { contactActivityAt, loadContactActivity, sortContactsByActivity } from '@/lib/chat/contact-activity';
 
 /**
  * GET /api/chat/contacts
@@ -308,7 +309,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ contacts }, { status: 200 });
+    if (isAdmin) return NextResponse.json({ contacts }, { status: 200 });
+
+    // WhatsApp order: ProBot pinned, then the chat with the newest message, then everyone else.
+    const latest = await loadContactActivity(supabase, user.id, ownedBusinessId);
+    const withActivity = contacts.map((contact) => {
+      const at = contactActivityAt(contact, latest);
+      return at ? { ...contact, lastActivityAt: new Date(at).toISOString() } : contact;
+    });
+    return NextResponse.json({ contacts: sortContactsByActivity(withActivity) }, { status: 200 });
   } catch (e) {
     console.error('ProBot contacts GET error:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

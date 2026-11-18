@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FileText, Loader2, Receipt } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import { createEstimateShare, createInvoiceShare, type SharedCrmDoc } from '@/lib/chat/crm-doc-share';
 
 export type ChatCrmDocKind = 'estimate' | 'invoice' | 'payment';
 
@@ -20,31 +21,14 @@ export interface ChatCrmDocPickerProps {
   createNewLabel: string;
   allDocsLabel: string;
   forCustomerLabel?: string;
+  /** Show Estimates / Invoices / Unpaid tabs so one picker covers every saved document. */
+  onKindChange?: (kind: ChatCrmDocKind) => void;
+  tabLabels?: Record<ChatCrmDocKind, string>;
+  /** Create a new one (the chat sends the pro to the CRM and brings them back with it attached). */
+  onCreateNew?: () => void;
   onClose: () => void;
-  onSend: (doc: {
-    id: string;
-    label: string;
-    amountCents: number;
-    url: string;
-    /** Present when an estimate share-link was created for in-chat approve */
-    estimateShare?: {
-      token: string;
-      estimateId: string;
-      estimateNumber: string;
-      amountCents: number;
-      depositCents: number;
-      status: 'draft' | 'sent' | 'accepted' | 'declined';
-      validUntilDate?: string | null;
-      businessName?: string | null;
-      businessLogo?: string | null;
-      viewUrl: string;
-      lineItemsPreview?: Array<{
-        product_or_service?: string | null;
-        description?: string | null;
-        amount_cents?: number | null;
-      }>;
-    };
-  }) => Promise<void>;
+  /** Post the document in the chat as a card the customer acts on. */
+  onSend: (doc: SharedCrmDoc & { id: string }) => Promise<void>;
 }
 
 interface DocRow {
@@ -71,6 +55,9 @@ export default function ChatCrmDocPicker({
   createNewLabel,
   allDocsLabel,
   forCustomerLabel,
+  onKindChange,
+  tabLabels,
+  onCreateNew,
   onClose,
   onSend,
 }: ChatCrmDocPickerProps) {
@@ -191,48 +178,11 @@ export default function ChatCrmDocPicker({
     setSendingId(doc.id);
     setError(null);
     try {
-      if (kind === 'estimate') {
-        const res = await fetch(`/api/crm/estimates/${doc.id}/share-link`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.url || !data.token) {
-          throw new Error(data.error || 'Could not create estimate link');
-        }
-        await onSend({
-          id: doc.id,
-          label: data.label || doc.label,
-          amountCents: data.amountCents ?? doc.amountCents,
-          url: data.url,
-          estimateShare: {
-            token: data.token,
-            estimateId: data.estimateId || doc.id,
-            estimateNumber: String(data.label || doc.label),
-            amountCents: data.amountCents ?? doc.amountCents,
-            depositCents: data.depositCents ?? 0,
-            status: data.status === 'accepted' || data.status === 'declined' ? data.status : 'sent',
-            validUntilDate: data.validUntilDate ?? null,
-            businessName: data.businessName ?? null,
-            businessLogo: data.businessLogo ?? null,
-            viewUrl: data.url,
-            lineItemsPreview: data.lineItemsPreview,
-          },
-        });
-      } else {
-        const res = await fetch(`/api/crm/invoices/${doc.id}/payment-link`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.url) throw new Error(data.error || 'Could not create payment link');
-        await onSend({
-          id: doc.id,
-          label: doc.label,
-          amountCents: doc.amountCents,
-          url: data.url,
-        });
-      }
+      const shared =
+        kind === 'estimate'
+          ? await createEstimateShare(doc.id, doc.label)
+          : await createInvoiceShare(doc.id, kind === 'payment' ? 'payment' : 'invoice', doc.label);
+      await onSend({ id: doc.id, ...shared });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send');
@@ -244,6 +194,24 @@ export default function ChatCrmDocPicker({
   return (
     <Modal isOpen={open} onClose={onClose} title={title} maxWidth="md" showHeader contentClassName="p-0">
       <div className="flex flex-col max-h-[70vh]">
+        {onKindChange && tabLabels ? (
+          <div className="flex items-center gap-1 border-b border-gray-100 px-4 py-2" role="tablist">
+            {(['estimate', 'invoice', 'payment'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={kind === tab}
+                onClick={() => onKindChange(tab)}
+                className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium ${
+                  kind === tab ? 'bg-black text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {tabLabels[tab]}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {customerId ? (
           <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-2 text-xs">
             <button
@@ -316,13 +284,23 @@ export default function ChatCrmDocPicker({
         {error ? <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p> : null}
 
         <div className="border-t border-gray-100 px-4 py-3">
-          <Link
-            href={createHref}
-            onClick={onClose}
-            className="inline-flex text-sm font-medium text-black underline hover:no-underline"
-          >
-            {createNewLabel}
-          </Link>
+          {onCreateNew ? (
+            <button
+              type="button"
+              onClick={onCreateNew}
+              className="inline-flex cursor-pointer text-sm font-medium text-black underline hover:no-underline"
+            >
+              {createNewLabel}
+            </button>
+          ) : (
+            <Link
+              href={createHref}
+              onClick={onClose}
+              className="inline-flex text-sm font-medium text-black underline hover:no-underline"
+            >
+              {createNewLabel}
+            </Link>
+          )}
         </div>
       </div>
     </Modal>
