@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
@@ -15,6 +15,7 @@ import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
 import ChatInputBar from '@/components/chat/ChatInputBar';
 import ChatCrmDocPicker, { type ChatCrmDocKind } from '@/components/chat/ChatCrmDocPicker';
 import ChatQuickDocComposer, { type QuickDocKind } from '@/components/chat/ChatQuickDocComposer';
+import ChatCrmDocEditor from '@/components/chat/ChatCrmDocEditor';
 import { createEstimateShare, createInvoiceShare, type SharedCrmDoc } from '@/lib/chat/crm-doc-share';
 import { ChatCamFrame } from '@/components/chat/ChatCamFrame';
 import AddCustomerForm from '@/components/chat/AddCustomerForm';
@@ -1343,6 +1344,15 @@ export default function ProBotChatArea({
   );
 
   /** Full CRM editor; it brings the pro back to this chat, which then posts the saved document. */
+  /** The house the customer shared most recently in this chat; new estimates and invoices start on it. */
+  const sharedPlaceId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message.sender === 'visitor' && message.payload?.placeShare?.placeId) return message.payload.placeShare.placeId;
+    }
+    return null;
+  }, [messages]);
+
   const openCrmEditor = useCallback(
     async (kind: QuickDocKind) => {
       const customerId = await ensureCrmCustomerId();
@@ -2465,7 +2475,22 @@ export default function ProBotChatArea({
           onSend={(doc) => sendCrmDocLink(crmPickerKind, doc)}
         />
       ) : null}
-      {composerKind ? (
+      {composerKind === 'estimate' || composerKind === 'invoice' ? (
+        // Same fields as the CRM forms, in a large window over the chat.
+        <ChatCrmDocEditor
+          key={composerKind}
+          kind={composerKind}
+          customerName={selectedContact?.name}
+          ensureCustomerId={ensureCrmCustomerId}
+          sharedPlaceId={sharedPlaceId}
+          onCreated={({ kind, id }) => shareCrmDocById(kind, id)}
+          onPickSaved={() => {
+            setCrmPickerKind(composerKind);
+            setComposerKind(null);
+          }}
+          onClose={() => setComposerKind(null)}
+        />
+      ) : composerKind ? (
         <ChatQuickDocComposer
           key={composerKind}
           open

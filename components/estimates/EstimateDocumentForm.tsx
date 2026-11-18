@@ -12,6 +12,8 @@ import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
 import { DOCUMENT_FORM_LAYOUT, DOCUMENT_LINE_QTY_RATE } from '@/lib/constants/documentFormLayout';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
+import { ContactPropertySelect } from '@/components/crm/ContactPropertySelect';
+import type { ContactProperty } from '@/lib/places/contact-places';
 import {
   DocumentBrandHeader,
   type DocumentBrandBusiness,
@@ -48,6 +50,13 @@ interface EstimateDocumentFormProps {
   customers: EstimateCustomerOption[];
   customerId: string;
   onCustomerIdChange: (value: string) => void;
+  /** The customer's house this estimate is for (My Places). Empty: the contact's default house. */
+  placeId?: string;
+  onPlaceIdChange?: (value: string) => void;
+  /** Pick the house once the contact's houses load (the chat picks the house shared there). */
+  onPropertiesLoaded?: (properties: ContactProperty[]) => string | void;
+  /** The customer is fixed (the chat): no customer switch and no hub import. */
+  lockCustomer?: boolean;
   lineItems: EstimateLineItemFormValue[];
   onLineItemsChange: (items: EstimateLineItemFormValue[]) => void;
   validUntilDate: string;
@@ -100,6 +109,10 @@ export function EstimateDocumentForm({
   customers,
   customerId,
   onCustomerIdChange,
+  placeId = '',
+  onPlaceIdChange,
+  onPropertiesLoaded,
+  lockCustomer = false,
   lineItems,
   onLineItemsChange,
   validUntilDate,
@@ -296,7 +309,7 @@ export function EstimateDocumentForm({
                     value={customerId}
                     onChange={(e) => onCustomerIdChange(e.target.value)}
                     required
-                    disabled={mode === 'edit'}
+                    disabled={mode === 'edit' || lockCustomer}
                   >
                     <option value="">Select customer</option>
                     {customerOptions.map((customer) => (
@@ -306,7 +319,16 @@ export function EstimateDocumentForm({
                     ))}
                   </Select>
                 </div>
-                {mode === 'create' ? (
+                {onPlaceIdChange ? (
+                  <ContactPropertySelect
+                    customerId={customerId}
+                    value={placeId}
+                    onChange={onPlaceIdChange}
+                    onLoaded={onPropertiesLoaded}
+                    disabled={saving}
+                  />
+                ) : null}
+                {mode === 'create' && !lockCustomer ? (
                   <div>
                     <HubCustomerImport
                       disabled={saving}
@@ -399,7 +421,7 @@ export function EstimateDocumentForm({
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-8">#</th>
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Product or service</th>
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Description</th>
-                  <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-20">Unit</th>
+                  <th className={DOCUMENT_LINE_QTY_RATE.unitTh}>Unit</th>
                   <th className={DOCUMENT_LINE_QTY_RATE.qtyTh}>Qty</th>
                   <th className={DOCUMENT_LINE_QTY_RATE.rateTh}>Rate</th>
                   <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-24">Amount</th>
@@ -451,15 +473,17 @@ export function EstimateDocumentForm({
                         }`}
                       />
                     </td>
-                    <td className="py-1 px-2 align-top">
-                      <Input
-                        value={line.unit || DEFAULT_UNIT}
-                        readOnly
-                        tabIndex={-1}
-                        className={`text-sm py-1.5 border-gray-300 min-w-[80px] w-28 bg-gray-50 text-gray-700 cursor-not-allowed ${
-                          duplicateRowIndices.has(index) ? 'border-red-500' : ''
-                        }`}
-                      />
+                    <td className={DOCUMENT_LINE_QTY_RATE.unitTd}>
+                      <div className={DOCUMENT_LINE_QTY_RATE.unitWrap}>
+                        <Input
+                          value={line.unit || DEFAULT_UNIT}
+                          readOnly
+                          tabIndex={-1}
+                          className={`${DOCUMENT_LINE_QTY_RATE.unitInput} bg-gray-50 text-gray-700 cursor-not-allowed ${
+                            duplicateRowIndices.has(index) ? 'border-red-500' : ''
+                          }`}
+                        />
+                      </div>
                     </td>
                     <td className={DOCUMENT_LINE_QTY_RATE.qtyTd}>
                       <div className={DOCUMENT_LINE_QTY_RATE.qtyWrap}>

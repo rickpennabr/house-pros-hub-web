@@ -29,6 +29,7 @@ import type { CrmContactRole } from '@/lib/crm/contact-role';
 import type { ContactBooksSummary } from '@/lib/crm/contact-books';
 import { ContactBooksBar } from '@/components/crm/ContactBooksBar';
 import { ContactActivity } from '@/components/crm/ContactActivity';
+import { ContactProperties } from '@/components/crm/ContactProperties';
 import { formatAmount } from '@/lib/invoices/format';
 
 type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'] & {
@@ -499,7 +500,10 @@ export default function CRMCustomersPage() {
             />
           )}
           {viewMode === 'edit' && editingId && (
-            <ContactActivity customerId={editingId} locale={locale} />
+            <>
+              <ContactActivity customerId={editingId} locale={locale} />
+              <ContactProperties customerId={editingId} />
+            </>
           )}
           {viewMode === 'add' && (
             <div className="py-2 md:py-0 md:mb-3 flex items-center justify-between gap-4">

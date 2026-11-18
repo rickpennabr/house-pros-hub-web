@@ -14,7 +14,8 @@ import { Input } from '@/components/ui/Input';
 import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
-import type { PlaceCard, PlaceKind } from '@/lib/places/portal';
+import type { PendingPro, PlaceCard, PlaceKind } from '@/lib/places/portal';
+import { PendingProsCard } from '@/components/places/PendingProsCard';
 
 const KINDS: PlaceKind[] = ['house', 'business', 'building'];
 
@@ -37,6 +38,7 @@ export function PlacesHome() {
   const { isAuthenticated, isLoading } = useAuth();
   const [listView, setListView] = useState<ViewType>('list');
   const [places, setPlaces] = useState<PlaceCard[]>([]);
+  const [pendingPros, setPendingPros] = useState<PendingPro[]>([]);
   const [emailConfirmed, setEmailConfirmed] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +90,7 @@ export function PlacesHome() {
       .then((data) => {
         if (data.error) throw new Error(data.error);
         setPlaces(data.places ?? []);
+        setPendingPros(data.pendingPros ?? []);
         setEmailConfirmed(data.emailConfirmed !== false);
       })
       .catch(() => setError(t('loadFailed')))
@@ -166,6 +169,8 @@ export function PlacesHome() {
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+      {adding || pendingPros.length === 0 ? null : <PendingProsCard pros={pendingPros} places={places} />}
 
       {adding ? null : listView === 'map' ? (
         <AddressPinsMap

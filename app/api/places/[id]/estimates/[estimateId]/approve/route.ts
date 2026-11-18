@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { acceptSentEstimate } from '@/lib/crm/accept-estimate';
 import { requirePortalUser } from '@/lib/places/session';
+import { docBelongsToPlace } from '@/lib/places/contact-places';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 
 /**
@@ -22,7 +23,7 @@ export async function POST(
     const supabase = createServiceRoleClient();
     const { data: estimate } = await supabase
       .from('pro_crm_estimates')
-      .select('id, customer_id')
+      .select('id, customer_id, place_id')
       .eq('id', estimateId)
       .maybeSingle();
     if (!estimate) return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
@@ -32,9 +33,8 @@ export async function POST(
       .select('id')
       .eq('id', estimate.customer_id)
       .eq('portal_user_id', user.id)
-      .eq('place_id', placeId)
       .maybeSingle();
-    if (!customer) return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
+    if (!customer || !(await docBelongsToPlace(supabase, { userId: user.id, placeId, doc: estimate }))) return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
 
     const body = await request.json().catch(() => ({}));
     const signerName = typeof body.signerName === 'string' ? body.signerName : null;

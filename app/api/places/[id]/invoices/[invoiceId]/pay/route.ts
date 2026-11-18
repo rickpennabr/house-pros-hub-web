@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { createInvoiceCheckoutSession } from '@/lib/billing/invoice-checkout';
 import { requirePortalUser } from '@/lib/places/session';
+import { docBelongsToPlace } from '@/lib/places/contact-places';
 
 /**
  * POST /api/places/[id]/invoices/[invoiceId]/pay
@@ -21,7 +22,7 @@ export async function POST(
     const supabase = createServiceRoleClient();
     const { data: invoice } = await supabase
       .from('pro_crm_invoices')
-      .select('id, customer_id, status')
+      .select('id, customer_id, place_id, status')
       .eq('id', invoiceId)
       .maybeSingle();
     if (!invoice || invoice.status === 'draft') return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
@@ -31,9 +32,8 @@ export async function POST(
       .select('id')
       .eq('id', invoice.customer_id)
       .eq('portal_user_id', user.id)
-      .eq('place_id', placeId)
       .maybeSingle();
-    if (!customer) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    if (!customer || !(await docBelongsToPlace(supabase, { userId: user.id, placeId, doc: invoice }))) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
 
     const origin = request.nextUrl.origin;
     const locale = request.headers.get('x-next-intl-locale') || 'en';

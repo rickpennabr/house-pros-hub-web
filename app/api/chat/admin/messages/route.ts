@@ -8,6 +8,7 @@ import { filterAllowedAttachments } from '@/lib/utils/chatAttachmentAllowlist';
 import { chatPushUrl, pushLocaleFromRequest, sendVisitorPushNotification } from '@/lib/services/pushNotificationService';
 import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 import { snapshotFromRow } from '@/lib/chat/reply-snapshot';
+import { fileChatDocOnPlace } from '@/lib/chat/chat-doc-place';
 
 /**
  * POST /api/chat/admin/messages
@@ -140,6 +141,27 @@ export async function POST(request: NextRequest) {
           kind: share.kind,
         },
       };
+    }
+    // A document card in a customer chat goes on that customer's My Places too (timeline, estimates, invoices).
+    const sharedDoc = messagePayload?.crmEstimate
+      ? { kind: 'estimate' as const, id: messagePayload.crmEstimate.estimateId }
+      : messagePayload?.crmInvoice
+        ? { kind: 'invoice' as const, id: messagePayload.crmInvoice.invoiceId }
+        : null;
+    if (sharedDoc && typeof sentAs === 'object' && sentAs && 'businessId' in sentAs) {
+      try {
+        const place = await fileChatDocOnPlace(supabase, {
+          ownerId: user.id,
+          businessId: (sentAs as { businessId: string }).businessId,
+          conversationId,
+          doc: sharedDoc,
+        });
+        const docPayload = insertPayload.payload as Record<string, Record<string, unknown>> | undefined;
+        const card = docPayload?.crmEstimate ?? docPayload?.crmInvoice;
+        if (card && place) card.place = place;
+      } catch (err) {
+        console.error('[admin messages] file chat document on place', err);
+      }
     }
     const invite = (messagePayload as { bookingInvite?: { businessName?: unknown } } | undefined)?.bookingInvite;
     if (invite && typeof sentAs === 'object' && sentAs && 'businessId' in sentAs) {

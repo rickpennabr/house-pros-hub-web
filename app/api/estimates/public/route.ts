@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { docPlaceLabel } from '@/lib/places/contact-places';
 import { loadEstimateBusinessBrand } from '@/lib/crm/estimate-business-brand';
 
 /**
@@ -38,10 +39,15 @@ export async function GET(request: NextRequest) {
       .eq('id', row.customer_id)
       .single();
 
-    const business = await loadEstimateBusinessBrand(supabase, row.owner_id);
+    const [business, place] = await Promise.all([
+      loadEstimateBusinessBrand(supabase, row.owner_id),
+      // The customer's house it is on now, for the chat card (the saved label can go stale).
+      docPlaceLabel(supabase, { kind: 'estimate', id: row.id, customerId: row.customer_id }),
+    ]);
 
     return NextResponse.json({
       estimateId: row.id,
+      place,
       estimateNumber: row.display_id,
       amountCents: row.amount_cents,
       depositCents: row.deposit_cents ?? 0,

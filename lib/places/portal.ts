@@ -2,6 +2,7 @@ import { joinMailLine, mailStreetKey } from '@/lib/address/unit';
 import { canChangeAppointment } from '@/lib/booking/appointmentPolicy';
 import { safeTimeZone } from '@/lib/booking/dayOfReminder';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { contactDefaultIsPlace, contactsOnPlace, docIsOnPlace, linkContactPlace } from '@/lib/places/contact-places';
 import type { Database } from '@/lib/types/supabase';
 import {
   listPlaceTimeline,
@@ -29,25 +30,6 @@ export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 export type PhaseStatus = (typeof PHASE_STATUSES)[number];
 
 type Admin = ReturnType<typeof createServiceRoleClient>;
-type CustomerRow = Pick<
-  Database['public']['Tables']['pro_crm_customers']['Row'],
-  | 'id'
-  | 'owner_id'
-  | 'first_name'
-  | 'last_name'
-  | 'company_name'
-  | 'email'
-  | 'street_address'
-  | 'apartment'
-  | 'city'
-  | 'state'
-  | 'zip_code'
-  | 'portal_kind'
-  | 'place_id'
->;
-
-const CUSTOMER_FIELDS =
-  'id, owner_id, first_name, last_name, company_name, email, street_address, apartment, city, state, zip_code, portal_kind, place_id';
 
 export interface PortalUser {
   id: string;
@@ -321,116 +303,89 @@ export async function ensurePersonalPlaceFromAddress(
   return created.id;
 }
 
-function placeName(row: CustomerRow): string {
-  const street = row.street_address?.trim();
-  if (street) return street.slice(0, 120);
-  const company = row.company_name?.trim();
-  if (company) return company.slice(0, 120);
-  const person = `${row.first_name} ${row.last_name}`.trim();
-  return (person || 'My place').slice(0, 120);
-}
-
-async function ensurePlace(admin: Admin, userId: string, row: CustomerRow): Promise<string> {
-  if (row.place_id) return row.place_id;
-
-  const { data: places } = await admin
-    .from('customer_places')
-    .select('id, street, zip_code')
-    .eq('user_id', userId);
-
-  const street = norm(row.street_address);
-  const zip = norm(row.zip_code);
-  const match = (places ?? []).find((place) => {
-    if (!street || !zip) return false;
-    return mailStreetKey(place.street) === mailStreetKey(row.street_address) && norm(place.zip_code) === zip;
-  });
-  if (match) return match.id;
-
-  const kind: PlaceKind = row.portal_kind ?? 'house';
-  const { data: created, error } = await admin
-    .from('customer_places')
-    .insert({
-      user_id: userId,
-      kind,
-      name: placeName(row),
-      street: joinMailLine(row.street_address ?? '', row.apartment ?? '').slice(0, 160) || row.street_address,
-      city: row.city,
-      state: row.state,
-      zip_code: row.zip_code,
-    })
-    .select('id')
-    .single();
-  if (error || !created) throw new Error(error?.message || 'Could not create the place');
-  await recordPlaceEntered(created.id, placeName(row));
-  return created.id;
-}
-
 /**
- * Attach CRM customers that use this person's confirmed email, and give each one a place.
+ * Attach CRM customers that use this person's confirmed email to their login. That only lets
+ * the hub recognize the pro. It never puts the pro on a place: the customer approves that in
+ * My Places (listPendingPros / approvePendingPro), or by sharing a place with the pro in a chat.
  */
 export async function claimPortalCustomers(user: PortalUser): Promise<void> {
   const admin = createServiceRoleClient();
   const email = user.email?.trim() ?? '';
-  if (email && user.email_confirmed_at) {
-    const safe = email.replace(/[%_\\]/g, '');
-    const { data: pending } = await admin
+  if (!email || !user.email_confirmed_at) return;
+  const safe = email.replace(/[%_\\]/g, '');
+  const { data: pending } = await admin
+    .from('pro_crm_customers')
+    .select('id, email')
+    .is('portal_user_id', null)
+    .ilike('email', safe);
+
+  for (const row of pending ?? []) {
+    if ((row.email ?? '').trim().toLowerCase() !== email.toLowerCase()) continue;
+    const { error } = await admin
       .from('pro_crm_customers')
-      .select(CUSTOMER_FIELDS)
-      .is('portal_user_id', null)
-      .ilike('email', safe);
-
-    for (const row of pending ?? []) {
-      if ((row.email ?? '').trim().toLowerCase() !== email.toLowerCase()) continue;
-      const placeId = await ensurePlace(admin, user.id, row);
-      const { data: linked } = await admin
-        .from('pro_crm_customers')
-        .update({ portal_user_id: user.id, place_id: placeId })
-        .eq('id', row.id)
-        .is('portal_user_id', null)
-        .select('id, owner_id')
-        .maybeSingle();
-      if (linked) {
-        await recordProLinked({
-          placeId,
-          customerId: linked.id,
-          ownerId: linked.owner_id,
-        });
-      }
-    }
+      .update({ portal_user_id: user.id })
+      .eq('id', row.id)
+      .is('portal_user_id', null);
+    if (error) console.error('claimPortalCustomers', error.message);
   }
+}
 
-  await relinkPortalPlaces(user.id);
+export interface PendingPro {
+  ownerId: string;
+  businessName: string;
+  businessLogo: string | null;
+}
+
+/** Pros that have this customer in their CRM but are not on any of the customer's places yet. */
+export async function listPendingPros(userId: string): Promise<PendingPro[]> {
+  const admin = createServiceRoleClient();
+  const { data: rows } = await admin
+    .from('pro_crm_customers')
+    .select('owner_id')
+    .eq('portal_user_id', userId)
+    .is('place_id', null);
+  const ownerIds = [...new Set((rows ?? []).map((row) => row.owner_id))];
+  if (ownerIds.length === 0) return [];
+  const { data: businesses } = await admin
+    .from('businesses')
+    .select('owner_id, business_name, business_logo')
+    .in('owner_id', ownerIds);
+  return ownerIds.map((ownerId) => {
+    const business = (businesses ?? []).find((row) => row.owner_id === ownerId);
+    return {
+      ownerId,
+      businessName: business?.business_name?.trim() || 'A professional',
+      businessLogo: business?.business_logo ?? null,
+    };
+  });
 }
 
 /**
- * Point this person's CRM records at a place with the same street and ZIP.
- * Removing a place clears the link. Adding that address again runs this, so
- * the professional's documents, projects, and invoices show up as before.
+ * The customer put a pro on one of their places. That pro's estimates, invoices and visits
+ * for this customer show on that place from now on. False when the place or pro is not theirs.
  */
-export async function relinkPortalPlaces(userId: string): Promise<void> {
+export async function approvePendingPro(userId: string, ownerId: string, placeId: string): Promise<boolean> {
   const admin = createServiceRoleClient();
-  const { data: unplaced } = await admin
+  const { data: place } = await admin
+    .from('customer_places')
+    .select('id')
+    .eq('id', placeId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!place) return false;
+  const { data: waiting, error } = await admin
     .from('pro_crm_customers')
-    .select(CUSTOMER_FIELDS)
+    .select('id')
+    .eq('owner_id', ownerId)
     .eq('portal_user_id', userId)
     .is('place_id', null);
-
-  for (const row of unplaced ?? []) {
-    const placeId = await ensurePlace(admin, userId, row);
-    const { data: linked } = await admin
-      .from('pro_crm_customers')
-      .update({ place_id: placeId })
-      .eq('id', row.id)
-      .select('id, owner_id')
-      .maybeSingle();
-    if (linked) {
-      await recordProLinked({
-        placeId,
-        customerId: linked.id,
-        ownerId: linked.owner_id,
-      });
+  if (error) throw new Error(error.message);
+  for (const row of waiting ?? []) {
+    if (await linkContactPlace(admin, { customerId: row.id, ownerId, placeId: place.id })) {
+      await recordProLinked({ placeId: place.id, customerId: row.id, ownerId });
     }
   }
+  return (waiting ?? []).length > 0;
 }
 
 export async function portalBriefForUser(userId: string): Promise<string> {
@@ -448,6 +403,14 @@ export async function portalBriefForUser(userId: string): Promise<string> {
     .eq('portal_user_id', userId);
   const customerIds = (customers ?? []).map((row) => row.id);
   const aloneOnAccount = places.length <= 1;
+  const { data: links } = customerIds.length
+    ? await admin.from('pro_crm_customer_places').select('customer_id, place_id').in('customer_id', customerIds)
+    : { data: [] as { customer_id: string; place_id: string }[] };
+  /** Contacts on a place (default or linked), for documents that name their property. */
+  const contactsFor = (placeId: string) =>
+    (customers ?? []).filter(
+      (row) => row.place_id === placeId || (links ?? []).some((link) => link.customer_id === row.id && link.place_id === placeId)
+    );
 
   if (customerIds.length === 0) {
     const lines: string[] = [];
@@ -492,7 +455,7 @@ export async function portalBriefForUser(userId: string): Promise<string> {
       .eq('visible_to_customer', true),
     admin
       .from('pro_crm_invoices')
-      .select('customer_id, invoice_number, status, amount_cents, payment_applied_cents, due_date')
+      .select('customer_id, place_id, invoice_number, status, amount_cents, payment_applied_cents, due_date')
       .in('customer_id', customerIds)
       .neq('status', 'draft'),
   ]);
@@ -527,7 +490,7 @@ export async function portalBriefForUser(userId: string): Promise<string> {
     for (const doc of (docs ?? []).filter((row) => ids.includes(row.customer_id))) {
       lines.push(`  Document "${doc.title}" (${doc.kind}). Open it on My Places.`);
     }
-    for (const invoice of (invoices ?? []).filter((row) => ids.includes(row.customer_id))) {
+    for (const invoice of (invoices ?? []).filter((row) => docIsOnPlace(row, place.id, contactsFor(place.id)))) {
       const balance = Math.max(0, invoice.amount_cents - invoice.payment_applied_cents) / 100;
       lines.push(
         `  Invoice ${invoice.invoice_number}: ${invoice.status}. Balance ${balance.toFixed(2)} USD. Due ${invoice.due_date ?? 'not set'}.`
@@ -686,7 +649,6 @@ export async function loadPlaceBundle(
   placeId: string,
   email?: string | null
 ): Promise<PlaceBundle | null> {
-  await relinkPortalPlaces(userId);
   const admin = createServiceRoleClient();
   const { data: place } = await admin
     .from('customer_places')
@@ -698,19 +660,17 @@ export async function loadPlaceBundle(
 
   await recordPlaceEntered(place.id, place.name, place.created_at);
 
-  const [{ data: customers }, { count: placeCount }] = await Promise.all([
-    admin
-      .from('pro_crm_customers')
-      .select('id, owner_id')
-      .eq('portal_user_id', userId)
-      .eq('place_id', placeId),
+  const [customers, { count: placeCount }] = await Promise.all([
+    contactsOnPlace(admin, userId, placeId),
     admin
       .from('customer_places')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId),
   ]);
-  const rows = customers ?? [];
+  const rows = customers;
   const customerIds = rows.map((row) => row.id);
+  /** Projects, maintenance and files go on the contact's default property. */
+  const onDefault = (customerId: string) => contactDefaultIsPlace(customerId, placeId, rows);
   const aloneOnAccount = (placeCount ?? 0) <= 1;
   const ownerIds = [...new Set(rows.map((row) => row.owner_id))];
   const { data: businesses } = ownerIds.length
@@ -790,7 +750,7 @@ export async function loadPlaceBundle(
     }))
   );
 
-  const [{ data: projects }, { data: plans }, { data: docs }, { data: invoices }, { data: estimates }] = await Promise.all([
+  const [{ data: allProjects }, { data: allPlans }, { data: allDocs }, { data: allInvoices }, { data: allEstimates }] = await Promise.all([
     admin
       .from('pro_crm_projects')
       .select('id, customer_id, name, status, start_date, end_date')
@@ -811,21 +771,28 @@ export async function loadPlaceBundle(
       .order('created_at', { ascending: false }),
     admin
       .from('pro_crm_invoices')
-      .select('id, customer_id, invoice_number, status, amount_cents, payment_applied_cents, due_date, invoice_date, created_at')
+      .select('id, customer_id, place_id, invoice_number, status, amount_cents, payment_applied_cents, due_date, invoice_date, created_at')
       .in('customer_id', customerIds)
       .neq('status', 'draft')
       .order('invoice_date', { ascending: false }),
     admin
       .from('pro_crm_estimates')
       .select(
-        'id, customer_id, display_id, status, amount_cents, deposit_cents, due_date, job_area, agreement_kind, maintenance_frequency, signed_at, created_at'
+        'id, customer_id, place_id, display_id, status, amount_cents, deposit_cents, due_date, job_area, agreement_kind, maintenance_frequency, signed_at, created_at'
       )
       .in('customer_id', customerIds)
       .neq('status', 'draft')
       .order('created_at', { ascending: false }),
   ]);
 
-  const projectIds = (projects ?? []).map((row) => row.id);
+  // Estimates and invoices name their property; the rest follow the contact's default.
+  const projects = (allProjects ?? []).filter((row) => onDefault(row.customer_id));
+  const plans = (allPlans ?? []).filter((row) => onDefault(row.customer_id));
+  const docs = (allDocs ?? []).filter((row) => onDefault(row.customer_id));
+  const invoices = (allInvoices ?? []).filter((row) => docIsOnPlace(row, placeId, rows));
+  const estimates = (allEstimates ?? []).filter((row) => docIsOnPlace(row, placeId, rows));
+
+  const projectIds = projects.map((row) => row.id);
   const { data: phases } = projectIds.length
     ? await admin
         .from('pro_crm_project_phases')

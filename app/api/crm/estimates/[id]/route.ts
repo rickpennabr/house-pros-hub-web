@@ -9,6 +9,7 @@ import {
   normalizeEstimateAmountCents,
 } from '@/lib/schemas/crmEstimate';
 import { issueAcceptanceDeposit } from '@/lib/crm/estimate-deposit';
+import { dropDocEventsOffPlace, pickDocPlaceId } from '@/lib/places/contact-places';
 
 export async function GET(
   _request: NextRequest,
@@ -42,6 +43,7 @@ export async function GET(
       displayId: row.display_id ?? null,
       display_id: row.display_id ?? null,
       customerId: row.customer_id,
+      placeId: row.place_id ?? null,
       customerFirstName: customer?.first_name ?? null,
       customerLastName: customer?.last_name ?? null,
       customerDisplayName: customer ? contactDisplayName(customer) : null,
@@ -98,7 +100,7 @@ export async function PUT(
     const supabase = await createClient();
     const { data: currentEstimate, error: currentEstimateError } = await supabase
       .from('pro_crm_estimates')
-      .select('status, amount_cents, deposit_cents, agreement_kind, maintenance_frequency')
+      .select('status, customer_id, place_id, amount_cents, deposit_cents, agreement_kind, maintenance_frequency')
       .eq('id', id)
       .eq('owner_id', user.id)
       .single();
@@ -155,6 +157,13 @@ export async function PUT(
         .single();
       if (customer) updates.customer_id = body.customerId;
     }
+    // The house this estimate is for: one of the contact's houses, or empty for its default.
+    const nextCustomerId = typeof updates.customer_id === 'string' ? updates.customer_id : currentEstimate.customer_id;
+    if ('placeId' in bodyRaw || nextCustomerId !== currentEstimate.customer_id) {
+      const docPlace = await pickDocPlaceId(nextCustomerId, 'placeId' in bodyRaw ? bodyRaw.placeId : null);
+      if (!docPlace.ok) return NextResponse.json({ error: docPlace.error }, { status: 400 });
+      updates.place_id = docPlace.placeId;
+    }
 
     const { error } = await supabase
       .from('pro_crm_estimates')
@@ -163,6 +172,9 @@ export async function PUT(
       .eq('owner_id', user.id);
 
     if (error) return NextResponse.json({ error: error.message || 'Failed to update estimate' }, { status: 500 });
+    if ('place_id' in updates && updates.place_id !== currentEstimate.place_id) {
+      await dropDocEventsOffPlace({ kind: 'estimate', id });
+    }
     let depositInvoiceError: string | undefined;
     if (body.status === 'accepted' && currentEstimate.status !== 'accepted') {
       const deposit = await issueAcceptanceDeposit(supabase, id, user.id);

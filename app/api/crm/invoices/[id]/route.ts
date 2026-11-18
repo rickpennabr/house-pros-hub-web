@@ -7,6 +7,7 @@ import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
 import { syncBilledExpenses } from '@/lib/crm/job-costs';
 import { parsePaidNow, settleInvoicePaidInFull } from '@/lib/crm/invoice-payments';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
+import { dropDocEventsOffPlace, pickDocPlaceId } from '@/lib/places/contact-places';
 
 export async function GET(
   _request: NextRequest,
@@ -153,6 +154,7 @@ export async function GET(
       paymentTerms: row.payment_terms,
       note: row.note,
       customerId: row.customer_id,
+      placeId: row.place_id ?? null,
       estimateId: row.estimate_id,
       businessId: row.business_id,
       createdAt: row.created_at,
@@ -234,6 +236,21 @@ export async function PATCH(
     const paidNow = parsePaidNow(body);
     if ('error' in paidNow) return NextResponse.json({ error: paidNow.error }, { status: 400 });
 
+    // The house this invoice is for: one of the contact's houses, or empty for its default.
+    const { data: current } = await supabase
+      .from('pro_crm_invoices')
+      .select('customer_id, place_id')
+      .eq('id', id)
+      .eq('owner_id', user.id)
+      .maybeSingle();
+    if (!current) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    const nextCustomerId = typeof updates.customer_id === 'string' ? updates.customer_id : current.customer_id;
+    if ('placeId' in body || nextCustomerId !== current.customer_id) {
+      const docPlace = await pickDocPlaceId(nextCustomerId, 'placeId' in body ? body.placeId : null);
+      if (!docPlace.ok) return NextResponse.json({ error: docPlace.error }, { status: 400 });
+      updates.place_id = docPlace.placeId;
+    }
+
     const { error } = await supabase
       .from('pro_crm_invoices')
       .update(updates)
@@ -241,6 +258,9 @@ export async function PATCH(
       .eq('owner_id', user.id);
 
     if (error) return NextResponse.json({ error: error.message || 'Failed to update invoice' }, { status: 500 });
+    if ('place_id' in updates && updates.place_id !== current.place_id) {
+      await dropDocEventsOffPlace({ kind: 'invoice', id });
+    }
 
     if (body.lineItems !== undefined) {
       const synced = await syncBilledExpenses(supabase, user.id, id, body.lineItems);

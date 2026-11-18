@@ -64,6 +64,12 @@ export interface ProAgentEstimateSummary {
 }
 
 /** CRM estimate shared in chat for in-thread review and approval. */
+/** The customer's My Places property a chat document was filed under. */
+export interface ChatDocPlace {
+  id: string;
+  name: string;
+}
+
 export interface ChatCrmEstimateShare {
   token: string;
   estimateId: string;
@@ -83,6 +89,8 @@ export interface ChatCrmEstimateShare {
   /** Set after the customer approves in chat */
   approvedAt?: string;
   depositPaymentUrl?: string | null;
+  /** Set by the server when the estimate was filed on the customer's My Places. */
+  place?: ChatDocPlace | null;
 }
 
 /** CRM invoice or payment request shared in chat. The customer pays from the card. */
@@ -96,6 +104,8 @@ export interface ChatCrmInvoiceShare {
   dueDate?: string | null;
   /** payment = a deposit or one-off payment request; invoice = a regular invoice */
   kind: 'invoice' | 'payment';
+  /** Set by the server when the invoice was filed on the customer's My Places. */
+  place?: ChatDocPlace | null;
 }
 
 /** Cards attached to a ProAgent chat message. Plain text stays in body. */

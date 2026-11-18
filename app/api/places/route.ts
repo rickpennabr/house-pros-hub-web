@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { joinMailLine, splitUnit } from '@/lib/address/unit';
-import { claimPortalCustomers, listPortalPlaces, PLACE_KINDS, type PlaceKind } from '@/lib/places/portal';
+import { claimPortalCustomers, listPendingPros, listPortalPlaces, PLACE_KINDS, type PlaceKind } from '@/lib/places/portal';
 import { cleanText, deny, requirePortalUser } from '@/lib/places/session';
 
 /**
  * GET /api/places
- * The signed-in customer's houses, businesses, and buildings.
- * Claims CRM work that uses their confirmed email.
+ * The signed-in customer's houses, businesses, and buildings, plus pros that have them in
+ * their CRM and wait for the customer to pick a place (pendingPros).
  */
 export async function GET() {
   try {
@@ -14,9 +14,10 @@ export async function GET() {
     if (error || !user) return deny(error);
 
     await claimPortalCustomers(user);
-    const places = await listPortalPlaces(user.id);
+    const [places, pendingPros] = await Promise.all([listPortalPlaces(user.id), listPendingPros(user.id)]);
     return NextResponse.json({
       places,
+      pendingPros,
       emailConfirmed: Boolean(user.email_confirmed_at),
     });
   } catch (err) {

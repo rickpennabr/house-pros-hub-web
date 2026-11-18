@@ -14,6 +14,7 @@ import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import type { Json } from '@/lib/types/supabase';
 import { safeTimeZone } from '@/lib/crm/estimate-chart';
 import { buildInvoiceChart, type InvoiceChart } from '@/lib/crm/list-charts';
+import { pickDocPlaceId } from '@/lib/places/contact-places';
 
 const VALID_SORT = ['created_at', 'updated_at', 'status', 'invoice_date', 'due_date', 'amount_cents', 'invoice_number'] as const;
 
@@ -238,6 +239,7 @@ export async function POST(request: NextRequest) {
         .insert({
           owner_id: user.id,
           customer_id: estimate.customer_id,
+          place_id: estimate.place_id ?? null,
           estimate_id: estimateId,
           business_id: businessId || null,
           invoice_number: invoiceNumber,
@@ -284,6 +286,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'This contact cannot be invoiced. Add a role that can be invoiced.' }, { status: 400 });
     }
 
+    const docPlace = await pickDocPlaceId(customerId, body.placeId ?? body.place_id);
+    if (!docPlace.ok) return NextResponse.json({ error: docPlace.error }, { status: 400 });
+
     const invoiceNumber = await getNextInvoiceNumber(supabase, user.id);
     const { data: settings } = await supabase
       .from('pro_invoice_settings')
@@ -309,6 +314,7 @@ export async function POST(request: NextRequest) {
       .insert({
         owner_id: user.id,
         customer_id: customerId,
+        place_id: docPlace.placeId,
         estimate_id: null,
         business_id: businessId || null,
         invoice_number: invoiceNumber,

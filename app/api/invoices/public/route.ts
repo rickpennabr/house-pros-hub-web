@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { docPlaceLabel } from '@/lib/places/contact-places';
 import { applyCompanyDisplay } from '@/lib/invoices/companyDisplay';
 import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
 
@@ -132,7 +133,11 @@ export async function GET(request: NextRequest) {
       .single();
     const themeColorHex = (invSettings as { theme_color_hex?: string } | null)?.theme_color_hex ?? '#000000';
 
+    // The customer's house it is on now, for the chat card (the saved label can go stale).
+    const place = await docPlaceLabel(supabase, { kind: 'invoice', id: row.id, customerId: row.customer_id });
+
     return NextResponse.json({
+      place,
       invoiceNumber: row.invoice_number,
       amountCents: row.amount_cents,
       paymentAppliedCents: row.payment_applied_cents,

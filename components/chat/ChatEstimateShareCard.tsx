@@ -1,16 +1,28 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { CheckCircle2, FileText, Loader2 } from 'lucide-react';
 import type { ChatCrmEstimateShare } from '@/lib/types/chat';
+import ChatDocCard, { ChatDocPlaceNote } from '@/components/chat/ChatDocCard';
+import ChatDocViewer from '@/components/chat/ChatDocViewer';
 
 interface ChatEstimateShareCardProps {
   estimate: ChatCrmEstimateShare;
   /** Customer can approve; pro/admin only watches status */
   canApprove: boolean;
   onApproved?: (next: ChatCrmEstimateShare) => void;
+}
+
+/** The deposit link is a public invoice page; its token opens the same invoice in the chat viewer. */
+function invoiceTokenFrom(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url, 'https://hub.local');
+    return parsed.pathname.endsWith('/invoices/view') ? parsed.searchParams.get('token') : null;
+  } catch {
+    return null;
+  }
 }
 
 function money(cents: number) {
@@ -23,15 +35,16 @@ export default function ChatEstimateShareCard({
   onApproved,
 }: ChatEstimateShareCardProps) {
   const t = useTranslations('probot');
-  const [card, setCard] = useState(estimate);
+  /** Live fields read with the public token, layered over the snapshot saved in the message. */
+  const [live, setLive] = useState<Partial<ChatCrmEstimateShare>>({});
+  const card: ChatCrmEstimateShare = { ...estimate, ...live };
   const [approving, setApproving] = useState(false);
   const [signerName, setSignerName] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setCard(estimate);
-  }, [estimate]);
+  const [viewing, setViewing] = useState<'estimate' | 'deposit' | null>(null);
+  /** Bumped when the full view closes, so an approval made there shows on the card. */
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,23 +53,27 @@ export default function ChatEstimateShareCard({
         .then((res) => res.json())
         .then((data) => {
           if (cancelled || data.error) return;
-          setCard((prev) => ({
+          setLive((prev) => ({
             ...prev,
-            status: data.status ?? prev.status,
-            amountCents: typeof data.amountCents === 'number' ? data.amountCents : prev.amountCents,
-            depositCents: typeof data.depositCents === 'number' ? data.depositCents : prev.depositCents,
-            validUntilDate: data.validUntilDate ?? prev.validUntilDate,
-            estimateNumber: data.estimateNumber ? String(data.estimateNumber) : prev.estimateNumber,
-            businessName: data.business?.business_name ?? prev.businessName,
-            businessLogo: data.business?.business_logo ?? prev.businessLogo,
-            lineItemsPreview: Array.isArray(data.lineItems)
-              ? data.lineItems.slice(0, 4).map((line: Record<string, unknown>) => ({
-                  product_or_service:
-                    typeof line.product_or_service === 'string' ? line.product_or_service : null,
-                  description: typeof line.description === 'string' ? line.description : null,
-                  amount_cents: typeof line.amount_cents === 'number' ? line.amount_cents : null,
-                }))
-              : prev.lineItemsPreview,
+            // The house it is on now; null when it is on none (the saved label can go stale).
+            ...('place' in data ? { place: data.place ?? null } : {}),
+            ...(data.status ? { status: data.status } : {}),
+            ...(typeof data.amountCents === 'number' ? { amountCents: data.amountCents } : {}),
+            ...(typeof data.depositCents === 'number' ? { depositCents: data.depositCents } : {}),
+            ...(data.validUntilDate ? { validUntilDate: data.validUntilDate } : {}),
+            ...(data.estimateNumber ? { estimateNumber: String(data.estimateNumber) } : {}),
+            ...(data.business?.business_name ? { businessName: data.business.business_name } : {}),
+            ...(data.business?.business_logo ? { businessLogo: data.business.business_logo } : {}),
+            ...(Array.isArray(data.lineItems)
+              ? {
+                  lineItemsPreview: data.lineItems.slice(0, 4).map((line: Record<string, unknown>) => ({
+                    product_or_service:
+                      typeof line.product_or_service === 'string' ? line.product_or_service : null,
+                    description: typeof line.description === 'string' ? line.description : null,
+                    amount_cents: typeof line.amount_cents === 'number' ? line.amount_cents : null,
+                  })),
+                }
+              : {}),
           }));
         })
         .catch(() => {
@@ -70,9 +87,10 @@ export default function ChatEstimateShareCard({
       cancelled = true;
       if (interval) window.clearInterval(interval);
     };
-  }, [estimate.token, canApprove]);
+  }, [estimate.token, canApprove, refreshKey]);
 
   const accepted = card.status === 'accepted';
+  const depositToken = invoiceTokenFrom(card.depositPaymentUrl);
   const canClickApprove = canApprove && card.status === 'sent' && !approving;
 
   const handleApprove = async () => {
@@ -94,14 +112,13 @@ export default function ChatEstimateShareCard({
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload.error || t('crmEstimateApproveFailed'));
 
-      const next: ChatCrmEstimateShare = {
-        ...card,
+      const approved: Partial<ChatCrmEstimateShare> = {
         status: 'accepted',
         approvedAt: new Date().toISOString(),
         depositPaymentUrl: payload.depositPaymentUrl ?? card.depositPaymentUrl ?? null,
       };
-      setCard(next);
-      onApproved?.(next);
+      setLive((prev) => ({ ...prev, ...approved }));
+      onApproved?.({ ...card, ...approved });
 
       if (payload.status === 'already_accepted') {
         setMessage(t('crmEstimateAlreadyApproved'));
@@ -119,57 +136,30 @@ export default function ChatEstimateShareCard({
     }
   };
 
-  return (
-    <div className="mt-2 overflow-hidden rounded-2xl border-2 border-black bg-white text-gray-900 shadow-sm">
-      <div className="flex items-start gap-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white px-3 py-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-white">
-          {card.businessLogo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={card.businessLogo} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <FileText className="h-5 w-5 text-gray-700" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            {t('crmEstimateCardTitle')}
-          </p>
-          <div className="flex min-w-0 items-center gap-2">
-            {card.businessLogo ? (
-              // eslint-disable-next-line @next/next/no-img-element -- chat card; remote business logos
-              <img
-                src={card.businessLogo}
-                alt=""
-                className="h-7 w-7 shrink-0 rounded-full border border-gray-200 object-cover"
-              />
-            ) : null}
-            <p className="truncate text-sm font-semibold text-gray-900">
-              {card.businessName || t('crmEstimateFromPro')}
-            </p>
-          </div>
-          <p className="text-xs text-gray-500">
-            #{card.estimateNumber}
-            {card.validUntilDate
-              ? ` · ${t('crmEstimateValidUntil', {
-                  date: new Date(card.validUntilDate).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  }),
-                })}`
-              : null}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-[11px] uppercase text-gray-500">{t('crmEstimateTotal')}</p>
-          <p className="text-base font-bold text-gray-900">{money(card.amountCents)}</p>
-        </div>
-      </div>
+  const validUntil = card.validUntilDate
+    ? t('crmEstimateValidUntil', {
+        date: new Date(card.validUntilDate).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+      })
+    : null;
 
+  return (
+    <ChatDocCard
+      tone="estimate"
+      icon={<FileText className="h-5 w-5" />}
+      logoUrl={card.businessLogo}
+      eyebrow={`${t('crmEstimateCardTitle')} · #${card.estimateNumber}`}
+      title={card.businessName || t('crmEstimateFromPro')}
+      subtitle={validUntil}
+      amountLabel={t('crmEstimateTotal')}
+      amount={money(card.amountCents)}
+    >
       {(card.depositCents ?? 0) > 0 ? (
         <div className="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-          <span className="font-semibold">{t('crmEstimateDepositDue')}:</span>{' '}
-          {money(card.depositCents)}
+          <span className="font-semibold">{t('crmEstimateDepositDue')}:</span> {money(card.depositCents)}
         </div>
       ) : null}
 
@@ -219,7 +209,7 @@ export default function ChatEstimateShareCard({
           </label>
         ) : null}
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-2">
           {canClickApprove ? (
             <button
               type="button"
@@ -240,30 +230,57 @@ export default function ChatEstimateShareCard({
             </span>
           )}
 
-          <Link
-            href={card.viewUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-full border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
+          <button
+            type="button"
+            onClick={() => setViewing('estimate')}
+            className="inline-flex shrink-0 items-center justify-center rounded-full border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
           >
             {t('crmEstimateViewFull')}
-          </Link>
+          </button>
         </div>
 
-        {accepted && card.depositPaymentUrl ? (
-          <Link
-            href={card.depositPaymentUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
-          >
-            {t('crmEstimatePayDeposit')}
-          </Link>
+        {accepted && card.depositPaymentUrl && canApprove ? (
+          depositToken ? (
+            <button
+              type="button"
+              onClick={() => setViewing('deposit')}
+              className="inline-flex items-center justify-center rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
+            >
+              {t('crmEstimatePayDeposit')}
+            </button>
+          ) : (
+            <a
+              href={card.depositPaymentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
+            >
+              {t('crmEstimatePayDeposit')}
+            </a>
+          )
         ) : null}
 
         {message ? <p className="text-xs font-medium text-green-700">{message}</p> : null}
         {error ? <p className="text-xs font-medium text-red-600">{error}</p> : null}
+        <ChatDocPlaceNote place={card.place} canOpen={canApprove} />
       </div>
-    </div>
+
+      {viewing ? (
+        <ChatDocViewer
+          kind={viewing === 'deposit' ? 'invoice' : 'estimate'}
+          token={viewing === 'deposit' && depositToken ? depositToken : card.token}
+          title={
+            viewing === 'deposit'
+              ? t('crmEstimatePayDeposit')
+              : `${t('crmEstimateCardTitle')} #${card.estimateNumber}`
+          }
+          canAct={canApprove}
+          onClose={() => {
+            setViewing(null);
+            setRefreshKey((key) => key + 1);
+          }}
+        />
+      ) : null}
+    </ChatDocCard>
   );
 }

@@ -53,6 +53,8 @@ export interface InvoiceLinePayload {
 /** Values the invoice editor owns. Pages turn this into a create or update request. */
 export interface InvoiceEditorDraft {
   customerId: string;
+  /** The customer's house this invoice is for (My Places). Empty: the contact's default house. */
+  placeId?: string;
   lineItems: InvoiceLineItem[];
   invoiceDate: string;
   dueDate: string;

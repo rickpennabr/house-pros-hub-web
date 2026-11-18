@@ -14,7 +14,7 @@ export async function issueAcceptanceDeposit(
 ): Promise<{ invoiceId: string | null; error?: string }> {
   const { data: estimate, error } = await supabase
     .from('pro_crm_estimates')
-    .select('id, owner_id, customer_id, amount_cents, line_items, note, deposit_cents')
+    .select('id, owner_id, customer_id, place_id, amount_cents, line_items, note, deposit_cents')
     .eq('id', estimateId)
     .eq('owner_id', ownerId)
     .single();
@@ -53,6 +53,7 @@ export async function issueAcceptanceDeposit(
     .insert({
       owner_id: ownerId,
       customer_id: estimate.customer_id,
+      place_id: estimate.place_id ?? null,
       estimate_id: estimate.id,
       business_id: settings?.default_business_id ?? null,
       invoice_number: invoiceNumber,

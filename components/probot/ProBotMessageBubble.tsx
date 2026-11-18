@@ -8,6 +8,7 @@ import { Building2, User, Check, CheckCheck, ImageIcon, Reply, Trash2, UserPlus,
 import { ChatMediaAttachment } from '@/components/chat/ChatMediaAttachment';
 import ChatEstimateShareCard from '@/components/chat/ChatEstimateShareCard';
 import ChatInvoiceShareCard from '@/components/chat/ChatInvoiceShareCard';
+import ChatDocCard, { CHAT_DOC_BUBBLE_WIDTH } from '@/components/chat/ChatDocCard';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import type { ChatCrmEstimateShare, ChatMessage } from '@/lib/types/chat';
 import ProAgentCards from './ProAgentCards';
@@ -65,6 +66,14 @@ export default function ProBotMessageBubble({
   const body = typeof msg.body === 'string' ? msg.body : '';
   /** Place cards replace their plain-text body. */
   const showBody = Boolean(body.trim()) && !msg.payload?.placeShare && !msg.payload?.placeLinked;
+  /** Document cards share one width, whatever the caption length. */
+  const hasDocCard = Boolean(
+    msg.payload?.crmEstimate ||
+      msg.payload?.crmInvoice ||
+      msg.payload?.bookingInvite ||
+      msg.payload?.placeShare ||
+      msg.payload?.placeLinked
+  );
 
   const renderBody = (text: string) => {
     const parts = text.split(/(https?:\/\/[^\s]+)/g);
@@ -125,7 +134,7 @@ export default function ProBotMessageBubble({
   return (
     <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm text-gray-900 flex items-start gap-2 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] ${
+        className={`${hasDocCard ? CHAT_DOC_BUBBLE_WIDTH : 'max-w-[85%]'} rounded-lg px-2.5 py-1.5 text-sm text-gray-900 flex items-start gap-2 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] ${
           isOwn ? 'rounded-tr-none bg-[#d9fdd3]' : 'rounded-tl-none bg-white'
         }`}
       >
@@ -189,43 +198,44 @@ export default function ProBotMessageBubble({
             </div>
           ) : null}
           {msg.payload?.bookingInvite ? (
-            <div className="mt-2 rounded-lg border border-black/10 bg-white/70 p-2">
-              <p className="flex items-center gap-1.5 text-sm font-semibold">
-                <CalendarDays className="h-4 w-4 text-red-600" />
-                {t('bookingInviteTitle', { name: msg.payload.bookingInvite.businessName || businessName })}
-              </p>
-              {onPickTime ? (
-                <button
-                  type="button"
-                  onClick={() => onPickTime(msg)}
-                  className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-black px-3 text-sm font-medium text-white"
-                >
-                  {t('bookingInvitePick')}
-                </button>
-              ) : (
-                <p className="mt-1 text-xs text-gray-600">{t('bookingInviteSent')}</p>
-              )}
-            </div>
+            <ChatDocCard
+              tone="calendar"
+              icon={<CalendarDays className="h-5 w-5" />}
+              eyebrow={t('docCalendarEyebrow')}
+              title={t('bookingInviteTitle', { name: msg.payload.bookingInvite.businessName || businessName })}
+            >
+              <div className="bg-gray-50 px-3 py-3">
+                {onPickTime ? (
+                  <button
+                    type="button"
+                    onClick={() => onPickTime(msg)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    {t('bookingInvitePick')}
+                  </button>
+                ) : (
+                  <p className="text-center text-xs text-gray-600">{t('bookingInviteSent')}</p>
+                )}
+              </div>
+            </ChatDocCard>
           ) : null}
           {msg.payload?.placeShare ? (
-            <div className="mt-1 min-w-[220px] rounded-lg border border-black/10 bg-white/80 p-2">
-              <p className="text-xs font-medium text-gray-500">{t('placeShareCardTitle')}</p>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-100">
-                  <HomeIcon className="h-5 w-5 text-gray-500" aria-hidden />
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-gray-900">{msg.payload.placeShare.name}</span>
-                  <span className="block truncate text-xs text-gray-500">{msg.payload.placeShare.address}</span>
-                </span>
-              </div>
+            <ChatDocCard
+              tone="place"
+              icon={<HomeIcon className="h-5 w-5" aria-hidden />}
+              eyebrow={t('placeShareCardTitle')}
+              title={msg.payload.placeShare.name}
+              subtitle={msg.payload.placeShare.address}
+            >
+              <div className="flex flex-col gap-2 bg-gray-50 px-3 py-3">
               {msg.payload.placeShare.crmCustomerId ? (
-                <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-green-700">
+                <p className="inline-flex items-center gap-1 text-xs font-medium text-green-700">
                   <Check className="h-3.5 w-3.5" />
                   {isAdminView ? t('placeShareInCrm') : t('placeShareLinkedBy', { name: businessName })}
                 </p>
               ) : onAddPlaceToCrm ? (
-                <div className="mt-2">
+                <div>
                   <button
                     type="button"
                     disabled={addingToCrm}
@@ -240,7 +250,7 @@ export default function ProBotMessageBubble({
                         setAddingToCrm(false);
                       }
                     }}
-                    className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-black px-3 text-sm font-medium text-white disabled:opacity-60"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 disabled:opacity-60"
                   >
                     <UserPlus className="h-4 w-4 text-red-500" />
                     {addingToCrm ? t('placeShareAdding') : t('placeShareAddToCrm')}
@@ -249,55 +259,63 @@ export default function ProBotMessageBubble({
                   {crmError ? <p className="mt-1 text-xs text-red-600">{crmError}</p> : null}
                 </div>
               ) : !isAdminView ? (
-                <p className="mt-2 text-xs text-gray-500">{t('placeShareWaiting', { name: businessName })}</p>
+                <p className="text-xs text-gray-500">{t('placeShareWaiting', { name: businessName })}</p>
               ) : null}
               {!isAdminView ? (
                 <Link
                   href={`/${locale}/myplaces/${msg.payload.placeShare.placeId}`}
-                  className="mt-2 block text-xs font-medium text-black underline"
+                  className="inline-flex w-full items-center justify-center rounded-full border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
                 >
                   {t('placeOpenInMyPlaces')}
                 </Link>
               ) : null}
-            </div>
+              </div>
+            </ChatDocCard>
           ) : null}
           {msg.payload?.placeLinked ? (
-            <div className="mt-1 min-w-[220px] rounded-lg border border-black/10 bg-white/80 p-2">
-              <p className="flex items-start gap-1.5 text-sm font-semibold text-gray-900">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
-                {t('placeLinkedTitle', { business: businessName, place: msg.payload.placeLinked.name })}
-              </p>
-              <p className="mt-1 text-xs text-gray-600">
-                {isAdminView ? t('placeLinkedProHint') : t('placeLinkedCustomerHint', { business: businessName })}
-              </p>
-              {isAdminView && onCrmQuickAction ? (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onCrmQuickAction('estimate')}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-black px-2 text-sm font-medium text-white"
+            <ChatDocCard
+              tone="place"
+              icon={<HomeIcon className="h-5 w-5" aria-hidden />}
+              eyebrow={t('docPlaceEyebrow')}
+              title={msg.payload.placeLinked.name}
+            >
+              <div className="flex flex-col gap-2 bg-gray-50 px-3 py-3">
+                <p className="flex items-start gap-1.5 text-sm font-semibold text-gray-900">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                  {t('placeLinkedTitle', { business: businessName, place: msg.payload.placeLinked.name })}
+                </p>
+                <p className="text-xs text-gray-600">
+                  {isAdminView ? t('placeLinkedProHint') : t('placeLinkedCustomerHint', { business: businessName })}
+                </p>
+                {isAdminView && onCrmQuickAction ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onCrmQuickAction('estimate')}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-black px-3 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
+                    >
+                      <FileText className="h-4 w-4" />
+                      {t('crmNewEstimate')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onCrmQuickAction('invoice')}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-full border-2 border-black bg-white px-3 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
+                    >
+                      <Receipt className="h-4 w-4" />
+                      {t('crmNewInvoice')}
+                    </button>
+                  </div>
+                ) : !isAdminView ? (
+                  <Link
+                    href={`/${locale}/myplaces/${msg.payload.placeLinked.placeId}`}
+                    className="inline-flex w-full items-center justify-center rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
                   >
-                    <FileText className="h-4 w-4" />
-                    {t('crmSendEstimate')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onCrmQuickAction('invoice')}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border-2 border-black bg-white px-2 text-sm font-medium text-black"
-                  >
-                    <Receipt className="h-4 w-4" />
-                    {t('crmSendInvoice')}
-                  </button>
-                </div>
-              ) : !isAdminView ? (
-                <Link
-                  href={`/${locale}/myplaces/${msg.payload.placeLinked.placeId}`}
-                  className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg bg-black px-3 text-sm font-medium text-white"
-                >
-                  {t('placeOpenInMyPlaces')}
-                </Link>
-              ) : null}
-            </div>
+                    {t('placeOpenInMyPlaces')}
+                  </Link>
+                ) : null}
+              </div>
+            </ChatDocCard>
           ) : null}
           {msg.payload?.crmEstimate ? (
             <ChatEstimateShareCard

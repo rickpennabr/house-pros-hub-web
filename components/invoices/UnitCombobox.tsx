@@ -131,7 +131,7 @@ export function UnitCombobox({
       {open && (
         <div
           ref={listRef}
-          className="absolute z-50 left-0 right-0 mt-0.5 border border-gray-300 rounded-lg bg-white shadow-lg max-h-56 overflow-y-auto py-1"
+          className="absolute z-50 left-0 min-w-full w-max mt-0.5 border border-gray-300 rounded-lg bg-white shadow-lg max-h-56 overflow-y-auto py-1"
           role="listbox"
         >
           {generalOptions.length > 0 && (

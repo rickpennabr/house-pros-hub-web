@@ -76,6 +76,8 @@ interface CustomerEstimatePreviewProps {
   variant: 'public' | 'preview' | 'portal';
   /** Present-on-device mode (tablet handoff). */
   presentMode?: boolean;
+  /** Shown inside the chat viewer panel, not as a full page. */
+  embedded?: boolean;
   onApprove?: (input: { signerName: string }) => void;
   approveLoading?: boolean;
   alreadyAccepted?: boolean;
@@ -89,6 +91,7 @@ export function CustomerEstimatePreview({
   data,
   variant,
   presentMode = false,
+  embedded = false,
   onApprove,
   approveLoading = false,
   alreadyAccepted = false,
@@ -115,7 +118,9 @@ export function CustomerEstimatePreview({
       className={
         variant === 'preview'
           ? 'bg-white'
-          : presentMode
+          : embedded
+            ? 'bg-gray-50 p-3 sm:p-4'
+            : presentMode
             ? 'min-h-screen bg-white py-4 px-3'
             : 'min-h-screen bg-gray-50 py-8 px-4'
       }

@@ -75,6 +75,7 @@ export default function CRMEditInvoicePage() {
             : [emptyInvoiceLine()];
         setDraft({
           customerId: inv.customerId ?? '',
+          placeId: typeof inv.placeId === 'string' ? inv.placeId : '',
           lineItems,
           invoiceDate: inv.invoiceDate ?? todayISO(),
           dueDate: inv.dueDate ?? '',
@@ -113,6 +114,7 @@ export default function CRMEditInvoicePage() {
       credentials: 'include',
       body: JSON.stringify({
         customerId: form.customerId,
+        placeId: form.placeId || null,
         amountCents: invoiceTotalCents(lineItems),
         lineItems: lineItems.length > 0 ? lineItems : null,
         invoiceDate: form.invoiceDate || todayISO(),

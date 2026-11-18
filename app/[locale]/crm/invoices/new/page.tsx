@@ -89,6 +89,7 @@ export default function CRMNewInvoicePage() {
       credentials: 'include',
       body: JSON.stringify({
         customerId: form.customerId,
+        placeId: form.placeId || null,
         amountCents: invoiceTotalCents(lineItems),
         lineItems: lineItems.length > 0 ? lineItems : null,
         invoiceDate: form.invoiceDate || todayISO(),

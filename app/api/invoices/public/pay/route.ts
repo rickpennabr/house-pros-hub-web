@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { createInvoiceCheckoutSession } from '@/lib/billing/invoice-checkout';
+import { safeChatReturnTo } from '@/lib/chat/crm-doc-share';
 
 /**
  * POST /api/invoices/public/pay
@@ -25,10 +26,12 @@ export async function POST(request: NextRequest) {
 
     const origin = request.nextUrl.origin;
     const locale = request.headers.get('x-next-intl-locale') || 'en';
+    // Paying from a chat card: Stripe sends the customer back to that chat.
+    const chatReturn = safeChatReturnTo(typeof body.returnTo === 'string' ? body.returnTo : null);
     const view = `${origin}/${locale}/invoices/view?token=${encodeURIComponent(token)}`;
     const session = await createInvoiceCheckoutSession(supabase, tokenRow.invoice_id, {
-      successUrl: `${view}&paid=1`,
-      cancelUrl: view,
+      successUrl: chatReturn ? `${origin}${chatReturn}` : `${view}&paid=1`,
+      cancelUrl: chatReturn ? `${origin}${chatReturn}` : view,
     });
     if ('error' in session) return NextResponse.json({ error: session.error }, { status: 400 });
     return NextResponse.json({ url: session.url });

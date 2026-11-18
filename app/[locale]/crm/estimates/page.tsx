@@ -32,6 +32,13 @@ import {
   type CrmEstimateLineItemForm,
 } from '@/lib/utils/crmEstimateFormLineItems';
 import type { AgreementKind, MaintenanceFrequency } from '@/lib/crm/estimate-agreement';
+import {
+  estimateDeposit,
+  estimateFormError,
+  estimateLinesPayload,
+  estimateTotalCents,
+  syncEstimateLinesToReusableItems as syncEstimateLinesToCatalog,
+} from '@/lib/crm/estimate-form';
 import { chatReturnWithDoc, safeChatReturnTo } from '@/lib/chat/crm-doc-share';
 
 const PAGE_SIZE = 25;
@@ -158,6 +165,8 @@ export default function CRMEstimatesPage() {
     customerEmail: string | null;
   } | null>(null);
   const [formCustomerId, setFormCustomerId] = useState('');
+  /** The customer's house this estimate is for. Empty: the contact's default house. */
+  const [formPlaceId, setFormPlaceId] = useState('');
   const [formLineItems, setFormLineItems] = useState<EstimateLineItem[]>([
     { product_or_service: '', description: '', qty: 1, rate_cents: 0, amount_cents: 0 },
   ]);
@@ -290,6 +299,7 @@ export default function CRMEstimatesPage() {
           customerEmail: typeof data.customerEmail === 'string' ? data.customerEmail : null,
         });
         setFormCustomerId(data.customerId ?? '');
+        setFormPlaceId(typeof data.placeId === 'string' ? data.placeId : '');
         setFormLineItems(items);
         setFormStatus(data.status ?? 'draft');
         setFormDueDate(data.dueDate ? data.dueDate.slice(0, 10) : '');
@@ -402,6 +412,7 @@ export default function CRMEstimatesPage() {
       setEditingId(null);
       setEditingData(null);
       setFormCustomerId(draft.customerId);
+      setFormPlaceId(typeof data.placeId === 'string' ? data.placeId : '');
       setFormLineItems(draft.lineItems);
       setFormStatus('draft');
       setFormDueDate(getDefaultEstimateValidityDate());
@@ -567,115 +578,19 @@ export default function CRMEstimatesPage() {
     setAddItemPanelRowIndex(null);
   };
 
-  const lineItemsPayload = formLineItems
-    .filter((line) => line.description || line.product_or_service || line.amount_cents > 0)
-    .map((line) => ({
-      product_or_service: line.product_or_service || null,
-      description: line.description || null,
-      unit: line.unit || DEFAULT_UNIT,
-      qty: line.qty,
-      rate_cents: line.rate_cents,
-      amount_cents: line.amount_cents,
-    }));
-  const totalAmountCents =
-    lineItemsPayload.length > 0
-      ? lineItemsPayload.reduce((sum, l) => sum + l.amount_cents, 0)
-      : 0;
-
-  const syncEstimateLinesToReusableItems = async (lines: typeof lineItemsPayload) => {
-    const normalizedIncoming = lines
-      .filter((line) => line.product_or_service && line.product_or_service.trim())
-      .map((line) => ({
-        name: (line.product_or_service ?? '').trim(),
-        description: (line.description ?? '').trim(),
-        unit: (line.unit ?? DEFAULT_UNIT).trim() || DEFAULT_UNIT,
-        price_cents: Math.max(0, Math.round(line.rate_cents ?? 0)),
-      }));
-    if (normalizedIncoming.length === 0) return;
-
-    const existingRes = await fetch('/api/crm/items', { credentials: 'include' });
-    const existingData = await existingRes.json().catch(() => ({}));
-    const existingItems: ProCrmItem[] = existingData.items ?? [];
-
-    const existingKeys = new Set(
-      existingItems.map((item) =>
-        JSON.stringify({
-          name: (item.name ?? '').trim().toLowerCase(),
-          description: (item.description ?? '').trim().toLowerCase(),
-          unit: (item.unit ?? DEFAULT_UNIT).trim().toLowerCase(),
-          price_cents: Math.max(0, Math.round(item.price_cents ?? 0)),
-        })
-      )
-    );
-
-    for (const line of normalizedIncoming) {
-      const key = JSON.stringify({
-        name: line.name.toLowerCase(),
-        description: line.description.toLowerCase(),
-        unit: line.unit.toLowerCase(),
-        price_cents: line.price_cents,
-      });
-      if (existingKeys.has(key)) continue;
-      const createRes = await fetch('/api/crm/items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: line.name,
-          item_type: 'service',
-          description: line.description || undefined,
-          price_cents: line.price_cents,
-          unit: line.unit,
-        }),
-      });
-      if (createRes.ok) existingKeys.add(key);
-    }
-  };
-
-  const depositPayload = (): { cents: number; error: string | null } => {
-    const trimmed = formDeposit.trim();
-    if (!trimmed) return { cents: 0, error: null };
-    const dollars = Number(trimmed);
-    if (!Number.isFinite(dollars) || dollars < 0) return { cents: 0, error: 'Enter a deposit amount' };
-    const cents = Math.round(dollars * 100);
-    if (cents > totalAmountCents) return { cents, error: 'Deposit cannot be more than the estimate' };
-    return { cents, error: null };
-  };
-
-  const getCreateEstimateValidationError = (): string | null => {
-    if (!formCustomerId) return 'Select a customer';
-    const hasInvalidLine = formLineItems.some((line) => {
-      const touched =
-        Boolean(line.description?.trim()) ||
-        Boolean(line.product_or_service?.trim()) ||
-        line.qty > 0 ||
-        line.rate_cents > 0 ||
-        line.amount_cents > 0;
-      return touched && !line.product_or_service?.trim();
+  // Same rules as the chat's estimate window (lib/crm/estimate-form).
+  const lineItemsPayload = estimateLinesPayload(formLineItems);
+  const totalAmountCents = estimateTotalCents(formLineItems);
+  const syncEstimateLinesToReusableItems = syncEstimateLinesToCatalog;
+  const depositPayload = () => estimateDeposit(formDeposit, totalAmountCents);
+  const getCreateEstimateValidationError = (): string | null =>
+    estimateFormError({
+      customerId: formCustomerId,
+      lines: formLineItems,
+      deposit: formDeposit,
+      agreementKind: formAgreementKind,
+      maintenanceFrequency: formMaintenanceFrequency,
     });
-    if (hasInvalidLine) {
-      return 'Choose a product or service from reusable items before saving.';
-    }
-    const seen = new Set<string>();
-    for (const line of formLineItems) {
-      const key = JSON.stringify({
-        product_or_service: (line.product_or_service ?? '').trim().toLowerCase(),
-        description: (line.description ?? '').trim().toLowerCase(),
-        unit: (line.unit ?? '').trim().toLowerCase(),
-        qty: line.qty,
-        rate_cents: line.rate_cents,
-        amount_cents: line.amount_cents,
-      });
-      if (seen.has(key)) return 'You have a duplicated item on your estimate. Modify one before creating.';
-      seen.add(key);
-    }
-    const deposit = depositPayload();
-    if (deposit.error) return deposit.error;
-    if (formAgreementKind === 'maintenance' && !formMaintenanceFrequency) {
-      return 'Choose how often maintenance visits run';
-    }
-    return null;
-  };
 
   const handleSubmitAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -702,6 +617,7 @@ export default function CRMEstimatesPage() {
           note: formNote.trim() || null,
           depositCents: depositPayload().cents,
           jobArea: formJobArea.trim() || null,
+          placeId: formPlaceId || null,
           agreementKind: formAgreementKind,
           maintenanceFrequency: formAgreementKind === 'maintenance' ? formMaintenanceFrequency || null : null,
         }),
@@ -715,6 +631,7 @@ export default function CRMEstimatesPage() {
       }
       setViewMode('table');
       setFormCustomerId('');
+      setFormPlaceId('');
       setFormLineItems([{ product_or_service: '', description: '', unit: DEFAULT_UNIT, qty: 1, rate_cents: 0, amount_cents: 0 }]);
       setFormStatus('draft');
       setFormDueDate(getDefaultEstimateValidityDate());
@@ -755,6 +672,7 @@ export default function CRMEstimatesPage() {
           note: formNote.trim() || null,
           depositCents: depositPayload().cents,
           jobArea: formJobArea.trim() || null,
+          placeId: formPlaceId || null,
           agreementKind: formAgreementKind,
           maintenanceFrequency: formAgreementKind === 'maintenance' ? formMaintenanceFrequency || null : null,
         }),
@@ -843,6 +761,7 @@ export default function CRMEstimatesPage() {
           note: formNote.trim() || null,
           depositCents: depositPayload().cents,
           jobArea: formJobArea.trim() || null,
+          placeId: formPlaceId || null,
           agreementKind: formAgreementKind,
           maintenanceFrequency: formAgreementKind === 'maintenance' ? formMaintenanceFrequency || null : null,
         }),
@@ -1115,7 +1034,12 @@ export default function CRMEstimatesPage() {
               estimateNumber={viewMode === 'edit' ? (editingData?.estimateNumber ?? '') : ''}
               customers={customers}
               customerId={formCustomerId}
-              onCustomerIdChange={setFormCustomerId}
+              onCustomerIdChange={(value) => {
+                setFormCustomerId(value);
+                setFormPlaceId('');
+              }}
+              placeId={formPlaceId}
+              onPlaceIdChange={setFormPlaceId}
               lineItems={formLineItems}
               onLineItemsChange={setFormLineItems}
               validUntilDate={formDueDate}

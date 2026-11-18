@@ -90,6 +90,13 @@ function asSummary(value: unknown): ProAgentEstimateSummary | null {
   };
 }
 
+function asDocPlace(value: unknown): { id: string; name: string } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.id !== 'string' || !row.id) return null;
+  return { id: row.id, name: typeof row.name === 'string' ? row.name : '' };
+}
+
 function asCrmInvoice(value: unknown): ProAgentPayload['crmInvoice'] | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
@@ -101,6 +108,7 @@ function asCrmInvoice(value: unknown): ProAgentPayload['crmInvoice'] | null {
     amountCents: typeof row.amountCents === 'number' ? row.amountCents : 0,
     dueDate: typeof row.dueDate === 'string' ? row.dueDate : null,
     kind: row.kind === 'payment' ? 'payment' : 'invoice',
+    place: asDocPlace(row.place),
   };
 }
 
@@ -138,6 +146,7 @@ function asCrmEstimate(value: unknown): ProAgentPayload['crmEstimate'] | null {
     lineItemsPreview,
     approvedAt: typeof row.approvedAt === 'string' ? row.approvedAt : undefined,
     depositPaymentUrl: typeof row.depositPaymentUrl === 'string' ? row.depositPaymentUrl : null,
+    place: asDocPlace(row.place),
   };
 }
 

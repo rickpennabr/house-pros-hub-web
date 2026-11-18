@@ -6,6 +6,7 @@ import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { summarizeEstimateStatuses } from '@/lib/crm/estimate-books';
 import { buildEstimateChart, safeTimeZone, type EstimateChart } from '@/lib/crm/estimate-chart';
+import { pickDocPlaceId } from '@/lib/places/contact-places';
 
 const VALID_SORT = ['created_at', 'updated_at', 'status', 'due_date', 'amount_cents'] as const;
 
@@ -219,6 +220,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'This contact cannot be invoiced. Add a role that can be invoiced.' }, { status: 400 });
     }
 
+    const docPlace = await pickDocPlaceId(customerId, rawBody.placeId ?? rawBody.place_id);
+    if (!docPlace.ok) return NextResponse.json({ error: docPlace.error }, { status: 400 });
+
     const lineItems = body.lineItems ?? null;
     const amountCents = normalizeEstimateAmountCents(lineItems);
     const depositCents = body.depositCents ?? 0;
@@ -236,6 +240,7 @@ export async function POST(request: NextRequest) {
       .insert({
         owner_id: user.id,
         customer_id: customerId,
+        place_id: docPlace.placeId,
         amount_cents: amountCents,
         deposit_cents: depositCents,
         line_items: lineItems,

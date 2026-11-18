@@ -92,6 +92,7 @@ export async function ensureBillable(supabase: Client, contactId: string): Promi
 /**
  * Point this pro's contact at the hub login when the email matches.
  * Leaves a link that is already set. Does not copy another pro's records.
+ * Never puts the pro on one of the customer's places: the customer approves that in My Places.
  */
 export async function attachHubLogin(contactId: string, ownerId: string, email: string): Promise<void> {
   const normalized = email.trim().toLowerCase();
@@ -118,21 +119,6 @@ export async function attachHubLogin(contactId: string, ownerId: string, email: 
       .is('portal_user_id', null);
     if (error) throw new Error(error.message);
   }
-
-  const mailing = mailingFromHub({
-    ...hub,
-    streetAddress: row.street_address || hub.streetAddress,
-    zipCode: row.zip_code || hub.zipCode,
-  });
-  if (!mailing.placeId) return;
-  const { error: placeError } = await admin
-    .from('pro_crm_customers')
-    .update({ place_id: mailing.placeId, portal_kind: mailing.portalKind })
-    .eq('id', contactId)
-    .eq('owner_id', ownerId)
-    .eq('portal_user_id', hub.userId)
-    .is('place_id', null);
-  if (placeError) throw new Error(placeError.message);
 }
 
 async function fillBlankAddress(supabase: Client, ownerId: string, row: OwnedRow, hub: HubContact): Promise<void> {

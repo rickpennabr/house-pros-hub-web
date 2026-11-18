@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCrmScope } from '@/lib/crm/crm-scope';
 import { parseAgentPayload } from '@/lib/chat/proagent-policy';
 import { ensureBillable } from '@/lib/crm/hub-customer';
+import { linkContactPlace } from '@/lib/places/contact-places';
+import { recordProLinked } from '@/lib/places/timeline';
 import type { ChatPlaceShare } from '@/lib/types/chat';
 
 /** Last 10 digits, so "(702) 555-0100" and "+1 702-555-0100" match. Too short to trust → null. */
@@ -12,9 +14,9 @@ function phoneDigits(value: string | null | undefined): string | null {
 
 /**
  * POST /api/chat/place-share  { messageId } or { conversationId }
- * The pro adds the customer from a chat to their CRM. When the customer shared a My Places
- * property (the message, or the latest share in the conversation), that place is linked, so the
- * pro's projects, estimates, invoices and maintenance show on the customer's My Places.
+ * The pro adds the customer from a chat to their CRM. One contact per person: a customer with
+ * several houses keeps one contact, and each house they share is added to its properties.
+ * The first house becomes the default; estimates and invoices pick the house they are for.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -111,17 +113,26 @@ export async function POST(request: NextRequest) {
     ]);
     const email = authUser?.user?.email ?? null;
 
-    // Reuse this customer's CRM record (same place first, then same account) before creating one.
+    // This person's contact: one already on this house, else their oldest one.
     const { data: existing } = await db
       .from('pro_crm_customers')
       .select('id, place_id, portal_user_id')
       .eq('owner_id', scope.ownerId)
-      .or(place ? `place_id.eq.${place.id},portal_user_id.eq.${customerUserId}` : `portal_user_id.eq.${customerUserId}`)
+      .eq('portal_user_id', customerUserId)
       .order('created_at', { ascending: true });
+    const { data: placeLinks } =
+      place && existing?.length
+        ? await db
+            .from('pro_crm_customer_places')
+            .select('customer_id')
+            .eq('place_id', place.id)
+            .in('customer_id', existing.map((row) => row.id))
+        : { data: [] as { customer_id: string }[] };
     let match =
-      (place ? existing?.find((row) => row.place_id === place!.id) : undefined) ??
-      existing?.find((row) => !row.place_id) ??
-      (place ? undefined : existing?.[0]) ??
+      (place
+        ? existing?.find((row) => row.place_id === place!.id || (placeLinks ?? []).some((link) => link.customer_id === row.id))
+        : undefined) ??
+      existing?.[0] ??
       null;
 
     // Then a contact the pro already entered by hand: same email, else same phone, not linked to another login.
@@ -146,11 +157,10 @@ export async function POST(request: NextRequest) {
 
     let customerId: string;
     if (match) {
-      const { error } = await db
-        .from('pro_crm_customers')
-        .update(place ? { portal_user_id: customerUserId, place_id: place.id } : { portal_user_id: customerUserId })
-        .eq('id', match.id);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (!match.portal_user_id) {
+        const { error } = await db.from('pro_crm_customers').update({ portal_user_id: customerUserId }).eq('id', match.id);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      }
       customerId = match.id;
     } else {
       const { data: created, error } = await db
@@ -166,12 +176,16 @@ export async function POST(request: NextRequest) {
           state: place?.state ?? null,
           zip_code: place?.zip_code ?? null,
           portal_user_id: customerUserId,
-          place_id: place?.id ?? null,
         })
         .select('id')
         .single();
       if (error || !created) return NextResponse.json({ error: error?.message || 'Could not add customer' }, { status: 500 });
       customerId = created.id;
+    }
+
+    // The customer shared this house: add it to the contact's properties (the first is the default).
+    if (place && (await linkContactPlace(db, { customerId, ownerId: scope.ownerId, placeId: place.id }))) {
+      await recordProLinked({ placeId: place.id, customerId, ownerId: scope.ownerId });
     }
 
     // Chat customers get estimates and invoices from the chat, so the contact must be billable.

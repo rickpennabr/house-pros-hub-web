@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { requirePortalUser } from '@/lib/places/session';
+import { docBelongsToPlace } from '@/lib/places/contact-places';
 import { loadEstimateBusinessBrand } from '@/lib/crm/estimate-business-brand';
 
 /**
@@ -24,7 +25,7 @@ export async function GET(
     const { data: estimate } = await supabase
       .from('pro_crm_estimates')
       .select(
-        'id, customer_id, owner_id, display_id, amount_cents, deposit_cents, line_items, status, due_date, note, job_area, agreement_kind, maintenance_frequency, signed_at, signer_name'
+        'id, customer_id, place_id, owner_id, display_id, amount_cents, deposit_cents, line_items, status, due_date, note, job_area, agreement_kind, maintenance_frequency, signed_at, signer_name'
       )
       .eq('id', estimateId)
       .neq('status', 'draft')
@@ -36,9 +37,10 @@ export async function GET(
       .select('id, first_name, last_name, display_name, company_name, email')
       .eq('id', estimate.customer_id)
       .eq('portal_user_id', user.id)
-      .eq('place_id', placeId)
       .maybeSingle();
-    if (!customer) return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
+    if (!customer || !(await docBelongsToPlace(supabase, { userId: user.id, placeId, doc: estimate }))) {
+      return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
+    }
 
     const business = await loadEstimateBusinessBrand(supabase, estimate.owner_id);
 

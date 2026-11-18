@@ -14,7 +14,8 @@ import { createSignUpUrl, createLocalePath } from '@/lib/redirect';
 import { useAccordionState } from '@/hooks/useAccordionState';
 import { useEstimateFormValues } from '@/hooks/useEstimateFormValues';
 import { useEstimateFormValidation } from '@/hooks/useEstimateFormValidation';
-import CustomerInfoAccordion from '@/components/estimate/CustomerInfoAccordion';
+import CustomerInfoAccordion, { type EstimatePlaceOption } from '@/components/estimate/CustomerInfoAccordion';
+import { splitUnit } from '@/lib/address/unit';
 import ProjectTypeSelector from '@/components/estimate/ProjectTypeSelector';
 import TradesSelector from '@/components/estimate/TradesSelector';
 import ProjectDescriptionAccordion from '@/components/estimate/ProjectDescriptionAccordion';
@@ -24,6 +25,31 @@ import NotesAccordion from '@/components/estimate/NotesAccordion';
 import Accordion from '@/components/ui/Accordion';
 import { Button } from '@/components/ui/Button';
 import { AddressData } from '@/components/AddressAutocomplete';
+
+/** My Places rows (GET /api/places) with a usable address, as picker options. */
+function toPlaceOptions(value: unknown): EstimatePlaceOption[] {
+  if (!Array.isArray(value)) return [];
+  const options: EstimatePlaceOption[] = [];
+  for (const row of value as Record<string, unknown>[]) {
+    const line = typeof row.street === 'string' ? row.street.trim() : '';
+    const city = typeof row.city === 'string' ? row.city.trim() : '';
+    const zipCode = typeof row.zipCode === 'string' ? row.zipCode.trim() : '';
+    if (typeof row.id !== 'string' || !line || !city || !zipCode) continue;
+    const { street, unit } = splitUnit(line);
+    options.push({
+      id: row.id,
+      kind: row.kind === 'business' || row.kind === 'building' ? row.kind : 'house',
+      name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : street,
+      street,
+      apartment: unit,
+      city,
+      state: typeof row.state === 'string' && row.state.trim() ? row.state.trim().toUpperCase().slice(0, 2) : 'NV',
+      zipCode,
+      photoUrl: typeof row.photoUrl === 'string' ? row.photoUrl : null,
+    });
+  }
+  return options;
+}
 
 export default function EstimatePage() {
   const router = useRouter();
@@ -46,6 +72,9 @@ export default function EstimatePage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [loadingFallback, setLoadingFallback] = useState(false);
   const [addressPrefilledFromProfile, setAddressPrefilledFromProfile] = useState(false);
+  /** My Places with a full address; the customer picks the project address from these. */
+  const [placeOptions, setPlaceOptions] = useState<EstimatePlaceOption[]>([]);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const hasTriggeredAuthRefresh = useRef(false);
   const didPostSignupRefresh = useRef(false);
   const openedMissingCustomerInfo = useRef(false);
@@ -232,7 +261,20 @@ export default function EstimatePage() {
     openAccordion('customerInfo');
   }, [addressChecked, validation.isCustomerInfoComplete, openAccordion]);
 
-  // Fetch and populate address from addresses table (source of truth)
+  /** Put a My Places property in the address fields. */
+  const fillFromPlace = useCallback(
+    (place: EstimatePlaceOption, validate = true) => {
+      setValue('streetAddress', place.street, { shouldValidate: validate });
+      setValue('apartment', place.apartment, { shouldValidate: validate });
+      setValue('city', place.city, { shouldValidate: validate });
+      setValue('state', place.state, { shouldValidate: validate });
+      setValue('zipCode', place.zipCode, { shouldValidate: validate });
+      setSelectedPlaceId(place.id);
+    },
+    [setValue]
+  );
+
+  // Fetch and populate address from addresses table (source of truth), and the customer's My Places.
   useEffect(() => {
     if (!isAuthenticated || isLoading || !user?.id) return;
 
@@ -241,14 +283,16 @@ export default function EstimatePage() {
 
     (async () => {
       try {
-        const res = await fetch('/api/addresses?type=personal', {
-          method: 'GET',
-          credentials: 'include',
-        });
+        const [res, placesRes] = await Promise.all([
+          fetch('/api/addresses?type=personal', { method: 'GET', credentials: 'include' }),
+          fetch('/api/places', { method: 'GET', credentials: 'include' }).catch(() => null),
+        ]);
 
         if (cancelled) return;
 
         const data = res.ok ? await res.json() : null;
+        const placesData = placesRes?.ok ? await placesRes.json().catch(() => null) : null;
+        if (cancelled) return;
         const addr = Array.isArray(data?.addresses) ? data.addresses[0] : null;
         const street = addr?.streetAddress || user.streetAddress || '';
         const city = addr?.city || user.city || '';
@@ -256,7 +300,11 @@ export default function EstimatePage() {
         const zipCode = addr?.zipCode || user.zipCode || '';
         const apartment = addr?.apartment || user.apartment || '';
 
-        if (street || city || zipCode) {
+        const options = toPlaceOptions(placesData?.places);
+        setPlaceOptions(options);
+        if (options.length > 0) {
+          // The customer picks the property; nothing is pre-selected.
+        } else if (street || city || zipCode) {
           setValue('streetAddress', street, { shouldValidate: false });
           setValue('city', city, { shouldValidate: false });
           setValue('state', state, { shouldValidate: false });
@@ -274,7 +322,7 @@ export default function EstimatePage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, isLoading, user, setValue]);
+  }, [isAuthenticated, isLoading, user, setValue, fillFromPlace]);
 
   // Handle address selection
   const handleAddressSelect = useCallback((addressData: AddressData) => {
@@ -365,7 +413,10 @@ export default function EstimatePage() {
       setValue('email', user.email || '', { shouldValidate: false });
       setValue('phone', user.phone || '', { shouldValidate: false });
     }
-    if (isAuthenticated && user?.id) {
+    if (placeOptions.length > 0) {
+      // A new request: the customer picks the property again.
+      setSelectedPlaceId(null);
+    } else if (isAuthenticated && user?.id) {
       fetch('/api/addresses?type=personal', { method: 'GET', credentials: 'include' })
         .then((res) => res.ok ? res.json() : null)
         .then((data) => {
@@ -381,7 +432,7 @@ export default function EstimatePage() {
         })
         .catch(() => {});
     }
-  }, [reset, isAuthenticated, user, isLoading, setValue]);
+  }, [reset, isAuthenticated, user, isLoading, setValue, placeOptions]);
 
   // Show loading state while checking authentication
   if (isLoading || !isAuthenticated) {
@@ -526,6 +577,9 @@ export default function EstimatePage() {
               personalInfoFromProfile={Boolean(
                 user?.firstName?.trim() && user?.lastName?.trim() && user?.email?.trim() && user?.phone?.trim()
               )}
+              places={placeOptions}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={(place) => fillFromPlace(place)}
             />
           </div>
 

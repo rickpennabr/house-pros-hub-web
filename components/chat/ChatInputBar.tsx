@@ -189,7 +189,7 @@ export default function ChatInputBar({
                         }}
                         className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        <span className="flex h-4 w-4 shrink-0 items-center justify-center">{action.icon}</span>
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center text-red-600">{action.icon}</span>
                         {action.label}
                       </button>
                     ))}
@@ -204,7 +204,7 @@ export default function ChatInputBar({
                   }}
                   className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  <Paperclip className="h-4 w-4" />
+                  <Paperclip className="h-4 w-4 text-red-600" />
                   {labels.uploadFiles}
                 </button>
                 <a
@@ -214,7 +214,7 @@ export default function ChatInputBar({
                   onClick={() => setAttachMenuOpen(false)}
                   className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  <Cloud className="h-4 w-4" />
+                  <Cloud className="h-4 w-4 text-red-600" />
                   {labels.addFromGoogleDrive}
                 </a>
                 <button
@@ -225,7 +225,7 @@ export default function ChatInputBar({
                   }}
                   className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  <Camera className="h-4 w-4" />
+                  <Camera className="h-4 w-4 text-red-600" />
                   {labels.camera}
                 </button>
                 <button
@@ -236,7 +236,7 @@ export default function ChatInputBar({
                   }}
                   className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  <ImageIcon className="h-4 w-4" />
+                  <ImageIcon className="h-4 w-4 text-red-600" />
                   {labels.photos}
                 </button>
               </div>

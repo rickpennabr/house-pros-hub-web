@@ -34,6 +34,8 @@ import {
 } from '@/lib/invoices/draft';
 import { PAYMENT_METHODS, type PaymentMethod } from '@/lib/crm/invoice-books';
 import { JobCostPicker } from '@/components/invoices/JobCostPicker';
+import { ContactPropertySelect } from '@/components/crm/ContactPropertySelect';
+import type { ContactProperty } from '@/lib/places/contact-places';
 
 interface InvoiceEditorProps {
   title: string;
@@ -51,6 +53,16 @@ interface InvoiceEditorProps {
   saving: boolean;
   onSaveAndClose: (draft: InvoiceEditorDraft) => void;
   onReviewAndSend: (draft: InvoiceEditorDraft) => void;
+  /**
+   * Inside the chat: no Back row (the window has its own title), Cancel closes the window, one
+   * primary button, and the customer is fixed.
+   */
+  embedded?: {
+    onCancel: () => void;
+    submitLabel: string;
+    /** Pick the house once the contact's houses load (the house shared in the chat). */
+    onPropertiesLoaded?: (properties: ContactProperty[]) => string | void;
+  };
 }
 
 function customerLabel(customer: InvoiceCustomerOption): string {
@@ -72,9 +84,11 @@ export function InvoiceEditor({
   saving,
   onSaveAndClose,
   onReviewAndSend,
+  embedded,
 }: InvoiceEditorProps) {
   const router = useRouter();
   const [customerId, setCustomerId] = useState(initialDraft.customerId);
+  const [placeId, setPlaceId] = useState(initialDraft.placeId ?? '');
   const [importedCustomers, setImportedCustomers] = useState<InvoiceCustomerOption[]>([]);
   const customerOptions = useMemo(() => {
     const seen = new Set(customers.map((customer) => customer.id));
@@ -119,6 +133,7 @@ export function InvoiceEditor({
 
   const currentDraft = (): InvoiceEditorDraft => ({
     customerId,
+    placeId,
     lineItems,
     invoiceDate,
     dueDate,
@@ -181,14 +196,16 @@ export function InvoiceEditor({
   };
 
   return (
-    <div className={DOCUMENT_FORM_LAYOUT.pageContainer}>
-      <div className="py-2 md:py-0 md:mb-4 flex items-center justify-between gap-4">
-        <Link href={backHref} className="flex items-center gap-2 text-gray-700 hover:text-black font-medium">
-          <ArrowLeft className="w-5 h-5 shrink-0" />
-          Back
-        </Link>
-        <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-      </div>
+    <div className={embedded ? 'w-full' : DOCUMENT_FORM_LAYOUT.pageContainer}>
+      {embedded ? null : (
+        <div className="py-2 md:py-0 md:mb-4 flex items-center justify-between gap-4">
+          <Link href={backHref} className="flex items-center gap-2 text-gray-700 hover:text-black font-medium">
+            <ArrowLeft className="w-5 h-5 shrink-0" />
+            Back
+          </Link>
+          <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+        </div>
+      )}
 
       <div className={DOCUMENT_FORM_LAYOUT.shell}>
         <div className={DOCUMENT_FORM_LAYOUT.sheet} style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
@@ -235,12 +252,14 @@ export function InvoiceEditor({
                     value={customerId}
                     onChange={(e) => {
                       setCustomerId(e.target.value);
+                      setPlaceId('');
                       setLineItems((current) => {
                         const kept = current.filter((line) => !line.expense_id);
                         return kept.length > 0 ? kept : [emptyInvoiceLine()];
                       });
                     }}
                     required
+                    disabled={Boolean(embedded)}
                     className="w-full"
                   >
                     <option value="">Select customer</option>
@@ -250,19 +269,32 @@ export function InvoiceEditor({
                       </option>
                     ))}
                   </Select>
-                  <HubCustomerImport
-                    disabled={saving}
-                    onImported={(customer) => {
-                      setImportedCustomers((current) =>
-                        current.some((row) => row.id === customer.id) ? current : [...current, customer]
-                      );
-                      setCustomerId(customer.id);
-                      setLineItems((current) => {
+                  {embedded ? null : (
+                    <HubCustomerImport
+                      disabled={saving}
+                      onImported={(customer) => {
+                        setImportedCustomers((current) =>
+                          current.some((row) => row.id === customer.id) ? current : [...current, customer]
+                        );
+                        setCustomerId(customer.id);
+                        setPlaceId('');
+                        setLineItems((current) => {
                         const kept = current.filter((line) => !line.expense_id);
                         return kept.length > 0 ? kept : [emptyInvoiceLine()];
                       });
-                    }}
-                  />
+                      }}
+                    />
+                  )}
+                  <div className="mt-3">
+                    <ContactPropertySelect
+                      customerId={customerId}
+                      value={placeId}
+                      onChange={setPlaceId}
+                      onLoaded={embedded?.onPropertiesLoaded}
+                      disabled={saving}
+                      variant="stacked"
+                    />
+                  </div>
                 </div>
                 <div className="border-t border-gray-300 md:border-t-0 md:border-l md:pl-6 pt-4 md:pt-0 space-y-3">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm items-center">
@@ -307,7 +339,7 @@ export function InvoiceEditor({
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-8">#</th>
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Product or service</th>
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Description</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-20">Unit</th>
+                    <th className={DOCUMENT_LINE_QTY_RATE.unitTh}>Unit</th>
                     <th className={DOCUMENT_LINE_QTY_RATE.qtyTh}>Qty</th>
                     <th className={DOCUMENT_LINE_QTY_RATE.rateTh}>Rate</th>
                     <th className="text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-24">Amount</th>
@@ -347,16 +379,19 @@ export function InvoiceEditor({
                           className="text-sm py-1.5 border-gray-300 min-w-[120px]"
                         />
                       </td>
-                      <td className="py-1 px-2 align-top">
-                        <UnitCombobox
-                          value={line.unit || DEFAULT_UNIT}
-                          onChange={(val) => {
-                            const next = [...lineItems];
-                            next[idx] = { ...next[idx], unit: val };
-                            setLineItems(next);
-                          }}
-                          placeholder="Unit"
-                        />
+                      <td className={DOCUMENT_LINE_QTY_RATE.unitTd}>
+                        <div className={DOCUMENT_LINE_QTY_RATE.unitWrap}>
+                          <UnitCombobox
+                            value={line.unit || DEFAULT_UNIT}
+                            onChange={(val) => {
+                              const next = [...lineItems];
+                              next[idx] = { ...next[idx], unit: val };
+                              setLineItems(next);
+                            }}
+                            placeholder="Unit"
+                            className={DOCUMENT_LINE_QTY_RATE.unitInput}
+                          />
+                        </div>
                       </td>
                       <td className={DOCUMENT_LINE_QTY_RATE.qtyTd}>
                         <div className={DOCUMENT_LINE_QTY_RATE.qtyWrap}>
@@ -523,22 +558,24 @@ export function InvoiceEditor({
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => router.push(backHref)}
+                onClick={() => (embedded ? embedded.onCancel() : router.push(backHref))}
                 disabled={saving}
               >
                 Cancel
               </Button>
               <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => submit(onSaveAndClose)}
-                  disabled={saving}
-                  loading={saving}
-                >
-                  Save and close
-                </Button>
+                {embedded ? null : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => submit(onSaveAndClose)}
+                    disabled={saving}
+                    loading={saving}
+                  >
+                    Save and close
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="primary"
@@ -547,7 +584,7 @@ export function InvoiceEditor({
                   disabled={saving}
                   loading={saving}
                 >
-                  {paidNow ? 'Save as paid' : 'Review and send'}
+                  {embedded ? embedded.submitLabel : paidNow ? 'Save as paid' : 'Review and send'}
                 </Button>
               </div>
             </div>

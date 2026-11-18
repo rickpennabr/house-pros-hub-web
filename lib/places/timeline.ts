@@ -1,5 +1,6 @@
 import { mailStreetKey } from '@/lib/address/unit';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { contactHasPlace, documentPlaceId, docIsOnPlace } from '@/lib/places/contact-places';
 
 export const PLACE_EVENT_KINDS = [
   'place_entered',
@@ -297,17 +298,23 @@ export async function recordCustomerPlaceEvent(
     .select('id, place_id, owner_id')
     .eq('id', customerId)
     .maybeSingle();
-  if (!customer?.place_id) return null;
+  if (!customer) return null;
+  // The document's own property when it is one of the contact's, else the contact's default.
+  const placeId =
+    input.placeId && input.placeId !== customer.place_id && (await contactHasPlace(admin, customer.id, input.placeId))
+      ? input.placeId
+      : customer.place_id;
+  if (!placeId) return null;
 
   const proName = input.proName ?? (await businessName(admin, customer.owner_id));
   await recordPlaceEvent({
     ...input,
-    placeId: customer.place_id,
+    placeId,
     customerId: customer.id,
     ownerId: input.ownerId ?? customer.owner_id,
     proName,
   });
-  return customer.place_id;
+  return placeId;
 }
 
 export async function recordEstimateReceived(params: {
@@ -320,7 +327,9 @@ export async function recordEstimateReceived(params: {
   occurredAt?: string | null;
 }): Promise<void> {
   const area = cleanArea(params.jobArea);
+  const placeId = (await documentPlaceId(createServiceRoleClient(), { kind: 'estimate', id: params.estimateId })) ?? undefined;
   await recordCustomerPlaceEvent(params.customerId, {
+    placeId,
     kind: 'estimate_received',
     title: area ? `Estimate received · ${area}` : 'Estimate received',
     detail: `#${params.estimateNumber}`,
@@ -341,7 +350,9 @@ export async function recordEstimateApproved(params: {
   ownerId?: string | null;
 }): Promise<void> {
   const area = cleanArea(params.jobArea);
+  const placeId = (await documentPlaceId(createServiceRoleClient(), { kind: 'estimate', id: params.estimateId })) ?? undefined;
   await recordCustomerPlaceEvent(params.customerId, {
+    placeId,
     kind: 'estimate_approved',
     title: area ? `Estimate approved · ${area}` : 'Estimate approved',
     detail: `#${params.estimateNumber}`,
@@ -360,7 +371,9 @@ export async function recordInvoiceReceived(params: {
   ownerId?: string | null;
   occurredAt?: string | null;
 }): Promise<void> {
+  const placeId = (await documentPlaceId(createServiceRoleClient(), { kind: 'invoice', id: params.invoiceId })) ?? undefined;
   await recordCustomerPlaceEvent(params.customerId, {
+    placeId,
     kind: 'invoice_received',
     title: 'Invoice received',
     detail: params.invoiceNumber,
@@ -378,7 +391,9 @@ export async function recordInvoicePaid(params: {
   amountCents: number;
   ownerId?: string | null;
 }): Promise<void> {
+  const placeId = (await documentPlaceId(createServiceRoleClient(), { kind: 'invoice', id: params.invoiceId })) ?? undefined;
   await recordCustomerPlaceEvent(params.customerId, {
+    placeId,
     kind: 'invoice_paid',
     title: 'Invoice paid',
     detail: params.invoiceNumber,
@@ -433,8 +448,9 @@ export async function syncPlaceTimelineFromCrm(placeId: string, customerIds: str
 
   const { data: customers } = await admin
     .from('pro_crm_customers')
-    .select('id, owner_id')
+    .select('id, owner_id, place_id')
     .in('id', customerIds);
+  const placed = customers ?? [];
   const ownerIds = [...new Set((customers ?? []).map((row) => row.owner_id))];
   const { data: businesses } = ownerIds.length
     ? await admin.from('businesses').select('owner_id, business_name').in('owner_id', ownerIds)
@@ -447,12 +463,12 @@ export async function syncPlaceTimelineFromCrm(placeId: string, customerIds: str
   const [{ data: estimates }, { data: invoices }, { data: docs }] = await Promise.all([
     admin
       .from('pro_crm_estimates')
-      .select('id, customer_id, owner_id, display_id, amount_cents, status, job_area, created_at, updated_at')
+      .select('id, customer_id, owner_id, place_id, display_id, amount_cents, status, job_area, created_at, updated_at')
       .in('customer_id', customerIds)
       .neq('status', 'draft'),
     admin
       .from('pro_crm_invoices')
-      .select('id, customer_id, owner_id, invoice_number, amount_cents, status, created_at, invoice_date')
+      .select('id, customer_id, owner_id, place_id, invoice_number, amount_cents, status, created_at, invoice_date')
       .in('customer_id', customerIds)
       .neq('status', 'draft'),
     admin
@@ -462,7 +478,7 @@ export async function syncPlaceTimelineFromCrm(placeId: string, customerIds: str
       .eq('visible_to_customer', true),
   ]);
 
-  for (const estimate of estimates ?? []) {
+  for (const estimate of (estimates ?? []).filter((row) => docIsOnPlace(row, placeId, placed))) {
     const number = String(estimate.display_id ?? estimate.id.slice(0, 8));
     const area = cleanArea(estimate.job_area);
     const ownerId = estimate.owner_id || ownerFor(estimate.customer_id);
@@ -510,7 +526,7 @@ export async function syncPlaceTimelineFromCrm(placeId: string, customerIds: str
     }
   }
 
-  for (const invoice of invoices ?? []) {
+  for (const invoice of (invoices ?? []).filter((row) => docIsOnPlace(row, placeId, placed))) {
     const ownerId = invoice.owner_id || ownerFor(invoice.customer_id);
     await recordPlaceEvent({
       placeId,
@@ -540,7 +556,8 @@ export async function syncPlaceTimelineFromCrm(placeId: string, customerIds: str
     }
   }
 
-  for (const doc of docs ?? []) {
+  // Files have no property of their own yet: they go on the contact's default.
+  for (const doc of (docs ?? []).filter((row) => placed.some((c) => c.id === row.customer_id && c.place_id === placeId))) {
     const ownerId = doc.owner_id || ownerFor(doc.customer_id);
     await recordPlaceEvent({
       placeId,

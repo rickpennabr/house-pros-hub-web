@@ -1740,6 +1740,30 @@ export interface Database {
         };
         Relationships: [];
       };
+      pro_crm_customer_places: {
+        Row: {
+          id: string;
+          owner_id: string;
+          customer_id: string;
+          place_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          customer_id: string;
+          place_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          customer_id?: string;
+          place_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       pro_crm_customer_documents: {
         Row: {
           id: string;
@@ -1837,6 +1861,7 @@ export interface Database {
           owner_id: string;
           display_id: string;
           customer_id: string;
+          place_id: string | null;
           amount_cents: number;
           deposit_cents: number;
           line_items: Json | null;
@@ -1870,6 +1895,7 @@ export interface Database {
           owner_id: string;
           display_id?: string;
           customer_id: string;
+          place_id?: string | null;
           amount_cents?: number;
           deposit_cents?: number;
           line_items?: Json | null;
@@ -1903,6 +1929,7 @@ export interface Database {
           owner_id?: string;
           display_id?: string;
           customer_id?: string;
+          place_id?: string | null;
           amount_cents?: number;
           deposit_cents?: number;
           line_items?: Json | null;
@@ -2237,6 +2264,7 @@ export interface Database {
           owner_id: string;
           display_id: string;
           customer_id: string;
+          place_id: string | null;
           estimate_id: string | null;
           business_id: string | null;
           invoice_number: string;
@@ -2262,6 +2290,7 @@ export interface Database {
           owner_id: string;
           display_id?: string;
           customer_id: string;
+          place_id?: string | null;
           estimate_id?: string | null;
           business_id?: string | null;
           invoice_number: string;
@@ -2287,6 +2316,7 @@ export interface Database {
           owner_id?: string;
           display_id?: string;
           customer_id?: string;
+          place_id?: string | null;
           estimate_id?: string | null;
           business_id?: string | null;
           invoice_number?: string;
