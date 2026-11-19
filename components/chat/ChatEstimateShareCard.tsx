@@ -45,14 +45,25 @@ export default function ChatEstimateShareCard({
   const [viewing, setViewing] = useState<'estimate' | 'deposit' | null>(null);
   /** Bumped when the full view closes, so an approval made there shows on the card. */
   const [refreshKey, setRefreshKey] = useState(0);
+  /** The estimate was deleted (or its link expired): the card says so and stops asking. */
+  const [gone, setGone] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    let stopped = false;
     const refresh = () => {
+      if (stopped) return;
       fetch(`/api/estimates/public?token=${encodeURIComponent(estimate.token)}`)
-        .then((res) => res.json())
+        .then((res) => {
+          if (res.status === 404) {
+            stopped = true;
+            if (!cancelled) setGone(true);
+            return null;
+          }
+          return res.json();
+        })
         .then((data) => {
-          if (cancelled || data.error) return;
+          if (cancelled || !data || data.error) return;
           setLive((prev) => ({
             ...prev,
             // The house it is on now; null when it is on none (the saved label can go stale).
@@ -184,85 +195,91 @@ export default function ChatEstimateShareCard({
       ) : null}
 
       <div className="flex flex-col gap-2 border-t border-gray-100 bg-gray-50 px-3 py-3">
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <span className="text-gray-500">{t('crmEstimateStatus')}</span>
-          <span
-            className={`inline-flex items-center gap-1 font-semibold ${
-              accepted ? 'text-green-700' : 'text-gray-800'
-            }`}
-          >
-            {accepted ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
-            {accepted ? t('crmEstimateStatusAccepted') : t('crmEstimateStatusAwaiting')}
-          </span>
-        </div>
+        {gone ? (
+          <p className="py-1 text-center text-xs font-medium text-gray-500">{t('crmEstimateUnavailable')}</p>
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-gray-500">{t('crmEstimateStatus')}</span>
+              <span
+                className={`inline-flex items-center gap-1 font-semibold ${
+                  accepted ? 'text-green-700' : 'text-gray-800'
+                }`}
+              >
+                {accepted ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+                {accepted ? t('crmEstimateStatusAccepted') : t('crmEstimateStatusAwaiting')}
+              </span>
+            </div>
 
-        {canClickApprove ? (
-          <label className="block text-xs text-gray-600">
-            {t('crmEstimateSignName')}
-            <input
-              value={signerName}
-              onChange={(event) => setSignerName(event.target.value)}
-              className="mt-1 w-full rounded-lg border-2 border-black px-3 py-2 text-sm text-gray-900"
-              placeholder={t('crmEstimateSignNamePlaceholder')}
-              autoComplete="name"
-            />
-          </label>
-        ) : null}
+            {canClickApprove ? (
+              <label className="block text-xs text-gray-600">
+                {t('crmEstimateSignName')}
+                <input
+                  value={signerName}
+                  onChange={(event) => setSignerName(event.target.value)}
+                  className="mt-1 w-full rounded-lg border-2 border-black px-3 py-2 text-sm text-gray-900"
+                  placeholder={t('crmEstimateSignNamePlaceholder')}
+                  autoComplete="name"
+                />
+              </label>
+            ) : null}
 
-        <div className="flex gap-2">
-          {canClickApprove ? (
-            <button
-              type="button"
-              onClick={() => void handleApprove()}
-              disabled={approving || signerName.trim().length < 2}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 disabled:cursor-wait disabled:opacity-60"
-            >
-              {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {approving ? t('crmEstimateApproving') : t('crmEstimateSignApprove')}
-            </button>
-          ) : accepted ? (
-            <span className="inline-flex flex-1 items-center justify-center rounded-full border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800">
-              {t('crmEstimateApprovedBadge')}
-            </span>
-          ) : canApprove ? null : (
-            <span className="inline-flex flex-1 items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600">
-              {t('crmEstimateWaitingCustomer')}
-            </span>
-          )}
+            <div className="flex gap-2">
+              {canClickApprove ? (
+                <button
+                  type="button"
+                  onClick={() => void handleApprove()}
+                  disabled={approving || signerName.trim().length < 2}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {approving ? t('crmEstimateApproving') : t('crmEstimateSignApprove')}
+                </button>
+              ) : accepted ? (
+                <span className="inline-flex flex-1 items-center justify-center rounded-full border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800">
+                  {t('crmEstimateApprovedBadge')}
+                </span>
+              ) : canApprove ? null : (
+                <span className="inline-flex flex-1 items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600">
+                  {t('crmEstimateWaitingCustomer')}
+                </span>
+              )}
 
-          <button
-            type="button"
-            onClick={() => setViewing('estimate')}
-            className="inline-flex shrink-0 items-center justify-center rounded-full border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
-          >
-            {t('crmEstimateViewFull')}
-          </button>
-        </div>
+              <button
+                type="button"
+                onClick={() => setViewing('estimate')}
+                className="inline-flex shrink-0 items-center justify-center rounded-full border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
+              >
+                {t('crmEstimateViewFull')}
+              </button>
+            </div>
 
-        {accepted && card.depositPaymentUrl && canApprove ? (
-          depositToken ? (
-            <button
-              type="button"
-              onClick={() => setViewing('deposit')}
-              className="inline-flex items-center justify-center rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
-            >
-              {t('crmEstimatePayDeposit')}
-            </button>
-          ) : (
-            <a
-              href={card.depositPaymentUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
-            >
-              {t('crmEstimatePayDeposit')}
-            </a>
-          )
-        ) : null}
+            {accepted && card.depositPaymentUrl && canApprove ? (
+              depositToken ? (
+                <button
+                  type="button"
+                  onClick={() => setViewing('deposit')}
+                  className="inline-flex items-center justify-center rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
+                >
+                  {t('crmEstimatePayDeposit')}
+                </button>
+              ) : (
+                <a
+                  href={card.depositPaymentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
+                >
+                  {t('crmEstimatePayDeposit')}
+                </a>
+              )
+            ) : null}
 
-        {message ? <p className="text-xs font-medium text-green-700">{message}</p> : null}
-        {error ? <p className="text-xs font-medium text-red-600">{error}</p> : null}
-        <ChatDocPlaceNote place={card.place} canOpen={canApprove} />
+            {message ? <p className="text-xs font-medium text-green-700">{message}</p> : null}
+            {error ? <p className="text-xs font-medium text-red-600">{error}</p> : null}
+            <ChatDocPlaceNote place={card.place} canOpen={canApprove} />
+          </>
+        )}
       </div>
 
       {viewing ? (

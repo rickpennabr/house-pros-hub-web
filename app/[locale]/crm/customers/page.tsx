@@ -30,6 +30,7 @@ import type { ContactBooksSummary } from '@/lib/crm/contact-books';
 import { ContactBooksBar } from '@/components/crm/ContactBooksBar';
 import { ContactActivity } from '@/components/crm/ContactActivity';
 import { ContactProperties } from '@/components/crm/ContactProperties';
+import { ContactDeleteImpact } from '@/components/crm/ContactDeleteImpact';
 import { formatAmount } from '@/lib/invoices/format';
 
 type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'] & {
@@ -770,6 +771,7 @@ export default function CRMCustomersPage() {
               </strong>
               ? This action cannot be undone.
             </p>
+            <ContactDeleteImpact ids={[deleteConfirm.id]} />
             <div className="flex gap-3 justify-center">
               <Button type="button" variant="secondary" size="sm" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
                 Cancel
@@ -805,6 +807,7 @@ export default function CRMCustomersPage() {
             <p className="text-gray-600 mb-6">
               Delete {bulkDeleteIds.length} customer{bulkDeleteIds.length === 1 ? '' : 's'}? This cannot be undone.
             </p>
+            <ContactDeleteImpact ids={bulkDeleteIds} />
             <div className="flex gap-3 justify-center">
               <Button type="button" variant="secondary" size="sm" onClick={() => setBulkDeleteIds(null)} disabled={deleting}>
                 Cancel

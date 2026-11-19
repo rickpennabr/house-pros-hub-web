@@ -44,13 +44,22 @@ export default function ChatInvoiceShareCard({ invoice, canPay }: ChatInvoiceSha
   const [viewing, setViewing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+  /** The invoice was deleted (or its link expired): the card says so and stops asking. */
+  const [gone, setGone] = useState(false);
 
   // Read the current balance and status with the public token; poll until it is paid.
   useEffect(() => {
     let cancelled = false;
     const refresh = () => {
       fetch(`/api/invoices/public?token=${encodeURIComponent(invoice.token)}`)
-        .then((res) => (res.ok ? res.json() : null))
+        .then((res) => {
+          if (res.status === 404) {
+            window.clearInterval(timer);
+            if (!cancelled) setGone(true);
+            return null;
+          }
+          return res.ok ? res.json() : null;
+        })
         .then((data) => {
           if (cancelled || !data || data.error) return;
           const totalCents = typeof data.amountCents === 'number' ? data.amountCents : invoice.amountCents;
@@ -110,44 +119,50 @@ export default function ChatInvoiceShareCard({ invoice, canPay }: ChatInvoiceSha
       amount={money(paid ? live?.totalCents ?? invoice.amountCents : balanceCents)}
     >
       <div className="flex flex-col gap-2 bg-gray-50 px-3 py-3">
-        {paid ? (
-          <p className="inline-flex items-center justify-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800">
-            <CheckCircle2 className="h-4 w-4" />
-            {t('crmInvoicePaid')}
-          </p>
-        ) : cancelledInvoice ? (
-          <p className="text-center text-xs font-medium text-gray-500">{t('crmInvoiceCancelled')}</p>
-        ) : null}
-        <div className="flex gap-2">
-          {!paid && !cancelledInvoice ? (
-            canPay ? (
+        {gone ? (
+          <p className="py-1 text-center text-xs font-medium text-gray-500">{t('crmInvoiceUnavailable')}</p>
+        ) : (
+          <>
+            {paid ? (
+              <p className="inline-flex items-center justify-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800">
+                <CheckCircle2 className="h-4 w-4" />
+                {t('crmInvoicePaid')}
+              </p>
+            ) : cancelledInvoice ? (
+              <p className="text-center text-xs font-medium text-gray-500">{t('crmInvoiceCancelled')}</p>
+            ) : null}
+            <div className="flex gap-2">
+              {!paid && !cancelledInvoice ? (
+                canPay ? (
+                  <button
+                    type="button"
+                    onClick={() => void pay()}
+                    disabled={paying}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                    {t('crmInvoicePay', { amount: money(balanceCents) })}
+                  </button>
+                ) : (
+                  <span className="inline-flex flex-1 items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-amber-700">
+                    {t('crmInvoiceWaiting')}
+                  </span>
+                )
+              ) : (
+                <span className="flex-1" />
+              )}
               <button
                 type="button"
-                onClick={() => void pay()}
-                disabled={paying}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 disabled:cursor-wait disabled:opacity-60"
+                onClick={() => setViewing(true)}
+                className="inline-flex shrink-0 items-center justify-center rounded-full border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
               >
-                {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                {t('crmInvoicePay', { amount: money(balanceCents) })}
+                {t('crmEstimateViewFull')}
               </button>
-            ) : (
-              <span className="inline-flex flex-1 items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-amber-700">
-                {t('crmInvoiceWaiting')}
-              </span>
-            )
-          ) : (
-            <span className="flex-1" />
-          )}
-          <button
-            type="button"
-            onClick={() => setViewing(true)}
-            className="inline-flex shrink-0 items-center justify-center rounded-full border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
-          >
-            {t('crmEstimateViewFull')}
-          </button>
-        </div>
-        {payError ? <p className="text-xs font-medium text-red-600">{payError}</p> : null}
-        <ChatDocPlaceNote place={live ? live.place : invoice.place ?? null} canOpen={canPay} />
+            </div>
+            {payError ? <p className="text-xs font-medium text-red-600">{payError}</p> : null}
+            <ChatDocPlaceNote place={live ? live.place : invoice.place ?? null} canOpen={canPay} />
+          </>
+        )}
       </div>
       {viewing ? (
         <ChatDocViewer
