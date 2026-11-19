@@ -62,6 +62,9 @@ function getLanDevOrigins(): string[] {
 /** CSP connect-src entries for the dev LAN hosts (any port: the phone probes them before hopping). */
 function devConnectSrc(): string {
   return getLanDevOrigins()
+    // CSP allows `*` only as the leftmost label, so IP ranges like 192.168.*.* are invalid there
+    // (they stay in allowedDevOrigins). The machine's actual LAN IPs are listed on their own.
+    .filter((host) => !host.includes('*'))
     .map((host) => `http://${host}:*`)
     .join(' ');
 }
@@ -174,6 +177,9 @@ const nextConfig: NextConfig = {
               // Allow Google Maps images and tiles
               "img-src 'self' blob: data: https: https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com",
               "font-src 'self' data: https://fonts.gstatic.com",
+              // Video and audio: ProDrive files come from Supabase Storage as signed https links;
+              // blob: covers clips previewed before upload.
+              "media-src 'self' blob: data: https:",
               // https: does not allow websockets. Dev needs ws: for the hot-reload socket
               // (ws://<lan-ip>:3000/_next/hmr). Production only allows the Supabase socket.
               process.env.NODE_ENV === 'development'

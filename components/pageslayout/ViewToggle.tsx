@@ -21,6 +21,8 @@ interface ViewToggleProps {
   embedded?: boolean;
   /** Hug the buttons instead of stretching across half the bar. */
   fitContent?: boolean;
+  /** Embedded only: drop the wrapper box so each button is a direct item of the parent row. */
+  flatten?: boolean;
   /** When true, hide the background (sky/dynamic) toggle button. Useful for CRM and other non-home pages. */
   hideBackgroundToggle?: boolean;
   /** Rightmost button in the bar, used for create actions. */
@@ -56,6 +58,7 @@ export default function ViewToggle({
   views: enabledViews = ['card', 'list'],
   embedded = false,
   fitContent = false,
+  flatten = false,
   hideBackgroundToggle = false,
   onAdd,
   addLabel = 'Add',
@@ -83,7 +86,7 @@ export default function ViewToggle({
   const iconSize = embedded ? 'h-5 w-5' : 'h-4 w-4 md:h-5 md:w-5';
 
   const toggleContent = (
-    <div className={`
+    <div className={embedded && flatten ? 'contents font-bold text-[11px]' : `
       ${embedded ? 'py-1 md:py-2' : 'p-2 md:py-[0.525rem] md:px-2 border-2 border-black'}
       bg-black text-white
       rounded-lg

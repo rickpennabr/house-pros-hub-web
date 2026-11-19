@@ -95,11 +95,14 @@ export function CustomerForm({
   initial,
   onCancel,
   onSuccess,
+  lockedRoleSlug,
 }: {
   mode: 'add' | 'edit';
   initial: Partial<CRMCustomerFormData>;
   onCancel: () => void;
   onSuccess: (created?: { id: string; name: string }) => void;
+  /** Fix the contact role (e.g. "customer") so the user cannot pick another. */
+  lockedRoleSlug?: string;
 }) {
   const [form, setForm] = useState<CRMCustomerFormData>({ ...emptyForm, ...initial });
   const [roleIds, setRoleIds] = useState<string[]>(initial.roleIds ?? []);
@@ -331,7 +334,7 @@ export function CustomerForm({
         icon={<User className="w-5 h-5" />}
       >
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          <ContactRolesField selectedIds={roleIds} onChange={setRoleIds} />
+          <ContactRolesField selectedIds={roleIds} onChange={setRoleIds} lockedRoleSlug={lockedRoleSlug} />
           {/* Row 1: First name, Last name, Company name */}
           <FormField label="First name" required>
             <Input ref={firstInputRef} value={form.firstName} onChange={(e) => updatePersonName('firstName', e.target.value)} placeholder="First name" required />

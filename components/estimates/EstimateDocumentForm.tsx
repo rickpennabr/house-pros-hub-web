@@ -14,6 +14,7 @@ import { contactDisplayName } from '@/lib/crm/contact-name';
 import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
 import { ContactPropertySelect } from '@/components/crm/ContactPropertySelect';
 import type { ContactProperty } from '@/lib/places/contact-places';
+import { allowedEstimateStatuses } from '@/lib/schemas/crmEstimate';
 import {
   DocumentBrandHeader,
   type DocumentBrandBusiness,
@@ -62,6 +63,8 @@ interface EstimateDocumentFormProps {
   validUntilDate: string;
   onValidUntilDateChange: (value: string) => void;
   status: string;
+  /** Status as saved on the server. Null for a new estimate. The menu offers only moves the server allows. */
+  savedStatus?: string | null;
   onStatusChange: (value: string) => void;
   note: string;
   onNoteChange: (value: string) => void;
@@ -88,8 +91,6 @@ interface EstimateDocumentFormProps {
   onPresentOnDevice?: () => void;
   presentLoading?: boolean;
 }
-
-const STATUS_OPTIONS = ['draft', 'sent', 'accepted', 'declined'] as const;
 
 function formatAmount(cents: number) {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(cents / 100);
@@ -118,6 +119,7 @@ export function EstimateDocumentForm({
   validUntilDate,
   onValidUntilDateChange,
   status,
+  savedStatus = null,
   onStatusChange,
   note,
   onNoteChange,
@@ -355,7 +357,7 @@ export function EstimateDocumentForm({
                 <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
                   <label className="text-gray-600">Status</label>
                   <Select value={status} onChange={(e) => onStatusChange(e.target.value)}>
-                    {STATUS_OPTIONS.map((option) => (
+                    {allowedEstimateStatuses(savedStatus).map((option) => (
                       <option key={option} value={option}>
                         {option}
                       </option>

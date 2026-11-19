@@ -228,7 +228,12 @@ export async function POST(request: NextRequest) {
     const depositCents = body.depositCents ?? 0;
     const depositError = depositWithinEstimate(depositCents, amountCents);
     if (depositError) return NextResponse.json({ error: depositError }, { status: 400 });
-    const status = body.status ?? 'draft';
+    // Every estimate starts as a draft. It becomes sent when emailed, and accepted or
+    // declined after that, the same moves PUT allows. Starting it accepted would skip the customer.
+    if (body.status && body.status !== 'draft') {
+      return NextResponse.json({ error: 'A new estimate starts as a draft. Send it to move it on.' }, { status: 400 });
+    }
+    const status = 'draft';
     const dueDate = body.validityDate ?? body.dueDate ?? getDefaultEstimateValidityDate();
     const note = body.note?.trim() || null;
     const jobArea = body.jobArea?.trim() || null;

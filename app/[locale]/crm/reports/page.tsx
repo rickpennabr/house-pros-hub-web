@@ -22,6 +22,16 @@ interface Report {
   aging: Aging;
   salesByCustomer: { customerId: string; name: string; totalCents: number }[];
   cash: { collectedCents: number; expenseCents: number; resultCents: number };
+  businessValue?: {
+    from: string;
+    to: string;
+    collectedCents: number;
+    expenseCents: number;
+    profitCents: number;
+    gearPurchaseCents: number;
+    receivablesCents: number;
+    equipment: { itemCount: number; purchaseCents: number; bookValueCents: number; yearlyDepreciationCents: number } | null;
+  };
 }
 
 const money = (cents: number) =>
@@ -71,7 +81,7 @@ export default function CRMReportsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Reports</h1>
-          <p className="text-sm text-gray-500 mt-0.5">What customers owe, who you billed, and cash minus expenses.</p>
+          <p className="text-sm text-gray-500 mt-0.5">What customers owe, who you billed, cash minus expenses, and what the business is worth.</p>
         </div>
         <form
           className="flex flex-wrap items-end gap-2"
@@ -148,6 +158,65 @@ export default function CRMReportsPage() {
               </div>
             </div>
           </section>
+          {report.businessValue ? (
+            <section className="rounded-lg border-2 border-black bg-white p-4">
+              <h2 className="text-base font-semibold text-gray-900">Business value</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                The numbers a buyer or lender asks for first: the last 12 months ({report.businessValue.from} to {report.businessValue.to}), what
+                customers owe you, and what your tools and equipment are worth today.
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="rounded-md border border-gray-200 p-3">
+                  <p className="text-xs text-gray-500">Collected, 12 months</p>
+                  <p className="mt-1 text-lg font-semibold">{money(report.businessValue.collectedCents)}</p>
+                </div>
+                <div className="rounded-md border border-gray-200 p-3">
+                  <p className="text-xs text-gray-500">Expenses, 12 months</p>
+                  <p className="mt-1 text-lg font-semibold">{money(report.businessValue.expenseCents)}</p>
+                </div>
+                <div className="rounded-md border border-gray-200 p-3">
+                  <p className="text-xs text-gray-500">Profit, 12 months</p>
+                  <p className="mt-1 text-lg font-semibold">{money(report.businessValue.profitCents)}</p>
+                  {report.businessValue.gearPurchaseCents > 0 ? (
+                    <p className="text-xs text-gray-500">
+                      {money(report.businessValue.profitCents + report.businessValue.gearPurchaseCents)} before {money(report.businessValue.gearPurchaseCents)} of gear bought
+                    </p>
+                  ) : null}
+                </div>
+                <div className="rounded-md border border-gray-200 p-3">
+                  <p className="text-xs text-gray-500">Customers owe you</p>
+                  <p className="mt-1 text-lg font-semibold">{money(report.businessValue.receivablesCents)}</p>
+                </div>
+                <div className="rounded-md border border-gray-200 p-3">
+                  <p className="text-xs text-gray-500">Tools &amp; equipment today</p>
+                  {report.businessValue.equipment ? (
+                    <>
+                      <p className="mt-1 text-lg font-semibold">{money(report.businessValue.equipment.bookValueCents)}</p>
+                      <p className="text-xs text-gray-500">
+                        {report.businessValue.equipment.itemCount} items, paid {money(report.businessValue.equipment.purchaseCents)}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-sm text-gray-500">Not set up yet</p>
+                  )}
+                </div>
+                <div className="rounded-md border border-gray-200 p-3">
+                  <p className="text-xs text-gray-500">Assets on the books</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {money(report.businessValue.receivablesCents + (report.businessValue.equipment?.bookValueCents ?? 0))}
+                  </p>
+                  <p className="text-xs text-gray-500">What customers owe + gear value</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-gray-500">
+                Not a formal valuation. Small service businesses usually sell for a multiple of yearly profit plus their equipment; this page gives you
+                those inputs. Bank balances, loans, and what you owe suppliers are not tracked here yet.{' '}
+                <Link href={`/${locale}/crm/tools`} className="underline">
+                  Manage tools &amp; equipment
+                </Link>
+              </p>
+            </section>
+          ) : null}
         </>
       )}
     </div>

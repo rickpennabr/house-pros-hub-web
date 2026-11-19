@@ -11,6 +11,7 @@ interface TypingSearchInputProps {
   clearLabel: string;
   onFocus?: () => void;
   onBlur?: () => void;
+  disabled?: boolean;
   inputRef?: Ref<HTMLInputElement>;
   className?: string;
   inputClassName?: string;
@@ -30,6 +31,7 @@ export function TypingSearchInput({
   clearLabel,
   onFocus,
   onBlur,
+  disabled = false,
   inputRef,
   className = 'relative min-w-0 flex-1',
   inputClassName = DEFAULT_INPUT_CLASS,
@@ -62,6 +64,7 @@ export function TypingSearchInput({
         onChange={(event) => onChange(event.target.value)}
         onFocus={onFocus}
         onBlur={onBlur}
+        disabled={disabled}
         placeholder={value ? placeholder : animated || placeholder}
         aria-label={placeholder}
         suppressHydrationWarning

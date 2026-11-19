@@ -1,12 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   Camera,
   Car,
   Check,
-  Clock3,
   Coffee,
   Download,
   Flag,
@@ -15,19 +14,18 @@ import {
   Plus,
   UserPlus,
   Users,
-  Wrench,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { JobCameraSession } from '@/components/media/JobCameraSession';
+import { scopeItems } from '@/components/maintenance/HouseAgreementForm';
 import { MaintenancePlantsPanel } from '@/components/maintenance/MaintenancePlantsPanel';
 import { uploadProDriveFile } from '@/lib/drive/upload-client';
 import { formatDurationClock } from '@/lib/crm/maintenance-defaults';
 import { computeActiveSeconds, formatLaborHours } from '@/lib/crm/maintenance-time';
 import { primeLiveCamera } from '@/lib/media/prime-camera';
-import { contactDisplayName } from '@/lib/crm/contact-name';
 
 type Step = 'setup' | 'active' | 'done';
 
@@ -58,6 +56,7 @@ interface ServiceOption {
 interface VisitState {
   id: string;
   customerId: string;
+  maintenancePlanId: string | null;
   status: string;
   startedAt: string;
   endedAt: string | null;
@@ -97,6 +96,12 @@ interface TripState {
 interface MaintenanceVisitFlowProps {
   autoStart?: boolean;
   onCloseAutoStart?: () => void;
+  /** Shown at the left of the header row (the page puts its tabs here). */
+  headerStart?: ReactNode;
+  /** Preselect this house when the start form opens. */
+  initialCustomerId?: string;
+  /** Preselect this maintenance agreement (house) when the start form opens. */
+  initialPlanId?: string;
 }
 
 type ApiVisit = Partial<VisitState> & { id: string; status: string; startedAt: string };
@@ -105,6 +110,7 @@ function toVisitState(raw: ApiVisit, fallbackName = 'Customer'): VisitState {
   return {
     id: raw.id,
     customerId: raw.customerId ?? '',
+    maintenancePlanId: raw.maintenancePlanId ?? null,
     status: raw.status,
     startedAt: raw.startedAt,
     endedAt: raw.endedAt ?? null,
@@ -174,7 +180,13 @@ function WorkerStepper({
   );
 }
 
-export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: MaintenanceVisitFlowProps) {
+export function MaintenanceVisitFlow({
+  autoStart = false,
+  onCloseAutoStart,
+  headerStart,
+  initialCustomerId = '',
+  initialPlanId = '',
+}: MaintenanceVisitFlowProps) {
   const t = useTranslations('maintenance');
   const locale = useLocale();
 
@@ -183,8 +195,8 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
   const [plans, setPlans] = useState<PlanOption[]>([]);
   const [crew, setCrew] = useState<CrewOption[]>([]);
   const [services, setServices] = useState<ServiceOption[]>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState(initialCustomerId);
+  const [selectedPlanId, setSelectedPlanId] = useState(initialPlanId);
   const [responsibleCrewId, setResponsibleCrewId] = useState('');
   const [workerCrewIds, setWorkerCrewIds] = useState<string[]>([]);
   const [extraWorkers, setExtraWorkers] = useState(0);
@@ -213,6 +225,14 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
     () => plans.filter((plan) => plan.customerId === selectedCustomerId),
     [plans, selectedCustomerId]
   );
+
+  // Every listed customer has an agreement, so default to it instead of "no plan".
+  useEffect(() => {
+    if (customerPlans.length === 0) return;
+    if (!customerPlans.some((plan) => plan.id === selectedPlanId)) {
+      setSelectedPlanId(customerPlans[0].id);
+    }
+  }, [customerPlans, selectedPlanId]);
 
   const openTrip = trips.find((trip) => trip.isOpen) ?? null;
   const visitRunning = !!visit && isOpenVisit(visit.status);
@@ -288,7 +308,7 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
     async (opts?: { restore?: boolean }) => {
       try {
         const [customersRes, plansRes, crewRes, servicesRes, visitsRes] = await Promise.all([
-          fetch('/api/crm/customers?pageSize=100&sortBy=updated_at&sortDir=desc', { credentials: 'include' }),
+          fetch('/api/crm/maintenance/houses?pageSize=100&sortBy=name&sortDir=asc', { credentials: 'include' }),
           fetch('/api/crm/portal', { credentials: 'include' }),
           fetch('/api/crm/maintenance/crew', { credentials: 'include' }),
           fetch('/api/crm/maintenance/services', { credentials: 'include' }),
@@ -302,20 +322,17 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
         const visitsBody = await visitsRes.json();
         setError(null);
 
-        setCustomers(
-          (customersBody.customers ?? []).map(
-            (row: {
-              id: string;
-              first_name?: string | null;
-              last_name?: string | null;
-              display_name?: string | null;
-              company_name?: string | null;
-            }) => ({
-              id: row.id,
-              name: contactDisplayName(row),
-            })
-          )
-        );
+        // Only contacts that already have a maintenance agreement (a house that has not ended).
+        const agreementCustomers = new Map<string, CustomerOption>();
+        for (const house of (customersBody.houses ?? []) as Array<{
+          customerId: string;
+          customerName: string;
+          status: string;
+        }>) {
+          if (house.status === 'ended' || agreementCustomers.has(house.customerId)) continue;
+          agreementCustomers.set(house.customerId, { id: house.customerId, name: house.customerName });
+        }
+        setCustomers([...agreementCustomers.values()]);
 
         const portalPlans = (plansBody.maintenancePlans ?? plansBody.plans ?? []) as Array<{
           id: string;
@@ -356,6 +373,17 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
     void loadDay();
   }, [loadLists, loadDay]);
 
+  /** Select the jobs listed on the house's agreement, so the crew only adds extras. */
+  async function preselectHouseJobs(planId: string) {
+    const response = await fetch(`/api/crm/maintenance/houses/${planId}`, { credentials: 'include' }).catch(() => null);
+    if (!response?.ok) return;
+    const body = await response.json().catch(() => ({}));
+    const jobs = scopeItems(body.house?.scopeOfWork ?? '').map((job) => job.toLowerCase());
+    if (jobs.length === 0) return;
+    const ids = services.filter((service) => jobs.includes(service.name.toLowerCase())).map((service) => service.id);
+    if (ids.length > 0) setSelectedServiceIds((prev) => [...new Set([...prev, ...ids])]);
+  }
+
   async function startVisit() {
     if (!selectedCustomerId) {
       setError(t('pickCustomer'));
@@ -385,6 +413,7 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
       );
       setNow(Date.now());
       setStep('active');
+      if (selectedPlanId) void preselectHouseJobs(selectedPlanId);
       setBeforeCount(0);
       setAfterCount(0);
       setClosedDay(null);
@@ -653,22 +682,21 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <Wrench className="h-5 w-5 text-red-600" />
-          {t('title')}
-        </h1>
+    <div className="w-full space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">{headerStart}</div>
         {!showWizard && (
           <Button
             type="button"
+            variant="primary"
+            size="sm"
             onClick={() => {
               setShowWizard(true);
               setStep('setup');
             }}
-            className="rounded-full"
+            className="flex shrink-0 items-center gap-2 whitespace-nowrap"
           >
-            <Plus className="h-4 w-4 mr-1" />
+            <Plus className="h-4 w-4" />
             {openTrip ? t('arrivedStart') : t('startMaintenance')}
           </Button>
         )}
@@ -750,7 +778,7 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
           {visits.length === 0 && <li className="text-sm text-gray-600">{t('empty')}</li>}
           {visits.map((item) => (
             <li key={item.id} className="border-2 border-black rounded-lg px-3 py-2 flex items-center justify-between gap-2">
-              <div>
+              <a href={`/${locale}/crm/maintenance/visits/${item.id}`} className="min-w-0 flex-1 hover:underline">
                 <div className="font-medium">{item.customerName}</div>
                 <div className="text-xs text-gray-600">
                   {t(`status_${item.status}` as 'status_completed')} · {new Date(item.startedAt).toLocaleString()}
@@ -759,7 +787,7 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
                     ? ` · ${t('workersShort', { count: item.workerCount })} · ${formatLaborHours(item.laborSeconds)} ${t('laborShort')}`
                     : ''}
                 </div>
-              </div>
+              </a>
               {item.status === 'completed' && (
                 <a
                   className="underline text-sm inline-flex items-center gap-1"
@@ -792,7 +820,7 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
 
           <FormField label={t('customer')}>
             <select
-              className="w-full border-2 border-black rounded-full px-3 py-2 text-sm"
+              className="w-full border-2 border-black rounded-lg px-3 py-2 text-sm"
               value={selectedCustomerId}
               onChange={(event) => {
                 setSelectedCustomerId(event.target.value);
@@ -809,13 +837,12 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
           </FormField>
 
           {customerPlans.length > 0 && (
-            <FormField label={t('planOptional')}>
+            <FormField label={t('plan')}>
               <select
-                className="w-full border-2 border-black rounded-full px-3 py-2 text-sm"
+                className="w-full border-2 border-black rounded-lg px-3 py-2 text-sm"
                 value={selectedPlanId}
                 onChange={(event) => setSelectedPlanId(event.target.value)}
               >
-                <option value="">{t('noPlan')}</option>
                 {customerPlans.map((plan) => (
                   <option key={plan.id} value={plan.id}>
                     {plan.name}
@@ -827,7 +854,7 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
 
           <FormField label={t('responsible')}>
             <select
-              className="w-full border-2 border-black rounded-full px-3 py-2 text-sm"
+              className="w-full border-2 border-black rounded-lg px-3 py-2 text-sm"
               value={responsibleCrewId}
               onChange={(event) => setResponsibleCrewId(event.target.value)}
             >
@@ -898,8 +925,8 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
 
           {openTrip && <p className="text-xs text-gray-600">{t('arrivalEndsTrip')}</p>}
 
-          <Button type="button" disabled={busy} onClick={() => void startVisit()} className="w-full rounded-full">
-            <Clock3 className="h-4 w-4 mr-2" />
+          <Button type="button" disabled={busy} onClick={() => void startVisit()} className="w-full rounded-full inline-flex items-center justify-center gap-2">
+            <Play className="h-4 w-4 shrink-0" />
             {t('startClock')}
           </Button>
         </div>
@@ -1001,7 +1028,7 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
                     key={service.id}
                     type="button"
                     onClick={() => toggleService(service.id)}
-                    className={`rounded-full border-2 px-3 py-1.5 text-sm ${
+                    className={`rounded-lg border-2 px-3 py-1.5 text-sm ${
                       active ? 'border-black bg-black text-white' : 'border-black bg-white'
                     }`}
                   >
@@ -1023,7 +1050,7 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
             </div>
           </div>
 
-          {visit.customerId && <MaintenancePlantsPanel customerId={visit.customerId} businessId={businessId} />}
+          {visit.customerId && <MaintenancePlantsPanel customerId={visit.customerId} planId={visit.maintenancePlanId} businessId={businessId} />}
 
           <FormField label={t('notes')}>
             <textarea
@@ -1052,6 +1079,12 @@ export function MaintenanceVisitFlow({ autoStart = false, onCloseAutoStart }: Ma
           </div>
           <p className="text-sm whitespace-pre-wrap">{visit.generatedDescription}</p>
           <div className="flex flex-wrap gap-2">
+            <a
+              className="inline-flex items-center gap-1 rounded-full border-2 border-black bg-black px-4 py-2 text-sm font-medium text-white"
+              href={`/${locale}/crm/maintenance/visits/${visit.id}`}
+            >
+              View report
+            </a>
             <a
               className="inline-flex items-center gap-1 rounded-full border-2 border-black px-4 py-2 text-sm font-medium"
               href={`/api/crm/maintenance/visits/${visit.id}/pdf`}

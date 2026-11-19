@@ -27,12 +27,14 @@ const PLANT_IMAGE_LIMIT = 8;
 
 interface MaintenancePlantsPanelProps {
   customerId: string;
+  /** The maintenance house. Its plants, plus older ones shared by the contact's houses. */
+  planId?: string | null;
   businessId: string | null;
   disabled?: boolean;
 }
 
 /** Plant inventory for the property being maintained. Saved on the customer, so it carries to every visit. */
-export function MaintenancePlantsPanel({ customerId, businessId, disabled = false }: MaintenancePlantsPanelProps) {
+export function MaintenancePlantsPanel({ customerId, planId = null, businessId, disabled = false }: MaintenancePlantsPanelProps) {
   const t = useTranslations('maintenance.plants');
   const [plants, setPlants] = useState<Plant[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -50,7 +52,8 @@ export function MaintenancePlantsPanel({ customerId, businessId, disabled = fals
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/crm/maintenance/plants?customerId=${customerId}`, { credentials: 'include' })
+    const query = new URLSearchParams({ customerId, ...(planId ? { planId } : {}) });
+    fetch(`/api/crm/maintenance/plants?${query}`, { credentials: 'include' })
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
         if (cancelled) return;
@@ -67,7 +70,7 @@ export function MaintenancePlantsPanel({ customerId, businessId, disabled = fals
     return () => {
       cancelled = true;
     };
-  }, [customerId, t]);
+  }, [customerId, planId, t]);
 
   const replacePlant = (next: Plant | undefined) => {
     if (!next) return;
@@ -110,7 +113,7 @@ export function MaintenancePlantsPanel({ customerId, businessId, disabled = fals
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, name: trimmed, quantity, area: area || null, notes: notes.trim() || null }),
+        body: JSON.stringify({ customerId, planId, name: trimmed, quantity, area: area || null, notes: notes.trim() || null }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || t('saveFailed'));

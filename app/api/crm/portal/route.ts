@@ -11,6 +11,7 @@ import {
   type PlanFrequency,
 } from '@/lib/places/portal';
 import { cleanDate, cleanText } from '@/lib/places/session';
+import { pickDocPlaceId } from '@/lib/places/contact-places';
 
 /**
  * GET /api/crm/portal
@@ -41,7 +42,7 @@ export async function GET() {
         .order('created_at', { ascending: false }),
       supabase
         .from('pro_crm_maintenance_plans')
-        .select('id, customer_id, name, summary, frequency, next_visit_date, last_visit_date, end_date, is_active, amount_cents')
+        .select('id, customer_id, place_id, name, summary, frequency, next_visit_date, last_visit_date, end_date, is_active, amount_cents')
         .eq('owner_id', user.id)
         .order('created_at', { ascending: false }),
       supabase
@@ -170,11 +171,14 @@ export async function POST(request: NextRequest) {
         .eq('owner_id', user.id)
         .maybeSingle();
       if (!customer) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+      const pickedPlace = await pickDocPlaceId(customerId, body.placeId);
+      if (!pickedPlace.ok) return NextResponse.json({ error: pickedPlace.error }, { status: 400 });
       const dollars = typeof body.amount === 'string' ? Number(body.amount) : Number(body.amount);
       const amountCents = Number.isFinite(dollars) && dollars >= 0 ? Math.round(dollars * 100) : null;
       const { error: insertError } = await supabase.from('pro_crm_maintenance_plans').insert({
         owner_id: user.id,
         customer_id: customerId,
+        place_id: pickedPlace.placeId,
         name,
         summary: cleanText(body.summary, 1000) || null,
         frequency,

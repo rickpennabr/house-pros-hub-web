@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { agingBucket, todayDateKey, type AgingBucket } from '@/lib/crm/invoice-books';
 import { contactDisplayName } from '@/lib/crm/contact-name';
+import type { CrmDb } from '@/lib/crm/crm-scope';
+import { TOOL_SELECT, type ToolRow } from '@/lib/crm/pro-tools';
+import { PURCHASE_NOTE, summarizeTools } from '@/lib/crm/pro-tools-db';
+
+/** Same day one year earlier (YYYY-MM-DD). */
+function yearBefore(dateKey: string): string {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  date.setUTCFullYear(date.getUTCFullYear() - 1);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
 
 function emptyAging(): Record<AgingBucket, number> {
   return { current: 0, days1to30: 0, days31to60: 0, days61to90: 0, days90plus: 0 };
@@ -93,6 +104,29 @@ export async function GET(request: NextRequest) {
     }, 0);
     const expenseCents = (expenses ?? []).reduce((sum, expense) => sum + expense.amount_cents, 0);
 
+    // Business value: the last 12 months of cash, what customers owe, and what the gear is worth.
+    const yearStart = yearBefore(today);
+    const [{ data: yearExpenses }, toolsResult] = await Promise.all([
+      supabase
+        .from('pro_crm_expenses')
+        .select('amount_cents, note')
+        .eq('owner_id', user.id)
+        .gte('expense_date', yearStart)
+        .lte('expense_date', today)
+        .limit(5000),
+      (supabase as unknown as CrmDb).from('pro_crm_tools').select(TOOL_SELECT).eq('owner_id', user.id).limit(2000),
+    ]);
+    const yearCollectedCents = (payments ?? []).reduce((sum, payment) => {
+      if (payment.voided_at || payment.payment_date < yearStart || payment.payment_date > today) return sum;
+      return sum + payment.amount_cents;
+    }, 0);
+    const yearExpenseCents = (yearExpenses ?? []).reduce((sum, expense) => sum + expense.amount_cents, 0);
+    const yearGearPurchaseCents = (yearExpenses ?? [])
+      .filter((expense) => expense.note === PURCHASE_NOTE)
+      .reduce((sum, expense) => sum + expense.amount_cents, 0);
+    // Before migration 144 the tools table is missing: report gear as unknown, not as $0.
+    const tools = toolsResult.error ? null : summarizeTools((toolsResult.data ?? []) as ToolRow[], today, new Map());
+
     return NextResponse.json({
       from,
       to,
@@ -104,6 +138,23 @@ export async function GET(request: NextRequest) {
         collectedCents,
         expenseCents,
         resultCents: collectedCents - expenseCents,
+      },
+      businessValue: {
+        from: yearStart,
+        to: today,
+        collectedCents: yearCollectedCents,
+        expenseCents: yearExpenseCents,
+        profitCents: yearCollectedCents - yearExpenseCents,
+        gearPurchaseCents: yearGearPurchaseCents,
+        receivablesCents: outstandingCents,
+        equipment: tools
+          ? {
+              itemCount: tools.itemCount,
+              purchaseCents: tools.purchaseCents,
+              bookValueCents: tools.bookValueCents,
+              yearlyDepreciationCents: tools.yearlyDepreciationCents,
+            }
+          : null,
       },
     });
   } catch (err) {

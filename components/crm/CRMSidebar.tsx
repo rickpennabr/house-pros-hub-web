@@ -17,6 +17,7 @@ import {
   Shovel,
   BarChart3,
   Car,
+  Hammer,
   Camera,
   Home,
   QrCode,
@@ -67,6 +68,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     { href: `${base}/maintenance`, labelKey: 'crmMaintenance', icon: Wrench },
     { href: `${base}/expenses`, labelKey: 'crmExpenses', icon: Receipt },
     { href: `${base}/mileage`, labelKey: 'crmMileage', icon: Car },
+    { href: `${base}/tools`, labelKey: 'crmTools', icon: Hammer },
     { href: `${base}/reports`, labelKey: 'crmReports', icon: BarChart3 },
     { href: `${base}/services`, labelKey: 'crmServices', icon: Shovel },
     { href: `${base}/products`, labelKey: 'crmProducts', icon: Package },
@@ -226,7 +228,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
       />
 
       {/* Desktop: vertical sidebar */}
-      <aside className="no-print hidden md:block w-64 border-r-2 border-black bg-white h-full flex-shrink-0">
+      <aside className="no-print hidden md:block w-64 border-r-2 border-black bg-white h-full min-h-0 flex-shrink-0 overflow-y-auto overscroll-contain scrollbar-custom">
         <nav className="p-4 space-y-2">
           {orderedNavItems.map((item) => {
             const isActive = isActiveRoute(item.href);

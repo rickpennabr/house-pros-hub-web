@@ -6,6 +6,8 @@ export const PLANT_IMAGE_LIMIT = 8;
 export interface MaintenancePlant {
   id: string;
   customerId: string;
+  /** House (agreement) the plant is at. Null: shared by the contact's houses. */
+  planId: string | null;
   name: string;
   quantity: number;
   area: string | null;
@@ -19,6 +21,7 @@ export interface MaintenancePlant {
 type PlantRow = {
   id: string;
   customer_id: string;
+  plan_id: string | null;
   name: string;
   quantity: number;
   area: string | null;
@@ -41,7 +44,7 @@ export async function customerBelongsToOwner(db: CrmDb, ownerId: string, custome
 export async function loadOwnedPlant(db: CrmDb, ownerId: string, plantId: string): Promise<PlantRow | null> {
   const { data } = await db
     .from('pro_crm_maintenance_plants')
-    .select('id, customer_id, name, quantity, area, notes, sort_order, created_at, updated_at')
+    .select('id, customer_id, plan_id, name, quantity, area, notes, sort_order, created_at, updated_at')
     .eq('id', plantId)
     .eq('owner_id', ownerId)
     .maybeSingle();
@@ -68,13 +71,16 @@ export async function listPlants(
   db: CrmDb,
   ownerId: string,
   customerId: string,
-  opts: { withImageUrls?: boolean } = {}
+  /** planId: only that house's plants, plus older plants shared by all of the contact's houses. */
+  opts: { withImageUrls?: boolean; planId?: string | null } = {}
 ): Promise<MaintenancePlant[]> {
-  const { data: rows, error } = await db
+  let query = db
     .from('pro_crm_maintenance_plants')
-    .select('id, customer_id, name, quantity, area, notes, sort_order, created_at, updated_at')
+    .select('id, customer_id, plan_id, name, quantity, area, notes, sort_order, created_at, updated_at')
     .eq('owner_id', ownerId)
-    .eq('customer_id', customerId)
+    .eq('customer_id', customerId);
+  if (opts.planId) query = query.or(`plan_id.eq.${opts.planId},plan_id.is.null`);
+  const { data: rows, error } = await query
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -115,6 +121,7 @@ export async function listPlants(
   return plants.map((plant) => ({
     id: plant.id,
     customerId: plant.customer_id,
+    planId: plant.plan_id ?? null,
     name: plant.name,
     quantity: plant.quantity,
     area: plant.area,
@@ -126,4 +133,21 @@ export async function listPlants(
       .filter((image) => image.plant_id === plant.id)
       .map((image) => ({ id: image.id, driveFileId: image.drive_file_id, url: urlByFile.get(image.drive_file_id) ?? null })),
   }));
+}
+
+/** True when the maintenance house (agreement) belongs to this owner and contact. */
+export async function planBelongsToCustomer(
+  db: CrmDb,
+  ownerId: string,
+  customerId: string,
+  planId: string
+): Promise<boolean> {
+  const { data } = await db
+    .from('pro_crm_maintenance_plans')
+    .select('id')
+    .eq('id', planId)
+    .eq('owner_id', ownerId)
+    .eq('customer_id', customerId)
+    .maybeSingle();
+  return Boolean(data);
 }

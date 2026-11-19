@@ -1045,6 +1045,7 @@ export default function CRMEstimatesPage() {
               validUntilDate={formDueDate}
               onValidUntilDateChange={setFormDueDate}
               status={formStatus}
+              savedStatus={viewMode === 'edit' ? editingData?.status ?? null : null}
               onStatusChange={setFormStatus}
               note={formNote}
               onNoteChange={setFormNote}

@@ -318,3 +318,82 @@ export function buildContactChart(rows: ContactChartRow[], options?: ChartOption
     months: [...slots.values()],
   };
 }
+
+/** Where a maintenance house stands against its agreement: next visit date, or ended. */
+export const MAINTENANCE_HOUSE_STATUSES = ['overdue', 'due_soon', 'scheduled', 'ended'] as const;
+export type MaintenanceHouseStatus = (typeof MAINTENANCE_HOUSE_STATUSES)[number];
+
+export function maintenanceHouseStatusLabel(status: string): string {
+  switch (status) {
+    case 'overdue':
+      return 'Overdue';
+    case 'due_soon':
+      return 'Due this week';
+    case 'scheduled':
+      return 'Scheduled';
+    case 'ended':
+      return 'Ended';
+    default:
+      return status;
+  }
+}
+
+export interface MaintenanceChartRow {
+  status: MaintenanceHouseStatus;
+  /** Plan price per visit, in cents. 0 when there is no priced plan. */
+  planCents: number;
+  /** Start time of each visit at this house. */
+  visitStarts: string[];
+  laborSeconds: number;
+}
+
+export interface MaintenanceChart {
+  houses: number;
+  visits: number;
+  laborSeconds: number;
+  overdue: number;
+  /** Houses by status; cents is the plan value per visit. */
+  slices: ChartSlice[];
+  /** values[0] visits per month */
+  months: ChartMonth[];
+}
+
+export function buildMaintenanceChart(rows: MaintenanceChartRow[], options?: ChartOptions): MaintenanceChart {
+  const timeZone = options?.timeZone ?? 'UTC';
+  const now = options?.now ?? new Date();
+  const slots = monthSlots(timeZone, now, 1);
+  const slices = new Map<string, ChartSlice>(
+    MAINTENANCE_HOUSE_STATUSES.map((status) => [
+      status,
+      { key: status, label: maintenanceHouseStatusLabel(status), cents: 0, count: 0 },
+    ])
+  );
+  let visits = 0;
+  let laborSeconds = 0;
+
+  for (const row of rows) {
+    const slice = slices.get(row.status);
+    if (slice) {
+      slice.count += 1;
+      slice.cents += Math.max(0, Math.round(row.planCents) || 0);
+    }
+    laborSeconds += Math.max(0, row.laborSeconds || 0);
+    for (const startedAt of row.visitStarts) {
+      visits += 1;
+      addMonth(slots, monthKeyInZone(startedAt, timeZone), 0, 1);
+    }
+  }
+
+  return {
+    houses: rows.length,
+    visits,
+    laborSeconds,
+    overdue: slices.get('overdue')?.count ?? 0,
+    slices: MAINTENANCE_HOUSE_STATUSES.map((status) => slices.get(status) as ChartSlice),
+    months: [...slots.values()],
+  };
+}
+
+export function isMaintenanceChart(value: unknown): value is MaintenanceChart {
+  return Boolean(value && typeof value === 'object' && 'houses' in value && 'slices' in value);
+}

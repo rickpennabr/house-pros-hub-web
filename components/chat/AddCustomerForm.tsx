@@ -44,7 +44,8 @@ function formatDisplayValue(
 }
 
 export interface AddCustomerFormProps {
-  onSuccess?: () => void;
+  /** Gets the new contact, so a caller can select it right away. */
+  onSuccess?: (customer: { id: string; first_name: string; last_name: string; street_address: string | null; city: string | null; state: string | null; zip_code: string | null }) => void;
   onCancel?: () => void;
   showBackToChoice?: boolean;
   onStepIndexChange?: (stepIndex: number) => void;
@@ -265,8 +266,16 @@ export default function AddCustomerForm({
             return res.json().then((d) => Promise.reject(new Error(d?.error ?? 'Failed to add customer')));
           return res.json();
         })
-        .then(() => {
-          onSuccess?.();
+        .then((created: { id: string }) => {
+          onSuccess?.({
+            id: created.id,
+            first_name: firstName,
+            last_name: lastName,
+            street_address: trim(values.street_address || values.address) || null,
+            city: trim(values.city) || null,
+            state: trim(values.state) || null,
+            zip_code: trim(values.zip_code) || null,
+          });
         })
         .catch((e: Error) => {
           setError(e.message ?? 'Failed to add customer. Please try again.');

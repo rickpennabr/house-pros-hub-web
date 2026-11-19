@@ -217,10 +217,46 @@ async function lookupCensus(address: string): Promise<Coordinates | null> {
   return { latitude: point.y, longitude: point.x };
 }
 
+async function lookupGoogle(address: string): Promise<Coordinates | null> {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return null;
+  const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+  url.searchParams.set('address', address);
+  url.searchParams.set('region', 'us');
+  url.searchParams.set('key', apiKey);
+  const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+  if (!response.ok) return null;
+  const body = (await response.json()) as {
+    status?: string;
+    results?: { geometry?: { location?: { lat?: number; lng?: number } } }[];
+  };
+  const point = body.status === 'OK' ? body.results?.[0]?.geometry?.location : undefined;
+  if (typeof point?.lat !== 'number' || typeof point?.lng !== 'number') return null;
+  return { latitude: point.lat, longitude: point.lng };
+}
+
+async function lookupNominatim(address: string): Promise<Coordinates | null> {
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  url.searchParams.set('q', address);
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('limit', '1');
+  url.searchParams.set('countrycodes', 'us');
+  const response = await fetch(url, {
+    headers: { 'User-Agent': 'HouseProsHub/1.0 (address map)', Accept: 'application/json' },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) return null;
+  const body = (await response.json()) as { lat?: string; lon?: string }[];
+  const latitude = Number(body[0]?.lat);
+  const longitude = Number(body[0]?.lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude };
+}
+
 /**
  * GET /api/geocode?address= turns a US street address into coordinates.
  * GET /api/geocode?latitude=&longitude= turns a map pin into a street address.
- * Forward lookup uses the Census geocoder. Reverse lookup uses the Clark County
+ * Forward lookup tries the Census geocoder, then Google, then OpenStreetMap. Reverse lookup uses the Clark County
  * parcel under the pin, then Google, then OpenStreetMap.
  */
 export async function GET(request: NextRequest) {
@@ -273,13 +309,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ coordinates: cache.get(key) ?? null });
     }
 
-    let coordinates = await lookupCensus(address);
+    // Census misses many newer streets, so fall back to Google, then OpenStreetMap.
     const stripped = withoutUnit(address);
-    if (!coordinates && stripped.length >= 5 && stripped.toLowerCase() !== key) {
-      coordinates = await lookupCensus(stripped);
-    }
+    const hasUnit = stripped.length >= 5 && stripped.toLowerCase() !== key;
+    let coordinates = await lookupCensus(address).catch(() => null);
+    if (!coordinates && hasUnit) coordinates = await lookupCensus(stripped).catch(() => null);
+    if (!coordinates) coordinates = await lookupGoogle(address).catch(() => null);
+    if (!coordinates) coordinates = await lookupNominatim(hasUnit ? stripped : address).catch(() => null);
 
-    remember(cache, key, coordinates);
+    // Only remember hits, so a lookup that failed once (outage, timeout) is retried next time.
+    if (coordinates) remember(cache, key, coordinates);
     return NextResponse.json({ coordinates });
   } catch (err) {
     console.error('GET /api/geocode', err);

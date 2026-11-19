@@ -121,7 +121,10 @@ export async function GET(
         (responsibleContact ? contactDisplayName(responsibleContact) : null),
       mediaCounts,
       plants: (
-        await listPlants(scope.supabase, scope.ownerId, visit.customer_id, { withImageUrls: false }).catch(() => [])
+        await listPlants(scope.supabase, scope.ownerId, visit.customer_id, {
+          withImageUrls: false,
+          planId: (visit as { maintenance_plan_id?: string | null }).maintenance_plan_id ?? null,
+        }).catch(() => [])
       ).map((plant) => ({
         name: plant.name,
         quantity: plant.quantity,

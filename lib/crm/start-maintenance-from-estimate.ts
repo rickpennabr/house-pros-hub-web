@@ -30,7 +30,7 @@ export async function startMaintenanceFromEstimate(
   const { data: estimate, error } = await supabase
     .from('pro_crm_estimates')
     .select(
-      'id, owner_id, customer_id, display_id, amount_cents, deposit_cents, line_items, note, job_area, agreement_kind, maintenance_frequency, status'
+      'id, owner_id, customer_id, place_id, display_id, amount_cents, deposit_cents, line_items, note, job_area, agreement_kind, maintenance_frequency, status'
     )
     .eq('id', estimateId)
     .maybeSingle();
@@ -75,6 +75,9 @@ export async function startMaintenanceFromEstimate(
       .insert({
         owner_id: estimate.owner_id,
         customer_id: estimate.customer_id,
+        // The house the estimate was written for (null: the contact's own address).
+        place_id: estimate.place_id ?? null,
+        scope_of_work: estimate.note?.trim() ? estimate.note.trim().slice(0, 4000) : null,
         name,
         summary: summaryParts.join(' · ').slice(0, 1000) || null,
         frequency,

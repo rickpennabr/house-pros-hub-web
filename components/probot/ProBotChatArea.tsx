@@ -1487,29 +1487,40 @@ export default function ProBotChatArea({
               const logoSrc = selectedContact?.isProBot
                 ? PROBOT_ASSETS.avatar
                 : selectedContact?.logo;
+              const contactOnline = selectedContact?.isProBot || Boolean(selectedContact?.online);
               return (
-                <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center shrink-0 overflow-hidden relative">
-                  {logoSrc ? (
-                    selectedContact?.isProBot ? (
-                      <Image
-                        src={logoSrc}
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="w-full h-full object-contain"
-                      />
+                <div className="relative shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center shrink-0 overflow-hidden relative">
+                    {logoSrc ? (
+                      selectedContact?.isProBot ? (
+                        <Image
+                          src={logoSrc}
+                          alt=""
+                          width={32}
+                          height={32}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <img
+                          src={logoSrc}
+                          alt=""
+                          width={32}
+                          height={32}
+                          className="w-full h-full object-cover"
+                        />
+                      )
                     ) : (
-                      <img
-                        src={logoSrc}
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="w-full h-full object-cover"
-                      />
-                    )
-                  ) : (
-                    <Building2 className="w-4 h-4 text-gray-600" />
-                  )}
+                      <Building2 className="w-4 h-4 text-gray-600" />
+                    )}
+                  </div>
+                  {/* Mobile: online dot on the logo's corner, like the business cards. */}
+                  <span
+                    className={`md:hidden absolute bottom-[-5px] right-[-5px] z-10 h-3 w-3 rounded-full border-2 border-white ${
+                      contactOnline ? 'bg-green-500' : 'bg-gray-400'
+                    }`}
+                    title={contactOnline ? t('online') : t('offline')}
+                    aria-hidden
+                  />
                 </div>
               );
             })()}
@@ -1541,7 +1552,7 @@ export default function ProBotChatArea({
             {selectedContact?.isProBot && (
               <>
                 <span
-                  className="w-2 h-2 rounded-full shrink-0 bg-green-500"
+                  className="hidden md:block w-2 h-2 rounded-full shrink-0 bg-green-500"
                   title={t('online')}
                   aria-hidden
                 />
@@ -1551,7 +1562,7 @@ export default function ProBotChatArea({
             {!selectedContact?.isProBot && (
               <>
                 <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${selectedContact.online ? 'bg-green-500' : 'bg-gray-400'}`}
+                  className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${selectedContact.online ? 'bg-green-500' : 'bg-gray-400'}`}
                   title={selectedContact.online ? t('online') : t('offline')}
                   aria-hidden
                 />

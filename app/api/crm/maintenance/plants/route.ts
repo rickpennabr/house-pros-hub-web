@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCrmScope } from '@/lib/crm/crm-scope';
-import { customerBelongsToOwner, listPlants } from '@/lib/crm/maintenance-plants-db';
+import { customerBelongsToOwner, listPlants, planBelongsToCustomer } from '@/lib/crm/maintenance-plants-db';
 
 const createSchema = z.object({
   customerId: z.string().uuid(),
+  /** The maintenance house (agreement) the plant is at. */
+  planId: z.string().uuid().nullable().optional(),
   name: z.string().trim().min(1, 'Plant name is required').max(120),
   quantity: z.number().int().min(1).max(9999).optional().default(1),
   area: z.string().trim().max(80).nullable().optional(),
@@ -12,7 +14,7 @@ const createSchema = z.object({
 });
 
 /**
- * GET /api/crm/maintenance/plants?customerId=
+ * GET /api/crm/maintenance/plants?customerId=&planId=
  * Plant inventory for one maintenance property, with photo links.
  */
 export async function GET(request: NextRequest) {
@@ -26,7 +28,11 @@ export async function GET(request: NextRequest) {
     if (!(await customerBelongsToOwner(scope.supabase, scope.ownerId, customerId))) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
-    const plants = await listPlants(scope.supabase, scope.ownerId, customerId);
+    const planId = request.nextUrl.searchParams.get('planId') ?? '';
+    if (planId && !(await planBelongsToCustomer(scope.supabase, scope.ownerId, customerId, planId))) {
+      return NextResponse.json({ error: 'House not found' }, { status: 404 });
+    }
+    const plants = await listPlants(scope.supabase, scope.ownerId, customerId, { planId: planId || null });
     return NextResponse.json({ plants, businessId: scope.businessId });
   } catch (error) {
     console.error('GET /api/crm/maintenance/plants', error);
@@ -46,9 +52,12 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid plant' }, { status: 400 });
     }
-    const { customerId, name, quantity, area, notes } = parsed.data;
+    const { customerId, planId, name, quantity, area, notes } = parsed.data;
     if (!(await customerBelongsToOwner(scope.supabase, scope.ownerId, customerId))) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    }
+    if (planId && !(await planBelongsToCustomer(scope.supabase, scope.ownerId, customerId, planId))) {
+      return NextResponse.json({ error: 'House not found' }, { status: 404 });
     }
 
     const { data: last } = await scope.supabase
@@ -65,6 +74,7 @@ export async function POST(request: NextRequest) {
       .insert({
         owner_id: scope.ownerId,
         customer_id: customerId,
+        plan_id: planId ?? null,
         name,
         quantity,
         area: area || null,

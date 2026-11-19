@@ -1,6 +1,6 @@
 import { formatAmount } from '@/lib/invoices/format';
 import type { AgingBucket } from '@/lib/crm/invoice-books';
-import type { ChartMonth, ChartSlice, ContactChart, ExpenseChart, InvoiceChart, ProjectChart } from '@/lib/crm/list-charts';
+import type { ChartMonth, ChartSlice, ContactChart, ExpenseChart, InvoiceChart, MaintenanceChart, ProjectChart } from '@/lib/crm/list-charts';
 
 const SLICE_COLOR = ['#111111', '#404040', '#737373', '#a3a3a3', '#d4d4d4', '#dc2626', '#7f1d1d', '#b91c1c'];
 
@@ -256,6 +256,67 @@ export function ContactListChart({
           <MonthColumns
             months={chart.months}
             series={[{ name: 'Added', color: '#111111' }]}
+            formatValue={(value) => new Intl.NumberFormat().format(value)}
+          />
+        </section>
+      </div>
+    </div>
+  );
+}
+
+const MAINTENANCE_COLOR: Record<string, string> = {
+  overdue: '#dc2626',
+  due_soon: '#404040',
+  scheduled: '#111111',
+  ended: '#d4d4d4',
+};
+
+function formatHours(seconds: number) {
+  return `${(seconds / 3600).toLocaleString(undefined, { maximumFractionDigits: 1 })} h`;
+}
+
+export function MaintenanceListChart({
+  chart,
+  filtered,
+  activeStatus,
+  onSelectStatus,
+}: {
+  chart: MaintenanceChart;
+  filtered: boolean;
+  activeStatus: string;
+  onSelectStatus: (status: string) => void;
+}) {
+  return (
+    <div className="space-y-4 pb-28">
+      {filtered && <p className="text-xs text-gray-500">Showing houses for this search.</p>}
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <RateCard label="Houses" value={String(chart.houses)} detail="With a maintenance agreement" />
+        <RateCard label="Overdue" value={String(chart.overdue)} detail="Next visit date has passed" />
+        <RateCard label="Visits" value={String(chart.visits)} detail="All recorded visits" />
+        <RateCard label="Labor" value={formatHours(chart.laborSeconds)} detail="Hours across all workers" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section className="rounded-lg border-2 border-black bg-white p-4">
+          <h2 className="text-base font-semibold text-gray-900">By status</h2>
+          <p className="mt-0.5 text-xs text-gray-500">Tap a status to filter the houses.</p>
+          <SliceBody
+            slices={chart.slices.map((slice) => ({ ...slice, cents: 0 }))}
+            colorFor={(slice) => MAINTENANCE_COLOR[slice.key] ?? '#737373'}
+            activeKey={activeStatus}
+            onSelect={onSelectStatus}
+            valueLabel={(slice) => String(slice.count)}
+            centerLabel={String(chart.houses)}
+            centerDetail={chart.houses === 1 ? 'house' : 'houses'}
+          />
+        </section>
+        <section className="rounded-lg border-2 border-black bg-white p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-base font-semibold text-gray-900">Last 12 months</h2>
+            <p className="text-xs text-gray-500">Visits</p>
+          </div>
+          <MonthColumns
+            months={chart.months}
+            series={[{ name: 'Visits', color: '#111111' }]}
             formatValue={(value) => new Intl.NumberFormat().format(value)}
           />
         </section>

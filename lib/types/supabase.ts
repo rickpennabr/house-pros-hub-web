@@ -1703,6 +1703,9 @@ export interface Database {
           is_active: boolean;
           amount_cents: number | null;
           source_estimate_id: string | null;
+          place_id: string | null;
+          scope_of_work: string | null;
+          access_notes: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1719,6 +1722,9 @@ export interface Database {
           is_active?: boolean;
           amount_cents?: number | null;
           source_estimate_id?: string | null;
+          place_id?: string | null;
+          scope_of_work?: string | null;
+          access_notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1735,6 +1741,9 @@ export interface Database {
           is_active?: boolean;
           amount_cents?: number | null;
           source_estimate_id?: string | null;
+          place_id?: string | null;
+          scope_of_work?: string | null;
+          access_notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };

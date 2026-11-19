@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { Share2, Phone, MessageCircle, ChevronDown } from 'lucide-react';
+import { Share2, Phone, MessageCircle } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
@@ -36,9 +36,6 @@ interface ProCardHeaderProps {
   online?: boolean;
   /** When false, share, message, and phone stay visible but do not take clicks. */
   actionsEnabled?: boolean;
-  /** Owner can open the role-change flow from the subtitle. */
-  canChangeRole?: boolean;
-  onChangeRole?: () => void;
 }
 
 function getInitials(name: string): string {
@@ -175,8 +172,6 @@ export default function ProCardHeader({
   onPhoneClick,
   online,
   actionsEnabled = true,
-  canChangeRole = false,
-  onChangeRole,
 }: ProCardHeaderProps) {
   const t = useTranslations('estimate.options.trades');
   const initials = getInitials(businessName);
@@ -243,35 +238,14 @@ export default function ProCardHeader({
           <h3 className="text-[11.5px] lg:text-[12.65px] font-bold text-black truncate leading-tight">{businessName}</h3>
           <div className="flex flex-col gap-0.5 min-w-0 mt-0.5">
             <div className="min-w-0 overflow-hidden">
-              {canChangeRole && onChangeRole ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    onChangeRole();
-                  }}
-                  className="pointer-events-auto relative z-20 inline-flex max-w-full items-center gap-1 text-[10px] font-medium text-gray-600 hover:text-black truncate"
-                  aria-label="Change professional role"
-                >
-                  {RoleIcon && (
-                    <RoleIcon
-                      className={`inline-block w-3.5 h-3.5 shrink-0 ${getIconColor(roleIconName).replace('-400', '-600').replace('-500', '-700')}`}
-                    />
-                  )}
-                  <span className="truncate">{roleLabel || 'Choose role'}</span>
-                  <ChevronDown className="w-3 h-3 shrink-0 text-gray-500" />
-                </button>
-              ) : (
-                <p className="text-[10px] font-medium text-gray-600 truncate">
-                  {RoleIcon && (
-                    <RoleIcon
-                      className={`inline-block w-3.5 h-3.5 align-middle mr-1.5 ${getIconColor(roleIconName).replace('-400', '-600').replace('-500', '-700')}`}
-                    />
-                  )}
-                  <span>{roleLabel}</span>
-                </p>
-              )}
+              <p className="text-[10px] font-medium text-gray-600 truncate">
+                {RoleIcon && (
+                  <RoleIcon
+                    className={`inline-block w-3.5 h-3.5 align-middle mr-1.5 ${getIconColor(roleIconName).replace('-400', '-600').replace('-500', '-700')}`}
+                  />
+                )}
+                <span>{roleLabel}</span>
+              </p>
             </div>
           </div>
         </div>

@@ -9,9 +9,11 @@ import type { CrmContactRole } from '@/lib/crm/contact-role';
 interface ContactRolesFieldProps {
   selectedIds: string[];
   onChange: (ids: string[]) => void;
+  /** Pre-select this role and hide every other choice. */
+  lockedRoleSlug?: string;
 }
 
-export function ContactRolesField({ selectedIds, onChange }: ContactRolesFieldProps) {
+export function ContactRolesField({ selectedIds, onChange, lockedRoleSlug }: ContactRolesFieldProps) {
   const [roles, setRoles] = useState<CrmContactRole[]>([]);
   const [name, setName] = useState('');
   const [canInvoice, setCanInvoice] = useState(false);
@@ -25,6 +27,12 @@ export function ContactRolesField({ selectedIds, onChange }: ContactRolesFieldPr
       .then((res) => res.json())
       .then((data: { roles?: CrmContactRole[] }) => {
         if (cancelled) return;
+        if (lockedRoleSlug) {
+          const locked = (data.roles ?? []).filter((role) => role.slug === lockedRoleSlug);
+          setRoles(locked);
+          onChange(locked.map((role) => role.id));
+          return;
+        }
         const list = (data.roles ?? []).filter((role) => role.slug !== 'installer');
         setRoles(list);
         const installerIds = new Set((data.roles ?? []).filter((role) => role.slug === 'installer').map((role) => role.id));
@@ -80,9 +88,10 @@ export function ContactRolesField({ selectedIds, onChange }: ContactRolesFieldPr
               <button
                 key={role.id}
                 type="button"
-                onClick={() => toggle(role.id)}
+                onClick={() => !lockedRoleSlug && toggle(role.id)}
                 aria-pressed={selected}
-                className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium cursor-pointer ${
+                aria-disabled={lockedRoleSlug ? true : undefined}
+                className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium ${lockedRoleSlug ? 'cursor-default' : 'cursor-pointer'} ${
                   selected ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
                 }`}
               >
@@ -90,7 +99,7 @@ export function ContactRolesField({ selectedIds, onChange }: ContactRolesFieldPr
               </button>
             );
           })}
-          <button
+          {!lockedRoleSlug && <button
             type="button"
             onClick={() => {
               setAdding((open) => !open);
@@ -102,7 +111,7 @@ export function ContactRolesField({ selectedIds, onChange }: ContactRolesFieldPr
             }`}
           >
             New
-          </button>
+          </button>}
         </div>
       </FormField>
       {adding && (

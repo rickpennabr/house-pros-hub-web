@@ -7,7 +7,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useForm, useFieldArray, FormProvider } from 'react-hook-form';
 import type { FieldPath } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronDown, ChevronUp, Building2, Trash2, Globe, X, MessageCircle, Star, Home, Hammer, GripVertical, Phone, MapPin, AtSign, PenTool, Settings, FileText, ImagePlus, QrCode } from 'lucide-react';
+import { ChevronDown, ChevronUp, Building2, Trash2, Globe, X, MessageCircle, Star, Home, Hammer, GripVertical, Phone, MapPin, AtSign, PenTool, Settings, FileText, ImagePlus, QrCode, ArrowUpCircle } from 'lucide-react';
 import { SiNextdoor, SiWhatsapp, SiYelp, SiInstagram, SiFacebook, SiLinkedin, SiTelegram } from 'react-icons/si';
 import { AngiIcon } from '@/components/ui/icons/AngiIcon';
 
@@ -30,6 +30,8 @@ import { parseObjectPosition, formatObjectPosition } from '@/lib/utils/backgroun
 import { createSignInUrl } from '@/lib/redirect';
 import type { Locale } from '@/i18n';
 import { cardLinks } from '@/lib/utils/cardLinks';
+import { primaryProAccountRole, proAccountRoleLabel, type ProAccountRole } from '@/lib/utils/proAccountRole';
+import { UpgradeBusinessModal, type UpgradeResult } from '@/components/business/UpgradeBusinessModal';
 
 interface SocialMediaOption {
   key: LinkItem['type'];
@@ -94,7 +96,11 @@ export default function EditBusinessPage() {
   const tBrand = useTranslations('businessForm.brand');
   const tOwner = useTranslations('businessForm.owner');
   const slug = params.slug as string;
-  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading, refreshRoles } = useAuth();
+  /** Owner's public role. Handymen and installers get the Upgrade business button. */
+  const [ownerRole, setOwnerRole] = useState<ProAccountRole | null>(null);
+  const [savedLicenses, setSavedLicenses] = useState<Array<{ license: string; licenseNumber: string }>>([]);
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
   const galleryImageInputRef = useRef<HTMLInputElement>(null);
@@ -427,6 +433,7 @@ export default function EditBusinessPage() {
           if (response.ok) {
             const result = await response.json();
             business = result.business;
+            setOwnerRole(primaryProAccountRole(Array.isArray(result.ownerRoles) ? result.ownerRoles : []));
           } else {
             // Log the error response for debugging
             const errorData = await response.json().catch(() => ({}));
@@ -445,6 +452,9 @@ export default function EditBusinessPage() {
               license: license.license,
               licenseNumber: license.licenseNumber,
             })) ?? [{ license: '', licenseNumber: '' }];
+          setSavedLicenses(
+            mappedLicenses.filter((l: { license?: string }) => !!l.license && l.license !== 'GENERAL')
+          );
 
           const mappedServices = (business.services && Array.isArray(business.services))
             ? business.services.map((s: string) => ({ name: typeof s === 'string' ? s : (s as { name?: string })?.name ?? '' }))
@@ -788,6 +798,24 @@ export default function EditBusinessPage() {
     if (addressData.apartment) setValue('apartment', addressData.apartment);
   };
 
+  const canUpgrade = !!businessId && (ownerRole === 'handyman' || ownerRole === 'installer');
+
+  /** The server added the license. Merge it into the form so the next Save keeps it. */
+  const handleUpgraded = async (result: UpgradeResult) => {
+    const current = (watch('licenses') || []).filter((l) => l.license?.trim());
+    const added = result.licenses.filter(
+      (l) => l.license && !current.some((c) => c.license === l.license && (c.licenseNumber || '') === (l.licenseNumber || ''))
+    );
+    setValue('licenses', [...added, ...current]);
+    setSavedLicenses(result.licenses);
+    setValue('businessName', result.businessName);
+    setOwnerRole(result.accountRole);
+    await refreshRoles();
+    setErrorMessage('');
+    setSuccessMessage(`This business is now a ${proAccountRoleLabel(result.accountRole)}.`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const onSubmit = async (data: BusinessFormValues) => {
     try {
       if (!businessId) {
@@ -938,6 +966,27 @@ export default function EditBusinessPage() {
             {errorMessage && (
               <div className="bg-red-50 border-2 border-red-600 text-red-800 rounded-lg p-4">
                 {errorMessage}
+              </div>
+            )}
+
+            {canUpgrade && (
+              <div className="flex flex-col gap-3 rounded-lg border-2 border-black bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-black">
+                    This business is listed as {proAccountRoleLabel(ownerRole)}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Have a contractor or realtor license? Upgrade this business so it shows as one.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsUpgradeOpen(true)}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border-2 border-black bg-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-800 cursor-pointer"
+                >
+                  <ArrowUpCircle className="h-4 w-4" />
+                  Upgrade business
+                </button>
               </div>
             )}
 
@@ -1974,6 +2023,17 @@ export default function EditBusinessPage() {
             </div>
           </form>
         </FormProvider>
+
+        {canUpgrade && businessId && isUpgradeOpen && (
+          <UpgradeBusinessModal
+            isOpen
+            onClose={() => setIsUpgradeOpen(false)}
+            businessId={businessId}
+            businessName={watch('businessName') || ''}
+            licenses={savedLicenses}
+            onUpgraded={handleUpgraded}
+          />
+        )}
     </div>
   );
 }

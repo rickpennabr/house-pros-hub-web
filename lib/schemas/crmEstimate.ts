@@ -100,3 +100,14 @@ export function isValidEstimateStatusTransition(current: string, next: string): 
   if (current === 'sent' && (next === 'accepted' || next === 'declined')) return true;
   return false;
 }
+
+const ESTIMATE_STATUS_ORDER = ['draft', 'sent', 'accepted', 'declined'] as const;
+
+/**
+ * Statuses the Status menu may offer: the saved status plus the moves the server allows.
+ * A new estimate (no saved status) always starts as a draft.
+ */
+export function allowedEstimateStatuses(savedStatus: string | null | undefined): string[] {
+  if (!savedStatus) return ['draft'];
+  return ESTIMATE_STATUS_ORDER.filter((status) => isValidEstimateStatusTransition(savedStatus, status));
+}
