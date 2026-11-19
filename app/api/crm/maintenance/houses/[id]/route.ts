@@ -158,3 +158,44 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Failed to save the agreement' }, { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/crm/maintenance/houses/[id]
+ * Remove the house (its maintenance agreement and plant list). Visits already recorded stay in
+ * the visit history without a house. Refused while a visit is running there.
+ */
+export async function DELETE(_request: NextRequest, { params }: Params) {
+  try {
+    const { error, scope } = await requireCrmScope();
+    if (error || !scope) return error!;
+    if (scope.isCrew) {
+      return NextResponse.json({ error: 'Only the business owner can delete a house.' }, { status: 403 });
+    }
+    const { id } = await params;
+    const plan = await loadPlan(scope, id);
+    if (!plan) return NextResponse.json({ error: 'House not found' }, { status: 404 });
+
+    const { data: running } = await scope.supabase
+      .from('pro_crm_maintenance_visits')
+      .select('id')
+      .eq('owner_id', scope.ownerId)
+      .eq('maintenance_plan_id', plan.id)
+      .in('status', ['in_progress', 'on_break'])
+      .limit(1)
+      .maybeSingle();
+    if (running) {
+      return NextResponse.json({ error: 'A visit is running at this house. Finish it first.' }, { status: 409 });
+    }
+
+    const { error: deleteError } = await scope.supabase
+      .from('pro_crm_maintenance_plans')
+      .delete()
+      .eq('id', plan.id)
+      .eq('owner_id', scope.ownerId);
+    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error('DELETE /api/crm/maintenance/houses/[id]', error);
+    return NextResponse.json({ error: 'Failed to delete the house' }, { status: 500 });
+  }
+}

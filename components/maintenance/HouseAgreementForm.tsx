@@ -6,6 +6,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { ContactPropertySelect } from '@/components/crm/ContactPropertySelect';
+import { AddContactProperty } from '@/components/crm/ContactPropertiesEditor';
 import type { ContactProperty } from '@/lib/places/contact-places';
 import {
   MAINTENANCE_FREQUENCIES,
@@ -209,6 +210,7 @@ export function HouseAgreementForm({
 }: HouseAgreementFormProps) {
   const set = <K extends keyof HouseAgreementValues>(key: K, value: HouseAgreementValues[K]) =>
     onChange({ ...values, [key]: value });
+  const [propertiesVersion, setPropertiesVersion] = useState(0);
 
   return (
     <div className="space-y-4">
@@ -223,10 +225,20 @@ export function HouseAgreementForm({
             }}
             disabled={disabled}
             variant="stacked"
+            reloadKey={propertiesVersion}
           />
           {contactAddress ? (
             <p className="text-xs text-gray-500">Contact address: {contactAddress}</p>
           ) : null}
+          <p className="text-xs text-gray-500">Maintaining another house for this contact? Add it as a property.</p>
+          <AddContactProperty
+            customerId={customerId}
+            disabled={disabled}
+            onAdded={(placeId) => {
+              set('placeId', placeId);
+              setPropertiesVersion((version) => version + 1);
+            }}
+          />
         </div>
       ) : null}
 

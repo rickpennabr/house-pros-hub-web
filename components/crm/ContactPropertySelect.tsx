@@ -22,6 +22,8 @@ interface ContactPropertySelectProps {
    * Return a place id to select it, or nothing to keep the value.
    */
   onLoaded?: (properties: ContactProperty[]) => string | void;
+  /** Change it to load the contact's properties again (e.g. after adding one). */
+  reloadKey?: number;
 }
 
 /**
@@ -35,6 +37,7 @@ export function ContactPropertySelect({
   disabled = false,
   variant = 'row',
   onLoaded,
+  reloadKey = 0,
 }: ContactPropertySelectProps) {
   const [loaded, setLoaded] = useState<{ customerId: string; properties: ContactProperty[] } | null>(null);
 
@@ -62,7 +65,7 @@ export function ContactPropertySelect({
     };
     // Load once per customer; onLoaded / onChange are read at that moment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId]);
+  }, [customerId, reloadKey]);
 
   const properties = loaded?.customerId === customerId ? loaded.properties : [];
   if (!customerId || properties.length === 0) return null;

@@ -204,6 +204,82 @@ function PropertyCard({
   );
 }
 
+/**
+ * "Add property" button that saves a new property on a saved contact right away. For pages that
+ * pick a property (Add house, estimates) when the one needed is not on the contact yet.
+ */
+export function AddContactProperty({
+  customerId,
+  onAdded,
+  disabled = false,
+}: {
+  customerId: string;
+  onAdded: (placeId: string) => void;
+  disabled?: boolean;
+}) {
+  const [draft, setDraft] = useState<PropertyDraft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!draft) return;
+    if (!draft.name.trim()) return setError('Give the property a nickname.');
+    if (!draft.street.trim()) return setError('Enter the street address.');
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/crm/customers/${encodeURIComponent(customerId)}/places`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.id !== 'string') throw new Error(data.error || 'Could not add the property');
+      setDraft(null);
+      onAdded(data.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not add the property');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!draft) {
+    return (
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => {
+            setError(null);
+            setDraft({ ...emptyDraft });
+          }}
+          disabled={disabled}
+          className="inline-flex items-center gap-1"
+        >
+          <Plus className="h-4 w-4" />
+          Add property
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <PropertyFields
+      value={draft}
+      onChange={setDraft}
+      onSave={() => void save()}
+      onCancel={() => {
+        setDraft(null);
+        setError(null);
+      }}
+      saving={saving}
+      error={error}
+      saveLabel="Add property"
+    />
+  );
+}
+
 type Editing = { key: string; draft: PropertyDraft } | null;
 
 /**

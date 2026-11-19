@@ -2,10 +2,12 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { ClipboardList, Home, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { ClipboardList, FileInput, Home, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MaintenanceVisitFlow } from '@/components/maintenance/MaintenanceVisitFlow';
 import { MaintenanceHousesView } from '@/components/maintenance/MaintenanceHousesView';
+import { ImportHouseFromEstimateModal } from '@/components/maintenance/ImportHouseFromEstimateModal';
 
 type Tab = 'houses' | 'visits';
 
@@ -24,6 +26,7 @@ export default function MaintenancePage() {
   const customerId = searchParams.get('customerId') || '';
   const planId = searchParams.get('planId') || '';
   // Starting a visit always lands on Visits; otherwise the tab comes from the URL.
+  const [importOpen, setImportOpen] = useState(false);
   const tab: Tab = autoStart || searchParams.get('tab') === 'visits' ? 'visits' : 'houses';
 
   const go = (params: Record<string, string>) => {
@@ -54,8 +57,6 @@ export default function MaintenancePage() {
     </div>
   );
 
-  const startVisit = (house?: { customerId: string; planId: string }) =>
-    go(house ? { new: '1', customerId: house.customerId, planId: house.planId } : { new: '1' });
   const addHouse = () => router.push(`/${locale}/crm/maintenance/houses/new`);
   const openHouse = (houseId: string) => router.push(`/${locale}/crm/maintenance/houses/${houseId}`);
 
@@ -70,10 +71,16 @@ export default function MaintenancePage() {
         </div>
         {/* Visits keeps its own start button next to the tabs (it changes while traveling). */}
         {tab === 'houses' && (
-          <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0" onClick={addHouse}>
-            <Plus className="w-4 h-4" />
-            Add house
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="secondary" size="sm" className="flex items-center gap-2" onClick={() => setImportOpen(true)}>
+              <FileInput className="w-4 h-4" />
+              Import from estimate
+            </Button>
+            <Button variant="primary" size="sm" className="flex items-center gap-2" onClick={addHouse}>
+              <Plus className="w-4 h-4" />
+              Add house
+            </Button>
+          </div>
         )}
       </div>
 
@@ -88,8 +95,27 @@ export default function MaintenancePage() {
         />
       ) : (
         <>
-          {tabs}
-          <MaintenanceHousesView onOpen={openHouse} onStartVisit={startVisit} onAdd={addHouse} />
+          <div className="flex items-center justify-between gap-2">
+            {tabs}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex items-center gap-2 md:hidden"
+              onClick={() => setImportOpen(true)}
+            >
+              <FileInput className="w-4 h-4" />
+              Import
+            </Button>
+          </div>
+          <MaintenanceHousesView onOpen={openHouse} onAdd={addHouse} />
+          <ImportHouseFromEstimateModal
+            isOpen={importOpen}
+            onClose={() => setImportOpen(false)}
+            onImported={(houseId) => {
+              setImportOpen(false);
+              openHouse(houseId);
+            }}
+          />
         </>
       )}
     </div>

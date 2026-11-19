@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Ban, CalendarClock, CircleAlert, Filter, Home, LayoutGrid, MapPin, Phone, Play, Clock3 } from 'lucide-react';
+import { AlertTriangle, Ban, CalendarClock, CircleAlert, Filter, Home, LayoutGrid, MapPin, Pencil, Phone, Trash2, Clock3 } from 'lucide-react';
+import { CrmRowActionsButton, CrmRowActionsPortal, useCrmRowActions } from '@/components/crm/CrmRowActionsMenu';
+import { Button } from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
 import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
@@ -123,11 +126,12 @@ const iconButton =
 function HouseCard({
   row,
   onOpen,
-  onStart,
+  actions,
 }: {
   row: HouseRow;
   onOpen: (row: HouseRow) => void;
-  onStart: (row: HouseRow) => void;
+  /** The ⋯ menu button (Edit, Delete). */
+  actions: React.ReactNode;
 }) {
   const mapsUrl = row.address
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.address)}`
@@ -187,14 +191,7 @@ function HouseCard({
             <MapPin className="h-4 w-4" />
           </a>
         ) : null}
-        <button
-          type="button"
-          onClick={() => onStart(row)}
-          className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg border-2 border-black bg-black px-3 text-sm font-medium text-white hover:bg-gray-800 cursor-pointer"
-        >
-          <Play className="h-4 w-4" />
-          {row.openVisitId ? 'Resume visit' : 'Start visit'}
-        </button>
+        <div className="ml-auto">{actions}</div>
       </div>
     </div>
   );
@@ -203,13 +200,15 @@ function HouseCard({
 interface MaintenanceHousesViewProps {
   /** Opens the house: agreement, job, plants, visits. */
   onOpen: (houseId: string) => void;
-  /** Opens the visit flow for this house (a running visit resumes on its own). */
-  onStartVisit: (house: { customerId: string; planId: string }) => void;
   onAdd: () => void;
 }
 
 /** Houses under maintenance: card, table, map, and chart, like the other CRM lists. */
-export function MaintenanceHousesView({ onOpen, onStartVisit, onAdd }: MaintenanceHousesViewProps) {
+export function MaintenanceHousesView({ onOpen, onAdd }: MaintenanceHousesViewProps) {
+  const rowActions = useCrmRowActions();
+  const [deleteRow, setDeleteRow] = useState<HouseRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const crmChrome = useCRMChrome();
   const [statusFilter, setStatusFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -234,6 +233,7 @@ export function MaintenanceHousesView({ onOpen, onStartVisit, onAdd }: Maintenan
     handleSearchSubmit,
     chart,
     search,
+    reload,
   } = useCrmListQuery<HouseRow>({
     endpoint: '/api/crm/maintenance/houses',
     rowsKey: 'houses',
@@ -253,7 +253,6 @@ export function MaintenanceHousesView({ onOpen, onStartVisit, onAdd }: Maintenan
     setFiltersOpen(false);
   };
 
-  const start = (row: HouseRow) => onStartVisit({ customerId: row.customerId, planId: row.id });
   const open = (row: HouseRow) => onOpen(row.id);
 
   const filterButton = !crmChrome?.searchOpen ? (
@@ -344,17 +343,7 @@ export function MaintenanceHousesView({ onOpen, onStartVisit, onAdd }: Maintenan
         }}
         onRowClick={open}
         renderActions={(row) => (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              start(row);
-            }}
-            className="inline-flex items-center gap-1 rounded-lg border-2 border-black px-2 py-1 text-xs font-medium hover:bg-gray-50 cursor-pointer"
-          >
-            <Play className="h-3.5 w-3.5" />
-            {row.openVisitId ? 'Resume' : 'Start'}
-          </button>
+          <CrmRowActionsButton rowId={row.id} openId={rowActions.openId} onToggle={rowActions.toggle} />
         )}
         emptyMessage="No maintenance houses yet. Add a house to set up its maintenance agreement."
         itemLabel="houses"
@@ -371,7 +360,12 @@ export function MaintenanceHousesView({ onOpen, onStartVisit, onAdd }: Maintenan
         ) : (
           <div className="grid w-full grid-cols-1 gap-3 min-[500px]:grid-cols-2 min-[768px]:grid-cols-3 min-[1100px]:grid-cols-4">
             {rows.map((row) => (
-              <HouseCard key={row.id} row={row} onOpen={open} onStart={start} />
+              <HouseCard
+                key={row.id}
+                row={row}
+                onOpen={open}
+                actions={<CrmRowActionsButton rowId={row.id} openId={rowActions.openId} onToggle={rowActions.toggle} />}
+              />
             ))}
           </div>
         )
@@ -426,6 +420,85 @@ export function MaintenanceHousesView({ onOpen, onStartVisit, onAdd }: Maintenan
           onAdd={onAdd}
           addLabel="Add house"
         />
+      )}
+
+      <CrmRowActionsPortal openId={rowActions.openId} position={rowActions.position} menuRef={rowActions.menuRef}>
+        <button
+          type="button"
+          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+          onClick={() => {
+            if (rowActions.openId) onOpen(rowActions.openId);
+            rowActions.close();
+          }}
+        >
+          <Pencil className="w-3.5 h-3.5" /> Edit
+        </button>
+        <button
+          type="button"
+          className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+          onClick={() => {
+            setDeleteError(null);
+            setDeleteRow(rows.find((row) => row.id === rowActions.openId) ?? null);
+            rowActions.close();
+          }}
+        >
+          <Trash2 className="w-3.5 h-3.5" /> Delete
+        </button>
+      </CrmRowActionsPortal>
+
+      {deleteRow && (
+        <Modal
+          isOpen
+          onClose={() => !deleting && setDeleteRow(null)}
+          showHeader={false}
+          showCloseButton
+          maxWidth="sm"
+          preventCloseOnOverlayClick={deleting}
+        >
+          <div className="p-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-amber-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Delete house?</h2>
+            <p className="text-gray-600 mb-2">
+              {deleteRow.placeName ? `${deleteRow.customerName} · ${deleteRow.placeName}` : deleteRow.customerName}
+            </p>
+            <p className="text-sm text-gray-600 mb-6">
+              This removes the maintenance agreement and its plant list. Visits already recorded stay in Visits.
+            </p>
+            {deleteError ? <p className="text-sm text-red-600 mb-4">{deleteError}</p> : null}
+            <div className="flex gap-3 justify-center">
+              <Button variant="secondary" size="sm" onClick={() => setDeleteRow(null)} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  setDeleteError(null);
+                  try {
+                    const res = await fetch(`/api/crm/maintenance/houses/${deleteRow.id}`, {
+                      method: 'DELETE',
+                      credentials: 'include',
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error || 'Could not delete the house');
+                    setDeleteRow(null);
+                    await reload();
+                  } catch (err) {
+                    setDeleteError(err instanceof Error ? err.message : 'Could not delete the house');
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );
