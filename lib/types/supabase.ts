@@ -1320,6 +1320,7 @@ export interface Database {
           primary_payment_method: string | null;
           payment_terms: string | null;
           invoice_language: 'en' | 'es';
+          address_nickname: string | null;
           opening_balance: number | null;
           portal_user_id: string | null;
           place_id: string | null;
@@ -1370,6 +1371,7 @@ export interface Database {
           primary_payment_method?: string | null;
           payment_terms?: string | null;
           invoice_language?: 'en' | 'es';
+          address_nickname?: string | null;
           opening_balance?: number | null;
           portal_user_id?: string | null;
           place_id?: string | null;
@@ -1420,6 +1422,7 @@ export interface Database {
           primary_payment_method?: string | null;
           payment_terms?: string | null;
           invoice_language?: 'en' | 'es';
+          address_nickname?: string | null;
           opening_balance?: number | null;
           portal_user_id?: string | null;
           place_id?: string | null;
@@ -1493,7 +1496,8 @@ export interface Database {
       customer_places: {
         Row: {
           id: string;
-          user_id: string;
+          user_id: string | null;
+          owner_id: string | null;
           kind: 'house' | 'business' | 'building';
           name: string;
           street: string | null;
@@ -1506,7 +1510,8 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          user_id: string;
+          user_id?: string | null;
+          owner_id?: string | null;
           kind?: 'house' | 'business' | 'building';
           name: string;
           street?: string | null;
@@ -1519,7 +1524,8 @@ export interface Database {
         };
         Update: {
           id?: string;
-          user_id?: string;
+          user_id?: string | null;
+          owner_id?: string | null;
           kind?: 'house' | 'business' | 'building';
           name?: string;
           street?: string | null;

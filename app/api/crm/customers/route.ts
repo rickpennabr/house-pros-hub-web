@@ -192,6 +192,8 @@ export async function POST(request: NextRequest) {
       fax: str('fax'),
       other: str('other'),
       website: str('website'),
+      address_nickname: str('address_nickname'),
+      portal_kind: (['house', 'business', 'building'] as const).find((kind) => kind === body.portal_kind) ?? null,
       street_address: str('street_address'),
       apartment: str('apartment'),
       city: str('city'),

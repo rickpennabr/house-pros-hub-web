@@ -29,7 +29,6 @@ import type { CrmContactRole } from '@/lib/crm/contact-role';
 import type { ContactBooksSummary } from '@/lib/crm/contact-books';
 import { ContactBooksBar } from '@/components/crm/ContactBooksBar';
 import { ContactActivity } from '@/components/crm/ContactActivity';
-import { ContactProperties } from '@/components/crm/ContactProperties';
 import { ContactDeleteImpact } from '@/components/crm/ContactDeleteImpact';
 import { formatAmount } from '@/lib/invoices/format';
 
@@ -322,6 +321,8 @@ export default function CRMCustomersPage() {
           mobileNumber: empty(data.mobile_number),
           website: empty(data.website),
           addressSearch: empty(data.billing_address_street_1) || empty(data.street_address),
+          addressNickname: empty(data.address_nickname),
+          addressKind: data.portal_kind === 'business' || data.portal_kind === 'building' ? data.portal_kind : 'house',
           streetAddress: empty(data.street_address),
           apartment: empty(data.apartment),
           city: empty(data.city),
@@ -501,10 +502,7 @@ export default function CRMCustomersPage() {
             />
           )}
           {viewMode === 'edit' && editingId && (
-            <>
-              <ContactActivity customerId={editingId} locale={locale} />
-              <ContactProperties customerId={editingId} />
-            </>
+            <ContactActivity customerId={editingId} locale={locale} />
           )}
           {viewMode === 'add' && (
             <div className="py-2 md:py-0 md:mb-3 flex items-center justify-between gap-4">

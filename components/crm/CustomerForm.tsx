@@ -12,6 +12,8 @@ import AddressAutocomplete, { type AddressData } from '@/components/AddressAutoc
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { validateCustomerEmail, validateCustomerPhone } from '@/lib/schemas/crm';
 import { ContactRolesField } from '@/components/crm/ContactRolesField';
+import { ContactPropertiesEditor, PropertyKindPicker, saveDraftProperties, type PropertyDraft } from '@/components/crm/ContactPropertiesEditor';
+import { CONTACT_ADDRESS_NAME } from '@/lib/places/contact-address';
 import { combinedPersonName } from '@/lib/crm/contact-name';
 
 export type CRMCustomerFormData = {
@@ -25,6 +27,8 @@ export type CRMCustomerFormData = {
   mobileNumber: string;
   website: string;
   addressSearch: string;
+  addressNickname: string;
+  addressKind: 'house' | 'business' | 'building';
   streetAddress: string;
   apartment: string;
   city: string;
@@ -62,6 +66,8 @@ export const emptyForm: CRMCustomerFormData = {
   mobileNumber: '',
   website: '',
   addressSearch: '',
+  addressNickname: '',
+  addressKind: 'house',
   streetAddress: '',
   apartment: '',
   city: '',
@@ -111,6 +117,25 @@ export function CustomerForm({
   const [hubNote, setHubNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shippingSearch, setShippingSearch] = useState('');
+  const contactId = (initial as { id?: string }).id ?? '';
+  /** Properties typed on a new contact; saved right after the contact is created. */
+  const [propertyDrafts, setPropertyDrafts] = useState<PropertyDraft[]>([]);
+  // The billing address is the contact's own property; show it in the Properties list as typed.
+  const contactStreet = [form.billingStreet1 || form.streetAddress, form.billingStreet2 || form.apartment]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(', ');
+  const contactAddress =
+    contactStreet || form.addressNickname.trim()
+      ? {
+          name: form.addressNickname.trim() || CONTACT_ADDRESS_NAME,
+          kind: form.addressKind,
+          line: [contactStreet, form.billingCity || form.city, form.billingState || form.state, form.billingZipCode || form.zipCode]
+            .map((part) => part.trim())
+            .filter(Boolean)
+            .join(', '),
+        }
+      : null;
   const { isOpen, toggle: toggleAccordion } = useSingleOpenAccordion(CRM_ACCORDION_KEYS, 'nameAndContact');
   const firstInputRef = useRef<HTMLInputElement>(null);
   const tValidation = useTranslations('validation');
@@ -241,6 +266,8 @@ export function CustomerForm({
             phone: trim(form.phone) || null,
             mobile_number: trim(form.mobileNumber) || null,
             website: trim(form.website) || null,
+            address_nickname: trim(form.addressNickname) || null,
+            portal_kind: form.addressKind,
             street_address: trim(form.streetAddress) || null,
             apartment: trim(form.apartment) || null,
             city: trim(form.city) || null,
@@ -275,6 +302,8 @@ export function CustomerForm({
             phone: trim(form.phone) || null,
             mobile_number: trim(form.mobileNumber) || null,
             website: trim(form.website) || null,
+            address_nickname: trim(form.addressNickname) || null,
+            portal_kind: form.addressKind,
             street_address: trim(form.streetAddress) || null,
             apartment: trim(form.apartment) || null,
             city: trim(form.city) || null,
@@ -310,6 +339,11 @@ export function CustomerForm({
       if (!res.ok) throw new Error(data.error || (method === 'POST' ? 'Failed to create customer' : 'Failed to update customer'));
       const name = displayName || 'Contact';
       const createdId = typeof data.id === 'string' && data.id ? data.id : id;
+      if (!id && createdId && propertyDrafts.length > 0) {
+        const propertyError = await saveDraftProperties(createdId, propertyDrafts);
+        // The contact exists now; say which part failed instead of blocking the save.
+        if (propertyError) window.alert(`The contact was saved, but a property was not: ${propertyError}`);
+      }
       onSuccess(createdId ? { id: createdId, name } : undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
@@ -383,8 +417,34 @@ export function CustomerForm({
         icon={<MapPin className="w-5 h-5" />}
       >
         <div className="space-y-6">
+          {contactId ? (
+            <ContactPropertiesEditor customerId={contactId} contactAddress={contactAddress} />
+          ) : (
+            <ContactPropertiesEditor
+              drafts={propertyDrafts}
+              onDraftsChange={setPropertyDrafts}
+              contactAddress={contactAddress}
+            />
+          )}
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Billing address</h3>
+            <PropertyKindPicker
+              value={form.addressKind}
+              onChange={(kind) => update('addressKind', kind)}
+              className="mb-4"
+            />
+            <FormField
+              label="Nickname"
+              tip="What you call this place, like on My Places (Main house, Office). It shows with the contact's other properties."
+              className="mb-4"
+            >
+              <Input
+                value={form.addressNickname}
+                onChange={(e) => update('addressNickname', e.target.value)}
+                placeholder="Main house, Office"
+                maxLength={120}
+              />
+            </FormField>
             <FormField
               label="Search address"
               tip="Search to autofill street, city, state, and ZIP. You can also type an address and use “Use this address” if it’s not in the list."

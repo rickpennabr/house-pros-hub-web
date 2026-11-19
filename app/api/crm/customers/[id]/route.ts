@@ -67,7 +67,7 @@ export async function PUT(
       'billing_address_state', 'billing_address_zip_code', 'billing_address_country', 'shipping_address_street_1',
       'shipping_address_street_2', 'shipping_address_city', 'shipping_address_state', 'shipping_address_zip_code',
       'shipping_address_country', 'notes', 'primary_payment_method', 'payment_terms',
-      'invoice_language',
+      'invoice_language', 'address_nickname',
     ] as const;
     for (const key of stringFields) {
       const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
@@ -76,6 +76,10 @@ export async function PUT(
         const val = trim(raw);
         updatePayload[key] = typeof val === 'string' ? (val || null) : null;
       }
+    }
+    // Type of the contact's own address (house, business, building), like My Places.
+    if (body.portal_kind !== undefined) {
+      updatePayload.portal_kind = (['house', 'business', 'building'] as const).find((kind) => kind === body.portal_kind) ?? null;
     }
     if (body.shipping_same_as_billing !== undefined) updatePayload.shipping_same_as_billing = !!body.shipping_same_as_billing;
     if (body.opening_balance !== undefined) updatePayload.opening_balance = num(body.opening_balance) ?? body.opening_balance;

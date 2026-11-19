@@ -25,29 +25,48 @@ export interface ContactProperty {
   state: string | null;
   zipCode: string | null;
   isDefault: boolean;
+  /** The pro added it on the contact (not one of the customer's My Places). The pro may edit it. */
+  addedByPro: boolean;
+  /**
+   * The contact's own (billing) address, edited on the contact form. Its id is '' because it is
+   * not a place row: documents on it have place_id NULL.
+   */
+  isContactAddress?: boolean;
 }
 
-/** The contact's linked properties: the default first, then the others in the order they were linked. */
+import { CONTACT_ADDRESS_NAME } from '@/lib/places/contact-address';
+
+/**
+ * The contact's properties: the customer's My Places they shared or approved, and the ones the
+ * pro added. The default comes first: the contact's place_id, else the first one linked. An
+ * estimate, invoice or agreement with no place_id is on that default.
+ */
 export async function listContactProperties(admin: Admin, customerId: string): Promise<ContactProperty[]> {
   const [{ data: contact }, { data: links }] = await Promise.all([
-    admin.from('pro_crm_customers').select('place_id, portal_user_id').eq('id', customerId).maybeSingle(),
+    admin
+      .from('pro_crm_customers')
+      .select(
+        'owner_id, place_id, portal_user_id, portal_kind, address_nickname, street_address, apartment, city, state, zip_code, billing_address_street_1, billing_address_street_2, billing_address_city, billing_address_state, billing_address_zip_code'
+      )
+      .eq('id', customerId)
+      .maybeSingle(),
     admin
       .from('pro_crm_customer_places')
       .select('place_id, created_at')
       .eq('customer_id', customerId)
       .order('created_at', { ascending: true }),
   ]);
-  if (!contact?.portal_user_id) return [];
+  if (!contact) return [];
   const ids = [...new Set([contact.place_id, ...(links ?? []).map((row) => row.place_id)].filter(Boolean))] as string[];
-  if (ids.length === 0) return [];
-  const { data: places } = await admin
-    .from('customer_places')
-    .select('id, name, kind, street, city, state, zip_code')
-    .in('id', ids)
-    .eq('user_id', contact.portal_user_id);
-  return ids
+  const { data: places } = ids.length
+    ? await admin.from('customer_places').select('id, user_id, owner_id, name, kind, street, city, state, zip_code').in('id', ids)
+    : { data: [] };
+  // The customer's own places count only while this contact is linked to that customer.
+  const allowed = (place: { user_id: string | null; owner_id: string | null }) =>
+    place.user_id ? place.user_id === contact.portal_user_id : place.owner_id === contact.owner_id;
+  const linked: ContactProperty[] = ids
     .map((id) => (places ?? []).find((place) => place.id === id))
-    .filter((place): place is NonNullable<typeof place> => Boolean(place))
+    .filter((place): place is NonNullable<typeof place> => Boolean(place) && allowed(place!))
     .map((place) => ({
       id: place.id,
       name: place.name,
@@ -56,12 +75,128 @@ export async function listContactProperties(admin: Admin, customerId: string): P
       city: place.city,
       state: place.state,
       zipCode: place.zip_code,
-      isDefault: place.id === contact.place_id,
+      isDefault: false,
+      addedByPro: !place.user_id,
     }));
+
+  // Without a My Places default, the contact's own address is the default property (place_id NULL).
+  const street = (contact.street_address || contact.billing_address_street_1 || '').trim();
+  const unit = (contact.street_address ? contact.apartment : contact.billing_address_street_2)?.trim();
+  const own: ContactProperty[] =
+    !contact.place_id && (street || contact.address_nickname?.trim())
+      ? [
+          {
+            id: '',
+            name: contact.address_nickname?.trim() || CONTACT_ADDRESS_NAME,
+            kind: contact.portal_kind ?? 'house',
+            street: [street, unit].filter(Boolean).join(', ') || null,
+            city: contact.city || contact.billing_address_city,
+            state: contact.state || contact.billing_address_state,
+            zipCode: contact.zip_code || contact.billing_address_zip_code,
+            isDefault: false,
+            addedByPro: true,
+            isContactAddress: true,
+          },
+        ]
+      : [];
+  return [...own, ...linked].map((property, index) => ({ ...property, isDefault: index === 0 }));
+}
+
+export interface ProPropertyInput {
+  name: string;
+  kind: ContactProperty['kind'];
+  street: string;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+}
+
+/** Add a property to the pro's contact. It is the pro's record only; it never shows on My Places. */
+export async function addProProperty(
+  admin: Admin,
+  params: { customerId: string; ownerId: string; input: ProPropertyInput }
+): Promise<string> {
+  const { input } = params;
+  const { data: place, error } = await admin
+    .from('customer_places')
+    .insert({
+      user_id: null,
+      owner_id: params.ownerId,
+      name: input.name,
+      kind: input.kind,
+      street: input.street,
+      city: input.city,
+      state: input.state,
+      zip_code: input.zipCode,
+    })
+    .select('id')
+    .single();
+  if (error || !place) throw new Error(error?.message || 'Could not add the property');
+  const { error: linkError } = await admin
+    .from('pro_crm_customer_places')
+    .insert({ owner_id: params.ownerId, customer_id: params.customerId, place_id: place.id });
+  if (linkError) {
+    await admin.from('customer_places').delete().eq('id', place.id);
+    throw new Error(linkError.message);
+  }
+  return place.id;
+}
+
+/** A property this pro added to this contact, or null (customer-owned places are read-only). */
+async function ownedProProperty(admin: Admin, params: { customerId: string; ownerId: string; placeId: string }) {
+  const { data: link } = await admin
+    .from('pro_crm_customer_places')
+    .select('id')
+    .eq('customer_id', params.customerId)
+    .eq('owner_id', params.ownerId)
+    .eq('place_id', params.placeId)
+    .maybeSingle();
+  if (!link) return null;
+  const { data: place } = await admin
+    .from('customer_places')
+    .select('id')
+    .eq('id', params.placeId)
+    .is('user_id', null)
+    .eq('owner_id', params.ownerId)
+    .maybeSingle();
+  return place;
+}
+
+export async function updateProProperty(
+  admin: Admin,
+  params: { customerId: string; ownerId: string; placeId: string; input: ProPropertyInput }
+): Promise<boolean> {
+  if (!(await ownedProProperty(admin, params))) return false;
+  const { input } = params;
+  const { error } = await admin
+    .from('customer_places')
+    .update({
+      name: input.name,
+      kind: input.kind,
+      street: input.street,
+      city: input.city,
+      state: input.state,
+      zip_code: input.zipCode,
+    })
+    .eq('id', params.placeId);
+  if (error) throw new Error(error.message);
+  return true;
+}
+
+/** Remove a property the pro added. Estimates, invoices and agreements on it move to the default. */
+export async function removeProProperty(
+  admin: Admin,
+  params: { customerId: string; ownerId: string; placeId: string }
+): Promise<boolean> {
+  if (!(await ownedProProperty(admin, params))) return false;
+  const { error } = await admin.from('customer_places').delete().eq('id', params.placeId);
+  if (error) throw new Error(error.message);
+  return true;
 }
 
 /** Is this place one of the contact's linked properties? */
 export async function contactHasPlace(admin: Admin, customerId: string, placeId: string): Promise<boolean> {
+  if (!placeId) return false;
   const properties = await listContactProperties(admin, customerId);
   return properties.some((property) => property.id === placeId);
 }
@@ -186,9 +321,17 @@ export type PickedDocPlace = { ok: true; placeId: string | null } | { ok: false;
  * house; anything else must be one of the contact's linked houses.
  */
 export async function pickDocPlaceId(customerId: string, raw: unknown): Promise<PickedDocPlace> {
-  if (raw === null || raw === undefined || raw === '') return { ok: true, placeId: null };
+  const admin = createServiceRoleClient();
+  if (raw === null || raw === undefined || raw === '') {
+    // With no My Places default, name the first property outright, so the document stays on it
+    // if the customer later shares a house that becomes the contact's default.
+    const { data: contact } = await admin.from('pro_crm_customers').select('place_id').eq('id', customerId).maybeSingle();
+    if (contact?.place_id) return { ok: true, placeId: null };
+    const first = (await listContactProperties(admin, customerId))[0];
+    return { ok: true, placeId: first?.id || null };
+  }
   if (typeof raw !== 'string') return { ok: false, error: "Choose one of this customer's properties." };
-  if (!(await contactHasPlace(createServiceRoleClient(), customerId, raw))) {
+  if (!(await contactHasPlace(admin, customerId, raw))) {
     return { ok: false, error: "That property is not one of this customer's properties." };
   }
   return { ok: true, placeId: raw };
