@@ -148,12 +148,12 @@ export default function BusinessDetailsPage() {
   const isOwner = !!user?.id && !!business?.userId && user.id === business.userId;
   const detailsRole = resolveProDetailsRole(ownerRoles);
   const roleTabs = normalizeTabsForRole(detailsRole, business?.tabOrder);
-  const showServices = detailsRole === 'contractor' || detailsRole === 'handyman';
+  const showServices = detailsRole === 'contractor' || detailsRole === 'handyman' || detailsRole === 'installer';
   const showProducts =
     (detailsRole === 'contractor' || detailsRole === 'installer') &&
     (isOwner || profileProductCount > 0);
   const showProperties = detailsRole === 'realtor';
-  const showTrades = detailsRole === 'installer' || detailsRole === 'handyman';
+  const showTrades = detailsRole === 'handyman';
   const visibleTabs = roleTabs.filter((tab) => {
     if (tab === 'services') return showServices;
     if (tab === 'products') return showProducts;
@@ -403,8 +403,9 @@ export default function BusinessDetailsPage() {
         if (!cancelled) setProfileProductCount(0);
       }
 
+      // Only handymen show a Trades tab.
       const role = resolveProDetailsRole(ownerRoles);
-      if (role !== 'installer' && role !== 'handyman') {
+      if (role !== 'handyman') {
         if (!cancelled) {
           setOwnerTrades([]);
           setOwnerServiceArea(null);
@@ -414,9 +415,8 @@ export default function BusinessDetailsPage() {
       if (!business.userId) return;
       try {
         const supabase = createClient();
-        const table = role === 'installer' ? 'installer_profiles' : 'handyman_profiles';
         const { data } = await supabase
-          .from(table)
+          .from('handyman_profiles')
           .select('trades, service_area')
           .eq('user_id', business.userId)
           .maybeSingle();
@@ -839,7 +839,7 @@ export default function BusinessDetailsPage() {
             <BusinessTradesTab
               trades={ownerTrades}
               serviceArea={ownerServiceArea}
-              roleLabel={detailsRole === 'installer' ? 'Installer' : 'Handyman'}
+              roleLabel="Handyman"
             />
           </div>
         )}

@@ -21,7 +21,7 @@ export function defaultTabsForRole(role: ProDetailsRole): BusinessDetailsTab[] {
     case 'realtor':
       return ['contact', 'hours', 'properties', 'links', 'images', 'about'];
     case 'installer':
-      return ['contact', 'trades', 'products', 'links', 'images', 'about'];
+      return ['contact', 'services', 'products', 'links', 'images', 'about'];
     case 'handyman':
       return ['contact', 'hours', 'services', 'trades', 'links', 'images', 'about'];
     case 'contractor':

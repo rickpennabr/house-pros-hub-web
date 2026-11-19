@@ -15,8 +15,8 @@ describe('pro details tabs by role', () => {
     assert.ok(defaultTabsForRole('contractor').includes('products'));
     assert.ok(defaultTabsForRole('realtor').includes('properties'));
     assert.ok(!defaultTabsForRole('realtor').includes('products'));
-    assert.ok(!defaultTabsForRole('installer').includes('services'));
-    assert.ok(defaultTabsForRole('installer').includes('trades'));
+    assert.ok(defaultTabsForRole('installer').includes('services'));
+    assert.ok(!defaultTabsForRole('installer').includes('trades'));
     assert.ok(defaultTabsForRole('handyman').includes('services'));
     assert.ok(defaultTabsForRole('handyman').includes('trades'));
   });
