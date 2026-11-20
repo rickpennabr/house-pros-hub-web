@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { ChevronLeft, Upload, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/Input';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { estimateSchema, type EstimateSchema } from '@/lib/schemas/estimate';
 import { SERVICE_CATEGORIES } from '@/lib/constants/categories';
@@ -449,14 +450,12 @@ export default function ChatEstimateForm({
 
   const projectImages = (values.projectImages ?? []) as string[];
 
-  const handleEstimateImageUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files || files.length === 0) return;
+  const handleEstimateImageFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
       const remaining = 5 - projectImages.length;
       if (files.length > remaining) {
         setImageUploadError(tFields('maxImagesError'));
-        e.target.value = '';
         return;
       }
       setImageUploadError(null);
@@ -482,10 +481,18 @@ export default function ChatEstimateForm({
         setImageUploadError(err instanceof Error ? err.message : tFields('uploadError'));
       } finally {
         setImageUploading(false);
-        e.target.value = '';
       }
     },
     [projectImages.length, tFields]
+  );
+
+  const handleEstimateImageUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files ?? []);
+      e.target.value = '';
+      void handleEstimateImageFiles(files);
+    },
+    [handleEstimateImageFiles]
   );
 
   const handleRemoveEstimateImage = useCallback((index: number) => {
@@ -714,7 +721,13 @@ export default function ChatEstimateForm({
                       </div>
                     )}
                     {projectImages.length < 5 && (
-                      <>
+                      <FileDropTarget
+                        onFiles={(files) => void handleEstimateImageFiles(files)}
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        disabled={imageUploading}
+                        rounded="rounded-xl"
+                      >
                         <label
                           htmlFor="chat-estimate-image-input"
                           className={`probot-night-text w-full py-2 px-3 border-2 border-dashed border-black rounded-xl flex items-center justify-center gap-2 text-sm font-medium text-gray-700 cursor-pointer ${
@@ -735,7 +748,7 @@ export default function ChatEstimateForm({
                           disabled={imageUploading}
                           aria-label={tFields('uploadImages')}
                         />
-                      </>
+                      </FileDropTarget>
                     )}
                     {imageUploadError && <p className="text-xs text-red-600">{imageUploadError}</p>}
                     <p className="probot-night-text text-xs text-gray-500">{tFields('projectImagesHelp')}</p>

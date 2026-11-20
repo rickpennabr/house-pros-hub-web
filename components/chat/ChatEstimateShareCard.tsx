@@ -230,17 +230,17 @@ export default function ChatEstimateShareCard({
                   type="button"
                   onClick={() => void handleApprove()}
                   disabled={approving || signerName.trim().length < 2}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 disabled:cursor-wait disabled:opacity-60"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 disabled:cursor-wait disabled:opacity-60"
                 >
                   {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {approving ? t('crmEstimateApproving') : t('crmEstimateSignApprove')}
                 </button>
               ) : accepted ? (
-                <span className="inline-flex flex-1 items-center justify-center rounded-full border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800">
+                <span className="inline-flex flex-1 items-center justify-center rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800">
                   {t('crmEstimateApprovedBadge')}
                 </span>
               ) : canApprove ? null : (
-                <span className="inline-flex flex-1 items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600">
+                <span className="inline-flex flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600">
                   {t('crmEstimateWaitingCustomer')}
                 </span>
               )}
@@ -248,7 +248,7 @@ export default function ChatEstimateShareCard({
               <button
                 type="button"
                 onClick={() => setViewing('estimate')}
-                className="inline-flex shrink-0 items-center justify-center rounded-full border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
+                className="inline-flex shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
               >
                 {t('crmEstimateViewFull')}
               </button>
@@ -259,7 +259,7 @@ export default function ChatEstimateShareCard({
                 <button
                   type="button"
                   onClick={() => setViewing('deposit')}
-                  className="inline-flex items-center justify-center rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
+                  className="inline-flex items-center justify-center rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
                 >
                   {t('crmEstimatePayDeposit')}
                 </button>
@@ -268,7 +268,7 @@ export default function ChatEstimateShareCard({
                   href={card.depositPaymentUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
+                  className="inline-flex items-center justify-center rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-amber-400"
                 >
                   {t('crmEstimatePayDeposit')}
                 </a>

@@ -268,7 +268,7 @@ export function ContractorStepLinks({ updateLink, reorderLinks, personalData }: 
                 >
                   {/* Position Number */}
                   <div className="flex justify-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
                       isVisibleOnCard ? 'bg-black text-white' : 'bg-gray-300 text-gray-600'
                     }`}>
                       {index + 1}

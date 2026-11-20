@@ -148,7 +148,7 @@ export default function CustomerCard({
     >
       <div className="p-2 md:p-4 flex-1">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center shrink-0">
             <User className="w-5 h-5 text-gray-600" />
           </div>
           <div className="min-w-0 flex-1">

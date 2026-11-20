@@ -145,7 +145,7 @@ function RecordedPreview({ url, durationMs }: { url: string; durationMs?: number
         className="absolute inset-0 h-full w-full object-contain"
         onClick={toggle}
       />
-      <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-2 rounded-full bg-black/75 px-3 py-2 text-xs font-medium text-white">
+      <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-2 rounded-md bg-black/75 px-3 py-2 text-xs font-medium text-white">
         <button type="button" onClick={toggle} className="flex h-7 w-7 shrink-0 items-center justify-center" aria-label={playing ? 'Pause' : 'Play'}>
           {playing ? <Pause className="h-4 w-4 fill-white" /> : <Play className="h-4 w-4 fill-white" />}
         </button>
@@ -675,7 +675,7 @@ export function JobCameraSession({
           </div>
         ) : null}
         {recording ? (
-          <p className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full bg-red-600 px-3 py-1 text-sm font-bold">
+          <p className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-lg bg-red-600 px-3 py-1 text-sm font-bold">
             <span className="h-2 w-2 rounded-full bg-white" />
             {`${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`}
           </p>
@@ -697,7 +697,7 @@ export function JobCameraSession({
           <button
             type="button"
             onClick={onFinished}
-            className="mt-5 w-full rounded-full bg-black py-3 font-medium text-white"
+            className="mt-5 w-full rounded-lg bg-black py-3 font-medium text-white"
           >
             {t('done')}
           </button>
@@ -718,7 +718,7 @@ export function JobCameraSession({
           <button
             type="button"
             onClick={keepDraft}
-            className="mt-3 w-full rounded-full bg-black py-3 font-medium text-white"
+            className="mt-3 w-full rounded-lg bg-black py-3 font-medium text-white"
           >
             {t('nextPhoto')}
           </button>
@@ -806,11 +806,11 @@ export function JobCameraSession({
             }}
             disabled={saving || (maxShots != null && shots.length >= maxShots && !recording)}
             aria-label={captureMode === 'video' ? (recording ? t('stopVideo') : t('video')) : t('shutter')}
-            className="flex shrink-0 items-center justify-center rounded-full border-4 border-white disabled:opacity-50"
+            className="flex shrink-0 items-center justify-center rounded-lg border-4 border-white disabled:opacity-50"
             style={{ width: 76, height: 76 }}
           >
             <span
-              className={`block rounded-full transition-transform duration-150 ${captureMode === 'video' ? 'bg-red-600' : 'bg-white'}`}
+              className={`block rounded-lg transition-transform duration-150 ${captureMode === 'video' ? 'bg-red-600' : 'bg-white'}`}
               style={{
                 width: 60,
                 height: 60,

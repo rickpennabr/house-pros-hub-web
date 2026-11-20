@@ -77,7 +77,7 @@ export function JobPhotoMap({ latitude, longitude, accuracyM }: JobPhotoMapProps
         />
       ))}
       <span
-        className="absolute rounded-full border-2 border-yellow-400 bg-yellow-300/30"
+        className="absolute rounded-lg border-2 border-yellow-400 bg-yellow-300/30"
         style={{
           width: outer,
           height: outer,
@@ -86,7 +86,7 @@ export function JobPhotoMap({ latitude, longitude, accuracyM }: JobPhotoMapProps
         }}
       />
       <span
-        className="absolute rounded-full bg-lime-700/25"
+        className="absolute rounded-lg bg-lime-700/25"
         style={{
           width: inner,
           height: inner,

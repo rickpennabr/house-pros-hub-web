@@ -42,7 +42,7 @@ export function DeleteConfirmModal({
       preventCloseOnOverlayClick={busy}
     >
       <div className="p-6 text-center">
-        <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+        <div className="w-14 h-14 rounded-lg bg-amber-100 flex items-center justify-center mx-auto mb-4">
           <AlertTriangle className="w-8 h-8 text-amber-600" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 mb-2">{title}</h2>

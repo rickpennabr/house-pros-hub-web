@@ -63,7 +63,7 @@ export default async function InstallerDetailsPage({ params }: InstallerPageProp
         {installer.trades.length > 0 ? (
           <div className="mt-6 flex flex-wrap gap-2">
             {installer.trades.map((trade) => (
-              <span key={trade} className="rounded-full bg-black px-3 py-1 text-xs font-medium text-white">
+              <span key={trade} className="rounded-md bg-black px-3 py-1 text-xs font-medium text-white">
                 {trade}
               </span>
             ))}

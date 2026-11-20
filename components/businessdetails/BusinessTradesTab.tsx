@@ -28,7 +28,7 @@ export default function BusinessTradesTab({ trades, serviceArea, roleLabel }: Bu
       ) : (
         <ul className="flex flex-wrap gap-2">
           {trades.map((trade) => (
-            <li key={trade} className="rounded-full border-2 border-black bg-black px-3 py-1 text-sm font-medium text-white">
+            <li key={trade} className="rounded-lg border-2 border-black bg-black px-3 py-1 text-sm font-medium text-white">
               {trade}
             </li>
           ))}

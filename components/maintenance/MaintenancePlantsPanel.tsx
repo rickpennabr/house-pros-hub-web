@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { Camera, Leaf, Loader2, Minus, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
+import { FileDropZone } from '@/components/ui/FileDropZone';
 import { uploadProDriveFile } from '@/lib/drive/upload-client';
 
 interface PlantImage {
@@ -138,7 +140,7 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
     }
   }
 
-  async function addPhotosToPlant(plant: Plant, files: FileList | null) {
+  async function addPhotosToPlant(plant: Plant, files: FileList | File[] | null) {
     if (!files || files.length === 0) return;
     const room = PLANT_IMAGE_LIMIT - plant.images.length;
     if (room <= 0) {
@@ -211,7 +213,7 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
           )}
         </div>
         {!showForm && (
-          <Button type="button" size="sm" disabled={disabled} onClick={() => setShowForm(true)} className="rounded-full">
+          <Button type="button" size="sm" disabled={disabled} onClick={() => setShowForm(true)} className="rounded-lg">
             <Plus className="mr-1 h-4 w-4" />
             {t('add')}
           </Button>
@@ -230,7 +232,7 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
                 type="button"
                 aria-label={`${t('quantity')} -1`}
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-black"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-black"
               >
                 <Minus className="h-3.5 w-3.5" />
               </button>
@@ -246,7 +248,7 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
                 type="button"
                 aria-label={`${t('quantity')} +1`}
                 onClick={() => setQuantity((q) => Math.min(9999, q + 1))}
-                className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-black"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-black"
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
@@ -254,7 +256,7 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
             <select
               value={area}
               onChange={(event) => setArea(event.target.value)}
-              className="rounded-full border-2 border-black px-3 py-1.5 text-sm"
+              className="rounded-lg border-2 border-black px-3 py-1.5 text-sm"
             >
               <option value="">{t('areaChoose')}</option>
               {AREA_KEYS.map((key) => (
@@ -284,13 +286,31 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
                 event.target.value = '';
               }}
             />
-            <Button type="button" variant="outline" size="sm" onClick={() => newPhotosInput.current?.click()} className="rounded-full border-2 border-black">
-              <Camera className="mr-1 h-4 w-4" />
-              {pendingPhotos.length > 0 ? t('photosPicked', { count: pendingPhotos.length }) : t('addPhotos')}
-            </Button>
+            {/* Computer: a drop box. Phone: the camera button. */}
+            <FileDropZone
+              className="hidden w-full md:block"
+              compact
+              multiple
+              accept="image/*"
+              onFiles={(files) => setPendingPhotos(files.slice(0, PLANT_IMAGE_LIMIT))}
+              label={pendingPhotos.length > 0 ? t('photosPicked', { count: pendingPhotos.length }) : undefined}
+              hint={`Up to ${PLANT_IMAGE_LIMIT} photos · JPEG, PNG or WebP`}
+            />
+            <FileDropTarget
+              onFiles={(files) => setPendingPhotos(files.slice(0, PLANT_IMAGE_LIMIT))}
+              accept="image/*"
+              multiple
+              rounded="rounded-lg"
+              className="md:hidden"
+            >
+              <Button type="button" variant="outline" size="sm" onClick={() => newPhotosInput.current?.click()} className="rounded-lg border-2 border-black">
+                <Camera className="mr-1 h-4 w-4" />
+                {pendingPhotos.length > 0 ? t('photosPicked', { count: pendingPhotos.length }) : t('addPhotos')}
+              </Button>
+            </FileDropTarget>
           </div>
           <div className="flex gap-2">
-            <Button type="button" disabled={saving} onClick={() => void addPlant()} className="rounded-full">
+            <Button type="button" disabled={saving} onClick={() => void addPlant()} className="rounded-lg">
               {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
               {t('save')}
             </Button>
@@ -301,7 +321,7 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
                 setShowForm(false);
                 setPendingPhotos([]);
               }}
-              className="rounded-full"
+              className="rounded-lg"
             >
               {t('cancel')}
             </Button>
@@ -327,7 +347,7 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
                   aria-label={`${t('quantity')} -1`}
                   disabled={disabled || plant.quantity <= 1}
                   onClick={() => void changeQuantity(plant, plant.quantity - 1)}
-                  className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-black disabled:opacity-40"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border-2 border-black disabled:opacity-40"
                 >
                   <Minus className="h-3 w-3" />
                 </button>
@@ -337,7 +357,7 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
                   aria-label={`${t('quantity')} +1`}
                   disabled={disabled}
                   onClick={() => void changeQuantity(plant, plant.quantity + 1)}
-                  className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-black disabled:opacity-40"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border-2 border-black disabled:opacity-40"
                 >
                   <Plus className="h-3 w-3" />
                 </button>
@@ -368,7 +388,7 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
                       type="button"
                       aria-label={t('removePhoto')}
                       onClick={() => void removePhoto(plant, image.id)}
-                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black text-white"
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-md bg-black text-white"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -376,21 +396,28 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
                 </div>
               ))}
               {plant.images.length < PLANT_IMAGE_LIMIT && !disabled && (
-                <label className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-black/40 text-gray-600">
-                  {uploadingFor === plant.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    multiple
-                    className="hidden"
-                    aria-label={t('addPhotos')}
-                    onChange={(event) => {
-                      void addPhotosToPlant(plant, event.target.files);
-                      event.target.value = '';
-                    }}
-                  />
-                </label>
+                <FileDropTarget
+                  onFiles={(files) => void addPhotosToPlant(plant, files)}
+                  accept="image/*"
+                  multiple
+                  rounded="rounded-md"
+                >
+                  <label className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-black/40 text-gray-600">
+                    {uploadingFor === plant.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      multiple
+                      className="hidden"
+                      aria-label={t('addPhotos')}
+                      onChange={(event) => {
+                        void addPhotosToPlant(plant, event.target.files);
+                        event.target.value = '';
+                      }}
+                    />
+                  </label>
+                </FileDropTarget>
               )}
             </div>
           </li>

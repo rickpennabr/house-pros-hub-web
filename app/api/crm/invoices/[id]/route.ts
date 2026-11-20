@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
 import { applyCompanyDisplay, sanitizeCompanyDisplay } from '@/lib/invoices/companyDisplay';
+import { applyInvoiceBrand } from '@/lib/invoices/invoice-brand';
 import { getDefaultCompanyForInvoice } from '@/lib/invoices/defaultCompany';
 import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
 import { syncBilledExpenses } from '@/lib/crm/job-costs';
@@ -103,14 +104,10 @@ export async function GET(
         website: undefined,
       };
     }
+    const brand = await applyInvoiceBrand(supabase, user.id, business);
     applyCompanyDisplay(business as unknown as Record<string, unknown>, row.company_display);
 
-    const { data: invSettings } = await supabase
-      .from('pro_invoice_settings')
-      .select('theme_color_hex')
-      .eq('owner_id', user.id)
-      .single();
-    const themeColorHex = (invSettings as { theme_color_hex?: string } | null)?.theme_color_hex ?? '#000000';
+    const themeColorHex = brand.themeColorHex;
 
     const { data: paymentRows } = await supabase
       .from('pro_crm_invoice_payments')

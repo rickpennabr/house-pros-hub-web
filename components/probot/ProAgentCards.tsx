@@ -69,14 +69,14 @@ export default function ProAgentCards({ payload, canConfirm, confirming, onConfi
                 type="button"
                 disabled={confirming}
                 onClick={() => onConfirm?.(payload.confirm!.stepId)}
-                className="rounded-full bg-black px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                className="rounded-md bg-black px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
               >
                 {confirming ? t('confirmingEstimate') : t('confirmEstimateButton')}
               </button>
               <button
                 type="button"
                 onClick={onEdit}
-                className="rounded-full border-2 border-black px-3 py-1.5 text-xs font-medium text-gray-900"
+                className="rounded-md border-2 border-black px-3 py-1.5 text-xs font-medium text-gray-900"
               >
                 {t('editEstimate')}
               </button>

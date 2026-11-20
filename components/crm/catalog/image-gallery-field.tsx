@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 import { ChevronLeft, ChevronRight, GripVertical, ImagePlus, Star, X } from 'lucide-react';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 export interface DraftImage {
   key: string;
@@ -149,6 +150,7 @@ export function ImageGalleryField({ images, max, onChange }: ImageGalleryFieldPr
           </div>
         ))}
         {remaining > 0 ? (
+          <FileDropTarget>
           <label className="flex h-24 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-black text-xs font-medium text-gray-700">
             <ImagePlus className="mb-1 h-5 w-5" />
             Add photo
@@ -163,6 +165,7 @@ export function ImageGalleryField({ images, max, onChange }: ImageGalleryFieldPr
               }}
             />
           </label>
+          </FileDropTarget>
         ) : null}
       </div>
     </div>

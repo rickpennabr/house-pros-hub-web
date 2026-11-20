@@ -62,7 +62,7 @@ function ToolCard({ tool, href }: { tool: ToolListItem; href: string }) {
             {tool.name}
             {tool.quantity > 1 ? <span className="font-normal text-gray-500"> × {tool.quantity}</span> : null}
           </p>
-          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[tool.status]}`}>
+          <span className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[tool.status]}`}>
             {TOOL_STATUS_LABELS[tool.status]}
           </span>
         </div>
@@ -216,7 +216,7 @@ export default function ProToolsPage() {
               setStatus(filter.id);
               setPage(1);
             }}
-            className={`inline-flex shrink-0 items-center gap-1 rounded-full border-2 border-black px-3 py-1.5 text-sm font-medium ${
+            className={`inline-flex shrink-0 items-center gap-1 rounded-lg border-2 border-black px-3 py-1.5 text-sm font-medium ${
               status === filter.id ? 'bg-black text-white' : 'bg-white hover:bg-gray-50'
             }`}
           >

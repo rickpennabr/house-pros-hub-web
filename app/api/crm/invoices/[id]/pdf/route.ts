@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { userCanAccessCrm } from '@/lib/crm/require-contractor';
 import { applyCompanyDisplay } from '@/lib/invoices/companyDisplay';
+import { applyInvoiceBrand } from '@/lib/invoices/invoice-brand';
 import { getDefaultCompanyForInvoice } from '@/lib/invoices/defaultCompany';
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer';
 import React from 'react';
@@ -104,14 +105,10 @@ export async function GET(
         };
       }
     }
+    const brand = await applyInvoiceBrand(supabase, ownerId, business);
     applyCompanyDisplay(business as unknown as Record<string, unknown>, row.company_display);
 
-    const { data: invSettings } = await supabase
-      .from('pro_invoice_settings')
-      .select('theme_color_hex')
-      .eq('owner_id', ownerId)
-      .single();
-    const themeColorHex = (invSettings as { theme_color_hex?: string } | null)?.theme_color_hex ?? '#000000';
+    const themeColorHex = brand.themeColorHex;
 
     const invoiceData: InvoiceTemplateInvoice = {
       invoice_number: row.invoice_number,

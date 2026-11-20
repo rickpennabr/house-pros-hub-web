@@ -31,6 +31,7 @@ import {
   referralNeedsDetail,
 } from '@/lib/constants/referral';
 import { readAfterFinishDestination } from '@/lib/auth/finishSetup';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 interface Draft {
   step: 1 | 2;
@@ -690,6 +691,7 @@ function FinishAccountSetupModal({
                     </div>
                   )}
                   <div className="relative flex items-start justify-end gap-1.5">
+                    <FileDropTarget inputRef={fileInputRef} disabled={saving}>
                     <div
                       role="button"
                       tabIndex={saving ? -1 : 0}
@@ -722,6 +724,7 @@ function FinishAccountSetupModal({
                         <User className="w-10 h-10 text-black" />
                       )}
                     </div>
+                    </FileDropTarget>
                     {preview ? (
                       <div className="flex flex-col gap-3 md:gap-1.5">
                         <button

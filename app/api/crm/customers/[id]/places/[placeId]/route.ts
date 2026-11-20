@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { listContactProperties, removeProProperty, updateProProperty } from '@/lib/places/contact-places';
+import { listContactProperties, removeProProperty, updateContactProperty } from '@/lib/places/contact-places';
 import { readProPropertyInput } from '@/lib/places/pro-property-input';
+import { recordPlaceUpdated } from '@/lib/places/timeline';
 
 type Params = { params: Promise<{ id: string; placeId: string }> };
 
 /**
  * PATCH /api/crm/customers/[id]/places/[placeId]
- * Edit a property the pro added. The customer's own My Places are read-only here.
+ * Fix a property on the contact: one the pro added, or the customer's My Places house. A change
+ * to the customer's house goes on its timeline, so the customer and other pros see who changed it.
  */
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
@@ -20,8 +22,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
     const admin = createServiceRoleClient();
-    const updated = await updateProProperty(admin, { customerId: id, ownerId: user.id, placeId, input: parsed.input });
+    const updated = await updateContactProperty(admin, { customerId: id, ownerId: user.id, placeId, input: parsed.input });
     if (!updated) return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    if (updated.customerOwned) {
+      await recordPlaceUpdated({ placeId, ownerId: user.id, customerId: id, changes: updated.changes });
+    }
     return NextResponse.json({ properties: await listContactProperties(admin, id) });
   } catch (err) {
     console.error('PATCH /api/crm/customers/[id]/places/[placeId]', err);

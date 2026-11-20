@@ -2,7 +2,15 @@ import { joinMailLine, mailStreetKey } from '@/lib/address/unit';
 import { canChangeAppointment } from '@/lib/booking/appointmentPolicy';
 import { safeTimeZone } from '@/lib/booking/dayOfReminder';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { contactDefaultIsPlace, contactsOnPlace, docIsOnPlace, linkContactPlace } from '@/lib/places/contact-places';
+import {
+  contactsOnPlace,
+  docIsOnPlace,
+  fileIsOnPlace,
+  linkContactPlace,
+  loadPlacedProjects,
+  type PlacedContact,
+} from '@/lib/places/contact-places';
+import { importClaimedContactPlaces } from '@/lib/places/import-contact-places';
 import type { Database } from '@/lib/types/supabase';
 import {
   listPlaceTimeline,
@@ -304,9 +312,11 @@ export async function ensurePersonalPlaceFromAddress(
 }
 
 /**
- * Attach CRM customers that use this person's confirmed email to their login. That only lets
- * the hub recognize the pro. It never puts the pro on a place: the customer approves that in
- * My Places (listPendingPros / approvePendingPro), or by sharing a place with the pro in a chat.
+ * Attach CRM customers that use this person's confirmed email to their login, then put each
+ * contact's properties (billing address and the pro's properties) on their My Places once, with
+ * the work on them (importClaimedContactPlaces). A contact with no address stays pending: the
+ * customer puts that pro on a place in My Places (listPendingPros / approvePendingPro), or by
+ * sharing a place with the pro in a chat.
  */
 export async function claimPortalCustomers(user: PortalUser): Promise<void> {
   const admin = createServiceRoleClient();
@@ -328,6 +338,7 @@ export async function claimPortalCustomers(user: PortalUser): Promise<void> {
       .is('portal_user_id', null);
     if (error) console.error('claimPortalCustomers', error.message);
   }
+  await importClaimedContactPlaces(admin, user.id);
 }
 
 export interface PendingPro {
@@ -437,20 +448,16 @@ export async function portalBriefForUser(userId: string): Promise<string> {
     return lines.join('\n').slice(0, 3500);
   }
 
-  const [{ data: projects }, { data: plans }, { data: docs }, { data: invoices }] = await Promise.all([
-    admin
-      .from('pro_crm_projects')
-      .select('id, customer_id, name, status, start_date, end_date, shared')
-      .in('customer_id', customerIds)
-      .eq('shared', true),
+  const [allProjects, { data: plans }, { data: docs }, { data: invoices }] = await Promise.all([
+    loadPlacedProjects(admin, customerIds),
     admin
       .from('pro_crm_maintenance_plans')
-      .select('customer_id, name, frequency, next_visit_date, is_active')
+      .select('customer_id, place_id, name, frequency, next_visit_date, is_active')
       .in('customer_id', customerIds)
       .eq('is_active', true),
     admin
       .from('pro_crm_customer_documents')
-      .select('customer_id, title, kind, visible_to_customer')
+      .select('customer_id, project_id, title, kind, visible_to_customer')
       .in('customer_id', customerIds)
       .eq('visible_to_customer', true),
     admin
@@ -460,7 +467,9 @@ export async function portalBriefForUser(userId: string): Promise<string> {
       .neq('status', 'draft'),
   ]);
 
-  const projectIds = (projects ?? []).map((row) => row.id);
+  const projectsById = new Map(allProjects.map((row) => [row.id, row]));
+  const projects = allProjects.filter((row) => row.shared);
+  const projectIds = projects.map((row) => row.id);
   const { data: phaseRows } = projectIds.length
     ? await admin
         .from('pro_crm_project_phases')
@@ -472,8 +481,8 @@ export async function portalBriefForUser(userId: string): Promise<string> {
   for (const place of places) {
     const where = [place.street, place.city, place.state].filter(Boolean).join(', ');
     lines.push(`${place.kind} "${place.name}"${where ? ` (${where})` : ''}`);
-    const ids = (customers ?? []).filter((row) => row.place_id === place.id).map((row) => row.id);
-    const placeProjects = (projects ?? []).filter((row) => ids.includes(row.customer_id));
+    const placed = contactsFor(place.id);
+    const placeProjects = projects.filter((row) => docIsOnPlace(row, place.id, placed));
     if (placeProjects.length === 0) lines.push('  No shared project.');
     for (const project of placeProjects) {
       lines.push(`  Project "${project.name}": ${project.status}. ${project.start_date ?? 'no start'} to ${project.end_date ?? 'no end'}.`);
@@ -484,13 +493,13 @@ export async function portalBriefForUser(userId: string): Promise<string> {
         lines.push(`    Phase "${phase.name}": ${phase.status}. ${phase.start_date ?? 'no date'} to ${phase.end_date ?? 'no date'}.`);
       }
     }
-    for (const plan of (plans ?? []).filter((row) => ids.includes(row.customer_id))) {
+    for (const plan of (plans ?? []).filter((row) => docIsOnPlace(row, place.id, placed))) {
       lines.push(`  Maintenance "${plan.name}": ${plan.frequency}. Next visit ${plan.next_visit_date ?? 'not set'}.`);
     }
-    for (const doc of (docs ?? []).filter((row) => ids.includes(row.customer_id))) {
+    for (const doc of (docs ?? []).filter((row) => fileIsOnPlace(row, projectsById, place.id, placed))) {
       lines.push(`  Document "${doc.title}" (${doc.kind}). Open it on My Places.`);
     }
-    for (const invoice of (invoices ?? []).filter((row) => docIsOnPlace(row, place.id, contactsFor(place.id)))) {
+    for (const invoice of (invoices ?? []).filter((row) => docIsOnPlace(row, place.id, placed))) {
       const balance = Math.max(0, invoice.amount_cents - invoice.payment_applied_cents) / 100;
       lines.push(
         `  Invoice ${invoice.invoice_number}: ${invoice.status}. Balance ${balance.toFixed(2)} USD. Due ${invoice.due_date ?? 'not set'}.`
@@ -549,19 +558,30 @@ export async function listPortalPlaces(userId: string): Promise<PlaceCard[]> {
 
   const { data: customers } = await admin
     .from('pro_crm_customers')
-    .select('id, place_id')
+    .select('id, owner_id, place_id')
     .eq('portal_user_id', userId);
-  const customerIds = (customers ?? []).map((row) => row.id);
+  const contacts: PlacedContact[] = customers ?? [];
+  const customerIds = contacts.map((row) => row.id);
 
-  const [{ data: projects }, { data: plans }] = customerIds.length
+  const [projects, { data: plans }, { data: links }] = customerIds.length
     ? await Promise.all([
-        admin.from('pro_crm_projects').select('customer_id').in('customer_id', customerIds).eq('shared', true),
-        admin.from('pro_crm_maintenance_plans').select('customer_id').in('customer_id', customerIds).eq('is_active', true),
+        loadPlacedProjects(admin, customerIds).then((rows) => rows.filter((row) => row.shared)),
+        admin
+          .from('pro_crm_maintenance_plans')
+          .select('customer_id, place_id')
+          .in('customer_id', customerIds)
+          .eq('is_active', true),
+        admin.from('pro_crm_customer_places').select('customer_id, place_id').in('customer_id', customerIds),
       ])
-    : [{ data: [] }, { data: [] }];
+    : [[], { data: [] }, { data: [] }];
+  /** Contacts on a place: as their default or as a linked property. */
+  const contactsFor = (placeId: string) =>
+    contacts.filter(
+      (row) => row.place_id === placeId || (links ?? []).some((link) => link.customer_id === row.id && link.place_id === placeId)
+    );
 
   return (places ?? []).map((place) => {
-    const ids = (customers ?? []).filter((row) => row.place_id === place.id).map((row) => row.id);
+    const placed = contactsFor(place.id);
     return {
       id: place.id,
       kind: place.kind,
@@ -571,14 +591,72 @@ export async function listPortalPlaces(userId: string): Promise<PlaceCard[]> {
       state: place.state,
       zipCode: place.zip_code,
       photoUrl: placePhotoUrl(place.photo_path, place.updated_at),
-      projectCount: (projects ?? []).filter((row) => ids.includes(row.customer_id)).length,
-      maintenanceCount: (plans ?? []).filter((row) => ids.includes(row.customer_id)).length,
+      projectCount: projects.filter((row) => docIsOnPlace(row, place.id, placed)).length,
+      maintenanceCount: (plans ?? []).filter((row) => docIsOnPlace(row, place.id, placed)).length,
     };
   });
 }
 
+/** One pro working on the house: who they are, what they do, and what they have done here. */
+export interface PlacePro {
+  ownerId: string;
+  businessName: string;
+  slug: string | null;
+  logoUrl: string | null;
+  /** The pro's services (their trade), as on their pro card. */
+  trades: string[];
+  phone: string | null;
+  email: string | null;
+  /** Unpaid on this house's sent invoices. */
+  openBalanceCents: number;
+  counts: {
+    estimates: number;
+    invoices: number;
+    projects: number;
+    maintenance: number;
+    documents: number;
+    appointments: number;
+  };
+}
+
+type ProBusiness = {
+  owner_id: string;
+  business_name: string;
+  slug: string | null;
+  business_logo: string | null;
+  services: unknown;
+  phone: string | null;
+  mobile_phone: string | null;
+  email: string | null;
+};
+
+async function loadProBusinesses(admin: ReturnType<typeof createServiceRoleClient>, ownerIds: string[]): Promise<ProBusiness[]> {
+  const ids = [...new Set(ownerIds.filter(Boolean))];
+  if (ids.length === 0) return [];
+  const { data } = await admin
+    .from('businesses')
+    .select('owner_id, business_name, slug, business_logo, services, phone, mobile_phone, email, is_active')
+    .in('owner_id', ids)
+    .order('is_active', { ascending: false });
+  // One business per pro: the active one first.
+  return ids
+    .map((id) => (data ?? []).find((row) => row.owner_id === id))
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+}
+
+function serviceNames(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === 'string' ? item : (item as { name?: unknown })?.name))
+    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+    .map((name) => name.trim())
+    .slice(0, 6);
+}
+
 export interface PlaceBundle {
   place: PlaceCard & { createdAt: string };
+  /** Every pro on this house (CRM contact or appointment), each with their own work counts. */
+  pros: PlacePro[];
   timeline: PlaceTimelineEvent[];
   projects: Array<{
     id: string;
@@ -587,6 +665,7 @@ export interface PlaceBundle {
     startDate: string | null;
     endDate: string | null;
     proName: string;
+    ownerId: string | null;
     phases: Array<{
       id: string;
       name: string;
@@ -606,6 +685,7 @@ export interface PlaceBundle {
     endDate: string | null;
     amountCents: number | null;
     proName: string;
+    ownerId: string | null;
   }>;
   documents: Array<{
     id: string;
@@ -614,6 +694,7 @@ export interface PlaceBundle {
     fileName: string;
     projectId: string | null;
     proName: string;
+    ownerId: string | null;
     receivedAt: string;
   }>;
   invoices: Array<{
@@ -625,6 +706,7 @@ export interface PlaceBundle {
     dueDate: string | null;
     invoiceDate: string;
     proName: string;
+    ownerId: string | null;
     receivedAt: string;
   }>;
   estimates: Array<{
@@ -635,6 +717,7 @@ export interface PlaceBundle {
     depositCents: number;
     dueDate: string | null;
     proName: string;
+    ownerId: string | null;
     jobArea: string | null;
     agreementKind: string;
     maintenanceFrequency: string | null;
@@ -669,19 +752,9 @@ export async function loadPlaceBundle(
   ]);
   const rows = customers;
   const customerIds = rows.map((row) => row.id);
-  /** Projects, maintenance and files go on the contact's default property. */
-  const onDefault = (customerId: string) => contactDefaultIsPlace(customerId, placeId, rows);
   const aloneOnAccount = (placeCount ?? 0) <= 1;
   const ownerIds = [...new Set(rows.map((row) => row.owner_id))];
-  const { data: businesses } = ownerIds.length
-    ? await admin.from('businesses').select('owner_id, business_name').in('owner_id', ownerIds)
-    : { data: [] as { owner_id: string; business_name: string }[] };
-  const proName = (ownerId: string) =>
-    (businesses ?? []).find((biz) => biz.owner_id === ownerId)?.business_name ?? 'Your pro';
-  const proForCustomer = (customerId: string) => {
-    const owner = rows.find((row) => row.id === customerId)?.owner_id;
-    return owner ? proName(owner) : 'Your pro';
-  };
+  const ownerForCustomer = (customerId: string) => rows.find((row) => row.id === customerId)?.owner_id ?? null;
 
   const emptyPlace = {
     id: place.id,
@@ -706,6 +779,55 @@ export async function loadPlaceBundle(
     customerIds
   );
 
+  const businesses = await loadProBusinesses(admin, [
+    ...ownerIds,
+    ...appointments.map((visit) => visit.ownerId).filter((id): id is string => Boolean(id)),
+  ]);
+  const proName = (ownerId: string) =>
+    businesses.find((biz) => biz.owner_id === ownerId)?.business_name ?? 'Your pro';
+  const proForCustomer = (customerId: string) => {
+    const owner = ownerForCustomer(customerId);
+    return owner ? proName(owner) : 'Your pro';
+  };
+  /** Each pro on the house with their work here. Pros with a contact come first, then by name. */
+  const buildPros = (work: {
+    estimates: Array<{ ownerId: string | null }>;
+    invoices: Array<{ ownerId: string | null; status: string; amountCents: number; appliedCents: number }>;
+    projects: Array<{ ownerId: string | null }>;
+    maintenance: Array<{ ownerId: string | null }>;
+    documents: Array<{ ownerId: string | null }>;
+  }): PlacePro[] => {
+    const ids = [
+      ...ownerIds,
+      ...appointments.map((visit) => visit.ownerId).filter((id): id is string => Boolean(id) && !ownerIds.includes(id!)),
+    ].filter((id, index, all) => all.indexOf(id) === index);
+    const count = (rows: Array<{ ownerId: string | null }>, ownerId: string) =>
+      rows.filter((row) => row.ownerId === ownerId).length;
+    return ids.map((ownerId) => {
+      const business = businesses.find((biz) => biz.owner_id === ownerId);
+      return {
+        ownerId,
+        businessName: business?.business_name?.trim() || 'Your pro',
+        slug: business?.slug ?? null,
+        logoUrl: business?.business_logo ?? null,
+        trades: serviceNames(business?.services),
+        phone: business?.phone || business?.mobile_phone || null,
+        email: business?.email ?? null,
+        openBalanceCents: work.invoices
+          .filter((row) => row.ownerId === ownerId && row.status !== 'cancelled' && row.status !== 'paid')
+          .reduce((sum, row) => sum + Math.max(0, row.amountCents - row.appliedCents), 0),
+        counts: {
+          estimates: count(work.estimates, ownerId),
+          invoices: count(work.invoices, ownerId),
+          projects: count(work.projects, ownerId),
+          maintenance: count(work.maintenance, ownerId),
+          documents: count(work.documents, ownerId),
+          appointments: appointments.filter((visit) => visit.ownerId === ownerId).length,
+        },
+      };
+    });
+  };
+
   if (customerIds.length === 0) {
     await syncPlaceAppointmentTimeline(
       placeId,
@@ -724,6 +846,7 @@ export async function loadPlaceBundle(
     const timeline = await listPlaceTimeline(placeId);
     return {
       place: emptyPlace,
+      pros: buildPros({ estimates: [], invoices: [], projects: [], maintenance: [], documents: [] }),
       timeline,
       projects: [],
       maintenance: [],
@@ -750,16 +873,11 @@ export async function loadPlaceBundle(
     }))
   );
 
-  const [{ data: allProjects }, { data: allPlans }, { data: allDocs }, { data: allInvoices }, { data: allEstimates }] = await Promise.all([
-    admin
-      .from('pro_crm_projects')
-      .select('id, customer_id, name, status, start_date, end_date')
-      .in('customer_id', customerIds)
-      .eq('shared', true)
-      .order('created_at', { ascending: false }),
+  const [allProjects, { data: allPlans }, { data: allDocs }, { data: allInvoices }, { data: allEstimates }] = await Promise.all([
+    loadPlacedProjects(admin, customerIds),
     admin
       .from('pro_crm_maintenance_plans')
-      .select('id, customer_id, name, summary, frequency, next_visit_date, last_visit_date, end_date, amount_cents')
+      .select('id, customer_id, place_id, name, summary, frequency, next_visit_date, last_visit_date, end_date, amount_cents')
       .in('customer_id', customerIds)
       .eq('is_active', true)
       .order('next_visit_date', { ascending: true }),
@@ -785,10 +903,12 @@ export async function loadPlaceBundle(
       .order('created_at', { ascending: false }),
   ]);
 
-  // Estimates and invoices name their property; the rest follow the contact's default.
-  const projects = (allProjects ?? []).filter((row) => onDefault(row.customer_id));
-  const plans = (allPlans ?? []).filter((row) => onDefault(row.customer_id));
-  const docs = (allDocs ?? []).filter((row) => onDefault(row.customer_id));
+  // Each record goes on its own property, else the contact's default, as on the pro's Customer
+  // portal: projects use theirs or their estimate's, and files follow their project.
+  const projectsById = new Map(allProjects.map((row) => [row.id, row]));
+  const projects = allProjects.filter((row) => row.shared && docIsOnPlace(row, placeId, rows));
+  const plans = (allPlans ?? []).filter((row) => docIsOnPlace(row, placeId, rows));
+  const docs = (allDocs ?? []).filter((row) => fileIsOnPlace(row, projectsById, placeId, rows));
   const invoices = (allInvoices ?? []).filter((row) => docIsOnPlace(row, placeId, rows));
   const estimates = (allEstimates ?? []).filter((row) => docIsOnPlace(row, placeId, rows));
 
@@ -803,76 +923,94 @@ export async function loadPlaceBundle(
 
   const timeline = await listPlaceTimeline(placeId);
 
+  const projectItems: PlaceBundle['projects'] = projects.map((project) => ({
+    id: project.id,
+    name: project.name,
+    status: project.status,
+    startDate: project.start_date,
+    endDate: project.end_date,
+    proName: proForCustomer(project.customer_id),
+    ownerId: ownerForCustomer(project.customer_id),
+    phases: (phases ?? [])
+      .filter((phase) => phase.project_id === project.id)
+      .map((phase) => ({
+        id: phase.id,
+        name: phase.name,
+        status: phase.status,
+        startDate: phase.start_date,
+        endDate: phase.end_date,
+        note: phase.customer_note,
+      })),
+  }));
+  const maintenanceItems: PlaceBundle['maintenance'] = plans.map((plan) => ({
+    id: plan.id,
+    name: plan.name,
+    summary: plan.summary,
+    frequency: plan.frequency,
+    nextVisit: plan.next_visit_date,
+    lastVisit: plan.last_visit_date,
+    endDate: plan.end_date,
+    amountCents: plan.amount_cents,
+    proName: proForCustomer(plan.customer_id),
+    ownerId: ownerForCustomer(plan.customer_id),
+  }));
+  const documentItems: PlaceBundle['documents'] = docs.map((doc) => ({
+    id: doc.id,
+    title: doc.title,
+    kind: doc.kind,
+    fileName: doc.file_name,
+    projectId: doc.project_id,
+    proName: proForCustomer(doc.customer_id),
+    ownerId: ownerForCustomer(doc.customer_id),
+    receivedAt: doc.created_at,
+  }));
+  const invoiceItems: PlaceBundle['invoices'] = invoices.map((invoice) => ({
+    id: invoice.id,
+    number: invoice.invoice_number,
+    status: invoice.status,
+    amountCents: invoice.amount_cents,
+    appliedCents: invoice.payment_applied_cents,
+    dueDate: invoice.due_date,
+    invoiceDate: invoice.invoice_date,
+    proName: proForCustomer(invoice.customer_id),
+    ownerId: ownerForCustomer(invoice.customer_id),
+    receivedAt: invoice.created_at,
+  }));
+  const estimateItems: PlaceBundle['estimates'] = estimates.map((estimate) => ({
+    id: estimate.id,
+    number: String(estimate.display_id ?? estimate.id.slice(0, 8)),
+    status: estimate.status,
+    amountCents: estimate.amount_cents,
+    depositCents: estimate.deposit_cents ?? 0,
+    dueDate: estimate.due_date,
+    proName: proForCustomer(estimate.customer_id),
+    ownerId: ownerForCustomer(estimate.customer_id),
+    jobArea: estimate.job_area?.trim() || null,
+    agreementKind: estimate.agreement_kind ?? 'project',
+    maintenanceFrequency: estimate.maintenance_frequency ?? null,
+    signedAt: estimate.signed_at ?? null,
+    receivedAt: estimate.created_at,
+  }));
+
   return {
     place: {
       ...emptyPlace,
-      projectCount: projects?.length ?? 0,
-      maintenanceCount: plans?.length ?? 0,
+      projectCount: projectItems.length,
+      maintenanceCount: maintenanceItems.length,
     },
+    pros: buildPros({
+      estimates: estimateItems,
+      invoices: invoiceItems,
+      projects: projectItems,
+      maintenance: maintenanceItems,
+      documents: documentItems,
+    }),
     timeline,
-    projects: (projects ?? []).map((project) => ({
-      id: project.id,
-      name: project.name,
-      status: project.status,
-      startDate: project.start_date,
-      endDate: project.end_date,
-      proName: proForCustomer(project.customer_id),
-      phases: (phases ?? [])
-        .filter((phase) => phase.project_id === project.id)
-        .map((phase) => ({
-          id: phase.id,
-          name: phase.name,
-          status: phase.status,
-          startDate: phase.start_date,
-          endDate: phase.end_date,
-          note: phase.customer_note,
-        })),
-    })),
-    maintenance: (plans ?? []).map((plan) => ({
-      id: plan.id,
-      name: plan.name,
-      summary: plan.summary,
-      frequency: plan.frequency,
-      nextVisit: plan.next_visit_date,
-      lastVisit: plan.last_visit_date,
-      endDate: plan.end_date,
-      amountCents: plan.amount_cents,
-      proName: proForCustomer(plan.customer_id),
-    })),
-    documents: (docs ?? []).map((doc) => ({
-      id: doc.id,
-      title: doc.title,
-      kind: doc.kind,
-      fileName: doc.file_name,
-      projectId: doc.project_id,
-      proName: proForCustomer(doc.customer_id),
-      receivedAt: doc.created_at,
-    })),
-    invoices: (invoices ?? []).map((invoice) => ({
-      id: invoice.id,
-      number: invoice.invoice_number,
-      status: invoice.status,
-      amountCents: invoice.amount_cents,
-      appliedCents: invoice.payment_applied_cents,
-      dueDate: invoice.due_date,
-      invoiceDate: invoice.invoice_date,
-      proName: proForCustomer(invoice.customer_id),
-      receivedAt: invoice.created_at,
-    })),
-    estimates: (estimates ?? []).map((estimate) => ({
-      id: estimate.id,
-      number: String(estimate.display_id ?? estimate.id.slice(0, 8)),
-      status: estimate.status,
-      amountCents: estimate.amount_cents,
-      depositCents: estimate.deposit_cents ?? 0,
-      dueDate: estimate.due_date,
-      proName: proForCustomer(estimate.customer_id),
-      jobArea: estimate.job_area?.trim() || null,
-      agreementKind: estimate.agreement_kind ?? 'project',
-      maintenanceFrequency: estimate.maintenance_frequency ?? null,
-      signedAt: estimate.signed_at ?? null,
-      receivedAt: estimate.created_at,
-    })),
+    projects: projectItems,
+    maintenance: maintenanceItems,
+    documents: documentItems,
+    invoices: invoiceItems,
+    estimates: estimateItems,
     appointments,
   };
 }

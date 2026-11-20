@@ -147,7 +147,7 @@ function JobPicker({ scope, onChange, disabled }: { scope: string; onChange: (sc
               disabled={disabled}
               aria-pressed={on}
               onClick={() => onChange(toggleJob(scope, service.name))}
-              className={`inline-flex items-center gap-1.5 rounded-full border-2 border-black px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+              className={`inline-flex items-center gap-1.5 rounded-lg border-2 border-black px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
                 on ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
               }`}
             >

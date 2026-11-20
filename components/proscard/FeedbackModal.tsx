@@ -10,6 +10,7 @@ import Modal from '@/components/ui/Modal';
 import FeedbackPhotos from '@/components/feedback/FeedbackPhotos';
 import { createLocalePath, createSignInUrl } from '@/lib/redirect';
 import type { Locale } from '@/i18n';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 interface PublicFeedback {
   id: string;
@@ -295,7 +296,7 @@ export default function FeedbackModal({
                     <button
                       type="button"
                       onClick={() => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                      className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-black bg-white"
+                      className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-md border border-black bg-white"
                       aria-label={t('removePhoto')}
                     >
                       <X className="h-3 w-3" />
@@ -303,6 +304,7 @@ export default function FeedbackModal({
                   </div>
                 ))}
                 {files.length < MAX_IMAGES && (
+                  <FileDropTarget>
                   <label className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-black bg-white text-[10px] font-medium text-black hover:bg-gray-50">
                     <ImagePlus className="mb-0.5 h-4 w-4" />
                     {t('addPhotos')}
@@ -317,6 +319,7 @@ export default function FeedbackModal({
                       }}
                     />
                   </label>
+                  </FileDropTarget>
                 )}
               </div>
               {formError && <p className="text-sm text-red-600">{formError}</p>}
@@ -389,7 +392,7 @@ export default function FeedbackModal({
                             <button
                               type="button"
                               onClick={() => setReplyKeptUrls((current) => current.filter((url) => url !== src))}
-                              className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-black bg-white"
+                              className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-md border border-black bg-white"
                               aria-label={t('removePhoto')}
                             >
                               <X className="h-3 w-3" />
@@ -403,7 +406,7 @@ export default function FeedbackModal({
                             <button
                               type="button"
                               onClick={() => setReplyFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                              className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-black bg-white"
+                              className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-md border border-black bg-white"
                               aria-label={t('removePhoto')}
                             >
                               <X className="h-3 w-3" />

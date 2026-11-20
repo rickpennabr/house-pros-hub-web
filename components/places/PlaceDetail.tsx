@@ -32,6 +32,8 @@ import {
   type CustomerEstimatePreviewData,
 } from '@/components/estimates/CustomerEstimatePreview';
 import { MAINTENANCE_FREQUENCY_LABELS, type MaintenanceFrequency } from '@/lib/crm/estimate-agreement';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
+import { PlacePros } from '@/components/places/PlacePros';
 
 /** The header FIX camera (same animation), sized to the card tile. */
 function FixCamAnimatedIcon({ className }: { className?: string }) {
@@ -111,6 +113,9 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
   const [estimateDocLoading, setEstimateDocLoading] = useState(false);
   const [estimateApproveMessage, setEstimateApproveMessage] = useState<string | null>(null);
   const [depositPaymentUrl, setDepositPaymentUrl] = useState<string | null>(null);
+  const [proFilter, setProFilter] = useState<string | null>(null);
+  const [sharePickerOpen, setSharePickerOpen] = useState(false);
+  const tPros = useTranslations('places.prosSection');
 
   useEffect(() => {
     fetch(`/api/places/${placeId}`, { credentials: 'include' })
@@ -329,6 +334,20 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
   const localityLine = [bundle.place.city, bundle.place.state, bundle.place.zipCode].filter(Boolean).join(', ');
   const photoUrl = bundle.place.photoUrl;
 
+  // "Only their work" on a pro card filters every tab to that pro.
+  const filterPro = (bundle.pros ?? []).find((pro) => pro.ownerId === proFilter) ?? null;
+  const only = <T extends { ownerId: string | null }>(rows: T[]) =>
+    filterPro ? rows.filter((row) => row.ownerId === filterPro.ownerId) : rows;
+  const view = {
+    timeline: only(bundle.timeline),
+    projects: only(bundle.projects),
+    maintenance: only(bundle.maintenance),
+    appointments: only(bundle.appointments),
+    documents: only(bundle.documents),
+    invoices: only(bundle.invoices),
+    estimates: only(bundle.estimates),
+  };
+
   return (
     <div className="px-2 py-2 md:p-4">
       <div className="space-y-2">
@@ -353,6 +372,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
         </div>
 
         <div className="flex items-center gap-3">
+          <FileDropTarget inputRef={fileRef} className="shrink-0" rounded="rounded-xl">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
@@ -376,6 +396,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
               </span>
             )}
           </button>
+          </FileDropTarget>
           <input
             ref={fileRef}
             type="file"
@@ -497,6 +518,30 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
         {photoError ? <p className="text-sm text-red-600">{photoError}</p> : null}
       </div>
 
+      <PlacePros
+        pros={bundle.pros ?? []}
+        selected={filterPro?.ownerId ?? null}
+        onSelect={setProFilter}
+        onShare={() => setSharePickerOpen(true)}
+      />
+      <BookProPicker
+        open={sharePickerOpen}
+        onClose={() => setSharePickerOpen(false)}
+        title={t('shareWithPro')}
+        onPick={(pro) => {
+          setSharePickerOpen(false);
+          router.push(`/${locale}/probot?contact=${encodeURIComponent(pro.slug || pro.id)}&sharePlace=${bundle.place.id}`);
+        }}
+      />
+      {filterPro ? (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-red-600 px-3 py-2 text-sm">
+          <span className="font-medium">{tPros('showing', { pro: filterPro.businessName })}</span>
+          <button type="button" onClick={() => setProFilter(null)} className="text-sm font-medium text-red-600">
+            {tPros('showAll')}
+          </button>
+        </div>
+      ) : null}
+
       <div className="mt-2 flex items-start gap-2">
       <button
         type="button"
@@ -548,9 +593,9 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
       {tab === 'timeline' ? (
         <section className="border-2 border-black rounded-lg p-4 space-y-3" role="tabpanel">
           <p className="text-sm text-gray-600">{t('timelineIntro')}</p>
-          {bundle.timeline.length === 0 ? <p className="text-sm text-gray-600">{t('noTimeline')}</p> : null}
+          {view.timeline.length === 0 ? <p className="text-sm text-gray-600">{t('noTimeline')}</p> : null}
           <ol className="space-y-3">
-            {bundle.timeline.map((event) => (
+            {view.timeline.map((event) => (
               <li key={event.id} className="relative border border-black rounded-lg px-3 py-2 text-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -575,8 +620,8 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
 
       {tab === 'projects' ? (
         <section className="border-2 border-black rounded-lg p-4 space-y-4" role="tabpanel">
-          {bundle.projects.length === 0 ? <p className="text-sm text-gray-600">{t('noProjects')}</p> : null}
-          {bundle.projects.map((project) => (
+          {view.projects.length === 0 ? <p className="text-sm text-gray-600">{t('noProjects')}</p> : null}
+          {view.projects.map((project) => (
             <article key={project.id} className="border border-black rounded-lg p-3 space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -614,8 +659,8 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
 
       {tab === 'maintenance' ? (
         <section className="border-2 border-black rounded-lg p-4 space-y-3" role="tabpanel">
-          {bundle.maintenance.length === 0 ? <p className="text-sm text-gray-600">{t('noMaintenance')}</p> : null}
-          {bundle.maintenance.map((plan) => (
+          {view.maintenance.length === 0 ? <p className="text-sm text-gray-600">{t('noMaintenance')}</p> : null}
+          {view.maintenance.map((plan) => (
             <article key={plan.id} className="border border-black rounded-lg p-3 text-sm">
               <div className="flex items-start justify-between gap-3">
                 <h3 className="font-medium">{plan.name}</h3>
@@ -699,8 +744,8 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
 
       {tab === 'appointments' ? (
         <section className="border-2 border-black rounded-lg p-4 space-y-2" role="tabpanel">
-          {bundle.appointments.length === 0 ? <p className="text-sm text-gray-600">{t('noAppointments')}</p> : null}
-          {bundle.appointments.map((visit) => {
+          {view.appointments.length === 0 ? <p className="text-sm text-gray-600">{t('noAppointments')}</p> : null}
+          {view.appointments.map((visit) => {
             const when = new Date(visit.startAt).toLocaleString(locale, {
               weekday: 'short',
               month: 'short',
@@ -749,8 +794,8 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
 
       {tab === 'documents' ? (
         <section className="border-2 border-black rounded-lg p-4 space-y-2" role="tabpanel">
-          {bundle.documents.length === 0 ? <p className="text-sm text-gray-600">{t('noDocuments')}</p> : null}
-          {bundle.documents.map((doc) => (
+          {view.documents.length === 0 ? <p className="text-sm text-gray-600">{t('noDocuments')}</p> : null}
+          {view.documents.map((doc) => (
             <a
               key={doc.id}
               href={`/api/places/documents/${doc.id}`}
@@ -772,8 +817,8 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
 
       {tab === 'invoices' ? (
         <section className="border-2 border-black rounded-lg p-4 space-y-2" role="tabpanel">
-          {bundle.invoices.length === 0 ? <p className="text-sm text-gray-600">{t('noInvoices')}</p> : null}
-          {bundle.invoices.map((invoice) => (
+          {view.invoices.length === 0 ? <p className="text-sm text-gray-600">{t('noInvoices')}</p> : null}
+          {view.invoices.map((invoice) => (
             <div key={invoice.id} className="flex items-center justify-between gap-3 border border-black rounded-lg px-3 py-2 text-sm">
               <span>
                 <span className="block font-medium">{invoice.number}</span>
@@ -806,8 +851,8 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
 
       {tab === 'estimates' ? (
         <section className="border-2 border-black rounded-lg p-4 space-y-2" role="tabpanel">
-          {bundle.estimates.length === 0 ? <p className="text-sm text-gray-600">{t('noEstimates')}</p> : null}
-          {bundle.estimates.map((estimate) => {
+          {view.estimates.length === 0 ? <p className="text-sm text-gray-600">{t('noEstimates')}</p> : null}
+          {view.estimates.map((estimate) => {
             const schedule =
               estimate.maintenanceFrequency &&
               (MAINTENANCE_FREQUENCY_LABELS[estimate.maintenanceFrequency as MaintenanceFrequency] ||

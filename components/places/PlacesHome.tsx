@@ -16,6 +16,7 @@ import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 import type { PendingPro, PlaceCard, PlaceKind } from '@/lib/places/portal';
 import { PendingProsCard } from '@/components/places/PendingProsCard';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 const KINDS: PlaceKind[] = ['house', 'business', 'building'];
 
@@ -259,6 +260,7 @@ export function PlacesHome() {
       {adding ? <form onSubmit={onSubmit} className="border-2 border-black rounded-lg p-4 space-y-3">
         <h2 className="font-semibold">{t('add')}</h2>
         <div className="flex items-center gap-3">
+          <FileDropTarget inputRef={photoInputRef} className="shrink-0" rounded="rounded-xl">
           <button
             type="button"
             onClick={() => photoInputRef.current?.click()}
@@ -276,6 +278,7 @@ export function PlacesHome() {
               </span>
             )}
           </button>
+          </FileDropTarget>
           <span className="text-sm text-gray-600">{photoFile ? t('photoChange') : t('photoAdd')}</span>
           <input
             ref={photoInputRef}

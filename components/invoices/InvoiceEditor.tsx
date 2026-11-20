@@ -32,6 +32,7 @@ import {
   type InvoiceEditorDraft,
   type InvoiceLineItem,
 } from '@/lib/invoices/draft';
+import { dueDateForTerms, PAYMENT_TERM_OPTIONS } from '@/lib/invoices/invoice-brand';
 import { PAYMENT_METHODS, type PaymentMethod } from '@/lib/crm/invoice-books';
 import { JobCostPicker } from '@/components/invoices/JobCostPicker';
 import { ContactPropertySelect } from '@/components/crm/ContactPropertySelect';
@@ -305,17 +306,32 @@ export function InvoiceEditor({
                     <label className="text-gray-600 pt-1">Terms</label>
                     <Input
                       value={paymentTerms}
-                      onChange={(e) => setPaymentTerms(e.target.value)}
+                      onChange={(e) => {
+                        setPaymentTerms(e.target.value);
+                        // Net 30 and the like set the due date, as in accounting apps.
+                        const due = dueDateForTerms(invoiceDate, e.target.value);
+                        if (due) setDueDate(due);
+                      }}
                       placeholder="e.g. Due on receipt, Net 30"
                       className="py-1.5 text-sm"
+                      list="invoice-payment-terms"
                     />
+                    <datalist id="invoice-payment-terms">
+                      {PAYMENT_TERM_OPTIONS.map((option) => (
+                        <option key={option} value={option} />
+                      ))}
+                    </datalist>
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                     <label className="text-gray-600 pt-1">Invoice date</label>
                     <Input
                       type="date"
                       value={invoiceDate}
-                      onChange={(e) => setInvoiceDate(e.target.value)}
+                      onChange={(e) => {
+                        setInvoiceDate(e.target.value);
+                        const due = dueDateForTerms(e.target.value, paymentTerms);
+                        if (due) setDueDate(due);
+                      }}
                       className="py-1.5 text-sm"
                     />
                   </div>

@@ -9,6 +9,7 @@ import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { getCsrfToken } from '@/lib/utils/csrf';
+import { FileDropZone } from '@/components/ui/FileDropZone';
 import {
   formatCatalogPrice,
   SERVICE_PRICE_TYPES,
@@ -341,15 +342,16 @@ export default function BusinessServicesTab({
               />
             )}
           </div>
-          <label className="block text-sm">
+          <div className="block text-sm">
             <span className="mb-1 block font-medium">{t('photo')}</span>
-            <input
-              type="file"
+            <FileDropZone
+              onFiles={(files) => setPhotoFile(files[0] ?? null)}
               accept="image/jpeg,image/png,image/webp"
-              onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
-              className="block w-full text-sm"
+              compact
+              label={photoFile ? photoFile.name : undefined}
+              hint="JPEG, PNG or WebP"
             />
-          </label>
+          </div>
           {catalogSource !== 'crm' && (
             <label className="flex items-center gap-2 text-sm">
               <input

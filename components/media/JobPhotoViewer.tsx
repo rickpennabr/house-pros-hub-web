@@ -633,7 +633,7 @@ export function JobPhotoViewer({
         <JobPhotoMarkup url={photo.url} saving={busy} onClose={() => setEditing(false)} onSave={saveMarkup} />
       ) : null}
       <div className="flex items-center gap-3 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15" aria-label={t('closePhoto')}>
+        <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/15" aria-label={t('closePhoto')}>
           <X className="h-5 w-5" />
         </button>
         <p className="min-w-0 flex-1 truncate text-center font-bold">{projectName}</p>
@@ -650,7 +650,7 @@ export function JobPhotoViewer({
           <img src={photo.url} alt="" className="h-full w-full object-contain" />
         ) : null}
         {photo.pairedPhotoId ? (
-          <span className="absolute left-3 top-3 rounded-full bg-white px-2 py-1 text-xs font-bold text-black">{t('afterPhoto')}</span>
+          <span className="absolute left-3 top-3 rounded-md bg-white px-2 py-1 text-xs font-bold text-black">{t('afterPhoto')}</span>
         ) : null}
       </div>
 
@@ -669,7 +669,7 @@ export function JobPhotoViewer({
           </p>
         ) : notice ? <p className="mb-2 rounded-lg bg-white px-3 py-2 text-sm text-black">{notice}</p> : null}
         <div className="mb-2 flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-xs font-bold text-black">{initials(customerName)}</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-xs font-bold text-black">{initials(customerName)}</span>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">{customerName}</p>
             <p className="text-xs text-white/70">{when}</p>
@@ -685,12 +685,12 @@ export function JobPhotoViewer({
           className="mb-3 w-full bg-transparent text-sm outline-none placeholder:text-white/50"
         />
         <div className="relative z-30 flex touch-manipulation items-center justify-between">
-          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full border border-white/40" aria-label={t('comments')} onClick={openComments}><MessageSquare className="h-5 w-5" /></button>
-          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full border border-white/40" aria-label={t('tag')} onClick={() => { setTagPicks(photo.tags); setTagQuery(''); setSheet('tags'); }}><Tag className="h-5 w-5" /></button>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-md border border-white/40" aria-label={t('comments')} onClick={openComments}><MessageSquare className="h-5 w-5" /></button>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-md border border-white/40" aria-label={t('tag')} onClick={() => { setTagPicks(photo.tags); setTagQuery(''); setSheet('tags'); }}><Tag className="h-5 w-5" /></button>
           <button
             type="button"
             disabled={!photo.url || photo.mimeType.startsWith('video/')}
-            className="flex h-12 w-12 touch-manipulation items-center justify-center rounded-full border border-white/40 disabled:opacity-40"
+            className="flex h-12 w-12 touch-manipulation items-center justify-center rounded-lg border border-white/40 disabled:opacity-40"
             aria-label={t('edit')}
             onPointerUp={(event) => {
               event.preventDefault();
@@ -702,9 +702,9 @@ export function JobPhotoViewer({
           >
             <Pencil className="h-5 w-5" />
           </button>
-          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full border border-white/40" aria-label={t('tasks')} onClick={() => { setSheet('tasks'); void loadTasks().catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : t('loadFailed'))); }}><Check className="h-5 w-5" /></button>
-          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full border border-white/40" aria-label={t('map')} onClick={() => setSheet('map')}><MapPin className="h-5 w-5" /></button>
-          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full border border-white/40" aria-label={t('menu')} onClick={() => setSheet('menu')}><MoreHorizontal className="h-5 w-5" /></button>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-md border border-white/40" aria-label={t('tasks')} onClick={() => { setSheet('tasks'); void loadTasks().catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : t('loadFailed'))); }}><Check className="h-5 w-5" /></button>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-md border border-white/40" aria-label={t('map')} onClick={() => setSheet('map')}><MapPin className="h-5 w-5" /></button>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-md border border-white/40" aria-label={t('menu')} onClick={() => setSheet('menu')}><MoreHorizontal className="h-5 w-5" /></button>
         </div>
       </div>
 
@@ -716,7 +716,7 @@ export function JobPhotoViewer({
             ) : (
               <div className="flex h-full items-center justify-center px-6 text-center text-sm text-gray-600">{t('noMapLocation')}</div>
             )}
-            <button type="button" onClick={() => setSheet(null)} className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow" aria-label={t('closePhoto')}>
+            <button type="button" onClick={() => setSheet(null)} className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-20 flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow" aria-label={t('closePhoto')}>
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -774,13 +774,13 @@ export function JobPhotoViewer({
                     ))}
                   </ul>
                 )}
-                <button type="button" onClick={() => { setSheet('team'); void loadMembers(); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-black py-3 font-medium text-white">
+                <button type="button" onClick={() => { setSheet('team'); void loadMembers(); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-black py-3 font-medium text-white">
                   <Users className="h-4 w-4" />
                   {t('addTeam')}
                 </button>
                 <div className="mt-3 flex gap-2">
                   <input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder={t('addComment')} className={fieldClass} />
-                  <button type="button" disabled={busy} onClick={() => void addComment()} className="rounded-full bg-black px-4 text-sm font-bold text-white disabled:opacity-40">{t('save')}</button>
+                  <button type="button" disabled={busy} onClick={() => void addComment()} className="rounded-lg bg-black px-4 text-sm font-bold text-white disabled:opacity-40">{t('save')}</button>
                 </div>
               </>
             ) : null}
@@ -811,8 +811,8 @@ export function JobPhotoViewer({
                   </ul>
                 )}
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => void openContacts()} className="flex-1 rounded-full border-2 border-black py-3 text-sm font-bold">{t('fromContacts')}</button>
-                  <button type="button" onClick={() => { setSheet('invite'); void loadRoles().catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : t('loadFailed'))); }} className="flex-1 rounded-full bg-black py-3 text-sm font-bold text-white">{t('enterManually')}</button>
+                  <button type="button" onClick={() => void openContacts()} className="flex-1 rounded-lg border-2 border-black py-3 text-sm font-bold">{t('fromContacts')}</button>
+                  <button type="button" onClick={() => { setSheet('invite'); void loadRoles().catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : t('loadFailed'))); }} className="flex-1 rounded-lg bg-black py-3 text-sm font-bold text-white">{t('enterManually')}</button>
                 </div>
               </>
             ) : null}
@@ -854,7 +854,7 @@ export function JobPhotoViewer({
                 <button type="button" onClick={() => { setPendingContactId(null); setRoleReturn('invite'); setSheet('role'); void loadRoles(); }} className={`${fieldClass} mt-2 text-left`}>
                   {selectedRole ? selectedRole.name : t('userRole')}
                 </button>
-                <button type="button" disabled={busy} onClick={() => void invite()} className="mt-4 w-full rounded-full bg-black py-3 font-medium text-white disabled:opacity-40">{t('inviteUser')}</button>
+                <button type="button" disabled={busy} onClick={() => void invite()} className="mt-4 w-full rounded-lg bg-black py-3 font-medium text-white disabled:opacity-40">{t('inviteUser')}</button>
               </>
             ) : null}
 
@@ -873,7 +873,7 @@ export function JobPhotoViewer({
                           else setSheet('invite');
                         }}
                       >
-                        <span className={`mt-1 h-4 w-4 rounded-full border-2 border-black ${role.id === roleId ? 'bg-black' : ''}`} />
+                        <span className={`mt-1 h-4 w-4 rounded-md border-2 border-black ${role.id === roleId ? 'bg-black' : ''}`} />
                         <span>
                           <span className="block font-bold">{role.name}</span>
                           {roleHint(role.slug) ? <span className="text-xs text-gray-600">{roleHint(role.slug)}</span> : null}
@@ -923,8 +923,8 @@ export function JobPhotoViewer({
                   })()}
                 </ul>
                 <div className="mt-4 flex gap-2">
-                  <button type="button" onClick={() => setSheet(null)} className="flex-1 rounded-full border-2 border-black py-3 font-medium">{t('cancel')}</button>
-                  <button type="button" disabled={busy} onClick={() => { setTags(tagPicks); void patch({ tags: tagPicks }).then((ok) => { if (ok) setSheet(null); }); }} className="flex-1 rounded-full bg-black py-3 font-medium text-white disabled:opacity-40">{t('apply')}</button>
+                  <button type="button" onClick={() => setSheet(null)} className="flex-1 rounded-lg border-2 border-black py-3 font-medium">{t('cancel')}</button>
+                  <button type="button" disabled={busy} onClick={() => { setTags(tagPicks); void patch({ tags: tagPicks }).then((ok) => { if (ok) setSheet(null); }); }} className="flex-1 rounded-lg bg-black py-3 font-medium text-white disabled:opacity-40">{t('apply')}</button>
                 </div>
               </>
             ) : null}
@@ -938,7 +938,7 @@ export function JobPhotoViewer({
                 </div>
                 <div className="mb-3 flex gap-2 overflow-x-auto">
                   {(['assigned', 'incomplete', 'complete', 'unassigned'] as const).map((filter) => (
-                    <button key={filter} type="button" onClick={() => setTaskFilter(filter)} className={`shrink-0 rounded-full px-3 py-1 text-sm ${taskFilter === filter ? 'bg-black text-white' : 'bg-gray-100'}`}>
+                    <button key={filter} type="button" onClick={() => setTaskFilter(filter)} className={`shrink-0 rounded-lg px-3 py-1 text-sm ${taskFilter === filter ? 'bg-black text-white' : 'bg-gray-100'}`}>
                       {filter === 'assigned' ? t('taskAssigned') : filter === 'incomplete' ? t('taskIncomplete') : filter === 'complete' ? t('taskComplete') : t('taskUnassigned')}
                     </button>
                   ))}
@@ -952,10 +952,10 @@ export function JobPhotoViewer({
                   }).map((task) => (
                     <li key={task.id} className="flex items-center justify-between gap-2 py-2">
                       <button type="button" className="flex min-w-0 items-center gap-2 text-left" onClick={() => void fetch(`/api/crm/projects/${projectId}/photos/${photo.id}/tasks/${task.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ done: !task.done }) }).then(() => loadTasks())}>
-                        <span className={`h-5 w-5 shrink-0 rounded-full border-2 border-black ${task.done ? 'bg-black' : ''}`} />
+                        <span className={`h-5 w-5 shrink-0 rounded-md border-2 border-black ${task.done ? 'bg-black' : ''}`} />
                         <span className={task.done ? 'truncate text-gray-400 line-through' : 'truncate'}>{task.title}</span>
                       </button>
-                      {task.assigneeName ? <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-black text-[10px] font-bold">{initials(task.assigneeName)}</span> : null}
+                      {task.assigneeName ? <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 border-black text-[10px] font-bold">{initials(task.assigneeName)}</span> : null}
                     </li>
                   ))}
                 </ul>
@@ -973,7 +973,7 @@ export function JobPhotoViewer({
                 <p className="mt-2 text-sm">{t('newTask')}</p>
                 <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} className="mt-1 w-full border-b-2 border-black py-2 text-2xl font-medium outline-none" />
                 <div className="mt-6 flex items-center justify-between gap-3">
-                  <button type="button" onClick={() => setSheet('assignTask')} className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-black" aria-label={t('assignUsers')}>
+                  <button type="button" onClick={() => setSheet('assignTask')} className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black" aria-label={t('assignUsers')}>
                     <Users className="h-4 w-4" />
                   </button>
                   <button type="button" disabled={busy || !taskTitle.trim()} onClick={() => {
@@ -1011,7 +1011,7 @@ export function JobPhotoViewer({
                     <li key={member.contactId}>
                       <button type="button" className="flex w-full items-center gap-3 py-2 text-left" onClick={() => setTaskAssigneeId(taskAssigneeId === member.contactId ? null : member.contactId)}>
                         <span className={`h-5 w-5 rounded border-2 border-black ${taskAssigneeId === member.contactId ? 'bg-black' : ''}`} />
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-black text-xs font-bold">{initials(member.name)}</span>
+                        <span className="flex h-8 w-8 items-center justify-center rounded-md border-2 border-black text-xs font-bold">{initials(member.name)}</span>
                         <span className="font-medium">{member.name}</span>
                       </button>
                     </li>

@@ -56,7 +56,7 @@ export function InAppChatNotificationBanner() {
       aria-live="polite"
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
-        <div className="shrink-0 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+        <div className="shrink-0 w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
           <MessageCircle className="w-5 h-5 text-white" aria-hidden />
         </div>
         <div className="min-w-0 flex-1">

@@ -226,14 +226,15 @@ button:disabled {
   background-color: #1a1a1a;
 }
 
-/* Hide number input spinners (use .input-no-spinner on number inputs where arrows are not desired) */
-.input-no-spinner::-webkit-inner-spin-button,
-.input-no-spinner::-webkit-outer-spin-button {
+/* No spinner arrows in number inputs anywhere: they crowd small fields; use typed values or +/- buttons. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-.input-no-spinner {
+input[type="number"] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /* Standard black scrollbar for all scrollable areas (Firefox) */

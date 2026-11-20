@@ -422,7 +422,8 @@ export function ContactPropertiesEditor(
         </h3>
         <p className="text-xs text-gray-600">
           Houses and buildings you work on for this contact. Give each a nickname; estimates, invoices and maintenance
-          pick one. The first is the default.
+          pick one. The first is the default. Houses marked From My Places are the customer&apos;s: you can fix their
+          details, and the customer sees the change on their timeline.
         </p>
       </div>
       {error && !editing ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -452,19 +453,16 @@ export function ContactPropertiesEditor(
                       property.addedByPro ? '' : 'From My Places',
                     ].filter(Boolean)}
                     disabled={saving || Boolean(editing)}
-                    onEdit={
-                      property.addedByPro
-                        ? () =>
-                            startEdit(property.id, {
-                              name: property.name,
-                              kind: property.kind,
-                              street: property.street ?? '',
-                              unit: '',
-                              city: property.city ?? '',
-                              state: property.state ?? '',
-                              zipCode: property.zipCode ?? '',
-                            })
-                        : undefined
+                    onEdit={() =>
+                      startEdit(property.id, {
+                        name: property.name,
+                        kind: property.kind,
+                        street: property.street ?? '',
+                        unit: '',
+                        city: property.city ?? '',
+                        state: property.state ?? '',
+                        zipCode: property.zipCode ?? '',
+                      })
                     }
                     onRemove={property.addedByPro ? () => void remove(property.id, property.name) : undefined}
                   />

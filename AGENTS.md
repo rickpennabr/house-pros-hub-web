@@ -11,3 +11,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Search bars
 
 Every new search bar uses the standard component: `TypingSearchInput` (`components/common/TypingSearchInput.tsx`), or `CRMSearchField` for a standalone CRM list search (it renders its own `<form>`; never nest it). That gives the red search icon, black border, typing placeholder and clear button. Never build a search bar from a bare `<input>`/`Input`. Put a related action button (e.g. "Add contact") on the row under the search bar, aligned right. Full rule: `.cursor/rules/component-styling/search-bars.md`.
+
+## Uploads
+
+Every upload area takes drag and drop. A plain upload box uses `FileDropZone` (`components/ui/FileDropZone.tsx`): dashed border, drag highlight, click or Enter to browse, type and size checks. A tile that opens a file picker (logo, avatar, photo square, upload button) keeps its look and goes inside `FileDropTarget` (`components/ui/FileDropTarget.tsx`), with `inputRef` of its hidden input (or with the input inside it) so drops run the same onChange code. Never ship a bare `<input type="file">` or an "Add attachment" link without one of these. Full rule: `.cursor/rules/component-styling/uploads.md`.
+
+## Shapes
+
+No pills and no circles. Buttons, chips, badges, inputs, selects, icon buttons, step numbers and remove (X) badges are squares or rectangles with rounded corners: `rounded-lg`, or `rounded-md` for small ones (about 24px and under, `text-xs` chips). Never `rounded-full` on them. `rounded-full` is only for things that must be round: spinners, tiny status dots, toggle-switch tracks and knobs, progress-bar ends, notification counters.

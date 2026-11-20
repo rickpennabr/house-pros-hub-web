@@ -29,7 +29,7 @@ interface ImageSlidesProps {
 }
 
 const controlClass =
-  'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-white bg-black/70 text-white transition-colors hover:bg-black';
+  'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border-2 border-white bg-black/70 text-white transition-colors hover:bg-black';
 
 function clampIndex(index: number, count: number): number {
   if (count <= 0) return 0;
@@ -245,7 +245,7 @@ export function ImageSlides({ images, label, fill = false }: ImageSlidesProps) {
             <button
               type="button"
               onClick={() => setIndex(clampIndex(current - 1, count))}
-              className="absolute left-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border-2 border-black bg-white text-black"
+              className="absolute left-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg border-2 border-black bg-white text-black"
               aria-label={t('slides.previous')}
             >
               <ChevronLeft className="h-6 w-6" />
@@ -253,7 +253,7 @@ export function ImageSlides({ images, label, fill = false }: ImageSlidesProps) {
             <button
               type="button"
               onClick={() => setIndex(clampIndex(current + 1, count))}
-              className="absolute right-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border-2 border-black bg-white text-black"
+              className="absolute right-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg border-2 border-black bg-white text-black"
               aria-label={t('slides.next')}
             >
               <ChevronRight className="h-6 w-6" />

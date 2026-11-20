@@ -148,7 +148,7 @@ export default function MaintenanceVisitReportPage() {
             {property.customerName} · {formatTime(visit.startedAt)}
           </p>
         </div>
-        <span className="inline-flex items-center rounded-full border border-black px-2 py-0.5 text-xs font-medium">
+        <span className="inline-flex items-center rounded-md border border-black px-2 py-0.5 text-xs font-medium">
           {STATUS_LABEL[visit.status] ?? visit.status}
         </span>
       </div>

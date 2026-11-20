@@ -36,14 +36,14 @@ function LogoMark({ name, logo }: { name: string; logo?: string | null }) {
   const initial = (name.trim().charAt(0) || 'P').toUpperCase();
   if (logo) {
     return (
-      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-gray-200 md:h-16 md:w-16">
+      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 border-gray-200 md:h-16 md:w-16">
         <Image src={logo} alt="" fill className="object-cover" sizes="64px" />
       </div>
     );
   }
   return (
     <div
-      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-gray-300 bg-gray-100 text-lg font-bold text-gray-700 md:h-16 md:w-16"
+      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border-2 border-gray-300 bg-gray-100 text-lg font-bold text-gray-700 md:h-16 md:w-16"
       aria-hidden
     >
       {initial}

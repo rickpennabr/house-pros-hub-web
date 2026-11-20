@@ -162,10 +162,10 @@ export function JobPhotoMarkup({ url, saving, onClose, onSave }: JobPhotoMarkupP
   return createPortal(
     <div className="fixed inset-0 z-[450] flex h-[100dvh] flex-col overflow-hidden bg-black text-white">
       <div className="flex shrink-0 items-center justify-between px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15" aria-label={t('closePhoto')}>
+        <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/15" aria-label={t('closePhoto')}>
           <X className="h-5 w-5" />
         </button>
-        <button type="button" disabled={!ready || saving} onClick={() => void save()} className="rounded-full bg-white px-4 py-2 text-sm font-bold text-black disabled:opacity-40">
+        <button type="button" disabled={!ready || saving} onClick={() => void save()} className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-black disabled:opacity-40">
           {saving ? t('saving') : t('saveImage')}
         </button>
       </div>
@@ -224,13 +224,13 @@ export function JobPhotoMarkup({ url, saving, onClose, onSave }: JobPhotoMarkupP
         ) : null}
       </div>
       <div className="flex shrink-0 items-center justify-center gap-3 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-        <button type="button" aria-label={t('textMark')} onClick={() => setTool('text')} className={`flex h-11 w-11 items-center justify-center rounded-full ${tool === 'text' ? 'bg-white text-black' : 'bg-white/15'}`}><Type className="h-5 w-5" /></button>
-        <button type="button" aria-label={t('arrowMark')} onClick={() => setTool('arrow')} className={`flex h-11 w-11 items-center justify-center rounded-full ${tool === 'arrow' ? 'bg-white text-black' : 'bg-white/15'}`}><ArrowUpRight className="h-5 w-5" /></button>
-        <button type="button" aria-label={t('draw')} onClick={() => setTool('draw')} className={`flex h-11 w-11 items-center justify-center rounded-full ${tool === 'draw' ? 'bg-white text-black' : 'bg-white/15'}`}><Pencil className="h-5 w-5" /></button>
-        <button type="button" aria-label={t('color')} onClick={() => setColor(COLORS[(COLORS.indexOf(color) + 1) % COLORS.length])} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15">
-          <span className="h-5 w-5 rounded-full border border-white" style={{ backgroundColor: color }} />
+        <button type="button" aria-label={t('textMark')} onClick={() => setTool('text')} className={`flex h-11 w-11 items-center justify-center rounded-md ${tool === 'text' ? 'bg-white text-black' : 'bg-white/15'}`}><Type className="h-5 w-5" /></button>
+        <button type="button" aria-label={t('arrowMark')} onClick={() => setTool('arrow')} className={`flex h-11 w-11 items-center justify-center rounded-md ${tool === 'arrow' ? 'bg-white text-black' : 'bg-white/15'}`}><ArrowUpRight className="h-5 w-5" /></button>
+        <button type="button" aria-label={t('draw')} onClick={() => setTool('draw')} className={`flex h-11 w-11 items-center justify-center rounded-md ${tool === 'draw' ? 'bg-white text-black' : 'bg-white/15'}`}><Pencil className="h-5 w-5" /></button>
+        <button type="button" aria-label={t('color')} onClick={() => setColor(COLORS[(COLORS.indexOf(color) + 1) % COLORS.length])} className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/15">
+          <span className="h-5 w-5 rounded-md border border-white" style={{ backgroundColor: color }} />
         </button>
-        <button type="button" aria-label={t('undo')} onClick={() => { marksRef.current = marksRef.current.slice(0, -1); paint(); }} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15"><RotateCcw className="h-5 w-5" /></button>
+        <button type="button" aria-label={t('undo')} onClick={() => { marksRef.current = marksRef.current.slice(0, -1); paint(); }} className="flex h-11 w-11 items-center justify-center rounded-md bg-white/15"><RotateCcw className="h-5 w-5" /></button>
       </div>
     </div>,
     document.body,

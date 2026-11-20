@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { createSignInUrl } from '@/lib/redirect';
 import type { Locale } from '@/i18n';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 interface FeedbackItem {
   id: string;
@@ -181,7 +182,7 @@ export default function BusinessFeedbackPage() {
                         <button
                           type="button"
                           onClick={() => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border border-black bg-white"
+                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-md border border-black bg-white"
                           aria-label="Remove photo"
                         >
                           <X className="h-3 w-3" />
@@ -189,6 +190,7 @@ export default function BusinessFeedbackPage() {
                       </div>
                     ))}
                     {files.length < MAX_IMAGES && (
+                      <FileDropTarget>
                       <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-black bg-white text-center text-[11px] font-medium text-black hover:bg-gray-50">
                         <ImagePlus className="mb-1 h-4 w-4" />
                         {t('addPhotos')}
@@ -203,6 +205,7 @@ export default function BusinessFeedbackPage() {
                           }}
                         />
                       </label>
+                      </FileDropTarget>
                     )}
                   </div>
                 </div>
@@ -385,7 +388,7 @@ function FeedbackCard({
                 <button
                   type="button"
                   onClick={() => setKeptUrls((current) => current.filter((url) => url !== src))}
-                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-black bg-white"
+                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-md border border-black bg-white"
                   aria-label={t('removePhoto')}
                 >
                   <X className="h-3 w-3" />
@@ -399,7 +402,7 @@ function FeedbackCard({
                 <button
                   type="button"
                   onClick={() => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-black bg-white"
+                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-md border border-black bg-white"
                   aria-label={t('removePhoto')}
                 >
                   <X className="h-3 w-3" />

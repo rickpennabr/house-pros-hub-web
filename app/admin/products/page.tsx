@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButton';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import type { ProProduct } from '@/lib/products/types';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 interface ProductFormState {
   name: string;
@@ -399,6 +400,7 @@ export default function AdminProductsPage() {
                 <div className="flex h-40 items-center justify-center text-sm text-gray-500">No photo yet</div>
               )}
             </div>
+            <FileDropTarget>
             <label className="mt-2 inline-block cursor-pointer rounded-lg border-2 border-black px-3 py-2 text-sm font-bold">
               {uploading ? 'Uploading...' : form.image_url ? 'Replace photo' : 'Upload photo'}
               <input
@@ -413,6 +415,7 @@ export default function AdminProductsPage() {
                 }}
               />
             </label>
+            </FileDropTarget>
           </div>
           <label className="block text-sm font-semibold">
             Name
@@ -533,7 +536,7 @@ export default function AdminProductsPage() {
           preventCloseOnOverlayClick={saving}
         >
           <div className="p-6 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-amber-100">
               <AlertTriangle className="h-8 w-8 text-amber-600" aria-hidden />
             </div>
             <h2 className="mb-2 text-xl font-bold text-gray-900">Delete product?</h2>

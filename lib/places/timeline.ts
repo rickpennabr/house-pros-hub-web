@@ -1,6 +1,12 @@
 import { mailStreetKey } from '@/lib/address/unit';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { contactHasPlace, documentPlaceId, docIsOnPlace } from '@/lib/places/contact-places';
+import {
+  contactHasPlace,
+  documentPlaceId,
+  docIsOnPlace,
+  fileIsOnPlace,
+  loadPlacedProjects,
+} from '@/lib/places/contact-places';
 
 export const PLACE_EVENT_KINDS = [
   'place_entered',
@@ -18,6 +24,7 @@ export const PLACE_EVENT_KINDS = [
   'appointment_cancelled',
   'appointment_completed',
   'appointment_rescheduled',
+  'place_updated',
 ] as const;
 
 export type PlaceEventKind = (typeof PLACE_EVENT_KINDS)[number];
@@ -29,6 +36,8 @@ export interface PlaceTimelineEvent {
   title: string;
   detail: string | null;
   proName: string | null;
+  /** The pro this event is from (null for the customer's own events). */
+  ownerId: string | null;
   jobArea: string | null;
   amountCents: number | null;
   estimateId: string | null;
@@ -409,13 +418,41 @@ export async function recordDocumentReceived(params: {
   title: string;
   kind: string;
   ownerId?: string | null;
+  /** The file's project: the file goes on that project's property. */
+  projectId?: string | null;
 }): Promise<void> {
+  let placeId: string | undefined;
+  if (params.projectId) {
+    const projects = await loadPlacedProjects(createServiceRoleClient(), [params.customerId]);
+    placeId = projects.find((row) => row.id === params.projectId)?.place_id ?? undefined;
+  }
   await recordCustomerPlaceEvent(params.customerId, {
+    placeId,
     kind: 'document_received',
     title: 'Document received',
     detail: params.title,
     documentId: params.documentId,
     ownerId: params.ownerId,
+  });
+}
+
+/** A pro on the house fixed its details. `changes` reads like "Address: 1 Main St → 1 Main Street". */
+export async function recordPlaceUpdated(params: {
+  placeId: string;
+  ownerId: string;
+  customerId: string;
+  changes: string[];
+}): Promise<void> {
+  if (params.changes.length === 0) return;
+  const proName = await businessName(createServiceRoleClient(), params.ownerId);
+  await recordPlaceEvent({
+    placeId: params.placeId,
+    kind: 'place_updated',
+    title: proName ? `${proName} updated this place` : 'Place details updated',
+    detail: params.changes.join(' · '),
+    customerId: params.customerId,
+    ownerId: params.ownerId,
+    proName,
   });
 }
 
@@ -473,10 +510,11 @@ export async function syncPlaceTimelineFromCrm(placeId: string, customerIds: str
       .neq('status', 'draft'),
     admin
       .from('pro_crm_customer_documents')
-      .select('id, customer_id, owner_id, title, kind, created_at')
+      .select('id, customer_id, owner_id, project_id, title, kind, created_at')
       .in('customer_id', customerIds)
       .eq('visible_to_customer', true),
   ]);
+  const projectsById = new Map((await loadPlacedProjects(admin, customerIds)).map((row) => [row.id, row]));
 
   for (const estimate of (estimates ?? []).filter((row) => docIsOnPlace(row, placeId, placed))) {
     const number = String(estimate.display_id ?? estimate.id.slice(0, 8));
@@ -556,8 +594,8 @@ export async function syncPlaceTimelineFromCrm(placeId: string, customerIds: str
     }
   }
 
-  // Files have no property of their own yet: they go on the contact's default.
-  for (const doc of (docs ?? []).filter((row) => placed.some((c) => c.id === row.customer_id && c.place_id === placeId))) {
+  // A file follows its project's property; any other file goes on the contact's default.
+  for (const doc of (docs ?? []).filter((row) => fileIsOnPlace(row, projectsById, placeId, placed))) {
     const ownerId = doc.owner_id || ownerFor(doc.customer_id);
     await recordPlaceEvent({
       placeId,
@@ -586,7 +624,7 @@ export async function listPlaceTimeline(placeId: string): Promise<PlaceTimelineE
   const { data, error } = await admin
     .from('customer_place_events')
     .select(
-      'id, kind, occurred_at, title, detail, pro_name, job_area, amount_cents, estimate_id, invoice_id, document_id, project_id, booking_id, task_id'
+      'id, kind, occurred_at, title, detail, pro_name, owner_id, job_area, amount_cents, estimate_id, invoice_id, document_id, project_id, booking_id, task_id'
     )
     .eq('place_id', placeId)
     .order('occurred_at', { ascending: false })
@@ -602,6 +640,7 @@ export async function listPlaceTimeline(placeId: string): Promise<PlaceTimelineE
     title: row.title,
     detail: row.detail,
     proName: row.pro_name,
+    ownerId: row.owner_id,
     jobArea: row.job_area,
     amountCents: row.amount_cents,
     estimateId: row.estimate_id,

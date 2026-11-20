@@ -55,9 +55,22 @@ export async function GET() {
       .eq('owner_id', user.id)
       .order('created_at', { ascending: true });
 
+    // The logo invoices use when the pro has not uploaded one.
+    let businessLogo: { url: string; businessName: string } | null = null;
+    const logoQuery = supabase
+      .from('businesses')
+      .select('id, business_name, business_logo')
+      .eq('owner_id', user.id)
+      .not('business_logo', 'is', null);
+    const { data: logoBusinesses } = await logoQuery.order('created_at', { ascending: true });
+    const pick =
+      (logoBusinesses ?? []).find((row) => row.id === settings?.default_business_id) ?? (logoBusinesses ?? [])[0];
+    if (pick?.business_logo) businessLogo = { url: pick.business_logo, businessName: pick.business_name };
+
     return NextResponse.json({
       settings,
       displayNames: displayNames ?? [],
+      businessLogo,
     });
   } catch (err) {
     console.error('GET /api/crm/invoice-settings', err);
@@ -108,6 +121,20 @@ export async function PATCH(request: NextRequest) {
     const taglineValue =
       typeof companyTagline === 'string' ? (companyTagline.trim() || null) : companyTagline;
 
+    /** Optional text settings: a string sets it (empty clears), null clears, missing keeps. */
+    const optionalText = (key: string, max: number): string | null | undefined => {
+      if (!(key in body)) return undefined;
+      const value = body[key];
+      if (value === null) return null;
+      if (typeof value !== 'string') return undefined;
+      return value.trim().slice(0, max) || null;
+    };
+    const defaultPaymentTerms = optionalText('defaultPaymentTerms', 60);
+    const defaultNote = optionalText('defaultNote', 2000);
+    const footerText = optionalText('footerText', 2000);
+    // The logo is set by the logo upload route; here it can only be cleared (back to the business logo).
+    const clearLogo = body.logoUrl === null;
+
     const supabase = await createClient();
 
     if (defaultBusinessId !== undefined && defaultBusinessId !== null) {
@@ -147,6 +174,10 @@ export async function PATCH(request: NextRequest) {
     if (nextNumber !== undefined && Number.isInteger(nextNumber) && nextNumber >= 1)
       update.next_number = nextNumber;
     if (companyTagline !== undefined) update.company_tagline = taglineValue;
+    if (defaultPaymentTerms !== undefined) update.default_payment_terms = defaultPaymentTerms;
+    if (defaultNote !== undefined) update.default_note = defaultNote;
+    if (footerText !== undefined) update.footer_text = footerText;
+    if (clearLogo) update.logo_url = null;
 
     if (Object.keys(update).length === 0) {
       const { data: existing } = await supabase
@@ -157,14 +188,19 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ settings: existing ?? null });
     }
 
-    const { data: updated, error } = await supabase
-      .from('pro_invoice_settings')
-      .upsert(
-        { owner_id: user.id, ...update },
-        { onConflict: 'owner_id', ignoreDuplicates: false }
-      )
-      .select()
-      .single();
+    const save = (values: Record<string, unknown>) =>
+      supabase
+        .from('pro_invoice_settings')
+        .upsert({ owner_id: user.id, ...values }, { onConflict: 'owner_id', ignoreDuplicates: false })
+        .select()
+        .single();
+    let { data: updated, error } = await save(update);
+    // Before migration 147 the logo, defaults and footer columns are missing: save the rest.
+    const newColumns = ['logo_url', 'default_payment_terms', 'default_note', 'footer_text'];
+    if (error && newColumns.some((column) => error?.message.includes(column))) {
+      const older = Object.fromEntries(Object.entries(update).filter(([key]) => !newColumns.includes(key)));
+      ({ data: updated, error } = await save(older));
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message || 'Failed to update settings' }, { status: 500 });

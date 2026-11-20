@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { ProDrivePicker } from '@/components/drive/ProDrivePicker';
 import { JobPhotoViewer, type JobPhoto } from '@/components/media/JobPhotoViewer';
 import type { DriveFile } from '@/lib/drive/types';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 interface JobCustomerAlbumProps {
   open: boolean;
@@ -382,7 +383,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
                     className="relative aspect-square overflow-hidden rounded-xl bg-gray-200"
                   >
                     {selecting ? (
-                      <span className={`absolute left-1 top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white ${selectedIds.includes(photo.id) ? 'bg-black text-white' : 'bg-black/30'}`}>
+                      <span className={`absolute left-1 top-1 flex h-6 w-6 items-center justify-center rounded-md border-2 border-white ${selectedIds.includes(photo.id) ? 'bg-black text-white' : 'bg-black/30'}`}>
                         {selectedIds.includes(photo.id) ? <Check className="h-4 w-4" /> : null}
                       </span>
                     ) : null}
@@ -419,16 +420,16 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
 
         {selectedIds.length > 0 ? (
           <div className="px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
-            <div className="flex items-center justify-between rounded-full border-2 border-black bg-black px-2 py-2 text-white">
-              <button type="button" onClick={() => { setSelectedIds([]); setSelecting(false); }} className="flex items-center gap-2 rounded-full px-3 py-2" aria-label={t('closePhoto')}>
+            <div className="flex items-center justify-between rounded-lg border-2 border-black bg-black px-2 py-2 text-white">
+              <button type="button" onClick={() => { setSelectedIds([]); setSelecting(false); }} className="flex items-center gap-2 rounded-lg px-3 py-2" aria-label={t('closePhoto')}>
                 <X className="h-5 w-5" />
                 <span className="font-bold">{selectedIds.length}</span>
               </button>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => void shareSelected()} className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-black" aria-label={t('shareGallery')}>
+                <button type="button" onClick={() => void shareSelected()} className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-black" aria-label={t('shareGallery')}>
                   <Share2 className="h-5 w-5" />
                 </button>
-                <button type="button" onClick={() => setSheet('actions')} className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-black" aria-label={t('menu')}>
+                <button type="button" onClick={() => setSheet('actions')} className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-black" aria-label={t('menu')}>
                   <MoreHorizontal className="h-5 w-5" />
                 </button>
               </div>
@@ -473,16 +474,16 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
                 <p className="mb-2 mt-4 text-sm font-bold">{t('photoType')}</p>
                 {(['all', 'photo', 'video'] as const).map((value) => (
                   <button key={value} type="button" onClick={() => { setKind(value); setSheet(null); }} className="flex w-full items-center gap-3 py-2 text-left">
-                    <span className={`h-5 w-5 rounded-full border-2 border-black ${kind === value ? 'bg-black' : ''}`} />
+                    <span className={`h-5 w-5 rounded-md border-2 border-black ${kind === value ? 'bg-black' : ''}`} />
                     {value === 'all' ? t('allTypes') : value === 'photo' ? t('photosOnly') : t('videosOnly')}
                   </button>
                 ))}
                 {tagOptions.length > 0 ? (
                   <>
                     <p className="mb-2 mt-4 text-sm font-bold">{t('tag')}</p>
-                    <button type="button" onClick={() => { setTag(null); setSheet(null); }} className="mr-2 mb-2 rounded-full border-2 border-black px-3 py-1 text-sm">{t('allTypes')}</button>
+                    <button type="button" onClick={() => { setTag(null); setSheet(null); }} className="mr-2 mb-2 rounded-lg border-2 border-black px-3 py-1 text-sm">{t('allTypes')}</button>
                     {tagOptions.map((option) => (
-                      <button key={option} type="button" onClick={() => { setTag(tag === option ? null : option); setSheet(null); }} className={`mr-2 mb-2 rounded-full border-2 px-3 py-1 text-sm ${tag === option ? 'border-black bg-black text-white' : 'border-black'}`}>{option}</button>
+                      <button key={option} type="button" onClick={() => { setTag(tag === option ? null : option); setSheet(null); }} className={`mr-2 mb-2 rounded-lg border-2 px-3 py-1 text-sm ${tag === option ? 'border-black bg-black text-white' : 'border-black'}`}>{option}</button>
                     ))}
                   </>
                 ) : null}
@@ -521,7 +522,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
                 <h2 className="mb-3 text-lg font-bold">{t('applyTags')}</h2>
                 <div className="flex flex-wrap gap-2">
                   {BULK_TAGS.map((option) => (
-                    <button key={option} type="button" disabled={working} onClick={() => void patchSelected((photo) => ({ tags: [...new Set([...photo.tags, option])] }))} className="rounded-full border-2 border-black px-3 py-1 text-sm disabled:opacity-40">
+                    <button key={option} type="button" disabled={working} onClick={() => void patchSelected((photo) => ({ tags: [...new Set([...photo.tags, option])] }))} className="rounded-lg border-2 border-black px-3 py-1 text-sm disabled:opacity-40">
                       {option}
                     </button>
                   ))}
@@ -529,10 +530,12 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
               </div>
             ) : (
               <>
+                <FileDropTarget inputRef={uploadRef}>
                 <button type="button" disabled={uploading} onClick={() => uploadRef.current?.click()} className="flex w-full items-center gap-3 py-3 text-left font-medium">
                   <Upload className="h-5 w-5" />
                   {t('uploadPhotos')}
                 </button>
+                </FileDropTarget>
                 <button
                   type="button"
                   disabled={uploading || !businessId}

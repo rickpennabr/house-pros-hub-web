@@ -1071,7 +1071,7 @@ export default function CRMExpensesPage() {
       {deleteConfirm && (
         <Modal isOpen onClose={() => !deleting && setDeleteConfirm(null)} showHeader={false} showCloseButton maxWidth="sm" preventCloseOnOverlayClick={deleting}>
           <div className="p-6 text-center">
-            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"><AlertTriangle className="w-8 h-8 text-amber-600" /></div>
+            <div className="w-14 h-14 rounded-lg bg-amber-100 flex items-center justify-center mx-auto mb-4"><AlertTriangle className="w-8 h-8 text-amber-600" /></div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">Delete expense?</h2>
             <p className="text-gray-600 mb-6">Are you sure? This cannot be undone.</p>
             <div className="flex gap-3 justify-center">
@@ -1085,7 +1085,7 @@ export default function CRMExpensesPage() {
       {bulkDeleteIds && bulkDeleteIds.length > 0 && (
         <Modal isOpen onClose={() => !deleting && setBulkDeleteIds(null)} showHeader={false} showCloseButton maxWidth="sm" preventCloseOnOverlayClick={deleting}>
           <div className="p-6 text-center">
-            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4"><AlertTriangle className="w-8 h-8 text-amber-600" /></div>
+            <div className="w-14 h-14 rounded-lg bg-amber-100 flex items-center justify-center mx-auto mb-4"><AlertTriangle className="w-8 h-8 text-amber-600" /></div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">Delete expenses?</h2>
             <p className="text-gray-600 mb-6">Delete {bulkDeleteIds.length} expense{bulkDeleteIds.length === 1 ? '' : 's'}? This cannot be undone.</p>
             <div className="flex gap-3 justify-center">

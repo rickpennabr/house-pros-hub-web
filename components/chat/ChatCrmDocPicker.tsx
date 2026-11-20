@@ -217,7 +217,7 @@ export default function ChatCrmDocPicker({
             <button
               type="button"
               onClick={() => setScopeCustomerOnly(true)}
-              className={`cursor-pointer rounded-full px-2.5 py-1 ${
+              className={`cursor-pointer rounded-lg px-2.5 py-1 ${
                 scopeCustomerOnly ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'
               }`}
             >
@@ -226,7 +226,7 @@ export default function ChatCrmDocPicker({
             <button
               type="button"
               onClick={() => setScopeCustomerOnly(false)}
-              className={`cursor-pointer rounded-full px-2.5 py-1 ${
+              className={`cursor-pointer rounded-lg px-2.5 py-1 ${
                 !scopeCustomerOnly ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'
               }`}
             >

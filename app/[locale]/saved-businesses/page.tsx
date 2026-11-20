@@ -105,7 +105,7 @@ export default function SavedBusinessesPage() {
                     e.preventDefault();
                     handleRemove(business.id);
                   }}
-                  className="absolute -top-2 -right-2 z-20 w-8 h-8 rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors shadow-lg"
+                  className="absolute -top-2 -right-2 z-20 w-8 h-8 rounded-lg bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors shadow-lg"
                   aria-label={t('removeFromSaved')}
                 >
                   <Minus className="w-5 h-5 text-white" />

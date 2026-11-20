@@ -18,6 +18,7 @@ import { normalizeLinks } from '@/lib/utils/normalizeLinks';
 import { parseObjectPosition, formatObjectPosition } from '@/lib/utils/backgroundPosition';
 import { BackgroundImageEdit } from '@/components/businessdetails/BackgroundImageEdit';
 import Modal from '@/components/ui/Modal';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 interface LicenseCategoryFromApi {
   id: string;
@@ -407,6 +408,7 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
                   </div>
                 </>
               ) : (
+                <FileDropTarget inputRef={bgInputRef} className="absolute inset-0">
                 <div
                   onClick={() => bgInputRef.current?.click()}
                   className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-50/50"
@@ -415,9 +417,11 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
                   <span className="text-xs font-medium mt-1">Click to upload background</span>
                   {bgUploading && <span className="text-xs mt-0.5">Uploading…</span>}
                 </div>
+                </FileDropTarget>
               )}
             </div>
             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-10">
+              <FileDropTarget inputRef={logoInputRef}>
               <div
                 onClick={() => logoInputRef.current?.click()}
                 className="relative w-20 h-20 rounded-lg border-4 border-white bg-white shadow-xl overflow-hidden flex items-center justify-center cursor-pointer hover:opacity-95"
@@ -432,11 +436,12 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
                   </div>
                 )}
               </div>
+              </FileDropTarget>
               {logoPreview && (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); update('businessLogo', ''); }}
-                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center text-white hover:bg-red-600"
+                  className="absolute -top-1 -right-1 w-5 h-5 rounded-md bg-red-500 border-2 border-white flex items-center justify-center text-white hover:bg-red-600"
                   aria-label="Remove logo"
                 >
                   <X className="w-2.5 h-2.5" />

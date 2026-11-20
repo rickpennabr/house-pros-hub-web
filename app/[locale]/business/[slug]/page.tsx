@@ -37,6 +37,7 @@ import { getCsrfToken } from '@/lib/utils/csrf';
 import { ImagePlus, Loader2, X } from 'lucide-react';
 import MakeAppointmentCard from '@/components/businessdetails/MakeAppointmentCard';
 import type { WeekSchedule } from '@/lib/booking/businessHours';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 type TabType = BusinessDetailsTab;
 
@@ -681,6 +682,7 @@ export default function BusinessDetailsPage() {
         )}
         {isOwner && !business.businessBackground && (
           <div className="absolute top-2 right-2 z-30">
+            <FileDropTarget inputRef={bgInputRef}>
             <button
               type="button"
               onClick={() => bgInputRef.current?.click()}
@@ -696,6 +698,7 @@ export default function BusinessDetailsPage() {
               )}
               <span>{bgSaving ? 'Uploading…' : 'Upload'}</span>
             </button>
+            </FileDropTarget>
           </div>
         )}
         {isOwner && (

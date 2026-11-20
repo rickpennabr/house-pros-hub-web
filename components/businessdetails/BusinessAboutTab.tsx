@@ -321,7 +321,7 @@ export default function BusinessAboutTab({
               )}
 
               {ownerYearsExperience != null && (
-                <p className="inline-flex rounded-full border-2 border-black px-3 py-1 text-sm font-semibold text-black">
+                <p className="inline-flex rounded-lg border-2 border-black px-3 py-1 text-sm font-semibold text-black">
                   {tOwner('yearsValue', { years: ownerYearsExperience })}
                 </p>
               )}

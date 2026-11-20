@@ -33,6 +33,7 @@ import { CHAT_SIGNUP_STEPS, getVisibleSteps, getGuestEstimateSteps, type ChatSig
 import { useAuth } from '@/contexts/AuthContext';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import { ProRoleScopeNotice } from '@/components/auth/ProRoleScopeNotice';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 const TYPING_SPEED_MS = 30; // Fast typing for form bot
 const TYPING_INITIAL_DELAY_MS = 500;
@@ -910,6 +911,7 @@ export default function ChatSignupForm({
                         </div>
                       )}
                       <div className="relative flex items-start justify-end gap-1.5">
+                        <FileDropTarget inputRef={fileInputRef}>
                         <div
                           role="button"
                           tabIndex={0}
@@ -930,6 +932,7 @@ export default function ChatSignupForm({
                             <User className="w-8 h-8 text-black" />
                           )}
                         </div>
+                        </FileDropTarget>
                         {picturePreview && (
                           <div className="flex flex-col gap-2">
                             <button

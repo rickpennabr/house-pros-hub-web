@@ -17,7 +17,7 @@ export function CatalogDeleteDialog({ title, message, confirmLabel, deleting, on
   return (
     <Modal isOpen onClose={() => !deleting && onCancel()} showHeader={false} showCloseButton maxWidth="sm" preventCloseOnOverlayClick={deleting}>
       <div className="p-6 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-amber-100">
           <AlertTriangle className="h-8 w-8 text-amber-600" />
         </div>
         <h2 className="mb-2 text-xl font-bold text-gray-900">{title}</h2>

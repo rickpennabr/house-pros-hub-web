@@ -1324,6 +1324,7 @@ export interface Database {
           opening_balance: number | null;
           portal_user_id: string | null;
           place_id: string | null;
+          places_imported_at: string | null;
           portal_kind: 'house' | 'business' | 'building' | null;
         };
         Insert: {
@@ -1375,6 +1376,7 @@ export interface Database {
           opening_balance?: number | null;
           portal_user_id?: string | null;
           place_id?: string | null;
+          places_imported_at?: string | null;
           portal_kind?: 'house' | 'business' | 'building' | null;
         };
         Update: {
@@ -1426,6 +1428,7 @@ export interface Database {
           opening_balance?: number | null;
           portal_user_id?: string | null;
           place_id?: string | null;
+          places_imported_at?: string | null;
           portal_kind?: 'house' | 'business' | 'building' | null;
         };
         Relationships: [
@@ -1557,7 +1560,8 @@ export interface Database {
             | 'appointment_booked'
             | 'appointment_cancelled'
             | 'appointment_completed'
-            | 'appointment_rescheduled';
+            | 'appointment_rescheduled'
+            | 'place_updated';
           occurred_at: string;
           title: string;
           detail: string | null;
@@ -1592,7 +1596,8 @@ export interface Database {
             | 'appointment_booked'
             | 'appointment_cancelled'
             | 'appointment_completed'
-            | 'appointment_rescheduled';
+            | 'appointment_rescheduled'
+            | 'place_updated';
           occurred_at?: string;
           title: string;
           detail?: string | null;
@@ -1627,7 +1632,8 @@ export interface Database {
             | 'appointment_booked'
             | 'appointment_cancelled'
             | 'appointment_completed'
-            | 'appointment_rescheduled';
+            | 'appointment_rescheduled'
+            | 'place_updated';
           occurred_at?: string;
           title?: string;
           detail?: string | null;
@@ -2246,6 +2252,10 @@ export interface Database {
           next_number: number;
           company_tagline: string | null;
           default_display_name_id: string | null;
+          logo_url: string | null;
+          default_payment_terms: string | null;
+          default_note: string | null;
+          footer_text: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -2257,6 +2267,10 @@ export interface Database {
           next_number?: number;
           company_tagline?: string | null;
           default_display_name_id?: string | null;
+          logo_url?: string | null;
+          default_payment_terms?: string | null;
+          default_note?: string | null;
+          footer_text?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -2268,6 +2282,10 @@ export interface Database {
           next_number?: number;
           company_tagline?: string | null;
           default_display_name_id?: string | null;
+          logo_url?: string | null;
+          default_payment_terms?: string | null;
+          default_note?: string | null;
+          footer_text?: string | null;
           created_at?: string;
           updated_at?: string;
         };

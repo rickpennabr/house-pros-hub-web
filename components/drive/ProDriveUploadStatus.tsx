@@ -66,12 +66,12 @@ export function ProDriveUploadStatus({ items, onDismiss }: ProDriveUploadStatusP
               </span>
               {item.status === 'uploading' && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-black" />}
               {item.status === 'done' && (
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-600 text-white">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-green-600 text-white">
                   <Check className="h-3 w-3" />
                 </span>
               )}
               {item.status === 'error' && (
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-600 text-white" title={item.error}>
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-red-600 text-white" title={item.error}>
                   <X className="h-3 w-3" />
                 </span>
               )}

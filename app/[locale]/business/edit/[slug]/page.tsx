@@ -32,6 +32,7 @@ import type { Locale } from '@/i18n';
 import { cardLinks } from '@/lib/utils/cardLinks';
 import { primaryProAccountRole, proAccountRoleLabel, type ProAccountRole } from '@/lib/utils/proAccountRole';
 import { UpgradeBusinessModal, type UpgradeResult } from '@/components/business/UpgradeBusinessModal';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 interface SocialMediaOption {
   key: LinkItem['type'];
@@ -1069,6 +1070,7 @@ export default function EditBusinessPage() {
                             )}
                           </>
                         ) : (
+                          <FileDropTarget inputRef={bgInputRef} className="absolute inset-0 z-20">
                           <div
                             onClick={() => bgInputRef.current?.click()}
                             className="absolute inset-0 w-full h-full cursor-pointer hover:bg-gray-50/30 transition-colors z-20"
@@ -1078,6 +1080,7 @@ export default function EditBusinessPage() {
                               <span className="text-[10px] font-bold uppercase tracking-wider">Click to upload background</span>
                             </div>
                           </div>
+                          </FileDropTarget>
                         )}
                         
                         {/* Edit + Remove: only when there is a background image */}
@@ -1119,6 +1122,7 @@ export default function EditBusinessPage() {
 
                       {/* Logo Upload/Preview (Overlapping Bottom Center) */}
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-20">
+                        <FileDropTarget inputRef={logoInputRef}>
                         <div 
                           onClick={() => logoInputRef.current?.click()}
                           className="w-24 h-24 rounded-lg border-4 border-white bg-white shadow-xl overflow-hidden flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform relative"
@@ -1177,6 +1181,7 @@ export default function EditBusinessPage() {
                             </div>
                           )}
                         </div>
+                        </FileDropTarget>
                         {previewLogo && typeof previewLogo === 'string' && previewLogo.trim() !== '' && (
                           <button
                             type="button"
@@ -1184,7 +1189,7 @@ export default function EditBusinessPage() {
                               e.stopPropagation();
                               handleRemoveLogo();
                             }}
-                            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-600 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-700 transition-colors shadow-lg z-30"
+                            className="absolute -top-2 -right-2 w-6 h-6 rounded-md bg-red-600 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-700 transition-colors shadow-lg z-30"
                             aria-label="Remove business logo"
                           >
                             <X className="w-3 h-3 text-white" />
@@ -1284,7 +1289,7 @@ export default function EditBusinessPage() {
                             >
                               {/* Position Number */}
                               <div className="flex justify-center">
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold bg-black text-white transition-all duration-300">
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold bg-black text-white transition-all duration-300">
                                   {index + 1}
                                 </div>
                               </div>
@@ -1716,6 +1721,7 @@ export default function EditBusinessPage() {
                     aria-hidden
                   />
                   <div className="flex flex-wrap gap-2 items-center">
+                    <FileDropTarget inputRef={galleryImageInputRef}>
                     <button
                       type="button"
                       onClick={() => galleryImageInputRef.current?.click()}
@@ -1725,6 +1731,7 @@ export default function EditBusinessPage() {
                       <ImagePlus className="w-4 h-4 shrink-0" />
                       {galleryUploading ? 'Uploading…' : tBusinessForm('images.addImageButton')}
                     </button>
+                    </FileDropTarget>
                   </div>
                   {(watch('images') ?? []).length > 0 && (
                     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
@@ -1744,7 +1751,7 @@ export default function EditBusinessPage() {
                               const list = (watch('images') ?? []).filter((_: string, i: number) => i !== index);
                               setValue('images', list);
                             }}
-                            className="absolute top-1 right-1 p-1 rounded-full bg-black/70 text-white hover:bg-black"
+                            className="absolute top-1 right-1 p-1 rounded-lg bg-black/70 text-white hover:bg-black"
                             aria-label={tBusinessForm('images.removeImageAria', { index: index + 1 })}
                           >
                             <X className="w-4 h-4" />
@@ -1895,7 +1902,7 @@ export default function EditBusinessPage() {
                             className="grid grid-cols-[25%_75%] md:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] gap-4 items-center px-2 md:px-0"
                           >
                             <div className="flex justify-center">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${isVisibleOnCard ? 'bg-black text-white' : 'bg-gray-200 text-gray-600'}`}>
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold ${isVisibleOnCard ? 'bg-black text-white' : 'bg-gray-200 text-gray-600'}`}>
                                 {index + 1}
                               </div>
                             </div>

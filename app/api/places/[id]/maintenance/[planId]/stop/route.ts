@@ -6,6 +6,7 @@ import { sendMaintenanceStoppedEmail } from '@/lib/services/emailService';
 import { sendBusinessPushNotification } from '@/lib/services/pushNotificationService';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { recordPlaceEvent } from '@/lib/places/timeline';
+import { docBelongsToPlace } from '@/lib/places/contact-places';
 
 /**
  * POST /api/places/[id]/maintenance/[planId]/stop
@@ -32,7 +33,7 @@ export async function POST(
 
     const { data: plan } = await admin
       .from('pro_crm_maintenance_plans')
-      .select('id, name, customer_id, is_active')
+      .select('id, name, customer_id, place_id, is_active')
       .eq('id', planId)
       .eq('is_active', true)
       .maybeSingle();
@@ -43,7 +44,11 @@ export async function POST(
       .select('id, owner_id, first_name, last_name, portal_user_id, place_id')
       .eq('id', plan.customer_id)
       .maybeSingle();
-    if (!customer || customer.portal_user_id !== user.id || customer.place_id !== place.id) {
+    // The agreement's own property, else the contact's default, as My Places shows it.
+    const onPlace =
+      customer?.portal_user_id === user.id &&
+      (await docBelongsToPlace(admin, { userId: user.id, placeId: place.id, doc: plan }));
+    if (!customer || !onPlace) {
       return NextResponse.json({ error: 'Service not found' }, { status: 404 });
     }
 

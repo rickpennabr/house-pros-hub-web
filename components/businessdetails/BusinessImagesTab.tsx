@@ -10,6 +10,7 @@ import { getCsrfToken } from '@/lib/utils/csrf';
 import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
 import { ImageSlideViewer } from '@/components/media/ImageSlides';
 import type { GalleryImage } from '@/lib/business/gallery';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 const MAX_IMAGES = MAX_BUSINESS_GALLERY_IMAGES;
 const MAX_TAGS = 8;
@@ -289,6 +290,7 @@ export default function BusinessImagesTab({
               onChange={handleFileChange}
               disabled={uploading}
             />
+            <FileDropTarget inputRef={fileInputRef}>
             <button
               type="button"
               onClick={handleAddImagesClick}
@@ -298,6 +300,7 @@ export default function BusinessImagesTab({
               {uploading ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : null}
               {uploading ? 'Uploading...' : t('addButton')}
             </button>
+            </FileDropTarget>
             {uploadError && <p className="mt-3 text-sm text-red-600">{uploadError}</p>}
           </div>
         </div>
@@ -468,7 +471,7 @@ export default function BusinessImagesTab({
                     }}
                     onClick={() => void handleRemoveImage(index)}
                     disabled={deletingIndex !== null || savingOrder || savingTags}
-                    className="absolute right-1 top-1 rounded-full bg-black/70 p-1.5 text-white transition-colors hover:bg-black disabled:opacity-50"
+                    className="absolute right-1 top-1 rounded-lg bg-black/70 p-1.5 text-white transition-colors hover:bg-black disabled:opacity-50"
                     aria-label={t('removeImageAria', { index: index + 1 })}
                   >
                     <Minus className="h-4 w-4" />

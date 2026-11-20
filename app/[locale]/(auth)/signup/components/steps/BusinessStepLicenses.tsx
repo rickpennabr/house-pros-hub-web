@@ -187,7 +187,7 @@ export function BusinessStepLicenses({
                 >
                   {/* Position Number */}
                   <div className="flex justify-center">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold bg-black text-white transition-all duration-300">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold bg-black text-white transition-all duration-300">
                       {index + 1}
                     </div>
                   </div>

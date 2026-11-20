@@ -309,7 +309,7 @@ export default function ToolDetailPage() {
                     {tool.name}
                     {tool.quantity > 1 ? <span className="font-normal text-gray-500"> × {tool.quantity}</span> : null}
                   </h1>
-                  <span className="rounded-full border border-black px-2 py-0.5 text-xs font-medium">{TOOL_STATUS_LABELS[tool.status]}</span>
+                  <span className="rounded-md border border-black px-2 py-0.5 text-xs font-medium">{TOOL_STATUS_LABELS[tool.status]}</span>
                 </div>
                 <p className="text-sm text-gray-600">
                   {[tool.kind === 'equipment' ? 'Equipment' : 'Tool', tool.category, [tool.brand, tool.model].filter(Boolean).join(' ')]

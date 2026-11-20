@@ -198,7 +198,7 @@ export default function MaintenanceHousePage() {
               {isMaintenanceFrequency(house.frequency) ? ` · ${MAINTENANCE_FREQUENCY_LABELS[house.frequency]}` : ''}
             </p>
           </div>
-          <span className="inline-flex items-center rounded-full border border-black px-2 py-0.5 text-xs font-medium">
+          <span className="inline-flex items-center rounded-md border border-black px-2 py-0.5 text-xs font-medium">
             {maintenanceHouseStatusLabel(house.status)}
           </span>
         </div>

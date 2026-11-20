@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { EstimateSchema } from '@/lib/schemas/estimate';
 import Accordion from '@/components/ui/Accordion';
 import { Upload, X } from 'lucide-react';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 interface ProjectDescriptionAccordionProps {
   isOpen: boolean;
@@ -175,6 +176,7 @@ export default function ProjectDescriptionAccordion({
           {/* Upload Button */}
           {projectImages.length < 5 && (
             <div>
+              <FileDropTarget inputRef={fileInputRef}>
               <button
                 type="button"
                 onClick={handleUploadClick}
@@ -190,6 +192,7 @@ export default function ProjectDescriptionAccordion({
                   {uploading ? tFields('uploading') : tFields('uploadImages')}
                 </span>
               </button>
+              </FileDropTarget>
               <input
                 ref={fileInputRef}
                 type="file"

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuth } from '@/contexts/AuthContext';
 import { emptyProResume, newEntryId, type ProResume } from '@/lib/resume/pro-resume';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 interface ChatLine {
   role: 'user' | 'assistant';
@@ -160,6 +161,7 @@ export default function ProResumeClient() {
             <p className="text-xs text-gray-600">{t('subtitle')}</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <FileDropTarget>
             <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border-2 border-black px-3 py-2 text-sm font-medium">
               <FileUp className="h-4 w-4" />
               {t('upload')}
@@ -175,6 +177,7 @@ export default function ProResumeClient() {
                 }}
               />
             </label>
+            </FileDropTarget>
             <Button type="button" disabled={busy} onClick={() => void save()}>
               {t('save')}
             </Button>

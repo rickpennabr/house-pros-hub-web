@@ -21,7 +21,7 @@ export function ConfirmationMessage({ title, message, children }: ConfirmationMe
     <div className="space-y-6 flex-1 flex flex-col min-h-[200px]">
       <div className="flex-1 flex flex-col justify-center">
         <div className="bg-white border-2 border-black rounded-lg p-6 flex flex-col justify-center text-center">
-          <div className="w-16 h-16 rounded-full bg-green-600 flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-lg bg-green-600 flex items-center justify-center mx-auto mb-4">
             <svg
               className="w-10 h-10 text-white"
               fill="none"

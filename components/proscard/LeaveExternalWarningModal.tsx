@@ -22,7 +22,7 @@ export function LeaveExternalWarningModal({ isOpen, onConfirm, onCancel, website
         <div className="flex-1 flex items-center justify-center p-6 md:p-8 text-center">
           <div className="space-y-6 w-full">
             <div className="mb-6">
-              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 rounded-lg bg-blue-100 flex items-center justify-center mx-auto mb-4">
                 <svg
                   className="w-8 h-8 text-blue-600"
                   fill="none"

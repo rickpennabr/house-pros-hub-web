@@ -49,6 +49,8 @@ export interface InvoiceTemplateBusiness {
   /** Single-line or multi-line address */
   address?: string | null;
   company_tagline?: string | null;
+  /** Footer from invoice settings: payment instructions, terms and conditions. */
+  invoice_footer?: string | null;
 }
 
 interface InvoiceTemplateProps {
@@ -253,6 +255,12 @@ export function InvoiceTemplate({
         <div className="pt-4 border-t border-gray-200">
           <p className="text-xs font-semibold uppercase text-gray-600 mb-1">Note</p>
           <p className="text-sm text-gray-700 whitespace-pre-wrap">{invoice.note}</p>
+        </div>
+      )}
+
+      {business.invoice_footer && (
+        <div className="pt-4 border-t border-gray-200">
+          <p className="text-xs text-gray-600 whitespace-pre-wrap">{business.invoice_footer}</p>
         </div>
       )}
     </div>

@@ -423,7 +423,7 @@ export default function ProEstimateBookingFlow({
     return (
       <div className="flex flex-col flex-1 min-h-0 py-4 px-2 overflow-y-auto">
         <div className="bg-white border-2 border-black rounded-lg p-6 flex flex-col justify-center text-center mx-4">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-lg bg-green-100 flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>

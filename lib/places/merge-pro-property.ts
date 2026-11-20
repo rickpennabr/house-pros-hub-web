@@ -57,6 +57,15 @@ export function streetMatchKey(value: string | null | undefined): string {
 
 const zip5 = (value: string | null | undefined) => (value ?? '').trim().slice(0, 5);
 
+type AddressLike = { street: string | null; zip_code: string | null };
+
+/** Same house: same street and unit, and a ZIP on both sides agrees (a missing one does not block). */
+export function sameAddress(a: AddressLike, b: AddressLike): boolean {
+  const key = streetMatchKey(a.street);
+  if (!key || key !== streetMatchKey(b.street)) return false;
+  return !zip5(a.zip_code) || !zip5(b.zip_code) || zip5(a.zip_code) === zip5(b.zip_code);
+}
+
 /**
  * The customer linked one of their My Places houses to this pro's contact. Properties the pro had
  * added on the contact at the same address are the same house: move the pro's estimates,
@@ -90,12 +99,7 @@ export async function mergeMatchingProProperties(
     .in('id', linkedIds)
     .is('user_id', null)
     .eq('owner_id', params.ownerId);
-  const matches = (candidates ?? []).filter(
-    (row) =>
-      streetMatchKey(row.street) === key &&
-      // A ZIP on both sides must agree; a missing one does not block the match.
-      (!zip5(row.zip_code) || !zip5(place.zip_code) || zip5(row.zip_code) === zip5(place.zip_code))
-  );
+  const matches = (candidates ?? []).filter((row) => sameAddress(row, place));
 
   let merged = 0;
   for (const match of matches) {

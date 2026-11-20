@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
-import { addProProperty, listContactProperties } from '@/lib/places/contact-places';
+import { listContactProperties } from '@/lib/places/contact-places';
+import { addContactProperty } from '@/lib/places/import-contact-places';
 import { readProPropertyInput } from '@/lib/places/pro-property-input';
 
 const MAX_PRO_PROPERTIES = 50;
@@ -42,7 +43,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 /**
  * POST /api/crm/customers/[id]/places
- * Add a property (nickname, type, address) to the contact. Only the pro sees it.
+ * Add a property (nickname, type, address) to the contact. When the customer has an account it
+ * goes on their My Places; until then only the pro sees it.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (existing.filter((row) => row.addedByPro).length >= MAX_PRO_PROPERTIES) {
       return NextResponse.json({ error: `A contact can hold up to ${MAX_PRO_PROPERTIES} properties.` }, { status: 400 });
     }
-    const placeId = await addProProperty(admin, { customerId, ownerId: user.id, input: parsed.input });
+    const placeId = await addContactProperty(admin, { customerId, ownerId: user.id, input: parsed.input });
     const properties = await listContactProperties(admin, customerId);
     return NextResponse.json({ id: placeId, properties }, { status: 201 });
   } catch (err) {

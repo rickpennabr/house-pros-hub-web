@@ -21,6 +21,10 @@ export function Button({
   ...props
 }: ButtonProps) {
   const baseClasses = 'font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed rounded-lg';
+  // Icon and label on one line. Skipped when the caller sets its own display (hidden, block, grid…).
+  const layoutClasses = /(^|s|:|!)(hidden|block|inline-block|inline|flex|inline-flex|grid|contents)(s|$)/.test(className)
+    ? ''
+    : 'inline-flex items-center justify-center';
 
   const variantClasses: Record<NonNullable<ButtonProps['variant']>, string> = {
     primary: 'bg-black text-white hover:bg-gray-800 active:bg-gray-900 border-2 border-black',
@@ -39,7 +43,7 @@ export function Button({
     <button
       {...props}
       disabled={disabled ?? loading}
-      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+      className={`${baseClasses} ${layoutClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
     >
       {children}
     </button>

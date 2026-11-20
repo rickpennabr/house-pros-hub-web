@@ -164,11 +164,45 @@ async function ownedProProperty(admin: Admin, params: { customerId: string; owne
   return place;
 }
 
-export async function updateProProperty(
+export interface PropertyUpdate {
+  /** The house is on the customer's My Places (they and any other pro on it see the change). */
+  customerOwned: boolean;
+  /** What changed, e.g. "Address: 1 Main St → 1 Main Street". */
+  changes: string[];
+}
+
+/**
+ * Fix a property's details. The pro may edit any property on their contact: the ones they added
+ * and the customer's My Places houses on the contact. Null when the property is not on the contact.
+ */
+export async function updateContactProperty(
   admin: Admin,
   params: { customerId: string; ownerId: string; placeId: string; input: ProPropertyInput }
-): Promise<boolean> {
-  if (!(await ownedProProperty(admin, params))) return false;
+): Promise<PropertyUpdate | null> {
+  const [{ data: link }, { data: contact }, { data: place }] = await Promise.all([
+    admin
+      .from('pro_crm_customer_places')
+      .select('id')
+      .eq('customer_id', params.customerId)
+      .eq('owner_id', params.ownerId)
+      .eq('place_id', params.placeId)
+      .maybeSingle(),
+    admin
+      .from('pro_crm_customers')
+      .select('id, place_id, portal_user_id')
+      .eq('id', params.customerId)
+      .eq('owner_id', params.ownerId)
+      .maybeSingle(),
+    admin
+      .from('customer_places')
+      .select('id, user_id, owner_id, name, kind, street, city, state, zip_code')
+      .eq('id', params.placeId)
+      .maybeSingle(),
+  ]);
+  if (!contact || !place || (!link && contact.place_id !== place.id)) return null;
+  const allowed = place.user_id ? place.user_id === contact.portal_user_id : place.owner_id === params.ownerId;
+  if (!allowed) return null;
+
   const { input } = params;
   const { error } = await admin
     .from('customer_places')
@@ -180,9 +214,18 @@ export async function updateProProperty(
       state: input.state,
       zip_code: input.zipCode,
     })
-    .eq('id', params.placeId);
+    .eq('id', place.id);
   if (error) throw new Error(error.message);
-  return true;
+
+  const line = (row: { street: string | null; city: string | null; state: string | null; zip: string | null }) =>
+    [row.street, row.city, [row.state, row.zip].filter(Boolean).join(' ')].filter((part) => part?.trim()).join(', ');
+  const before = line({ street: place.street, city: place.city, state: place.state, zip: place.zip_code });
+  const after = line({ street: input.street, city: input.city, state: input.state, zip: input.zipCode });
+  const changes: string[] = [];
+  if (place.name !== input.name) changes.push(`Nickname: ${place.name} → ${input.name}`);
+  if (place.kind !== input.kind) changes.push(`Type: ${place.kind} → ${input.kind}`);
+  if (before !== after) changes.push(`Address: ${before || '—'} → ${after || '—'}`);
+  return { customerOwned: Boolean(place.user_id), changes };
 }
 
 /** Remove a property the pro added. Estimates, invoices and agreements on it move to the default. */
@@ -360,8 +403,8 @@ export async function contactsOnPlace(admin: Admin, userId: string, placeId: str
 }
 
 /**
- * Is this estimate or invoice for the place? Its own property when set, else the contact's
- * default. The contact must be one of contactsOnPlace for this place.
+ * Is this estimate, invoice, maintenance agreement or project for the place? Its own property
+ * when set, else the contact's default. The contact must be one of contactsOnPlace for this place.
  */
 export function docIsOnPlace(
   doc: { customer_id: string; place_id?: string | null },
@@ -373,9 +416,67 @@ export function docIsOnPlace(
   return doc.place_id ? doc.place_id === placeId : contact.place_id === placeId;
 }
 
-/** Projects, maintenance and files have no property of their own yet: they go on the default. */
-export function contactDefaultIsPlace(customerId: string, placeId: string, contacts: PlacedContact[]): boolean {
-  return contacts.some((row) => row.id === customerId && row.place_id === placeId);
+export interface PlacedProject {
+  id: string;
+  customer_id: string;
+  estimate_id: string | null;
+  /** The project's property: its own, else the estimate it came from. NULL: the contact's default. */
+  place_id: string | null;
+  name: string;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  shared: boolean | null;
+  created_at: string;
+}
+
+/**
+ * These contacts' projects (shared or not), newest first, each with the property it is on, the
+ * same way the pro's Customer portal places them. Before migration 146 projects have no place_id
+ * column and follow their estimate or the default.
+ */
+export async function loadPlacedProjects(admin: Admin, customerIds: string[]): Promise<PlacedProject[]> {
+  if (customerIds.length === 0) return [];
+  const columns = 'id, customer_id, estimate_id, name, status, start_date, end_date, shared, created_at';
+  const first = await admin
+    .from('pro_crm_projects')
+    .select(`${columns}, place_id`)
+    .in('customer_id', customerIds)
+    .order('created_at', { ascending: false });
+  let rows: Array<Omit<PlacedProject, 'place_id'> & { place_id: string | null }> = first.data ?? [];
+  if (first.error) {
+    if (!/place_id/.test(first.error.message)) throw new Error(first.error.message);
+    const retry = await admin
+      .from('pro_crm_projects')
+      .select(columns)
+      .in('customer_id', customerIds)
+      .order('created_at', { ascending: false });
+    if (retry.error) throw new Error(retry.error.message);
+    rows = (retry.data ?? []).map((row) => ({ ...row, place_id: null }));
+  }
+  const estimateIds = [...new Set(rows.filter((row) => !row.place_id && row.estimate_id).map((row) => row.estimate_id!))];
+  const { data: estimates } = estimateIds.length
+    ? await admin.from('pro_crm_estimates').select('id, place_id').in('id', estimateIds)
+    : { data: [] as { id: string; place_id: string | null }[] };
+  const estimatePlace = new Map((estimates ?? []).map((row) => [row.id, row.place_id]));
+  return rows.map((row) => ({
+    ...row,
+    place_id: row.place_id ?? (row.estimate_id ? estimatePlace.get(row.estimate_id) ?? null : null),
+  }));
+}
+
+/**
+ * Is this file on the place? A file on a project follows that project; any other file goes on the
+ * contact's default property. `projects` must hold all of the contact's projects (not only shared).
+ */
+export function fileIsOnPlace(
+  file: { customer_id: string; project_id: string | null },
+  projects: Map<string, { customer_id: string; place_id: string | null }>,
+  placeId: string,
+  contacts: PlacedContact[]
+): boolean {
+  const project = file.project_id ? projects.get(file.project_id) : undefined;
+  return docIsOnPlace(project ?? { customer_id: file.customer_id, place_id: null }, placeId, contacts);
 }
 
 /** The property an estimate or invoice is for: its own, else the contact's default. */

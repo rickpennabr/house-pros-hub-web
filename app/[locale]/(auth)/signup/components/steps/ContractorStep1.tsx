@@ -19,6 +19,7 @@ import {
 import { resizeImage, resizeImageSquare, validateFileSize } from '@/lib/utils/image';
 import { useProInviters } from '@/hooks/useProInviters';
 import { ProInviteOptions } from '@/components/auth/pro-invite-options';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 export function ContractorStep1() {
   const tFields = useTranslations('auth.signup.fields');
@@ -90,6 +91,7 @@ export function ContractorStep1() {
       {/* User Picture Upload */}
       <div className="flex flex-col items-center gap-2 pt-2">
         <div className="relative">
+          <FileDropTarget inputRef={fileInputRef}>
           <div
             onClick={handleClick}
             className="w-24 h-24 rounded-lg border-2 border-black flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden relative aspect-square"
@@ -107,6 +109,7 @@ export function ContractorStep1() {
               <User className="w-10 h-10 text-black" />
             )}
           </div>
+          </FileDropTarget>
           {preview && (
             <button
               type="button"
@@ -114,7 +117,7 @@ export function ContractorStep1() {
                 e.stopPropagation();
                 handleRemovePicture();
               }}
-              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors shadow-lg z-10"
+              className="absolute -top-2 -right-2 w-6 h-6 rounded-md bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors shadow-lg z-10"
               aria-label={tFields('removeProfilePicture')}
             >
               <X className="w-3 h-3 text-white" />

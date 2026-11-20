@@ -3059,6 +3059,26 @@
     "tabsMenu": "Todas as seções",
     "cardMenu": "Opções do local",
     "shareWithPro": "Compartilhar com um pro",
+    "prosSection": {
+      "title": "Pros neste lugar",
+      "intro": "A especialidade, o contato e o trabalho de cada pro neste lugar. Toque em um pro para ver só o trabalho dele.",
+      "empty": "Ainda não há um pro neste lugar. Compartilhe com um pro para receber aqui orçamentos, faturas e visitas.",
+      "share": "Compartilhar com um pro",
+      "showWork": "Só o trabalho dele",
+      "showAll": "Ver todos os pros",
+      "showing": "Mostrando só o trabalho de {pro}",
+      "openBalance": "Saldo em aberto {amount}",
+      "message": "Mensagem",
+      "noWork": "Ainda não há trabalho aqui",
+      "counts": {
+        "estimates": "{count, plural, one {# orçamento} other {# orçamentos}}",
+        "invoices": "{count, plural, one {# fatura} other {# faturas}}",
+        "projects": "{count, plural, one {# projeto} other {# projetos}}",
+        "maintenance": "{count, plural, one {# plano de manutenção} other {# planos de manutenção}}",
+        "documents": "{count, plural, one {# arquivo} other {# arquivos}}",
+        "appointments": "{count, plural, one {# agendamento} other {# agendamentos}}"
+      }
+    },
     "shareMessage": "Olá! Estou compartilhando meu imóvel com você:\n{name}\n{address}",
     "pendingProTitle": "{pro} tem você como cliente",
     "pendingProBody": "Escolha o local do trabalho. Os orçamentos, faturas e visitas aparecerão lá.",

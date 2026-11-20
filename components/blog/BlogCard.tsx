@@ -44,7 +44,7 @@ export function BlogCard({ post, locale, categoryLabel, readLabel }: BlogCardPro
             {isLandscape ? <Trees className="h-12 w-12" aria-hidden /> : <Mountain className="h-12 w-12" aria-hidden />}
           </div>
         )}
-        <span className="absolute left-3 top-3 rounded-full border-2 border-black bg-white px-2.5 py-0.5 text-xs font-semibold text-black">
+        <span className="absolute left-3 top-3 rounded-md border-2 border-black bg-white px-2.5 py-0.5 text-xs font-semibold text-black">
           {categoryLabel}
         </span>
       </div>

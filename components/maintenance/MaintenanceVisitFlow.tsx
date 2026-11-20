@@ -164,7 +164,7 @@ function WorkerStepper({
         aria-label={`${label} -1`}
         disabled={disabled || value <= min}
         onClick={() => onChange(Math.max(min, value - 1))}
-        className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black disabled:opacity-40"
+        className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-black disabled:opacity-40"
       >
         <Minus className="h-4 w-4" />
       </button>
@@ -174,7 +174,7 @@ function WorkerStepper({
         aria-label={`${label} +1`}
         disabled={disabled || value >= 50}
         onClick={() => onChange(Math.min(50, value + 1))}
-        className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black disabled:opacity-40"
+        className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-black disabled:opacity-40"
       >
         <Plus className="h-4 w-4" />
       </button>
@@ -746,7 +746,7 @@ export function MaintenanceVisitFlow({
               {t('dayTitle')} · {new Date(day.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
             </h2>
             {openTrip && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-black px-3 py-1 text-sm text-white">
+              <span className="inline-flex items-center gap-1 rounded-lg bg-black px-3 py-1 text-sm text-white">
                 <Car className="h-4 w-4" />
                 {t('traveling')} {formatDurationClock(openTripSeconds)}
               </span>
@@ -761,7 +761,7 @@ export function MaintenanceVisitFlow({
                   variant="outline"
                   disabled={busy}
                   onClick={() => void startTrip()}
-                  className="rounded-full border-2 border-black"
+                  className="rounded-lg border-2 border-black"
                 >
                   <Car className="h-4 w-4 mr-1" />
                   {t('startTrip')}
@@ -770,10 +770,10 @@ export function MaintenanceVisitFlow({
               {confirmEndDay ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm">{t('endDayConfirm')}</span>
-                  <Button type="button" disabled={busy} onClick={() => void endDay()} className="rounded-full">
+                  <Button type="button" disabled={busy} onClick={() => void endDay()} className="rounded-lg">
                     {t('endDay')}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setConfirmEndDay(false)} className="rounded-full">
+                  <Button type="button" variant="outline" onClick={() => setConfirmEndDay(false)} className="rounded-lg">
                     {t('cancel')}
                   </Button>
                 </div>
@@ -783,7 +783,7 @@ export function MaintenanceVisitFlow({
                   variant="outline"
                   disabled={busy}
                   onClick={() => setConfirmEndDay(true)}
-                  className="rounded-full border-2 border-black"
+                  className="rounded-lg border-2 border-black"
                 >
                   <Flag className="h-4 w-4 mr-1" />
                   {t('endDay')}
@@ -932,7 +932,7 @@ export function MaintenanceVisitFlow({
                       type="button"
                       disabled={responsibleCrewId === member.id}
                       onClick={() => toggleWorker(member.id)}
-                      className={`rounded-full border-2 border-black px-3 py-1.5 text-sm ${
+                      className={`rounded-lg border-2 border-black px-3 py-1.5 text-sm ${
                         active ? 'bg-black text-white' : 'bg-white'
                       }`}
                     >
@@ -974,7 +974,7 @@ export function MaintenanceVisitFlow({
 
           {openTrip && <p className="text-xs text-gray-600">{t('arrivalEndsTrip')}</p>}
 
-          <Button type="button" disabled={busy} onClick={() => void startVisit()} className="w-full rounded-full inline-flex items-center justify-center gap-2">
+          <Button type="button" disabled={busy} onClick={() => void startVisit()} className="w-full rounded-lg inline-flex items-center justify-center gap-2">
             <Play className="h-4 w-4 shrink-0" />
             {t('startClock')}
           </Button>
@@ -990,7 +990,7 @@ export function MaintenanceVisitFlow({
                 {formatDurationClock(activeSeconds)}
               </div>
               {visit.status === 'on_break' ? (
-                <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-sm font-medium text-amber-900">
+                <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-sm font-medium text-amber-900">
                   <Coffee className="h-4 w-4" />
                   {t('onBreak')} {formatDurationClock(currentBreakSeconds)}
                 </div>
@@ -1010,7 +1010,7 @@ export function MaintenanceVisitFlow({
             variant="outline"
             disabled={busy}
             onClick={() => void toggleBreak()}
-            className="w-full rounded-full border-2 border-black"
+            className="w-full rounded-lg border-2 border-black"
           >
             {visit.status === 'on_break' ? (
               <>
@@ -1111,7 +1111,7 @@ export function MaintenanceVisitFlow({
             />
           </FormField>
 
-          <Button type="button" disabled={busy} onClick={() => void finishVisit()} className="w-full rounded-full">
+          <Button type="button" disabled={busy} onClick={() => void finishVisit()} className="w-full rounded-lg">
             {t('finishMaintenance')}
           </Button>
         </div>
@@ -1129,13 +1129,13 @@ export function MaintenanceVisitFlow({
           <p className="text-sm whitespace-pre-wrap">{visit.generatedDescription}</p>
           <div className="flex flex-wrap gap-2">
             <a
-              className="inline-flex items-center gap-1 rounded-full border-2 border-black bg-black px-4 py-2 text-sm font-medium text-white"
+              className="inline-flex items-center gap-1 rounded-lg border-2 border-black bg-black px-4 py-2 text-sm font-medium text-white"
               href={`/${locale}/crm/maintenance/visits/${visit.id}`}
             >
               View report
             </a>
             <a
-              className="inline-flex items-center gap-1 rounded-full border-2 border-black px-4 py-2 text-sm font-medium"
+              className="inline-flex items-center gap-1 rounded-lg border-2 border-black px-4 py-2 text-sm font-medium"
               href={`/api/crm/maintenance/visits/${visit.id}/pdf`}
               target="_blank"
               rel="noreferrer"
@@ -1147,7 +1147,7 @@ export function MaintenanceVisitFlow({
           <div className="space-y-2 border-t border-black/15 pt-3">
             <p className="text-sm font-medium">{t('whatNext')}</p>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" disabled={busy} onClick={() => void startTrip()} className="rounded-full">
+              <Button type="button" disabled={busy} onClick={() => void startTrip()} className="rounded-lg">
                 <Car className="h-4 w-4 mr-1" />
                 {t('startTrip')}
               </Button>
@@ -1156,7 +1156,7 @@ export function MaintenanceVisitFlow({
                 variant="outline"
                 disabled={busy}
                 onClick={() => void endDay()}
-                className="rounded-full border-2 border-black"
+                className="rounded-lg border-2 border-black"
               >
                 <Flag className="h-4 w-4 mr-1" />
                 {t('endDayLast')}

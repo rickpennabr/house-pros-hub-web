@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
       title,
       kind,
       ownerId: user.id,
+      projectId,
     });
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err) {

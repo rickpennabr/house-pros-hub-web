@@ -183,7 +183,7 @@ export default function ProJobsClient({ initialJobs = [] }: ProJobsClientProps) 
               </div>
             ) : jobs.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 px-4 py-12 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-black">
+                <div className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-black">
                   <Briefcase className="h-8 w-8 text-black" />
                 </div>
                 <h2 className="text-xl font-bold text-black">{t('boardTitle')}</h2>

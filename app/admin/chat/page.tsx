@@ -499,7 +499,7 @@ export default function AdminChatPage() {
                           setHandingBack(false);
                         }
                       }}
-                      className="rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-800 hover:bg-gray-100 disabled:opacity-50"
+                      className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-800 hover:bg-gray-100 disabled:opacity-50"
                     >
                       Hand back to ProAgent
                     </button>
@@ -523,7 +523,7 @@ export default function AdminChatPage() {
                     key={m.id}
                     className={`flex items-end gap-2 max-w-[85%] ${m.sender === 'admin' ? 'self-end flex-row-reverse' : 'self-start'}`}
                   >
-                    <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden bg-gray-200 ring-2 ring-white shadow flex items-center justify-center">
+                    <div className="shrink-0 w-8 h-8 rounded-lg overflow-hidden bg-gray-200 ring-2 ring-white shadow flex items-center justify-center">
                       {m.sender === 'admin' ? (
                         <Image
                           src={PROBOT_ASSETS.avatar}
@@ -653,7 +653,7 @@ export default function AdminChatPage() {
                   <button
                     type="submit"
                     disabled={sending || (!reply.trim() && pendingAttachments.length === 0)}
-                    className="shrink-0 w-12 h-12 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-gray-800 disabled:opacity-60 min-w-[48px] min-h-[48px] cursor-pointer"
+                    className="shrink-0 w-12 h-12 rounded-lg bg-gray-900 text-white flex items-center justify-center hover:bg-gray-800 disabled:opacity-60 min-w-[48px] min-h-[48px] cursor-pointer"
                     aria-label="Send"
                   >
                     <Send className="w-5 h-5" />

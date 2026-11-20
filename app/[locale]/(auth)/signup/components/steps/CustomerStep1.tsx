@@ -27,6 +27,7 @@ import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
 import { useReferralOptions } from '@/hooks/useReferralOptions';
 import { useProInviters } from '@/hooks/useProInviters';
 import { ProInviteOptions } from '@/components/auth/pro-invite-options';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 interface CustomerStep1Props {
   /** Role from the signup screen. The form field defaults to customer until it syncs. */
@@ -217,6 +218,7 @@ export function CustomerStep1({ proSignup }: CustomerStep1Props = {}) {
               </div>
             )}
             <div className="relative flex items-start justify-end gap-1.5">
+              <FileDropTarget inputRef={fileInputRef}>
               <div
                 onClick={handleClick}
                 className="w-24 h-24 rounded-lg border-2 border-black flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden relative aspect-square"
@@ -234,6 +236,7 @@ export function CustomerStep1({ proSignup }: CustomerStep1Props = {}) {
                   <User className="w-10 h-10 text-black" />
                 )}
               </div>
+              </FileDropTarget>
               {preview && (
                 <div className="flex flex-col gap-3 md:gap-1.5">
                   <button

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
 import { getDefaultCompanyForInvoice } from '@/lib/invoices/defaultCompany';
+import { applyInvoiceBrand } from '@/lib/invoices/invoice-brand';
 
 /**
  * GET /api/crm/invoices/new-context
@@ -48,23 +49,26 @@ export async function GET() {
     const nextNum = (settings as { next_number?: number }).next_number ?? 1;
     const nextInvoiceNumber = `${prefix}-${String(nextNum).padStart(4, '0')}`;
 
-    const business = await getDefaultCompanyForInvoice(supabase, user.id);
+    const business = (await getDefaultCompanyForInvoice(supabase, user.id)) ?? {
+      id: '',
+      business_name: 'My Business',
+      business_logo: null,
+      email: null,
+      phone: null,
+      address: null,
+      company_tagline: null,
+      website: undefined,
+    };
+    const brand = await applyInvoiceBrand(supabase, user.id, business);
 
     return NextResponse.json({
       themeColorHex,
       invoicePrefix: prefix,
       nextNumber: nextNum,
       nextInvoiceNumber,
-      business: business ?? {
-        id: '',
-        business_name: 'My Business',
-        business_logo: null,
-        email: null,
-        phone: null,
-        address: null,
-        company_tagline: null,
-        website: undefined,
-      },
+      business,
+      defaultPaymentTerms: brand.defaultPaymentTerms,
+      defaultNote: brand.defaultNote,
     });
   } catch (err) {
     console.error('GET /api/crm/invoices/new-context', err);

@@ -20,6 +20,7 @@ import { resizeImageSquare, validateFileSize } from '@/lib/utils/image';
 import { REFERRAL_BY_FRIEND, REFERRAL_BY_PREVIOUS_CUSTOMER, REFERRAL_OPTIONS, referralNeedsDetail, referralNeedsName } from '@/lib/constants/referral';
 import { useReferralOptions } from '@/hooks/useReferralOptions';
 import { ReferralOptionsEditor } from '@/components/admin/referral-options-editor';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 const PAGE_SIZE = 25;
 const SORT_OPTIONS = [
@@ -328,6 +329,7 @@ function CustomerForm({
           {/* Profile picture - same as signup CustomerStep1 */}
           <section className="flex flex-col items-center gap-2">
             <div className="relative flex items-start justify-end gap-1.5">
+              <FileDropTarget inputRef={fileInputRef}>
               <div
                 role="button"
                 tabIndex={0}
@@ -348,6 +350,7 @@ function CustomerForm({
                   <User className="w-10 h-10 text-black" />
                 )}
               </div>
+              </FileDropTarget>
               {pictureDisplayUrl && (
                 <div className="flex flex-col gap-3 md:gap-1.5">
                   <button
@@ -892,7 +895,7 @@ export default function CustomersPage() {
           preventCloseOnOverlayClick={deleting}
         >
           <div className="p-6 text-center">
-            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-lg bg-amber-100 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-8 h-8 text-amber-600" aria-hidden />
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">Delete customers?</h2>
@@ -935,7 +938,7 @@ export default function CustomersPage() {
           preventCloseOnOverlayClick={deleting}
         >
           <div className="p-6 text-center">
-            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-lg bg-amber-100 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-8 h-8 text-amber-600" aria-hidden />
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">Delete customer?</h2>

@@ -470,7 +470,7 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
                     setProjectCustomer(customer);
                     setStep('map');
                   }}
-                  className="shrink-0 cursor-pointer self-center rounded-full border-2 border-black bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800"
+                  className="shrink-0 cursor-pointer self-center rounded-md border-2 border-black bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800"
                 >
                   {t('createProject')}
                 </button>

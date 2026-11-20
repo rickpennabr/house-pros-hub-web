@@ -114,7 +114,7 @@ function cellText(row: HouseRow, columnId: string): string {
 
 function StatusBadge({ status }: { status: MaintenanceHouseStatus }) {
   return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[status]}`}>
+    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[status]}`}>
       {maintenanceHouseStatusLabel(status)}
     </span>
   );
@@ -456,7 +456,7 @@ export function MaintenanceHousesView({ onOpen, onAdd }: MaintenanceHousesViewPr
           preventCloseOnOverlayClick={deleting}
         >
           <div className="p-6 text-center">
-            <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-lg bg-amber-100 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-8 h-8 text-amber-600" />
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">Delete house?</h2>

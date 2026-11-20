@@ -100,7 +100,7 @@ export function PendingProsCard({ pros, places }: { pros: PendingPro[]; places: 
                 type="button"
                 disabled={busy !== null}
                 onClick={() => approve(pro, place)}
-                className="rounded-full border-2 border-black bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+                className="rounded-lg border-2 border-black bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
               >
                 {busy === `${pro.ownerId}:${place.id}` ? t('pendingProAdding') : t('pendingProAddTo', { place: place.name })}
               </button>
@@ -109,7 +109,7 @@ export function PendingProsCard({ pros, places }: { pros: PendingPro[]; places: 
               type="button"
               disabled={busy !== null}
               onClick={() => notNow(pro)}
-              className="rounded-full border-2 border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:border-gray-500 disabled:opacity-60"
+              className="rounded-lg border-2 border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:border-gray-500 disabled:opacity-60"
             >
               {t('pendingProNotNow')}
             </button>

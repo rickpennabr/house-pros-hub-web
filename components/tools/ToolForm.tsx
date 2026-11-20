@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, Hammer, Truck, X } from 'lucide-react';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 import { Select } from '@/components/ui/Select';
 import { uploadProDriveFile } from '@/lib/drive/upload-client';
 import {
@@ -210,6 +211,11 @@ export function ToolForm({ values, onChange, lists, businessId, disabled = false
 
         <div className="flex gap-4">
           <div className="shrink-0">
+            <FileDropTarget
+              onFiles={(files) => void uploadPhoto(files[0])}
+              accept="image/*"
+              disabled={disabled || uploading || !businessId}
+            >
             <button
               type="button"
               disabled={disabled || uploading || !businessId}
@@ -227,6 +233,7 @@ export function ToolForm({ values, onChange, lists, businessId, disabled = false
                 </span>
               )}
             </button>
+            </FileDropTarget>
             {values.photoUrl && !disabled ? (
               <button
                 type="button"

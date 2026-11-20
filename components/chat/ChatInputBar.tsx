@@ -167,7 +167,7 @@ export default function ChatInputBar({
             type="button"
             onClick={() => setAttachMenuOpen((open) => !open)}
             disabled={attachDisabled}
-            className="cursor-pointer rounded-full p-2.5 text-black transition-colors hover:animate-pulse hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+            className="cursor-pointer rounded-lg p-2.5 text-black transition-colors hover:animate-pulse hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
             aria-label={labels.attachFiles}
             aria-expanded={attachMenuOpen}
           >

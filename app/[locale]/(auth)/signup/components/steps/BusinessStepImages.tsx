@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { X, ImagePlus, ChevronDown } from 'lucide-react';
 import type { BusinessFormValues } from '@/lib/schemas/business';
 import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 const MAX_IMAGES = MAX_BUSINESS_GALLERY_IMAGES;
 const GALLERY_INPUT_ID = 'gallery-images-input';
@@ -89,6 +90,7 @@ export function BusinessStepImages() {
               {t('imagesHelp', { max: MAX_IMAGES })}
             </span>
           </div>
+          <FileDropTarget inputRef={inputRef} className="shrink-0">
           <label
             htmlFor={GALLERY_INPUT_ID}
             className={`px-3 py-1.5 text-sm border-2 border-black rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer ${
@@ -100,6 +102,7 @@ export function BusinessStepImages() {
             <ImagePlus className="w-4 h-4 shrink-0" />
             {t('addImageButton')}
           </label>
+          </FileDropTarget>
         </div>
         <input
           id={GALLERY_INPUT_ID}
@@ -118,9 +121,17 @@ export function BusinessStepImages() {
         )}
 
         {images.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
+          <FileDropTarget inputRef={inputRef}>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => canAdd && !isSubmitting && inputRef.current?.click()}
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && canAdd && !isSubmitting && inputRef.current?.click()}
+            className="cursor-pointer text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg hover:border-black hover:bg-gray-50"
+          >
             {t('noImages')}
           </div>
+          </FileDropTarget>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
             {images.map((url, index) => (
@@ -141,7 +152,7 @@ export function BusinessStepImages() {
                 <button
                   type="button"
                   onClick={() => removeImage(index)}
-                  className="absolute top-1 right-1 p-1 rounded-full bg-red-500 text-white cursor-pointer hover:bg-red-600 transition-colors"
+                  className="absolute top-1 right-1 p-1 rounded-lg bg-red-500 text-white cursor-pointer hover:bg-red-600 transition-colors"
                   disabled={isSubmitting}
                   aria-label={t('removeImageAria', { index: index + 1 })}
                 >

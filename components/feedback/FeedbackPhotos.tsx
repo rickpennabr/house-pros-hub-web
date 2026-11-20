@@ -73,7 +73,7 @@ export default function FeedbackPhotos({ urls, thumbClassName = 'h-16 w-16', onO
               <button
                 type="button"
                 onClick={() => setIndex(null)}
-                className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border-2 border-white"
                 aria-label={t('closePhotos')}
               >
                 <X className="h-5 w-5" />
@@ -107,7 +107,7 @@ export default function FeedbackPhotos({ urls, thumbClassName = 'h-16 w-16', onO
                     type="button"
                     onClick={() => go(-1)}
                     disabled={current === 0}
-                    className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black disabled:opacity-30"
+                    className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg bg-white text-black disabled:opacity-30"
                     aria-label={t('previousPhoto')}
                   >
                     <ChevronLeft className="h-6 w-6" />
@@ -116,7 +116,7 @@ export default function FeedbackPhotos({ urls, thumbClassName = 'h-16 w-16', onO
                     type="button"
                     onClick={() => go(1)}
                     disabled={current === urls.length - 1}
-                    className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black disabled:opacity-30"
+                    className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg bg-white text-black disabled:opacity-30"
                     aria-label={t('nextPhoto')}
                   >
                     <ChevronRight className="h-6 w-6" />

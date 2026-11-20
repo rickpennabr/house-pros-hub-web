@@ -22,7 +22,7 @@ export function AddressRequiredModal({ isOpen, onClose }: AddressRequiredModalPr
         <div className="flex-1 flex items-center justify-center p-6 md:p-8 text-center">
           <div className="space-y-6 w-full">
             <div className="mb-6">
-              <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 rounded-lg bg-yellow-100 flex items-center justify-center mx-auto mb-4">
                 <MapPin className="w-8 h-8 text-yellow-600" />
               </div>
               <h2 className="text-xl md:text-2xl font-bold mb-3 text-black">

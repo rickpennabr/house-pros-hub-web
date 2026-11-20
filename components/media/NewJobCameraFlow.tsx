@@ -378,7 +378,7 @@ export function NewJobCameraFlow({ open, customers, customer = null, saving, err
       )}
       <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center">
         {pinLabel ? (
-          <span className="mb-1 max-w-[240px] truncate rounded-full border-2 border-black bg-white px-3 py-1 text-xs font-bold text-black shadow">
+          <span className="mb-1 max-w-[240px] truncate rounded-md border-2 border-black bg-white px-3 py-1 text-xs font-bold text-black shadow">
             {pinLabel}
           </span>
         ) : null}
@@ -396,7 +396,7 @@ export function NewJobCameraFlow({ open, customers, customer = null, saving, err
         <button
           type="button"
           onClick={onClose}
-          className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white shadow"
+          className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white shadow"
           aria-label={t('goBack')}
         >
           <ChevronLeft className="h-6 w-6" />
@@ -417,7 +417,7 @@ export function NewJobCameraFlow({ open, customers, customer = null, saving, err
             }}
             placeholder={t('typeAddress')}
             aria-label={t('typeAddress')}
-            className="h-11 w-full rounded-full bg-white pl-10 pr-4 text-base shadow outline-none"
+            className="h-11 w-full rounded-lg bg-white pl-10 pr-4 text-base shadow outline-none"
           />
           {(suggestions.length > 0 || searchError) && (
             <div className="mt-2 max-h-60 overflow-y-auto rounded-2xl bg-white shadow-lg">
@@ -458,7 +458,7 @@ export function NewJobCameraFlow({ open, customers, customer = null, saving, err
               });
             });
           }}
-          className="mb-3 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-white shadow"
+          className="mb-3 flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg bg-white shadow"
           aria-label={t('locationSetting')}
         >
           <LocateFixed className="h-5 w-5" />
@@ -528,7 +528,7 @@ export function NewJobCameraFlow({ open, customers, customer = null, saving, err
           type="button"
           onClick={takePhoto}
           disabled={saving || !street.trim()}
-          className="h-14 w-full cursor-pointer rounded-full bg-neutral-900 text-base font-semibold text-white disabled:opacity-40"
+          className="h-14 w-full cursor-pointer rounded-lg bg-neutral-900 text-base font-semibold text-white disabled:opacity-40"
         >
           {saving ? t('creatingProject') : t('takePhotoHere')}
         </button>

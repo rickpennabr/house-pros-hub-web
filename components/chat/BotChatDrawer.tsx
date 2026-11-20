@@ -526,7 +526,7 @@ export default function BotChatDrawer() {
                 <button
                   type="button"
                   onClick={handleCloseChat}
-                  className="p-2 rounded-full hover:bg-gray-200 text-black transition-colors focus:outline-none focus:ring-2 focus:ring-black min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
+                  className="p-2 rounded-lg hover:bg-gray-200 text-black transition-colors focus:outline-none focus:ring-2 focus:ring-black min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
                   aria-label="Close chat"
                 >
                   <X className="w-5 h-5" />

@@ -3059,6 +3059,26 @@
     "tabsMenu": "All sections",
     "cardMenu": "Place options",
     "shareWithPro": "Share with pro",
+    "prosSection": {
+      "title": "Pros on this place",
+      "intro": "Each pro's trade, contact and work on this place. Tap a pro to see only their work.",
+      "empty": "No pro on this place yet. Share it with a pro to get estimates, invoices and visits here.",
+      "share": "Share with a pro",
+      "showWork": "Only their work",
+      "showAll": "Show all pros",
+      "showing": "Showing only {pro}'s work",
+      "openBalance": "Open balance {amount}",
+      "message": "Message",
+      "noWork": "No work here yet",
+      "counts": {
+        "estimates": "{count, plural, one {# estimate} other {# estimates}}",
+        "invoices": "{count, plural, one {# invoice} other {# invoices}}",
+        "projects": "{count, plural, one {# project} other {# projects}}",
+        "maintenance": "{count, plural, one {# maintenance plan} other {# maintenance plans}}",
+        "documents": "{count, plural, one {# file} other {# files}}",
+        "appointments": "{count, plural, one {# appointment} other {# appointments}}"
+      }
+    },
     "shareMessage": "Hi! I’m sharing my property with you:\n{name}\n{address}",
     "pendingProTitle": "{pro} has you as a customer",
     "pendingProBody": "Pick the place their work is for. Their estimates, invoices and visits will show there.",

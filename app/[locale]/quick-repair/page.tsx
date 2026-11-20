@@ -28,6 +28,7 @@ import { estimateSchema } from '@/lib/schemas/estimate';
 import { startGoogleOAuth } from '@/lib/auth/googleOAuth';
 import type { DriveFile, DriveUsage } from '@/lib/drive/types';
 import type { Locale } from '@/i18n';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 /** Scroll parent for the progress bar. Null means the page itself scrolls. */
 function scrollParent(node: HTMLElement): HTMLElement | null {
@@ -586,10 +587,12 @@ export default function QuickRepairPage() {
                     <Camera className="w-4 h-4 inline mr-2" />
                     {photos.length === 0 ? t('snap') : t('takeAnother')}
                   </Button>
+                  <FileDropTarget inputRef={inputRef} className="max-md:flex max-md:flex-1 md:contents">
                   <Button type="button" variant="secondary" disabled={photos.length >= MAX_PHOTOS} className="max-md:!inline-flex max-md:h-10 max-md:flex-1 max-md:items-center max-md:justify-center max-md:whitespace-nowrap max-md:px-2 max-md:!py-0 max-md:text-base" onClick={() => inputRef.current?.click()}>
                     <ImagePlus className="w-4 h-4 inline mr-2" />
                     {t('uploadPhoto')}
                   </Button>
+                  </FileDropTarget>
                 </div>
                 {user && (
                   <Button type="button" variant="secondary" disabled={photos.length >= MAX_PHOTOS} className="max-md:!inline-flex max-md:h-10 max-md:items-center max-md:justify-center max-md:self-start max-md:whitespace-nowrap max-md:px-3 max-md:!py-0 max-md:text-base" onClick={() => setPickerOpen(true)}>
@@ -870,7 +873,7 @@ function RepairVideoTile({ url, name }: { url: string; name: string }) {
         className="absolute inset-0 flex items-center justify-center"
         aria-label={t('playVideo', { name })}
       >
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/75 text-white">
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-black/75 text-white">
           <Play className="h-5 w-5 fill-white" />
         </span>
       </button>
@@ -883,7 +886,7 @@ function RepairVideoTile({ url, name }: { url: string; name: string }) {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white text-black"
+                className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-lg bg-white text-black"
                 aria-label={t('closeVideo')}
               >
                 <X className="h-5 w-5" />

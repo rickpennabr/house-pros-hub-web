@@ -196,7 +196,7 @@ export default function ManagePartnersPage() {
           <h2 className="text-lg md:text-xl font-bold text-black mb-4 flex items-center gap-2">
             Partnership Requests
             {requests.length > 0 && (
-              <span className="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
+              <span className="bg-red-600 text-white text-xs px-2 py-0.5 rounded-md">
                 {requests.length}
               </span>
             )}
@@ -261,7 +261,7 @@ export default function ManagePartnersPage() {
           <h2 className="text-lg md:text-xl font-bold text-black mb-4 flex items-center gap-2">
             Business Partners
             {activePartners.length > 0 && (
-              <span className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+              <span className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-md">
                 {activePartners.length}
               </span>
             )}

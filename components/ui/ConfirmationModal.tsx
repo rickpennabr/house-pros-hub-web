@@ -46,7 +46,7 @@ export function ConfirmationModal({
         <div className="space-y-6 w-full">
           {/* Black circle with white checkmark icon */}
           <div className="mb-6">
-            <div className="w-20 h-20 rounded-full bg-black flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 rounded-lg bg-black flex items-center justify-center mx-auto mb-4">
               <svg
                 className="w-12 h-12 text-white"
                 fill="none"

@@ -208,6 +208,12 @@ export function InvoicePdfDocument({ invoice, customer, business, themeColor }: 
             <Text style={styles.noteText}>{invoice.note}</Text>
           </View>
         ) : null}
+
+        {business.invoice_footer ? (
+          <View style={styles.noteSection}>
+            <Text style={[styles.noteText, { fontSize: 8, color: '#4b5563' }]}>{business.invoice_footer}</Text>
+          </View>
+        ) : null}
       </Page>
     </Document>
   );

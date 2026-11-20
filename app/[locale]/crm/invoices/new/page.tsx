@@ -16,17 +16,22 @@ import {
   type InvoiceEditorDraft,
 } from '@/lib/invoices/draft';
 import { todayISO } from '@/lib/invoices/format';
+import { dueDateForTerms } from '@/lib/invoices/invoice-brand';
 import { chatReturnWithDoc, safeChatReturnTo } from '@/lib/chat/crm-doc-share';
 
-function blankDraft(customerId = ''): InvoiceEditorDraft {
+/** Defaults from Invoice settings: payment terms (and the due date they give) and the message. */
+type InvoiceDefaults = { paymentTerms: string | null; note: string | null };
+
+function blankDraft(customerId = '', defaults: InvoiceDefaults = { paymentTerms: null, note: null }): InvoiceEditorDraft {
   const today = todayISO();
+  const paymentTerms = defaults.paymentTerms || 'Due on receipt';
   return {
     customerId,
     lineItems: [emptyInvoiceLine()],
     invoiceDate: today,
-    dueDate: today,
-    paymentTerms: 'Due on receipt',
-    note: '',
+    dueDate: dueDateForTerms(today, paymentTerms) ?? today,
+    paymentTerms,
+    note: defaults.note ?? '',
     companyOverride: null,
     pendingAttachments: [],
     paidNow: false,
@@ -67,7 +72,7 @@ export default function CRMNewInvoicePage() {
         setCustomers(list);
         const customerId = searchParams.get('customerId');
         const selected = customerId && list.some((customer) => customer.id === customerId) ? customerId : '';
-        setDraft(blankDraft(selected));
+        setDraft(blankDraft(selected, { paymentTerms: ctx.defaultPaymentTerms ?? null, note: ctx.defaultNote ?? null }));
       })
       .catch(() => {
         setContext({

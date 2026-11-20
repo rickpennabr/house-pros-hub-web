@@ -14,6 +14,8 @@ import { parseObjectPosition, formatObjectPosition } from '@/lib/utils/backgroun
 import { BackgroundImageEdit } from '@/components/businessdetails/BackgroundImageEdit';
 import Modal from '@/components/ui/Modal';
 import { useTypingPlaceholder } from '@/hooks/useTypingPlaceholder';
+import { dropFilesIntoInput, useFileDrop } from '@/hooks/useFileDrop';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 const LOGO_MAX_MB = 5;
 const BACKGROUND_MAX_MB = 5;
@@ -38,6 +40,11 @@ export function BusinessStep1() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
   const bgContainerRef = useRef<HTMLDivElement>(null);
+  // Drop an image on the banner for the background (the logo tile takes its own drops).
+  const bgDrop = useFileDrop({
+    onFiles: (files) => bgInputRef.current && dropFilesIntoInput(bgInputRef.current, files),
+    accept: 'image/*',
+  });
   const [dragStart, setDragStart] = useState<{ clientX: number; clientY: number; posX: number; posY: number } | null>(null);
 
   // Typing animation for placeholders (same idea as customer signup steps)
@@ -222,7 +229,12 @@ export function BusinessStep1() {
         <label className="block text-sm font-bold text-black uppercase tracking-wider mb-0">{t('sectionTitle')}</label>
         {/* Full-bleed wrapper: only the background block extends to column edges (matches AuthPageLayout px-3 md:px-12) */}
         <div className="-mx-3 md:-mx-12 w-[calc(100%+1.5rem)] md:w-[calc(100%+6rem)]">
-          <div className="relative w-full h-[200px] md:h-[300px] lg:h-[350px] group">
+          <div {...bgDrop.dropProps} className="relative w-full h-[200px] md:h-[300px] lg:h-[350px] group">
+            {bgDrop.isDragging ? (
+              <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-lg border-2 border-dashed border-red-600 bg-red-50/80 text-sm font-semibold text-red-600">
+                Drop to set the background
+              </div>
+            ) : null}
             {/* Background Container - full width of this (full-bleed) area */}
             <div ref={bgContainerRef} className="absolute inset-0 rounded-lg border-2 border-black bg-white overflow-hidden">
             {/* Background Image (if exists) */}
@@ -319,7 +331,8 @@ export function BusinessStep1() {
             </div>
 
             {/* Logo Upload/Preview (Overlapping Bottom Center) */}
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-10">
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-30">
+              <FileDropTarget inputRef={logoInputRef} accept="image/*">
               <div 
                 onClick={() => logoInputRef.current?.click()}
                 className="w-24 h-24 rounded-lg border-4 border-white bg-white shadow-xl overflow-hidden flex items-center justify-center cursor-pointer group-hover:scale-105 transition-transform relative"
@@ -342,6 +355,7 @@ export function BusinessStep1() {
                   </div>
                 )}
               </div>
+              </FileDropTarget>
               {logoPreview && typeof logoPreview === 'string' && logoPreview.trim() !== '' && (
                 <button
                   type="button"
@@ -352,7 +366,7 @@ export function BusinessStep1() {
                       logoInputRef.current.value = '';
                     }
                   }}
-                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors shadow-lg z-20"
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-md bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors shadow-lg z-20"
                   title={t('removeLogoTitle')}
                 >
                   <X className="w-3 h-3 text-white" />
@@ -431,7 +445,7 @@ export function BusinessStep1() {
                     setIsSlugManuallyEdited(false);
                     setValue('slug', '');
                   }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full transition-colors text-gray-400 hover:text-black hover:bg-gray-100"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-colors text-gray-400 hover:text-black hover:bg-gray-100"
                   disabled={isSubmitting}
                 >
                   <X className="w-4 h-4" />
@@ -442,7 +456,7 @@ export function BusinessStep1() {
           
           {slug && slug.length >= 3 && !errors.slug && (
             <div className="flex items-center gap-1.5 text-green-600 text-sm px-1 font-medium animate-fade-in">
-              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-green-100 border border-green-200">
+              <span className="flex items-center justify-center w-4 h-4 rounded-md bg-green-100 border border-green-200">
                 <Check className="w-3 h-3" />
               </span>
               <span>{t('userNameAvailable')}</span>

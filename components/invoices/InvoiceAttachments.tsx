@@ -1,8 +1,9 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Paperclip, Trash2, FileText, Image } from 'lucide-react';
 import { MAX_FILE_SIZES } from '@/lib/utils/fileValidation';
+import { FileDropZone } from '@/components/ui/FileDropZone';
 
 const MAX_MB = 20;
 const ALLOWED_EXT = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
@@ -51,14 +52,12 @@ export function InvoiceAttachments({
   disabled = false,
   allowAdd = true,
 }: InvoiceAttachmentsProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFiles = (files: File[]) => {
     setUploadError(null);
-    const files = e.target.files;
-    if (!files?.length) return;
+    if (!files.length) return;
     const next: PendingAttachment[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -74,7 +73,6 @@ export function InvoiceAttachments({
       next.push({ id: `pending-${Date.now()}-${i}`, file });
     }
     if (next.length) onPendingAdd([...pending, ...next]);
-    e.target.value = '';
   };
 
   const removeSaved = (id: string) => {
@@ -86,7 +84,6 @@ export function InvoiceAttachments({
   return (
     <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-gray-50/50">
       <p className="text-xs font-semibold uppercase text-gray-600 mb-2">Attachments</p>
-      <p className="text-xs text-gray-500 mb-2">Max file size: {MAX_MB} MB. PDF, JPEG, PNG, WebP.</p>
 
       {/* Saved (from API) */}
       {saved.length > 0 && (
@@ -147,26 +144,19 @@ export function InvoiceAttachments({
         </ul>
       )}
 
-      {uploadError && <p className="text-red-600 text-sm mb-2">{uploadError}</p>}
-
-      {allowAdd && (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
+      {allowAdd ? (
+        <FileDropZone
+          onFiles={handleFiles}
+          accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+          multiple
+          compact
           disabled={disabled}
-          className="text-sm font-medium text-gray-700 hover:text-black hover:underline"
-        >
-          Add attachment
-        </button>
-      )}
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
-        multiple
-        className="hidden"
-        onChange={handleFileSelect}
-      />
+          hint={`PDF, JPEG, PNG or WebP · up to ${MAX_MB} MB`}
+          error={uploadError}
+        />
+      ) : uploadError ? (
+        <p className="text-red-600 text-sm mb-2">{uploadError}</p>
+      ) : null}
     </div>
   );
 }

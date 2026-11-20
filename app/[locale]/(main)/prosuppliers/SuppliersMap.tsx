@@ -104,7 +104,7 @@ function SupplierInfo({ supplier }: { supplier: Supplier }) {
         {supplier.logo ? (
           <img src={supplier.logo} alt="" className="h-10 w-10 shrink-0 object-contain" />
         ) : (
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-sm font-bold text-white">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-black text-sm font-bold text-white">
             {supplier.name.trim().charAt(0).toUpperCase() || 'S'}
           </span>
         )}
@@ -115,7 +115,7 @@ function SupplierInfo({ supplier }: { supplier: Supplier }) {
       {supplier.materials.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1">
           {supplier.materials.map((material) => (
-            <span key={material} className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">
+            <span key={material} className="rounded-md bg-red-100 px-2 py-0.5 text-xs text-red-700">
               {material}
             </span>
           ))}

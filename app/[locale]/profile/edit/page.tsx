@@ -28,6 +28,7 @@ import {
   referralNeedsName,
 } from '@/lib/constants/referral';
 import { useReferralOptions } from '@/hooks/useReferralOptions';
+import { FileDropTarget } from '@/components/ui/FileDropTarget';
 
 export default function EditProfilePage() {
   const { user, isAuthenticated, isLoading, updateUser, logout, refreshRoles } = useAuth();
@@ -691,6 +692,7 @@ export default function EditProfilePage() {
                 {/* Profile Picture Upload */}
                 <div className="flex flex-col items-center gap-2">
                   <div className="relative">
+                    <FileDropTarget inputRef={fileInputRef}>
                     <div
                       onClick={() => fileInputRef.current?.click()}
                       className="w-24 h-24 rounded-lg border-2 border-black flex items-center justify-center bg-white cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden relative aspect-square"
@@ -709,11 +711,12 @@ export default function EditProfilePage() {
                         <UserIcon className="w-10 h-10 text-black" />
                       )}
                     </div>
+                    </FileDropTarget>
                     {previewImage && (
                       <button
                         type="button"
                         onClick={handleRemoveImage}
-                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-600 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-700 transition-colors shadow-lg"
+                        className="absolute -top-2 -right-2 w-6 h-6 rounded-md bg-red-600 border-2 border-white flex items-center justify-center cursor-pointer hover:bg-red-700 transition-colors shadow-lg"
                         aria-label={t('removeProfilePicture')}
                       >
                         <X className="w-3 h-3 text-white" />
@@ -1216,7 +1219,7 @@ export default function EditProfilePage() {
           contentClassName="p-6"
         >
           <div className="text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-red-300 bg-red-100">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-lg border-2 border-red-300 bg-red-100">
               <Trash2 className="h-8 w-8 text-red-600" />
             </div>
             {deleteStep === 'warning' ? (

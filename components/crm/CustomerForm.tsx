@@ -12,6 +12,7 @@ import AddressAutocomplete, { type AddressData } from '@/components/AddressAutoc
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { validateCustomerEmail, validateCustomerPhone } from '@/lib/schemas/crm';
 import { ContactRolesField } from '@/components/crm/ContactRolesField';
+import { ContactAttachments, uploadContactAttachments } from '@/components/crm/ContactAttachments';
 import { ContactPropertiesEditor, PropertyKindPicker, saveDraftProperties, type PropertyDraft } from '@/components/crm/ContactPropertiesEditor';
 import { CONTACT_ADDRESS_NAME } from '@/lib/places/contact-address';
 import { autoNickname, nextNickname } from '@/lib/places/auto-nickname';
@@ -121,6 +122,8 @@ export function CustomerForm({
   const contactId = (initial as { id?: string }).id ?? '';
   /** Properties typed on a new contact; saved right after the contact is created. */
   const [propertyDrafts, setPropertyDrafts] = useState<PropertyDraft[]>([]);
+  /** Files added before the contact exists; uploaded right after it is created. */
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   // The billing address is the contact's own property; show it in the Properties list as typed.
   const contactStreet = [form.billingStreet1 || form.streetAddress, form.billingStreet2 || form.apartment]
     .map((part) => part.trim())
@@ -359,6 +362,10 @@ export function CustomerForm({
         // The contact exists now; say which part failed instead of blocking the save.
         if (propertyError) window.alert(`The contact was saved, but a property was not: ${propertyError}`);
       }
+      if (!id && createdId && pendingAttachments.length > 0) {
+        const attachmentError = await uploadContactAttachments(createdId, pendingAttachments);
+        if (attachmentError) window.alert(`The contact was saved, but an attachment was not: ${attachmentError}`);
+      }
       onSuccess(createdId ? { id: createdId, name } : undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
@@ -593,12 +600,12 @@ export function CustomerForm({
             />
           </FormField>
           <FormField label="Attachments" className="sm:col-span-2 md:col-span-3">
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <button type="button" className="text-blue-600 hover:text-blue-800 font-medium text-sm cursor-pointer">
-                Add attachment
-              </button>
-              <p className="text-gray-500 text-xs mt-1">Max file size: 20 MB</p>
-            </div>
+            <ContactAttachments
+              customerId={contactId}
+              pending={pendingAttachments}
+              onPendingChange={setPendingAttachments}
+              disabled={saving}
+            />
           </FormField>
         </div>
       </Accordion>

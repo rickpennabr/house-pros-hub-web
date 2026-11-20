@@ -128,7 +128,7 @@ export function ReferralOptionsEditor() {
       ) : options.length > 0 ? (
         <ul className="mt-3 flex flex-wrap gap-2">
           {options.map((option) => (
-            <li key={option.id} className="flex items-center gap-1 rounded-full border-2 border-black px-3 py-1 text-sm">
+            <li key={option.id} className="flex items-center gap-1 rounded-lg border-2 border-black px-3 py-1 text-sm">
               <span>
                 {option.label}
                 {option.asksForName ? ' · asks for a name' : ''}

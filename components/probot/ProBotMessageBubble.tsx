@@ -209,7 +209,7 @@ export default function ProBotMessageBubble({
                   <button
                     type="button"
                     onClick={() => onPickTime(msg)}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
                   >
                     <CalendarDays className="h-4 w-4" />
                     {t('bookingInvitePick')}
@@ -250,7 +250,7 @@ export default function ProBotMessageBubble({
                         setAddingToCrm(false);
                       }
                     }}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 disabled:opacity-60"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900 disabled:opacity-60"
                   >
                     <UserPlus className="h-4 w-4 text-red-500" />
                     {addingToCrm ? t('placeShareAdding') : t('placeShareAddToCrm')}
@@ -264,7 +264,7 @@ export default function ProBotMessageBubble({
               {!isAdminView ? (
                 <Link
                   href={`/${locale}/myplaces/${msg.payload.placeShare.placeId}`}
-                  className="inline-flex w-full items-center justify-center rounded-full border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
+                  className="inline-flex w-full items-center justify-center rounded-lg border-2 border-black bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
                 >
                   {t('placeOpenInMyPlaces')}
                 </Link>
@@ -292,7 +292,7 @@ export default function ProBotMessageBubble({
                     <button
                       type="button"
                       onClick={() => onCrmQuickAction('estimate')}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-black px-3 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-black px-3 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
                     >
                       <FileText className="h-4 w-4" />
                       {t('crmNewEstimate')}
@@ -300,7 +300,7 @@ export default function ProBotMessageBubble({
                     <button
                       type="button"
                       onClick={() => onCrmQuickAction('invoice')}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-full border-2 border-black bg-white px-3 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-black bg-white px-3 py-2.5 text-sm font-semibold text-black hover:bg-gray-50"
                     >
                       <Receipt className="h-4 w-4" />
                       {t('crmNewInvoice')}
@@ -309,7 +309,7 @@ export default function ProBotMessageBubble({
                 ) : !isAdminView ? (
                   <Link
                     href={`/${locale}/myplaces/${msg.payload.placeLinked.placeId}`}
-                    className="inline-flex w-full items-center justify-center rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
+                    className="inline-flex w-full items-center justify-center rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
                   >
                     {t('placeOpenInMyPlaces')}
                   </Link>
