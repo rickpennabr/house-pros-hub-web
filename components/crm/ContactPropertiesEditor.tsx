@@ -6,7 +6,9 @@ import AddressAutocomplete, { type AddressData } from '@/components/AddressAutoc
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal';
 import type { ContactProperty } from '@/lib/places/contact-places';
+import { nextNickname } from '@/lib/places/auto-nickname';
 
 type Kind = ContactProperty['kind'];
 const KINDS: Kind[] = ['house', 'business', 'building'];
@@ -105,13 +107,19 @@ function PropertyFields({
   error: string | null;
   saveLabel: string;
 }) {
-  const set = (key: keyof PropertyDraft, next: string) => onChange({ ...value, [key]: next });
+  // The nickname follows the street and type (e.g. "Sunlit Meadow - Residence") until the user types their own.
+  const change = (next: PropertyDraft) => {
+    if (next.street === value.street && next.kind === value.kind) return onChange(next);
+    onChange({ ...next, name: nextNickname(next.name, value, next) });
+  };
+  const set = (key: keyof PropertyDraft, next: string) =>
+    key === 'name' ? onChange({ ...value, name: next }) : change({ ...value, [key]: next });
   return (
     <div className="space-y-3 rounded-lg border-2 border-black p-3">
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      <PropertyKindPicker value={value.kind} onChange={(kind) => onChange({ ...value, kind })} />
-      <FormField label="Nickname" required>
-        <Input value={value.name} onChange={(event) => set('name', event.target.value)} placeholder="Main house, Lake house, Rental" />
+      <PropertyKindPicker value={value.kind} onChange={(kind) => change({ ...value, kind })} />
+      <FormField label="Nickname">
+        <Input value={value.name} onChange={(event) => set('name', event.target.value)} placeholder="Pick or type the address below to fill this in" />
       </FormField>
       <FormField label="Street" required>
         <AddressAutocomplete
@@ -119,7 +127,7 @@ function PropertyFields({
           value={value.street}
           onChange={(street) => set('street', street)}
           onAddressSelect={(address: AddressData) =>
-            onChange({
+            change({
               ...value,
               street: address.streetAddress,
               unit: address.apartment || value.unit,
@@ -223,7 +231,6 @@ export function AddContactProperty({
 
   const save = async () => {
     if (!draft) return;
-    if (!draft.name.trim()) return setError('Give the property a nickname.');
     if (!draft.street.trim()) return setError('Enter the street address.');
     setSaving(true);
     setError(null);
@@ -302,6 +309,8 @@ export function ContactPropertiesEditor(
   const customerId = 'customerId' in props ? props.customerId : null;
   const [loaded, setLoaded] = useState<{ customerId: string; properties: ContactProperty[] } | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
+  /** Saved property waiting for the remove confirmation. */
+  const [removing, setRemoving] = useState<{ key: string; name: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -355,7 +364,6 @@ export function ContactPropertiesEditor(
   const save = async () => {
     if (!editing) return;
     const { key, draft } = editing;
-    if (!draft.name.trim()) return setError('Give the property a nickname.');
     if (!draft.street.trim()) return setError('Enter the street address.');
     if ('drafts' in props) {
       const next = [...props.drafts];
@@ -375,8 +383,13 @@ export function ContactPropertiesEditor(
       props.onDraftsChange(props.drafts.filter((_, index) => String(index) !== key));
       return;
     }
-    if (!window.confirm(`Remove ${name}? Estimates, invoices and maintenance on it move to the default property.`)) return;
-    await send('DELETE', `/${encodeURIComponent(key)}`);
+    setRemoving({ key, name });
+  };
+
+  const confirmRemove = async () => {
+    if (!removing) return;
+    const ok = await send('DELETE', `/${encodeURIComponent(removing.key)}`);
+    if (ok) setRemoving(null);
   };
 
   const startEdit = (key: string, draft: PropertyDraft) => {
@@ -483,7 +496,7 @@ export function ContactPropertiesEditor(
           <Button
             type="button"
             size="sm"
-            onClick={() => startEdit('new', { ...emptyDraft, name: count === 0 ? 'Home' : '' })}
+            onClick={() => startEdit('new', { ...emptyDraft })}
             disabled={saving || Boolean(editing)}
             className="inline-flex items-center gap-1"
           >
@@ -492,6 +505,20 @@ export function ContactPropertiesEditor(
           </Button>
         </div>
       )}
+      <DeleteConfirmModal
+        isOpen={removing !== null}
+        title={`Remove ${removing?.name ?? 'property'}?`}
+        message="Estimates, invoices and maintenance on it move to the default property."
+        confirmLabel="Remove"
+        busyLabel="Removing…"
+        onCancel={() => {
+          setRemoving(null);
+          setError(null);
+        }}
+        onConfirm={() => void confirmRemove()}
+        busy={saving}
+        error={removing ? error : null}
+      />
     </div>
   );
 }

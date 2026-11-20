@@ -11,6 +11,7 @@ import {
   Flag,
   Minus,
   Play,
+  Trash2,
   Plus,
   UserPlus,
   Users,
@@ -26,6 +27,7 @@ import { uploadProDriveFile } from '@/lib/drive/upload-client';
 import { formatDurationClock } from '@/lib/crm/maintenance-defaults';
 import { computeActiveSeconds, formatLaborHours } from '@/lib/crm/maintenance-time';
 import { primeLiveCamera } from '@/lib/media/prime-camera';
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal';
 
 type Step = 'setup' | 'active' | 'done';
 
@@ -210,6 +212,10 @@ export function MaintenanceVisitFlow({
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Visit waiting for the delete confirmation. */
+  const [deletingVisitId, setDeletingVisitId] = useState<string | null>(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [newServiceName, setNewServiceName] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -367,6 +373,24 @@ export function MaintenanceVisitFlow({
     },
     [resumeOpenVisit, t]
   );
+
+  const confirmDeleteVisit = async () => {
+    if (!deletingVisitId) return;
+    setDeletingBusy(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/crm/maintenance/visits/${deletingVisitId}`, { method: 'DELETE', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : t('deleteVisitFailed'));
+      const removedId = deletingVisitId;
+      setVisits((current) => current.filter((row) => row.id !== removedId));
+      setDeletingVisitId(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : t('deleteVisitFailed'));
+    } finally {
+      setDeletingBusy(false);
+    }
+  };
 
   useEffect(() => {
     void loadLists({ restore: true });
@@ -685,7 +709,17 @@ export function MaintenanceVisitFlow({
     <div className="w-full space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">{headerStart}</div>
-        {!showWizard && (
+        <DeleteConfirmModal
+        isOpen={deletingVisitId !== null}
+        title={t('deleteVisit')}
+        message={t('deleteVisitConfirm')}
+        onCancel={() => setDeletingVisitId(null)}
+        onConfirm={() => void confirmDeleteVisit()}
+        busy={deletingBusy}
+        error={deleteError}
+      />
+
+      {!showWizard && (
           <Button
             type="button"
             variant="primary"
@@ -803,6 +837,21 @@ export function MaintenanceVisitFlow({
                 <Button type="button" variant="outline" onClick={() => void resumeOpenVisit(item.id)}>
                   {t('resumeVisit')}
                 </Button>
+              )}
+              {visit?.id !== item.id && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeletingVisitId(item.id);
+                  }}
+                  disabled={busy}
+                  aria-label={t('deleteVisit')}
+                  title={t('deleteVisit')}
+                  className="shrink-0 p-1 text-red-600 hover:bg-gray-100 rounded disabled:opacity-40 cursor-pointer"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               )}
             </li>
           ))}

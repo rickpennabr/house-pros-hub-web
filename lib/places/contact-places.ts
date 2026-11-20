@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/supabase';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { mergeMatchingProProperties, streetMatchKey } from '@/lib/places/merge-pro-property';
 
 /**
  * A pro's CRM contact is one person. The customer links any of their My Places to it (sharing
@@ -35,6 +36,7 @@ export interface ContactProperty {
 }
 
 import { CONTACT_ADDRESS_NAME } from '@/lib/places/contact-address';
+import { autoNickname } from '@/lib/places/auto-nickname';
 
 /**
  * The contact's properties: the customer's My Places they shared or approved, and the ones the
@@ -87,7 +89,7 @@ export async function listContactProperties(admin: Admin, customerId: string): P
       ? [
           {
             id: '',
-            name: contact.address_nickname?.trim() || CONTACT_ADDRESS_NAME,
+            name: contact.address_nickname?.trim() || autoNickname(street, contact.portal_kind ?? 'house') || CONTACT_ADDRESS_NAME,
             kind: contact.portal_kind ?? 'house',
             street: [street, unit].filter(Boolean).join(', ') || null,
             city: contact.city || contact.billing_address_city,
@@ -212,7 +214,9 @@ export async function linkContactPlace(
 ): Promise<boolean> {
   const { data: contact } = await admin
     .from('pro_crm_customers')
-    .select('id, owner_id, place_id, portal_user_id, street_address')
+    .select(
+      'id, owner_id, place_id, portal_user_id, portal_kind, address_nickname, street_address, apartment, city, state, zip_code, billing_address_street_1, billing_address_street_2, billing_address_city, billing_address_state, billing_address_zip_code'
+    )
     .eq('id', params.customerId)
     .eq('owner_id', params.ownerId)
     .maybeSingle();
@@ -241,6 +245,10 @@ export async function linkContactPlace(
     if (error) throw new Error(error.message);
   }
 
+  // The first house becomes the default, which records with no property follow. When the
+  // contact's own address is somewhere else, keep those records there as a property of the pro.
+  if (!contact.place_id) await keepContactAddressRecords(admin, contact, place);
+
   const patch: Database['public']['Tables']['pro_crm_customers']['Update'] = {};
   if (!contact.place_id) {
     patch.place_id = place.id;
@@ -256,7 +264,87 @@ export async function linkContactPlace(
     const { error } = await admin.from('pro_crm_customers').update(patch).eq('id', contact.id);
     if (error) throw new Error(error.message);
   }
+  // A property the pro added at this same address is this house: move its records here.
+  try {
+    await mergeMatchingProProperties(admin, { customerId: contact.id, ownerId: contact.owner_id, placeId: place.id });
+  } catch (mergeError) {
+    console.error('linkContactPlace merge', mergeError);
+  }
   return !existing && contact.place_id !== place.id;
+}
+
+type ContactForAddress = {
+  id: string;
+  owner_id: string;
+  portal_kind: ContactProperty['kind'] | null;
+  address_nickname: string | null;
+  street_address: string | null;
+  apartment: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  billing_address_street_1: string | null;
+  billing_address_street_2: string | null;
+  billing_address_city: string | null;
+  billing_address_state: string | null;
+  billing_address_zip_code: string | null;
+};
+
+/**
+ * Before a customer's house becomes the contact's default: records filed on the contact's own
+ * address (place_id NULL) would move to that house. When the house is a different street, save
+ * the contact's address as a pro property first and put those records on it.
+ */
+async function keepContactAddressRecords(
+  admin: Admin,
+  contact: ContactForAddress,
+  place: { street: string | null; zip_code: string | null }
+): Promise<void> {
+  const street = (contact.street_address || contact.billing_address_street_1 || '').trim();
+  if (!street) return;
+  const unit = (contact.street_address ? contact.apartment : contact.billing_address_street_2)?.trim() || '';
+  const fullStreet = unit ? `${street}, ${unit}` : street;
+  if (streetMatchKey(fullStreet) === streetMatchKey(place.street)) return;
+
+  const tables = ['pro_crm_estimates', 'pro_crm_invoices', 'pro_crm_maintenance_plans'] as const;
+  const counts = await Promise.all(
+    tables.map((table) =>
+      admin
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq('customer_id', contact.id)
+        .is('place_id', null)
+    )
+  );
+  const projectCount = await admin
+    .from('pro_crm_projects')
+    .select('id', { count: 'exact', head: true })
+    .eq('customer_id', contact.id)
+    .is('place_id', null);
+  const hasProjects = !projectCount.error && (projectCount.count ?? 0) > 0;
+  if (!hasProjects && counts.every((result) => (result.count ?? 0) === 0)) return;
+
+  const kind = contact.portal_kind ?? 'house';
+  const placeId = await addProProperty(admin, {
+    customerId: contact.id,
+    ownerId: contact.owner_id,
+    input: {
+      name: contact.address_nickname?.trim() || autoNickname(street, kind) || CONTACT_ADDRESS_NAME,
+      kind,
+      street: fullStreet,
+      city: contact.city || contact.billing_address_city,
+      state: contact.state || contact.billing_address_state,
+      zipCode: contact.zip_code || contact.billing_address_zip_code,
+    },
+  });
+  await Promise.all([
+    ...tables.map((table) =>
+      admin.from(table).update({ place_id: placeId }).eq('customer_id', contact.id).is('place_id', null)
+    ),
+    hasProjects
+      ? admin.from('pro_crm_projects').update({ place_id: placeId }).eq('customer_id', contact.id).is('place_id', null)
+      : Promise.resolve(),
+  ]);
 }
 
 /** This person's contacts (any pro) that have the place: as their default or as a linked property. */

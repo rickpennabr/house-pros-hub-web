@@ -3,16 +3,18 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
-import { ClipboardList, FileInput, Home, Plus } from 'lucide-react';
+import { CalendarDays, ClipboardList, FileInput, Home, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MaintenanceVisitFlow } from '@/components/maintenance/MaintenanceVisitFlow';
 import { MaintenanceHousesView } from '@/components/maintenance/MaintenanceHousesView';
+import { NextVisitsView } from '@/components/maintenance/NextVisitsView';
 import { ImportHouseFromEstimateModal } from '@/components/maintenance/ImportHouseFromEstimateModal';
 
-type Tab = 'houses' | 'visits';
+type Tab = 'houses' | 'next' | 'visits';
 
 const TABS: { id: Tab; label: string; Icon: typeof Home }[] = [
   { id: 'houses', label: 'Houses', Icon: Home },
+  { id: 'next', label: 'Next visits', Icon: CalendarDays },
   { id: 'visits', label: 'Visits', Icon: ClipboardList },
 ];
 
@@ -27,7 +29,8 @@ export default function MaintenancePage() {
   const planId = searchParams.get('planId') || '';
   // Starting a visit always lands on Visits; otherwise the tab comes from the URL.
   const [importOpen, setImportOpen] = useState(false);
-  const tab: Tab = autoStart || searchParams.get('tab') === 'visits' ? 'visits' : 'houses';
+  const requestedTab = searchParams.get('tab');
+  const tab: Tab = autoStart || requestedTab === 'visits' ? 'visits' : requestedTab === 'next' ? 'next' : 'houses';
 
   const go = (params: Record<string, string>) => {
     const query = new URLSearchParams(params).toString();
@@ -44,7 +47,7 @@ export default function MaintenancePage() {
             type="button"
             role="tab"
             aria-selected={active}
-            onClick={() => go(id === 'visits' ? { tab: 'visits' } : {})}
+            onClick={() => go(id === 'houses' ? {} : { tab: id })}
             className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-lg border-2 border-black px-4 text-sm font-medium cursor-pointer transition-colors ${
               active ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
             }`}
@@ -59,6 +62,8 @@ export default function MaintenancePage() {
 
   const addHouse = () => router.push(`/${locale}/crm/maintenance/houses/new`);
   const openHouse = (houseId: string) => router.push(`/${locale}/crm/maintenance/houses/${houseId}`);
+  const startVisit = (house: { customerId: string; planId: string }) =>
+    go({ new: '1', customerId: house.customerId, planId: house.planId });
 
   return (
     <div className="w-full space-y-4">
@@ -93,6 +98,11 @@ export default function MaintenancePage() {
           initialPlanId={planId}
           headerStart={tabs}
         />
+      ) : tab === 'next' ? (
+        <>
+          {tabs}
+          <NextVisitsView onOpenHouse={openHouse} onStartVisit={startVisit} />
+        </>
       ) : (
         <>
           <div className="flex items-center justify-between gap-2">

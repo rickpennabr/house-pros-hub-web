@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { contactHasPlace } from '@/lib/places/contact-places';
 import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { safeTimeZone } from '@/lib/crm/estimate-chart';
@@ -258,6 +259,14 @@ export async function POST(request: NextRequest) {
     const endDate = body.endDate ?? body.end_date ?? null;
     const note = typeof body.note === 'string' ? body.note.trim() || null : null;
 
+    // One of the contact's properties; empty is their default (sent only when set, so older
+    // databases without the column keep working).
+    const rawPlace = body.placeId ?? body.place_id ?? null;
+    const placeId = typeof rawPlace === 'string' && rawPlace ? rawPlace : null;
+    if (placeId && !(await contactHasPlace(createServiceRoleClient(), customerId, placeId))) {
+      return NextResponse.json({ error: "That property is not one of this customer's properties." }, { status: 400 });
+    }
+
     const { data: row, error } = await supabase
       .from('pro_crm_projects')
       .insert({
@@ -269,6 +278,7 @@ export async function POST(request: NextRequest) {
         start_date: startDate,
         end_date: endDate,
         note,
+        ...(placeId ? { place_id: placeId } : {}),
       })
       .select('id, display_id, created_at')
       .single();

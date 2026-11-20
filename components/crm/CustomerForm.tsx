@@ -14,6 +14,7 @@ import { validateCustomerEmail, validateCustomerPhone } from '@/lib/schemas/crm'
 import { ContactRolesField } from '@/components/crm/ContactRolesField';
 import { ContactPropertiesEditor, PropertyKindPicker, saveDraftProperties, type PropertyDraft } from '@/components/crm/ContactPropertiesEditor';
 import { CONTACT_ADDRESS_NAME } from '@/lib/places/contact-address';
+import { autoNickname, nextNickname } from '@/lib/places/auto-nickname';
 import { combinedPersonName } from '@/lib/crm/contact-name';
 
 export type CRMCustomerFormData = {
@@ -128,7 +129,7 @@ export function CustomerForm({
   const contactAddress =
     contactStreet || form.addressNickname.trim()
       ? {
-          name: form.addressNickname.trim() || CONTACT_ADDRESS_NAME,
+          name: form.addressNickname.trim() || autoNickname(contactStreet, form.addressKind) || CONTACT_ADDRESS_NAME,
           kind: form.addressKind,
           line: [contactStreet, form.billingCity || form.city, form.billingState || form.state, form.billingZipCode || form.zipCode]
             .map((part) => part.trim())
@@ -146,8 +147,22 @@ export function CustomerForm({
     }
   }, [mode]);
 
+  /**
+   * Set form fields. When the billing street or type changes, the nickname follows
+   * (e.g. "Sunlit Meadow - Residence") until the user types their own.
+   */
+  const setFormWithNickname = (change: (prev: CRMCustomerFormData) => CRMCustomerFormData) => {
+    setForm((prev) => {
+      const next = change(prev);
+      const before = { street: prev.billingStreet1 || prev.streetAddress, kind: prev.addressKind };
+      const after = { street: next.billingStreet1 || next.streetAddress, kind: next.addressKind };
+      if (before.street === after.street && before.kind === after.kind) return next;
+      return { ...next, addressNickname: nextNickname(next.addressNickname, before, after) };
+    });
+  };
+
   const update = (key: keyof CRMCustomerFormData, value: string | boolean) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setFormWithNickname((prev) => ({ ...prev, [key]: value }));
     setError(null);
     if (key === 'email') setHubNote(null);
   };
@@ -184,7 +199,7 @@ export function CustomerForm({
       };
       if (!res.ok || !data.contact) throw new Error(data.error || 'Could not use that account');
       const contact = data.contact;
-      setForm((prev) => ({
+      setFormWithNickname((prev) => ({
         ...prev,
         email: contact.email,
         firstName: contact.firstName,
@@ -435,13 +450,13 @@ export function CustomerForm({
             />
             <FormField
               label="Nickname"
-              tip="What you call this place, like on My Places (Main house, Office). It shows with the contact's other properties."
+              tip="Filled in from the address and type (e.g. Sunlit Meadow - Residence). Type your own to change it. It shows with the contact's other properties."
               className="mb-4"
             >
               <Input
                 value={form.addressNickname}
                 onChange={(e) => update('addressNickname', e.target.value)}
-                placeholder="Main house, Office"
+                placeholder="Pick or type the address below to fill this in"
                 maxLength={120}
               />
             </FormField>
@@ -455,7 +470,7 @@ export function CustomerForm({
                 value={form.addressSearch}
                 onChange={(v) => update('addressSearch', v)}
                 onAddressSelect={(addr: AddressData) => {
-                  setForm((prev) => ({
+                  setFormWithNickname((prev) => ({
                     ...prev,
                     addressSearch: addr.streetAddress || addr.fullAddress || '',
                     streetAddress: addr.streetAddress,

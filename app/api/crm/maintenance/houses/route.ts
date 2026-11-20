@@ -42,6 +42,8 @@ export interface MaintenanceHouseRow {
   frequency: string;
   planCents: number | null;
   nextVisitDate: string | null;
+  /** Agreement end date; visits stop after it. */
+  endDate: string | null;
   lastVisitAt: string | null;
   visitCount: number;
   laborSeconds: number;
@@ -136,6 +138,7 @@ export async function GET(request: NextRequest) {
         frequency: plan.frequency,
         planCents: plan.amount_cents,
         nextVisitDate: plan.next_visit_date,
+        endDate: plan.end_date,
         lastVisitAt: houseVisits[0]?.started_at ?? plan.last_visit_date ?? null,
         visitCount: houseVisits.length,
         laborSeconds: houseVisits.reduce((sum, v) => sum + (v.labor_seconds ?? v.duration_seconds ?? 0), 0),

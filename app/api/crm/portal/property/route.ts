@@ -11,10 +11,21 @@ import { listContactProperties, type ContactProperty } from '@/lib/places/contac
  * payments on them, maintenance agreements and visits, projects, and files.
  *
  * Estimates, invoices and maintenance agreements name their property (NULL is the contact's
- * default). Visits follow their agreement; projects follow the estimate they came from; files
+ * default). Visits follow their agreement; projects use their own property, else the estimate they came from; files
  * follow their project. Anything with no property of its own goes on the default house.
  * Without placeId (or when the contact has no linked properties) the default house is used.
  */
+type ProjectRow = {
+  id: string;
+  estimate_id: string | null;
+  place_id: string | null;
+  name: string;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  shared: boolean | null;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const { error, user, supabase } = await requireContractor();
@@ -43,7 +54,7 @@ export async function GET(request: NextRequest) {
     const isDefault = !property || property.id === defaultProperty?.id;
     const onPlace = (placeId: string | null | undefined) => (placeId ? placeId === property?.id : isDefault);
 
-    const [estimatesRes, invoicesRes, plansRes, visitsRes, projectsRes, docsRes] = await Promise.all([
+    const [estimatesRes, invoicesRes, plansRes, visitsRes, projectsFirst, docsRes] = await Promise.all([
       supabase
         .from('pro_crm_estimates')
         .select('id, display_id, place_id, amount_cents, status, agreement_kind, job_area, created_at, signed_at')
@@ -73,7 +84,7 @@ export async function GET(request: NextRequest) {
         .limit(500),
       supabase
         .from('pro_crm_projects')
-        .select('id, estimate_id, name, status, start_date, end_date, shared')
+        .select('id, estimate_id, place_id, name, status, start_date, end_date, shared')
         .eq('owner_id', user.id)
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false }),
@@ -84,6 +95,17 @@ export async function GET(request: NextRequest) {
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false }),
     ]);
+    // Before migration 146, projects have no place_id: read them without it (default property).
+    let projectsRes: { data: ProjectRow[] | null; error: { message: string } | null } = projectsFirst;
+    if (projectsFirst.error && /place_id/.test(projectsFirst.error.message)) {
+      const retry = await supabase
+        .from('pro_crm_projects')
+        .select('id, estimate_id, name, status, start_date, end_date, shared')
+        .eq('owner_id', user.id)
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false });
+      projectsRes = { data: (retry.data ?? []).map((row) => ({ ...row, place_id: null })), error: retry.error };
+    }
     const failed = [estimatesRes, invoicesRes, plansRes, visitsRes, projectsRes, docsRes].find((res) => res.error);
     if (failed?.error) return NextResponse.json({ error: failed.error.message }, { status: 500 });
 
@@ -111,8 +133,10 @@ export async function GET(request: NextRequest) {
         : isDefault
     );
 
-    const projectOnPlace = (row: { estimate_id: string | null }) =>
-      row.estimate_id && estimatePlace.has(row.estimate_id) ? onPlace(estimatePlace.get(row.estimate_id)) : isDefault;
+    const projectOnPlace = (row: { estimate_id: string | null; place_id: string | null }) =>
+      row.place_id
+        ? onPlace(row.place_id)
+        : row.estimate_id && estimatePlace.has(row.estimate_id) ? onPlace(estimatePlace.get(row.estimate_id)) : isDefault;
     const allProjects = projectsRes.data ?? [];
     const projects = allProjects.filter(projectOnPlace);
     const projectIds = new Set(projects.map((row) => row.id));

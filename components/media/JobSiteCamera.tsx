@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronRight, ImageIcon, Plus } from 'lucide-react';
+import { Building, Building2, ChevronRight, Home, ImageIcon, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import Modal from '@/components/ui/Modal';
@@ -12,6 +12,7 @@ import { uploadProDriveFile, ProDriveQuotaClientError } from '@/lib/drive/upload
 import { geocodeAddress, locateShot, readCompassHeading, type PhotoSpot } from '@/lib/media/photo-spot';
 import { requestCurrentLocation } from '@/lib/media/capture-location';
 import { primeLiveCamera } from '@/lib/media/prime-camera';
+import type { ContactProperty } from '@/lib/places/contact-places';
 
 interface CustomerRow extends ProjectFromCustomer {
   address: string;
@@ -41,6 +42,8 @@ interface CustomerApiRow {
 interface ProjectApiRow {
   id: string;
   customer_id: string;
+  /** The contact's property; null or missing is their default. */
+  place_id?: string | null;
   status: string;
   updated_at: string;
 }
@@ -89,6 +92,8 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
   const [step, setStep] = useState<'list' | 'map'>('list');
   const [projectCustomer, setProjectCustomer] = useState<CustomerRow | null>(null);
   const [creating, setCreating] = useState(false);
+  /** A customer with more than one address, waiting for the pro to pick one. */
+  const [propertyPick, setPropertyPick] = useState<{ customer: CustomerRow; properties: ContactProperty[] } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -101,6 +106,7 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
     setStep('list');
     setProjectCustomer(null);
     setCreating(false);
+    setPropertyPick(null);
   }, [open]);
 
   useEffect(() => {
@@ -157,7 +163,17 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
     };
   }, [open, selected]);
 
-  const ensureProject = async (customer: CustomerRow): Promise<string> => {
+  /**
+   * The customer's job for this address: its photos stay apart from their other addresses.
+   * Projects with no property are on the default one (older projects, single-address customers).
+   */
+  const ensureProject = async (
+    customer: CustomerRow,
+    property: ContactProperty | null = null,
+    properties: ContactProperty[] = []
+  ): Promise<string> => {
+    const defaultId = (properties.find((row) => row.isDefault) ?? properties[0])?.id ?? '';
+    const targetId = property?.id ?? defaultId;
     const response = await fetch(
       `/api/crm/projects?pageSize=100&search=${encodeURIComponent(customer.name)}`,
       { credentials: 'include' }
@@ -165,7 +181,12 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
     const body = (await response.json()) as { projects?: ProjectApiRow[]; error?: string };
     if (!response.ok) throw new Error(body.error || t('loadFailed'));
     const mine = (body.projects ?? [])
-      .filter((project) => project.customer_id === customer.id && project.status !== 'cancelled')
+      .filter(
+        (project) =>
+          project.customer_id === customer.id &&
+          project.status !== 'cancelled' &&
+          (project.place_id || defaultId) === targetId
+      )
       .sort((a, b) => projectRank(a.status) - projectRank(b.status) || b.updated_at.localeCompare(a.updated_at));
     if (mine[0]) return mine[0].id;
 
@@ -173,7 +194,13 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ customerId: customer.id, name: customer.name, status: 'in_progress' }),
+      body: JSON.stringify({
+        customerId: customer.id,
+        name: property && properties.length > 1 ? `${customer.name} · ${property.name}` : customer.name,
+        status: 'in_progress',
+        // The contact's own address has no place row (id ''): it is the default, sent as nothing.
+        ...(property?.id ? { placeId: property.id } : {}),
+      }),
     });
     const createdBody = (await created.json()) as { id?: string; error?: string };
     if (!created.ok || !createdBody.id) throw new Error(createdBody.error || t('saveFailed'));
@@ -257,11 +284,50 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
     }
   };
 
+  const propertyAddress = (property: ContactProperty) => {
+    const place = [property.city, [property.state, property.zipCode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    return [property.street, place].filter(Boolean).join(' · ');
+  };
+
+  const openAtProperty = async (customer: CustomerRow, property: ContactProperty, properties: ContactProperty[]) => {
+    setPickingId(customer.id);
+    setError(null);
+    try {
+      const projectId = await ensureProject(customer, property, properties);
+      setPropertyPick(null);
+      setSelected({
+        ...customer,
+        name: `${customer.name} · ${property.name}`,
+        address: propertyAddress(property) || customer.address,
+        street: property.street ?? customer.street,
+        line2: '',
+        city: property.city ?? customer.city,
+        state: property.state ?? customer.state,
+        zip: property.zipCode ?? customer.zip,
+        projectId,
+      });
+    } catch (chooseError) {
+      setError(chooseError instanceof Error ? chooseError.message : t('loadFailed'));
+    } finally {
+      setPickingId(null);
+    }
+  };
+
   const choose = async (customer: CustomerRow) => {
     setPickingId(customer.id);
     setError(null);
     try {
-      const projectId = await ensureProject(customer);
+      // More than one address: ask which one the photos are for.
+      const placesResponse = await fetch(`/api/crm/customers/${encodeURIComponent(customer.id)}/places`, {
+        credentials: 'include',
+      });
+      const placesBody = (await placesResponse.json().catch(() => ({}))) as { properties?: ContactProperty[] };
+      const properties = placesResponse.ok && Array.isArray(placesBody.properties) ? placesBody.properties : [];
+      if (properties.length > 1) {
+        setPropertyPick({ customer, properties });
+        return;
+      }
+      const projectId = await ensureProject(customer, properties[0] ?? null, properties);
       setSelected({ ...customer, projectId });
     } catch (chooseError) {
       setError(chooseError instanceof Error ? chooseError.message : t('loadFailed'));
@@ -334,7 +400,7 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
   return (
     <>
       <Modal
-        isOpen={open && !selected && step === 'list'}
+        isOpen={open && !selected && step === 'list' && !propertyPick}
         onClose={onClose}
         title={t('chooseCustomer')}
         showHeader
@@ -413,6 +479,54 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
             })}
           </ul>
         </div>
+      </Modal>
+      <Modal
+        isOpen={open && !selected && step === 'list' && propertyPick !== null}
+        onClose={() => {
+          setPropertyPick(null);
+          setError(null);
+        }}
+        title={t('chooseProperty')}
+        showHeader
+        showCloseButton
+        maxWidth="lg"
+        contentClassName="p-0"
+      >
+        {propertyPick ? (
+          <div className="max-h-[calc(100dvh-10rem)] space-y-3 overflow-y-auto p-3 md:max-h-[60vh]">
+            <p className="text-sm text-gray-600">{t('choosePropertyHint', { name: propertyPick.customer.name })}</p>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <ul className="space-y-2">
+              {propertyPick.properties.map((property) => {
+                const Icon = property.kind === 'business' ? Building2 : property.kind === 'building' ? Building : Home;
+                return (
+                  <li key={property.id || 'contact-address'}>
+                    <button
+                      type="button"
+                      disabled={pickingId !== null}
+                      onClick={() => void openAtProperty(propertyPick.customer, property, propertyPick.properties)}
+                      className="flex w-full cursor-pointer items-center gap-3 rounded-lg border-2 border-black bg-white p-2 text-left hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-black bg-gray-50">
+                        <Icon className="h-6 w-6 text-red-600" aria-hidden />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-bold">
+                          {property.name}
+                          {property.isDefault ? (
+                            <span className="ml-2 text-xs font-normal text-gray-500">{t('defaultProperty')}</span>
+                          ) : null}
+                        </span>
+                        <span className="block truncate text-sm text-gray-600">{propertyAddress(property)}</span>
+                      </span>
+                      <ChevronRight className="h-5 w-5 shrink-0" aria-hidden />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
       </Modal>
       <NewJobCameraFlow
         open={open && !selected && step === 'map'}

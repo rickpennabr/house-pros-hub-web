@@ -281,3 +281,46 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update visit' }, { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/crm/maintenance/visits/[id]
+ * Remove a visit with its services, crew and photo links. The photo files stay in Drive.
+ * The day's totals are recomputed. Business owner only.
+ */
+export async function DELETE(
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { error, scope } = await requireCrmScope();
+    if (error || !scope) return error!;
+    if (scope.isCrew) {
+      return NextResponse.json({ error: 'Only the business owner can delete a visit.' }, { status: 403 });
+    }
+    const { id } = await context.params;
+    if (!z.string().uuid().safeParse(id).success) {
+      return NextResponse.json({ error: 'Visit not found' }, { status: 404 });
+    }
+
+    const { data: visit } = await scope.supabase
+      .from('pro_crm_maintenance_visits')
+      .select('id, day_id')
+      .eq('id', id)
+      .eq('owner_id', scope.ownerId)
+      .maybeSingle();
+    if (!visit) return NextResponse.json({ error: 'Visit not found' }, { status: 404 });
+
+    const { error: deleteError } = await scope.supabase
+      .from('pro_crm_maintenance_visits')
+      .delete()
+      .eq('id', id)
+      .eq('owner_id', scope.ownerId);
+    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
+
+    if (visit.day_id) await recomputeDayTotals(scope.supabase, visit.day_id, scope.ownerId);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/crm/maintenance/visits/[id]', err);
+    return NextResponse.json({ error: 'Failed to delete the visit' }, { status: 500 });
+  }
+}
