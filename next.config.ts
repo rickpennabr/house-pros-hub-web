@@ -73,7 +73,13 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/chat/messages": ["./lib/chat/probot-hardscape.md"],
   },
+  // Types are checked by `tsc --noEmit` in the build script, before `next build` starts.
+  // Running the check inside next build, next to the webpack workers, ran Vercel out of memory (8 GB).
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   experimental: {
+    webpackMemoryOptimizations: true,
     optimizePackageImports: [
       'react-icons/gi',
       'react-icons/si',
