@@ -57,19 +57,19 @@ export async function GET(request: NextRequest) {
     const [estimatesRes, invoicesRes, plansRes, visitsRes, projectsFirst, docsRes] = await Promise.all([
       supabase
         .from('pro_crm_estimates')
-        .select('id, display_id, place_id, amount_cents, status, agreement_kind, job_area, created_at, signed_at')
+        .select('id, display_id, place_id, amount_cents, status, agreement_kind, job_area, created_at, updated_at, signed_at, signer_name')
         .eq('owner_id', user.id)
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false }),
       supabase
         .from('pro_crm_invoices')
-        .select('id, display_id, invoice_number, place_id, estimate_id, amount_cents, payment_applied_cents, status, invoice_date, due_date')
+        .select('id, display_id, invoice_number, place_id, estimate_id, amount_cents, payment_applied_cents, status, invoice_date, due_date, created_at')
         .eq('owner_id', user.id)
         .eq('customer_id', customerId)
         .order('invoice_date', { ascending: false }),
       supabase
         .from('pro_crm_maintenance_plans')
-        .select('id, place_id, name, frequency, next_visit_date, last_visit_date, end_date, is_active, amount_cents')
+        .select('id, place_id, name, frequency, next_visit_date, last_visit_date, end_date, is_active, amount_cents, created_at')
         .eq('owner_id', user.id)
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false }),
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false }),
       supabase
         .from('pro_crm_customer_documents')
-        .select('id, project_id, kind, title, file_name, created_at')
+        .select('id, project_id, kind, title, file_name, created_at, visible_to_customer')
         .eq('owner_id', user.id)
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false }),

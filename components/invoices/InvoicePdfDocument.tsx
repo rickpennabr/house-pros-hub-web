@@ -3,6 +3,7 @@ import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/render
 import type { InvoiceTemplateInvoice, InvoiceTemplateCustomer, InvoiceTemplateBusiness } from './InvoiceTemplate';
 import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
 import { contactDisplayName } from '@/lib/crm/contact-name';
+import { shownDiscount } from '@/lib/crm/document-discount';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10 },
@@ -71,6 +72,7 @@ export function InvoicePdfDocument({ invoice, customer, business, themeColor }: 
   const paymentApplied = invoice.payment_applied_cents ?? 0;
   const balanceDue = Math.max(0, invoice.amount_cents - paymentApplied);
   const lineItems = Array.isArray(invoice.line_items) ? invoice.line_items : [];
+  const discountShown = shownDiscount(lineItems, invoice.amount_cents);
   const customerAddress = getCustomerAddress(customer);
   const tintBg = themeColor && themeColor !== '#000000' ? themeColor + '20' : '#f3f4f6';
 
@@ -166,6 +168,18 @@ export function InvoicePdfDocument({ invoice, customer, business, themeColor }: 
         </View>
 
         <View style={styles.totals}>
+          {discountShown ? (
+            <>
+              <View style={[styles.totalRow, { color: '#6b7280' }]}>
+                <Text>Subtotal</Text>
+                <Text>{formatCurrency(discountShown.subtotalCents)}</Text>
+              </View>
+              <View style={[styles.totalRow, { color: '#6b7280' }]}>
+                <Text>Discount</Text>
+                <Text>-{formatCurrency(discountShown.discountCents)}</Text>
+              </View>
+            </>
+          ) : null}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
             <Text>{formatCurrency(invoice.amount_cents)}</Text>

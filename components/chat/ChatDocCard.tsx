@@ -12,7 +12,7 @@ import type { ChatDocPlace } from '@/lib/types/chat';
  */
 export const CHAT_DOC_BUBBLE_WIDTH = 'w-[25rem] max-w-[85%]';
 
-export type ChatDocTone = 'estimate' | 'invoice' | 'payment' | 'calendar' | 'place';
+export type ChatDocTone = 'estimate' | 'invoice' | 'payment' | 'calendar' | 'place' | 'lead';
 
 /** Same frame for every document; the color strip and icon tile tell them apart. */
 const TONES: Record<ChatDocTone, { bar: string; tile: string; eyebrow: string }> = {
@@ -21,6 +21,7 @@ const TONES: Record<ChatDocTone, { bar: string; tile: string; eyebrow: string }>
   payment: { bar: 'bg-emerald-500', tile: 'bg-emerald-50 text-emerald-700', eyebrow: 'text-emerald-700' },
   calendar: { bar: 'bg-red-500', tile: 'bg-red-50 text-red-600', eyebrow: 'text-red-600' },
   place: { bar: 'bg-violet-500', tile: 'bg-violet-50 text-violet-700', eyebrow: 'text-violet-700' },
+  lead: { bar: 'bg-red-600', tile: 'bg-red-50 text-red-600', eyebrow: 'text-red-600' },
 };
 
 interface ChatDocCardProps {

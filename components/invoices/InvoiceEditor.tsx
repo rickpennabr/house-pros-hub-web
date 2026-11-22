@@ -36,6 +36,8 @@ import { dueDateForTerms, PAYMENT_TERM_OPTIONS } from '@/lib/invoices/invoice-br
 import { PAYMENT_METHODS, type PaymentMethod } from '@/lib/crm/invoice-books';
 import { JobCostPicker } from '@/components/invoices/JobCostPicker';
 import { ContactPropertySelect } from '@/components/crm/ContactPropertySelect';
+import { DiscountField } from '@/components/documents/DiscountField';
+import { discountCents as discountCentsFor, discountFromForm, type DiscountKind } from '@/lib/crm/document-discount';
 import type { ContactProperty } from '@/lib/places/contact-places';
 
 interface InvoiceEditorProps {
@@ -129,7 +131,11 @@ export function InvoiceEditor({
 
   const displayBusiness: InvoiceBusinessShape = companyOverride ? { ...business, ...companyOverride } : business;
   const tintBg = themeColorHex && themeColorHex !== '#000000' ? `${themeColorHex}14` : 'rgba(0,0,0,0.06)';
-  const totalAmountCents = invoiceTotalCents(invoiceLineItemsPayload(lineItems));
+  const [discountKind, setDiscountKind] = useState<DiscountKind>(initialDraft.discountKind ?? 'percent');
+  const [discountValue, setDiscountValue] = useState(initialDraft.discountValue ?? '');
+  const subtotalCents = invoiceTotalCents(invoiceLineItemsPayload(lineItems));
+  const discountAmountCents = discountCentsFor(subtotalCents, discountFromForm(discountKind, discountValue));
+  const totalAmountCents = subtotalCents - discountAmountCents;
   const shownError = validationError || error;
 
   const currentDraft = (): InvoiceEditorDraft => ({
@@ -144,6 +150,8 @@ export function InvoiceEditor({
     pendingAttachments,
     paidNow,
     paidNowMethod,
+    discountKind,
+    discountValue,
   });
 
   const addLine = () => {
@@ -544,8 +552,19 @@ export function InvoiceEditor({
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal</span>
-                    <span>{formatAmount(totalAmountCents)}</span>
+                    <span>{formatAmount(subtotalCents)}</span>
                   </div>
+                  <DiscountField
+                    kind={discountKind}
+                    value={discountValue}
+                    onChange={(kind, value) => {
+                      setDiscountKind(kind);
+                      setDiscountValue(value);
+                    }}
+                    discountCents={discountAmountCents}
+                    formatAmount={formatAmount}
+                    disabled={saving}
+                  />
                   <div className="flex justify-between font-bold text-base pt-2 border-t-2 border-black mt-2">
                     <span>Total</span>
                     <span>{formatAmount(totalAmountCents)}</span>

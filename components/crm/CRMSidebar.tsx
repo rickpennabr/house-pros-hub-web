@@ -345,7 +345,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
 
       {/* Desktop: vertical sidebar */}
       <aside className="no-print hidden md:block w-64 border-r-2 border-black bg-white h-full min-h-0 flex-shrink-0 overflow-y-auto overscroll-contain scrollbar-custom">
-        <nav className="p-4 pb-14 space-y-2">
+        <nav className="p-4 pb-24 space-y-2">
           {orderedNavItems.map((item) => {
             if (!item.children) return renderDesktopLink(item);
             const Icon = item.icon;

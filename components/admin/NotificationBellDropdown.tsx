@@ -53,13 +53,19 @@ function eventSummary(item: NewSignupItem): string {
       return 'emailed the platform';
     case 'maintenance':
       return 'stopped a maintenance service';
+    case 'lead_accepted':
+      return 'added your job request to their CRM';
+    case 'lead_declined':
+      return 'declined your job request';
+    case 'lead_expired':
+      return 'did not answer a job request in 48 hours';
     default:
       return who === 'Business' ? 'was added' : `${who || 'Account'} signed up`;
   }
 }
 
 function EventIcon({ item }: { item: NewSignupItem }) {
-  if (item.eventType === 'estimate' || item.eventType === 'estimate_accepted') {
+  if (item.eventType === 'estimate' || item.eventType === 'estimate_accepted' || item.eventType?.startsWith('lead_')) {
     return <ClipboardList className="w-4 h-4 text-black" />;
   }
   if (item.eventType === 'booking') return <Calendar className="w-4 h-4 text-black" />;

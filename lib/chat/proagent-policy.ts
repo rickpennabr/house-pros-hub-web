@@ -181,6 +181,25 @@ export function parseAgentPayload(value: unknown): ProAgentPayload | null {
       };
     }
   }
+  if (row.leadOffer && typeof row.leadOffer === 'object') {
+    const lead = row.leadOffer as Record<string, unknown>;
+    const text = (value: unknown) => (typeof value === 'string' ? value : '');
+    const statuses = ['offered', 'accepted', 'declined', 'cancelled', 'expired'] as const;
+    if (typeof lead.referralId === 'string') {
+      payload.leadOffer = {
+        referralId: lead.referralId,
+        projectType: text(lead.projectType),
+        area: text(lead.area),
+        description: text(lead.description),
+        budget: text(lead.budget),
+        timeline: text(lead.timeline),
+        photoCount: typeof lead.photoCount === 'number' ? lead.photoCount : 0,
+        status: statuses.includes(lead.status as (typeof statuses)[number]) ? (lead.status as (typeof statuses)[number]) : 'offered',
+        ...(typeof lead.crmCustomerId === 'string' ? { crmCustomerId: lead.crmCustomerId } : {}),
+        ...(typeof lead.customerName === 'string' ? { customerName: lead.customerName } : {}),
+      };
+    }
+  }
   if (row.bookingInvite && typeof row.bookingInvite === 'object') {
     const invite = row.bookingInvite as Record<string, unknown>;
     if (typeof invite.businessId === 'string') {
@@ -208,7 +227,7 @@ export function parseAgentPayload(value: unknown): ProAgentPayload | null {
       };
     }
   }
-  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.crmInvoice && !payload.placeShare && !payload.bookingInvite && !payload.placeLinked && !payload.plantId) return null;
+  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.crmInvoice && !payload.placeShare && !payload.leadOffer && !payload.bookingInvite && !payload.placeLinked && !payload.plantId) return null;
   return payload;
 }
 

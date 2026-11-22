@@ -1,5 +1,6 @@
 'use client';
 
+import { discountedTotalCents, discountFormText } from '@/lib/crm/document-discount';
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
@@ -13,6 +14,7 @@ import {
   emptyInvoiceLine,
   invoiceLineItemsPayload,
   invoiceTotalCents,
+  invoiceDraftDiscount,
   type InvoiceBusinessShape,
   type InvoiceCustomerOption,
   type InvoiceEditorDraft,
@@ -85,6 +87,8 @@ export default function CRMEditInvoicePage() {
           pendingAttachments: [],
           paidNow: false,
           paidNowMethod: 'cash',
+          discountKind: inv.discount?.kind ?? 'percent',
+          discountValue: discountFormText(inv.discount),
         });
         if (inv.business) {
           setBusiness({
@@ -115,7 +119,8 @@ export default function CRMEditInvoicePage() {
       body: JSON.stringify({
         customerId: form.customerId,
         placeId: form.placeId || null,
-        amountCents: invoiceTotalCents(lineItems),
+        amountCents: discountedTotalCents(invoiceTotalCents(lineItems), invoiceDraftDiscount(form)),
+        discount: invoiceDraftDiscount(form),
         lineItems: lineItems.length > 0 ? lineItems : null,
         invoiceDate: form.invoiceDate || todayISO(),
         dueDate: form.dueDate || null,

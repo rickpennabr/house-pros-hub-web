@@ -108,7 +108,7 @@ export function CustomerForm({
   mode: 'add' | 'edit';
   initial: Partial<CRMCustomerFormData>;
   onCancel: () => void;
-  onSuccess: (created?: { id: string; name: string }) => void;
+  onSuccess: (created?: { id: string; name: string; phone?: string | null; email?: string | null }) => void;
   /** Fix the contact role (e.g. "customer") so the user cannot pick another. */
   lockedRoleSlug?: string;
 }) {
@@ -366,7 +366,11 @@ export function CustomerForm({
         const attachmentError = await uploadContactAttachments(createdId, pendingAttachments);
         if (attachmentError) window.alert(`The contact was saved, but an attachment was not: ${attachmentError}`);
       }
-      onSuccess(createdId ? { id: createdId, name } : undefined);
+      onSuccess(
+        createdId
+          ? { id: createdId, name, phone: trim(form.mobileNumber) || trim(form.phone) || null, email: trim(form.email) || null }
+          : undefined
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
     } finally {

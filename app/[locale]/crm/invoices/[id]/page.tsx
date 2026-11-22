@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import Link from 'next/link';
 import { ArrowLeft, Pencil, Printer, Download, Send, FileText, Image, Loader2, Link2, Tablet } from 'lucide-react';
@@ -29,6 +29,10 @@ export default function CRMInvoiceDetailPage() {
   const [linkNote, setLinkNote] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  /** Came from "Send payment link" on a new contact: show the payment link panel first. */
+  const searchParams = useSearchParams();
+  const [payDismissed, setPayDismissed] = useState(false);
+  const payPanel = searchParams.get('pay') === '1' && !payDismissed;
   const [companyEditorOpen, setCompanyEditorOpen] = useState(false);
   const [companySaving, setCompanySaving] = useState(false);
   const [data, setData] = useState<{
@@ -229,8 +233,42 @@ export default function CRMInvoiceDetailPage() {
     address: null,
   };
 
+  function copyPaymentLink() {
+    setLinking(true);
+    setLinkNote(null);
+    void createPaymentLinkUrl()
+      .then(async (url) => {
+        await navigator.clipboard.writeText(url);
+        setLinkNote('Payment link copied — text or email it, or open it later.');
+      })
+      .catch((err: unknown) => {
+        setLinkNote(err instanceof Error ? err.message : 'Could not create a payment link');
+      })
+      .finally(() => setLinking(false));
+  }
+
+  const balanceDue = invoice.status !== 'cancelled' && invoice.amount_cents - (invoice.payment_applied_cents ?? 0) > 0;
+
   return (
     <div className="w-full">
+      {payPanel && balanceDue ? (
+        <div className="no-print mb-4 rounded-lg border-2 border-black bg-white p-4">
+          <p className="font-semibold text-gray-900">Invoice saved. Send the payment link</p>
+          <p className="mt-1 text-sm text-gray-600">
+            Copy the link and text or email it. The customer opens it, sees the invoice and pays by card. Or use Send invoice to email it with the link.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="primary" size="sm" disabled={linking} className="flex items-center gap-2" onClick={copyPaymentLink}>
+              <Link2 className="w-4 h-4" />
+              {linking ? 'Creating link…' : 'Copy payment link'}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setPayDismissed(true)}>
+              Done
+            </Button>
+          </div>
+          {linkNote ? <p className="mt-2 text-sm text-gray-700">{linkNote}</p> : null}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-4 py-2 mb-6 no-print">
         <Link
           href={`/${locale}/crm/invoices`}
@@ -282,19 +320,7 @@ export default function CRMInvoiceDetailPage() {
                 size="sm"
                 disabled={linking}
                 className="flex items-center gap-2"
-                onClick={() => {
-                  setLinking(true);
-                  setLinkNote(null);
-                  void createPaymentLinkUrl()
-                    .then(async (url) => {
-                      await navigator.clipboard.writeText(url);
-                      setLinkNote('Payment link copied — text or email it, or open it later.');
-                    })
-                    .catch((err: unknown) => {
-                      setLinkNote(err instanceof Error ? err.message : 'Could not create a payment link');
-                    })
-                    .finally(() => setLinking(false));
-                }}
+                onClick={copyPaymentLink}
               >
                 <Link2 className="w-4 h-4" />
                 {linking ? 'Creating link…' : 'Copy payment link'}

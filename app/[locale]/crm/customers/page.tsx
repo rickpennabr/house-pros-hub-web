@@ -25,6 +25,7 @@ import CustomerQuickActionsBar from '@/components/crm/CustomerQuickActionsBar';
 import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
 import { CustomerStatementDialog } from '@/components/crm/CustomerStatementDialog';
 import { CustomerForm, emptyForm, type CRMCustomerFormData } from '@/components/crm/CustomerForm';
+import { NewContactNextStepsModal, type NewContactSummary } from '@/components/crm/NewContactNextStepsModal';
 import type { CrmContactRole } from '@/lib/crm/contact-role';
 import type { ContactBooksSummary } from '@/lib/crm/contact-books';
 import { ContactBooksBar } from '@/components/crm/ContactBooksBar';
@@ -222,6 +223,8 @@ export default function CRMCustomersPage() {
   const [deleting, setDeleting] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [taskCustomerContext, setTaskCustomerContext] = useState<{ id: string; name: string } | null>(null);
+  /** The contact just added: asks what to do next (estimate, invoice, payment link…). */
+  const [newContact, setNewContact] = useState<NewContactSummary | null>(null);
 
   const [savedListView, setSavedListView] = useLocalStorage<string>('crmCustomersView', 'card');
   const listView: ViewType = savedListView === 'card' || savedListView === 'list' || savedListView === 'map' || savedListView === 'chart' ? savedListView : 'card';
@@ -236,6 +239,12 @@ export default function CRMCustomersPage() {
       setViewMode('add');
       setEditingId(null);
       setEditingInitial(null);
+    }
+    // ?open=<id>: open that contact (e.g. from a ProBot job request the pro just added).
+    const openId = searchParams.get('open');
+    if (openId && /^[0-9a-f-]{36}$/i.test(openId)) {
+      setEditingId(openId);
+      setViewMode('edit');
     }
   }, [searchParams]);
   const isMobileSafe = mounted && isMobile;
@@ -523,7 +532,7 @@ export default function CRMCustomersPage() {
               mode="add"
               initial={emptyForm}
               onCancel={() => setViewMode('table')}
-              onSuccess={() => { setViewMode('table'); fetchCustomers(); }}
+              onSuccess={(created) => { setViewMode('table'); fetchCustomers(); if (created) setNewContact(created); }}
             />
           )}
           {viewMode === 'edit' && (
@@ -988,6 +997,22 @@ export default function CRMCustomersPage() {
           addLabel="New contact"
         />
       )}
+
+      <NewContactNextStepsModal
+        contact={newContact}
+        locale={locale}
+        onClose={() => setNewContact(null)}
+        onNavigate={(href) => { setNewContact(null); router.push(href); }}
+        onScheduleAppointment={() => {
+          if (newContact) setTaskCustomerContext({ id: newContact.id, name: newContact.name });
+          setNewContact(null);
+          setShowAddTaskModal(true);
+        }}
+        onOpenContact={() => {
+          if (newContact) { setEditingId(newContact.id); setViewMode('edit'); }
+          setNewContact(null);
+        }}
+      />
 
       <AddTaskModal
         isOpen={showAddTaskModal}

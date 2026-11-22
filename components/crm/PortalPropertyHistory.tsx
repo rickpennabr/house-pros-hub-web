@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import Accordion from '@/components/ui/Accordion';
 import type { ContactProperty } from '@/lib/places/contact-places';
+import { TimelineSteps } from '@/components/timeline/TimelineSteps';
+import { buildProPropertyTimeline } from '@/lib/timeline/steps';
 
 export interface PropertyHistory {
   properties: ContactProperty[];
@@ -17,6 +19,9 @@ export interface PropertyHistory {
     agreement_kind: string;
     job_area: string | null;
     created_at: string;
+    updated_at?: string | null;
+    signed_at?: string | null;
+    signer_name?: string | null;
   }>;
   invoices: Array<{
     id: string;
@@ -27,6 +32,7 @@ export interface PropertyHistory {
     status: string;
     invoice_date: string;
     due_date: string | null;
+    created_at?: string | null;
   }>;
   payments: Array<{
     id: string;
@@ -44,18 +50,27 @@ export interface PropertyHistory {
     last_visit_date: string | null;
     is_active: boolean;
     amount_cents: number | null;
+    created_at?: string | null;
   }>;
   visits: Array<{
     id: string;
     maintenance_plan_id: string | null;
     status: string;
     started_at: string;
+    ended_at?: string | null;
     labor_seconds: number | null;
     duration_seconds: number | null;
     generated_description: string | null;
   }>;
-  projects: Array<{ id: string; name: string; status: string; start_date: string | null; end_date: string | null }>;
-  documents: Array<{ id: string; title: string; kind: string; created_at: string }>;
+  projects: Array<{
+    id: string;
+    name: string;
+    status: string;
+    start_date: string | null;
+    end_date: string | null;
+    shared?: boolean | null;
+  }>;
+  documents: Array<{ id: string; title: string; kind: string; created_at: string; visible_to_customer?: boolean | null }>;
 }
 
 const money = (cents: number) =>
@@ -67,12 +82,24 @@ const hours = (seconds: number) => `${(seconds / 3600).toFixed(1)}h`;
 
 const label = (value: string) => value.replace(/_/g, ' ');
 
-function Group({ title, count, children }: { title: string; count: number; children: ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false);
+function Group({
+  title,
+  count,
+  children,
+  defaultOpen = false,
+  subtitle,
+}: {
+  title: string;
+  count: number;
+  children: ReactNode;
+  defaultOpen?: boolean;
+  subtitle?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   return (
     <Accordion
       title={title}
-      subtitle={count === 1 ? '1 record' : `${count} records`}
+      subtitle={subtitle ?? (count === 1 ? '1 record' : `${count} records`)}
       isOpen={isOpen}
       onToggle={() => setIsOpen((open) => !open)}
     >
@@ -107,6 +134,8 @@ export function PortalPropertyHistory({ data, locale }: { data: PropertyHistory;
   const invoiceNumber = new Map(data.invoices.map((row) => [row.id, row.invoice_number || row.display_id]));
   const planName = new Map(data.plans.map((row) => [row.id, row.name]));
   const crm = `/${locale}/crm`;
+  const timeline = buildProPropertyTimeline(data, crm);
+  const [timelineOpen, setTimelineOpen] = useState(true);
 
   return (
     <section className="border-2 border-black rounded-lg p-4 space-y-3">
@@ -125,6 +154,15 @@ export function PortalPropertyHistory({ data, locale }: { data: PropertyHistory;
           </div>
         ))}
       </div>
+
+      <Accordion
+        title="Timeline"
+        subtitle={timeline.length === 1 ? '1 step · what you and the customer see' : `${timeline.length} steps · what you and the customer see`}
+        isOpen={timelineOpen}
+        onToggle={() => setTimelineOpen((open) => !open)}
+      >
+        <TimelineSteps steps={timeline} emptyText="Nothing on this property yet." showAudience />
+      </Accordion>
 
       <Group title="Payments" count={data.payments.length}>
         {data.payments.map((row) => (

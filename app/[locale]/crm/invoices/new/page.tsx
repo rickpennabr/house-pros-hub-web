@@ -1,5 +1,6 @@
 'use client';
 
+import { discountedTotalCents } from '@/lib/crm/document-discount';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
@@ -11,6 +12,7 @@ import {
   emptyInvoiceLine,
   invoiceLineItemsPayload,
   invoiceTotalCents,
+  invoiceDraftDiscount,
   type InvoiceBusinessShape,
   type InvoiceCustomerOption,
   type InvoiceEditorDraft,
@@ -55,6 +57,8 @@ export default function CRMNewInvoicePage() {
   const [loading, setLoading] = useState(true);
   /** Opened from a chat: go back to it after saving, and the chat attaches the invoice. */
   const chatReturnTo = safeChatReturnTo(searchParams.get('returnTo'));
+  /** Opened from "Send payment link": after saving, open the invoice with its payment link ready. */
+  const payNext = searchParams.get('pay') === '1';
 
   useEffect(() => {
     Promise.all([
@@ -95,7 +99,8 @@ export default function CRMNewInvoicePage() {
       body: JSON.stringify({
         customerId: form.customerId,
         placeId: form.placeId || null,
-        amountCents: invoiceTotalCents(lineItems),
+        amountCents: discountedTotalCents(invoiceTotalCents(lineItems), invoiceDraftDiscount(form)),
+        discount: invoiceDraftDiscount(form),
         lineItems: lineItems.length > 0 ? lineItems : null,
         invoiceDate: form.invoiceDate || todayISO(),
         dueDate: form.dueDate.trim() || form.invoiceDate || todayISO(),
@@ -117,7 +122,13 @@ export default function CRMNewInvoicePage() {
     try {
       const id = await createInvoice(form);
       await uploadPendingAttachments(id, form.pendingAttachments);
-      router.push(chatReturnTo ? chatReturnWithDoc(chatReturnTo, 'invoice', id) : `/${locale}/crm/invoices`);
+      router.push(
+        chatReturnTo
+          ? chatReturnWithDoc(chatReturnTo, 'invoice', id)
+          : payNext
+            ? `/${locale}/crm/invoices/${id}?pay=1`
+            : `/${locale}/crm/invoices`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
     } finally {
@@ -131,7 +142,11 @@ export default function CRMNewInvoicePage() {
     try {
       const id = await createInvoice(form);
       await uploadPendingAttachments(id, form.pendingAttachments);
-      router.push(chatReturnTo ? chatReturnWithDoc(chatReturnTo, 'invoice', id) : `/${locale}/crm/invoices/${id}`);
+      router.push(
+        chatReturnTo
+          ? chatReturnWithDoc(chatReturnTo, 'invoice', id)
+          : `/${locale}/crm/invoices/${id}${payNext ? '?pay=1' : ''}`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
     } finally {

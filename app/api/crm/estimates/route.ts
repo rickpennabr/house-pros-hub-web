@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { crmEstimateCreateSchema, depositWithinEstimate, normalizeEstimateAmountCents } from '@/lib/schemas/crmEstimate';
+import {
+  DISCOUNT_MIGRATION_ERROR,
+  discountColumns,
+  discountedTotalCents,
+  isMissingDiscountColumn,
+} from '@/lib/crm/document-discount';
 import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { summarizeEstimateStatuses } from '@/lib/crm/estimate-books';
@@ -191,6 +197,7 @@ export async function POST(request: NextRequest) {
       validityDate: rawBody.validityDate ?? rawBody.validity_date ?? rawBody.valid_until ?? null,
       note: rawBody.note ?? null,
       depositCents: rawBody.depositCents ?? rawBody.deposit_cents,
+      discount: rawBody.discount ?? null,
       jobArea: rawBody.jobArea ?? rawBody.job_area ?? null,
       agreementKind: rawBody.agreementKind ?? rawBody.agreement_kind,
       maintenanceFrequency: rawBody.maintenanceFrequency ?? rawBody.maintenance_frequency ?? null,
@@ -224,7 +231,9 @@ export async function POST(request: NextRequest) {
     if (!docPlace.ok) return NextResponse.json({ error: docPlace.error }, { status: 400 });
 
     const lineItems = body.lineItems ?? null;
-    const amountCents = normalizeEstimateAmountCents(lineItems);
+    const subtotalCents = normalizeEstimateAmountCents(lineItems);
+    const discount = body.discount ?? null;
+    const amountCents = discountedTotalCents(subtotalCents, discount);
     const depositCents = body.depositCents ?? 0;
     const depositError = depositWithinEstimate(depositCents, amountCents);
     if (depositError) return NextResponse.json({ error: depositError }, { status: 400 });
@@ -255,12 +264,15 @@ export async function POST(request: NextRequest) {
         job_area: jobArea,
         agreement_kind: agreementKind,
         maintenance_frequency: maintenanceFrequency,
+        // Only with a discount, so estimates still save before 159_document_discounts is applied.
+        ...(discount ? discountColumns(subtotalCents, discount) : {}),
       })
       .select('id, display_id, created_at')
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message || 'Failed to create estimate' }, { status: 500 });
+      const message = isMissingDiscountColumn(error) ? DISCOUNT_MIGRATION_ERROR : error.message || 'Failed to create estimate';
+      return NextResponse.json({ error: message }, { status: 500 });
     }
     return NextResponse.json({ id: row.id, display_id: row.display_id, created_at: row.created_at }, { status: 201 });
   } catch (err) {

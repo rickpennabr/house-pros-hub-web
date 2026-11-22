@@ -9,6 +9,14 @@ import {
   normalizeEstimateAmountCents,
 } from '@/lib/schemas/crmEstimate';
 import { issueAcceptanceDeposit } from '@/lib/crm/estimate-deposit';
+import { finishProApproval } from '@/lib/crm/accept-estimate';
+import {
+  DISCOUNT_MIGRATION_ERROR,
+  discountColumns,
+  discountedTotalCents,
+  discountFromRow,
+  isMissingDiscountColumn,
+} from '@/lib/crm/document-discount';
 import { dropDocEventsOffPlace, pickDocPlaceId } from '@/lib/places/contact-places';
 
 export async function GET(
@@ -50,6 +58,7 @@ export async function GET(
       customerEmail: customer?.email ?? null,
       amountCents: row.amount_cents,
       depositCents: row.deposit_cents ?? 0,
+      discount: discountFromRow(row),
       lineItems: row.line_items,
       status: row.status,
       dueDate: row.due_date,
@@ -87,6 +96,7 @@ export async function PUT(
       validityDate: bodyRaw.validityDate ?? bodyRaw.validity_date ?? bodyRaw.valid_until,
       note: bodyRaw.note,
       depositCents: bodyRaw.depositCents ?? bodyRaw.deposit_cents,
+      discount: bodyRaw.discount,
       jobArea: bodyRaw.jobArea ?? bodyRaw.job_area,
       agreementKind: bodyRaw.agreementKind ?? bodyRaw.agreement_kind,
       maintenanceFrequency: bodyRaw.maintenanceFrequency ?? bodyRaw.maintenance_frequency,
@@ -100,7 +110,8 @@ export async function PUT(
     const supabase = await createClient();
     const { data: currentEstimate, error: currentEstimateError } = await supabase
       .from('pro_crm_estimates')
-      .select('status, customer_id, place_id, amount_cents, deposit_cents, agreement_kind, maintenance_frequency')
+      // * so the discount columns are read when 159_document_discounts is applied.
+      .select('*')
       .eq('id', id)
       .eq('owner_id', user.id)
       .single();
@@ -109,9 +120,19 @@ export async function PUT(
     }
 
     const updates: Record<string, unknown> = {};
-    if (body.lineItems !== undefined) {
-      updates.line_items = body.lineItems;
-      updates.amount_cents = normalizeEstimateAmountCents(body.lineItems);
+    if (body.lineItems !== undefined) updates.line_items = body.lineItems;
+    // amount_cents is the line subtotal minus the discount.
+    const hasDiscountColumns = 'discount_kind' in currentEstimate;
+    const nextDiscount = body.discount !== undefined ? body.discount : discountFromRow(currentEstimate);
+    if (nextDiscount && !hasDiscountColumns) {
+      return NextResponse.json({ error: DISCOUNT_MIGRATION_ERROR }, { status: 400 });
+    }
+    if (body.lineItems !== undefined || body.discount !== undefined) {
+      const subtotal = normalizeEstimateAmountCents(
+        body.lineItems !== undefined ? body.lineItems : (currentEstimate.line_items as Parameters<typeof normalizeEstimateAmountCents>[0])
+      );
+      updates.amount_cents = discountedTotalCents(subtotal, nextDiscount);
+      if (hasDiscountColumns) Object.assign(updates, discountColumns(subtotal, nextDiscount));
     }
     if (body.status !== undefined) {
       if (!isValidEstimateStatusTransition(currentEstimate.status, body.status)) {
@@ -171,7 +192,10 @@ export async function PUT(
       .eq('id', id)
       .eq('owner_id', user.id);
 
-    if (error) return NextResponse.json({ error: error.message || 'Failed to update estimate' }, { status: 500 });
+    if (error) {
+      const message = isMissingDiscountColumn(error) ? DISCOUNT_MIGRATION_ERROR : error.message || 'Failed to update estimate';
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
     if ('place_id' in updates && updates.place_id !== currentEstimate.place_id) {
       await dropDocEventsOffPlace({ kind: 'estimate', id });
     }
@@ -179,6 +203,10 @@ export async function PUT(
     if (body.status === 'accepted' && currentEstimate.status !== 'accepted') {
       const deposit = await issueAcceptanceDeposit(supabase, id, user.id);
       if (deposit.error) depositInvoiceError = deposit.error;
+      // The pro marked it approved (the customer said yes in person or by phone): put it on the
+      // customer's portal and My Places timeline, and start the maintenance plan, as a customer
+      // approval does.
+      await finishProApproval(supabase, id);
     }
     return NextResponse.json({ ok: true, depositError: depositInvoiceError ?? null });
   } catch (err) {

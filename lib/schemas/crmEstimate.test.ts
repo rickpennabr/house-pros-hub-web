@@ -43,6 +43,7 @@ describe('crmEstimate transitions and totals', () => {
   it('allows forward status transitions only', () => {
     assert.equal(isValidEstimateStatusTransition('draft', 'sent'), true);
     assert.equal(isValidEstimateStatusTransition('sent', 'accepted'), true);
+    assert.equal(isValidEstimateStatusTransition('draft', 'accepted'), true);
     assert.equal(isValidEstimateStatusTransition('accepted', 'draft'), false);
     assert.equal(customerCanAcceptEstimate('sent'), true);
     assert.equal(customerCanAcceptEstimate('draft'), false);

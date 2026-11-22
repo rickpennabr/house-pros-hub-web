@@ -155,3 +155,34 @@ export async function acceptSentEstimate(
     maintenanceError: maintenance.error,
   };
 }
+
+/**
+ * The pro set the estimate to approved (the customer agreed in person or by phone). Put the
+ * approval on the customer's portal and My Places timeline and start the maintenance plan, as a
+ * customer's own approval does. The deposit invoice is issued by the caller.
+ */
+export async function finishProApproval(
+  supabase: Client,
+  estimateId: string
+): Promise<{ maintenancePlanId: string | null; maintenanceError: string | null }> {
+  const { data: estimate } = await supabase
+    .from('pro_crm_estimates')
+    .select('id, display_id, amount_cents, owner_id, customer_id, job_area, status')
+    .eq('id', estimateId)
+    .maybeSingle();
+  if (!estimate || estimate.status !== 'accepted') return { maintenancePlanId: null, maintenanceError: null };
+  try {
+    await recordEstimateApproved({
+      customerId: estimate.customer_id,
+      estimateId: estimate.id,
+      estimateNumber: String(estimate.display_id ?? estimate.id.slice(0, 8)),
+      amountCents: estimate.amount_cents ?? 0,
+      jobArea: estimate.job_area,
+      ownerId: estimate.owner_id,
+    });
+  } catch (error) {
+    console.error('[finishProApproval] timeline event failed', error);
+  }
+  const maintenance = await startMaintenanceFromEstimate(supabase, estimate.id);
+  return { maintenancePlanId: maintenance.planId, maintenanceError: maintenance.error };
+}

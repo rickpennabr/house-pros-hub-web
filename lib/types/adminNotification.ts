@@ -6,7 +6,11 @@ export type AdminNotificationEventType =
   | 'estimate_accepted'
   | 'booking'
   | 'incoming_email'
-  | 'maintenance';
+  | 'maintenance'
+  /** A pro answered (or never answered) a job request the admin assigned. */
+  | 'lead_accepted'
+  | 'lead_declined'
+  | 'lead_expired';
 
 export type AdminNotificationEntityType =
   | 'customer'
@@ -29,7 +33,7 @@ export interface AdminBellEvent {
 }
 
 export function adminNotificationHref(entityType: string, eventType?: string): string {
-  if (eventType === 'estimate') return '/admin/estimates';
+  if (eventType === 'estimate' || eventType?.startsWith('lead_')) return '/admin/estimates';
   if (eventType === 'maintenance') return '/admin';
   if (eventType === 'estimate_accepted') return '/admin';
   switch (entityType) {

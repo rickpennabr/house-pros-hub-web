@@ -430,6 +430,48 @@ export interface Database {
         };
         Relationships: [];
       };
+      lead_referrals: {
+        Row: {
+          id: string;
+          estimate_id: string;
+          business_id: string;
+          owner_id: string;
+          status: 'offered' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+          message_id: string | null;
+          crm_customer_id: string | null;
+          assigned_by: string | null;
+          created_at: string;
+          expires_at: string;
+          responded_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          estimate_id: string;
+          business_id: string;
+          owner_id: string;
+          status?: 'offered' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+          message_id?: string | null;
+          crm_customer_id?: string | null;
+          assigned_by?: string | null;
+          created_at?: string;
+          expires_at?: string;
+          responded_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          estimate_id?: string;
+          business_id?: string;
+          owner_id?: string;
+          status?: 'offered' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+          message_id?: string | null;
+          crm_customer_id?: string | null;
+          assigned_by?: string | null;
+          created_at?: string;
+          expires_at?: string;
+          responded_at?: string | null;
+        };
+        Relationships: [];
+      };
       probot_conversations: {
         Row: {
           id: string;
@@ -1944,6 +1986,9 @@ export interface Database {
           customer_id: string;
           place_id: string | null;
           amount_cents: number;
+          discount_kind: "percent" | "amount" | null;
+          discount_value: number;
+          discount_cents: number;
           deposit_cents: number;
           line_items: Json | null;
           status: 'draft' | 'sent' | 'accepted' | 'declined';
@@ -1978,6 +2023,9 @@ export interface Database {
           customer_id: string;
           place_id?: string | null;
           amount_cents?: number;
+          discount_kind?: "percent" | "amount" | null;
+          discount_value?: number;
+          discount_cents?: number;
           deposit_cents?: number;
           line_items?: Json | null;
           status?: 'draft' | 'sent' | 'accepted' | 'declined';
@@ -2012,6 +2060,9 @@ export interface Database {
           customer_id?: string;
           place_id?: string | null;
           amount_cents?: number;
+          discount_kind?: "percent" | "amount" | null;
+          discount_value?: number;
+          discount_cents?: number;
           deposit_cents?: number;
           line_items?: Json | null;
           status?: 'draft' | 'sent' | 'accepted' | 'declined';
@@ -2365,6 +2416,9 @@ export interface Database {
           business_id: string | null;
           invoice_number: string;
           amount_cents: number;
+          discount_kind: "percent" | "amount" | null;
+          discount_value: number;
+          discount_cents: number;
           payment_applied_cents: number;
           line_items: Json | null;
           status: 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'cancelled';
@@ -2391,6 +2445,9 @@ export interface Database {
           business_id?: string | null;
           invoice_number: string;
           amount_cents?: number;
+          discount_kind?: "percent" | "amount" | null;
+          discount_value?: number;
+          discount_cents?: number;
           payment_applied_cents?: number;
           line_items?: Json | null;
           status?: 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'cancelled';
@@ -2417,6 +2474,9 @@ export interface Database {
           business_id?: string | null;
           invoice_number?: string;
           amount_cents?: number;
+          discount_kind?: "percent" | "amount" | null;
+          discount_value?: number;
+          discount_cents?: number;
           payment_applied_cents?: number;
           line_items?: Json | null;
           status?: 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'cancelled';
@@ -2769,7 +2829,7 @@ export interface Database {
       admin_notification_events: {
         Row: {
           id: string;
-          event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance';
+          event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance' | 'lead_accepted' | 'lead_declined' | 'lead_expired';
           entity_type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id: string;
           display_name: string;
@@ -2778,7 +2838,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance';
+          event_type: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance' | 'lead_accepted' | 'lead_declined' | 'lead_expired';
           entity_type: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id: string;
           display_name: string;
@@ -2787,7 +2847,7 @@ export interface Database {
         };
         Update: {
           id?: string;
-          event_type?: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance';
+          event_type?: 'signup' | 'deletion' | 'estimate' | 'estimate_accepted' | 'booking' | 'incoming_email' | 'maintenance' | 'lead_accepted' | 'lead_declined' | 'lead_expired';
           entity_type?: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | 'business' | 'estimate' | 'booking' | 'email';
           entity_id?: string;
           display_name?: string;

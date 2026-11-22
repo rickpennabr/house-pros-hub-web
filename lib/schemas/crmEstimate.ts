@@ -5,6 +5,16 @@ export const crmEstimateStatusSchema = z.enum(['draft', 'sent', 'accepted', 'dec
 export const crmAgreementKindSchema = z.enum(AGREEMENT_KINDS);
 export const crmMaintenanceFrequencySchema = z.enum(MAINTENANCE_FREQUENCIES);
 
+/** QuickBooks-style discount: a percent of the subtotal or a dollar amount. Null clears it. */
+export const crmDocumentDiscountSchema = z
+  .object({
+    kind: z.enum(["percent", "amount"]),
+    value: z.coerce.number().min(0),
+  })
+  .refine((value) => value.kind !== "percent" || value.value <= 100, {
+    message: "A discount cannot be more than 100%",
+  });
+
 export const crmEstimateLineItemSchema = z.object({
   product_or_service: z.string().trim().min(1).nullable().optional(),
   description: z.string().trim().min(1).nullable().optional(),
@@ -23,6 +33,7 @@ export const crmEstimateCreateSchema = z
     validityDate: z.string().date().nullable().optional(),
     note: z.string().trim().max(5000).nullable().optional(),
     depositCents: z.coerce.number().int().min(0).optional(),
+    discount: crmDocumentDiscountSchema.nullable().optional(),
     /** Area of the property (Pavers, Landscape, Kitchen, …). Lands under the same My Place. */
     jobArea: z.string().trim().min(1).max(80).nullable().optional(),
     agreementKind: crmAgreementKindSchema.optional(),
@@ -48,6 +59,7 @@ export const crmEstimateUpdateSchema = z
     validityDate: z.string().date().nullable().optional(),
     note: z.string().trim().max(5000).nullable().optional(),
     depositCents: z.coerce.number().int().min(0).optional(),
+    discount: crmDocumentDiscountSchema.nullable().optional(),
     jobArea: z.string().trim().min(1).max(80).nullable().optional(),
     agreementKind: crmAgreementKindSchema.optional(),
     maintenanceFrequency: crmMaintenanceFrequencySchema.nullable().optional(),
@@ -96,7 +108,8 @@ export function depositWithinEstimate(depositCents: number, estimateCents: numbe
 
 export function isValidEstimateStatusTransition(current: string, next: string): boolean {
   if (current === next) return true;
-  if (current === 'draft' && next === 'sent') return true;
+  // The pro may mark a draft approved when the customer agreed in person or by phone.
+  if (current === 'draft' && (next === 'sent' || next === 'accepted')) return true;
   if (current === 'sent' && (next === 'accepted' || next === 'declined')) return true;
   return false;
 }
@@ -111,3 +124,11 @@ export function allowedEstimateStatuses(savedStatus: string | null | undefined):
   if (!savedStatus) return ['draft'];
   return ESTIMATE_STATUS_ORDER.filter((status) => isValidEstimateStatusTransition(savedStatus, status));
 }
+
+/** What the Status menu shows for each saved value. */
+export const ESTIMATE_STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  accepted: 'Approved',
+  declined: 'Declined',
+};

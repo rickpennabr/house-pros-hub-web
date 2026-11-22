@@ -14,6 +14,16 @@ export interface AdminEstimateRow {
   project_type: string;
   source: string;
   created_at: string;
+  /** Latest pro this request was sent to (lead_referrals), or null. */
+  assignment: AdminEstimateAssignment | null;
+}
+
+export interface AdminEstimateAssignment {
+  referralId: string;
+  businessId: string;
+  businessName: string;
+  status: 'offered' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+  at: string;
 }
 
 /**
@@ -40,6 +50,32 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch estimates' }, { status: 500 });
     }
 
+    // Latest referral per request. Missing table (migration 158 not run yet): no assignments.
+    const assignments = new Map<string, AdminEstimateAssignment>();
+    const ids = (data || []).map((row) => row.id);
+    if (ids.length) {
+      const { data: referrals } = await service
+        .from('lead_referrals')
+        .select('id, estimate_id, business_id, status, created_at')
+        .in('estimate_id', ids)
+        .order('created_at', { ascending: false });
+      const businessIds = Array.from(new Set((referrals ?? []).map((row) => row.business_id)));
+      const { data: businesses } = businessIds.length
+        ? await service.from('businesses').select('id, business_name').in('id', businessIds)
+        : { data: [] as { id: string; business_name: string }[] };
+      const names = new Map((businesses ?? []).map((row) => [row.id, row.business_name]));
+      for (const row of referrals ?? []) {
+        if (assignments.has(row.estimate_id)) continue;
+        assignments.set(row.estimate_id, {
+          referralId: row.id,
+          businessId: row.business_id,
+          businessName: names.get(row.business_id) ?? 'Pro',
+          status: row.status,
+          at: row.created_at,
+        });
+      }
+    }
+
     const estimates: AdminEstimateRow[] = (data || []).map((row) => ({
       id: row.id,
       name: `${row.first_name} ${row.last_name}`.trim(),
@@ -52,6 +88,7 @@ export async function GET() {
       project_type: row.project_type.replaceAll('_', ' '),
       source: row.source,
       created_at: row.created_at,
+      assignment: assignments.get(row.id) ?? null,
     }));
 
     return NextResponse.json({ estimates });

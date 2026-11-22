@@ -9,6 +9,15 @@ import { syncBilledExpenses } from '@/lib/crm/job-costs';
 import { parsePaidNow, settleInvoicePaidInFull } from '@/lib/crm/invoice-payments';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import { dropDocEventsOffPlace, pickDocPlaceId } from '@/lib/places/contact-places';
+import {
+  DISCOUNT_MIGRATION_ERROR,
+  discountColumns,
+  discountedTotalCents,
+  discountFromRow,
+  isMissingDiscountColumn,
+  lineSubtotalCents,
+  readDiscount,
+} from '@/lib/crm/document-discount';
 
 export async function GET(
   _request: NextRequest,
@@ -143,6 +152,7 @@ export async function GET(
       id: row.id,
       invoiceNumber: row.invoice_number,
       amountCents: row.amount_cents,
+      discount: discountFromRow(row),
       paymentAppliedCents: row.payment_applied_cents,
       lineItems: row.line_items,
       status: row.status,
@@ -236,11 +246,31 @@ export async function PATCH(
     // The house this invoice is for: one of the contact's houses, or empty for its default.
     const { data: current } = await supabase
       .from('pro_crm_invoices')
-      .select('customer_id, place_id')
+      // * so the discount columns are read when 159_document_discounts is applied.
+      .select('*')
       .eq('id', id)
       .eq('owner_id', user.id)
       .maybeSingle();
     if (!current) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    // QuickBooks-style discount: amount_cents is the line subtotal minus it.
+    if (body.discount !== undefined) {
+      const read = readDiscount(body.discount);
+      if (!read.ok) return NextResponse.json({ error: read.error }, { status: 400 });
+      const hasDiscountColumns = 'discount_kind' in current;
+      if (read.discount && !hasDiscountColumns) return NextResponse.json({ error: DISCOUNT_MIGRATION_ERROR }, { status: 400 });
+      const lines = body.lineItems !== undefined ? body.lineItems : current.line_items;
+      if (Array.isArray(lines) && lines.length > 0) {
+        const subtotal = lineSubtotalCents(lines);
+        updates.amount_cents = discountedTotalCents(subtotal, read.discount);
+        if (hasDiscountColumns) Object.assign(updates, discountColumns(subtotal, read.discount));
+      } else if (hasDiscountColumns && !read.discount) {
+        Object.assign(updates, discountColumns(0, null));
+      }
+    } else if (body.lineItems !== undefined && discountFromRow(current)) {
+      const subtotal = lineSubtotalCents(body.lineItems);
+      updates.amount_cents = discountedTotalCents(subtotal, discountFromRow(current));
+      Object.assign(updates, discountColumns(subtotal, discountFromRow(current)));
+    }
     const nextCustomerId = typeof updates.customer_id === 'string' ? updates.customer_id : current.customer_id;
     if ('placeId' in body || nextCustomerId !== current.customer_id) {
       const docPlace = await pickDocPlaceId(nextCustomerId, 'placeId' in body ? body.placeId : null);
@@ -254,7 +284,10 @@ export async function PATCH(
       .eq('id', id)
       .eq('owner_id', user.id);
 
-    if (error) return NextResponse.json({ error: error.message || 'Failed to update invoice' }, { status: 500 });
+    if (error) {
+      const message = isMissingDiscountColumn(error) ? DISCOUNT_MIGRATION_ERROR : error.message || 'Failed to update invoice';
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
     if ('place_id' in updates && updates.place_id !== current.place_id) {
       await dropDocEventsOffPlace({ kind: 'invoice', id });
     }

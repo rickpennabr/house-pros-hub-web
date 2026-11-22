@@ -34,6 +34,8 @@ import {
 import { MAINTENANCE_FREQUENCY_LABELS, type MaintenanceFrequency } from '@/lib/crm/estimate-agreement';
 import { FileDropTarget } from '@/components/ui/FileDropTarget';
 import { PlacePros } from '@/components/places/PlacePros';
+import { TimelineSteps } from '@/components/timeline/TimelineSteps';
+import { placeEventStepKind } from '@/lib/timeline/steps';
 
 /** The header FIX camera (same animation), sized to the card tile. */
 function FixCamAnimatedIcon({ className }: { className?: string }) {
@@ -593,28 +595,21 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
       {tab === 'timeline' ? (
         <section className="border-2 border-black rounded-lg p-4 space-y-3" role="tabpanel">
           <p className="text-sm text-gray-600">{t('timelineIntro')}</p>
-          {view.timeline.length === 0 ? <p className="text-sm text-gray-600">{t('noTimeline')}</p> : null}
-          <ol className="space-y-3">
-            {view.timeline.map((event) => (
-              <li key={event.id} className="relative border border-black rounded-lg px-3 py-2 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium">{event.title}</p>
-                    <p className="text-xs text-gray-600">
-                      {event.proName ? `${t('with')} ${event.proName}` : null}
-                      {event.proName && event.detail ? ' · ' : null}
-                      {event.detail}
-                      {event.jobArea ? ` · ${event.jobArea}` : null}
-                      {typeof event.amountCents === 'number' ? ` · ${money(event.amountCents)}` : null}
-                    </p>
-                  </div>
-                  <time className="shrink-0 text-xs text-gray-500 whitespace-nowrap" dateTime={event.occurredAt}>
-                    {formatWhen(event.occurredAt)}
-                  </time>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <TimelineSteps
+            emptyText={t('noTimeline')}
+            formatWhen={formatWhen}
+            steps={view.timeline.map((event) => ({
+              id: event.id,
+              kind: placeEventStepKind(event.kind),
+              at: event.occurredAt,
+              title: event.title,
+              detail:
+                [event.proName ? `${t('with')} ${event.proName}` : null, event.detail, event.jobArea]
+                  .filter(Boolean)
+                  .join(' · ') || null,
+              amountCents: typeof event.amountCents === 'number' ? event.amountCents : null,
+            }))}
+          />
         </section>
       ) : null}
 

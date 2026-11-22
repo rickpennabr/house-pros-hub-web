@@ -120,6 +120,8 @@ export interface ProAgentPayload {
   crmEstimate?: ChatCrmEstimateShare;
   /** Customer shared a My Places property with this pro. */
   placeShare?: ChatPlaceShare;
+  /** Admin sent this pro a job request from the site (Add to my CRM / Decline). */
+  leadOffer?: ChatLeadOffer;
   /** Pro shared their booking calendar; the customer picks a time from it in chat. */
   bookingInvite?: ChatBookingInvite;
   /** Pro added the shared place to their CRM; their work now shows on the customer's My Places. */
@@ -155,6 +157,25 @@ export interface ChatPlaceShare {
   address: string;
   /** Set once the pro adds the customer to their CRM. */
   crmCustomerId?: string;
+}
+
+/**
+ * A job request the admin sent to this pro (lead_referrals). Until the pro adds it to their CRM
+ * the card shows only the job, never the customer's name, phone or email.
+ */
+export interface ChatLeadOffer {
+  referralId: string;
+  projectType: string;
+  /** City, state and ZIP only. */
+  area: string;
+  description: string;
+  budget: string;
+  timeline: string;
+  photoCount: number;
+  status: 'offered' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+  /** Set once accepted. */
+  crmCustomerId?: string;
+  customerName?: string;
 }
 
 export interface ChatMessage {

@@ -10,6 +10,7 @@ import {
   type AgreementKind,
   type MaintenanceFrequency,
 } from '@/lib/crm/estimate-agreement';
+import { shownDiscount } from '@/lib/crm/document-discount';
 
 export interface CustomerEstimatePreviewData {
   estimateId: string;
@@ -98,6 +99,7 @@ export function CustomerEstimatePreview({
   approveMessage = null,
 }: CustomerEstimatePreviewProps) {
   const lineItems = useMemo(() => asLineItems(data.lineItems), [data.lineItems]);
+  const discountShown = shownDiscount(lineItems, data.amountCents);
   const [signerName, setSignerName] = useState('');
   const displayName = data.customer ? contactDisplayName(data.customer) : 'Customer';
   const kind = data.agreementKind || 'project';
@@ -230,6 +232,23 @@ export function CustomerEstimatePreview({
               </tbody>
             </table>
           </div>
+
+          {discountShown ? (
+            <div className="ml-auto w-full max-w-xs space-y-1 text-sm">
+              <div className="flex justify-between text-gray-600">
+                <span>Subtotal</span>
+                <span>{formatAmount(discountShown.subtotalCents)}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Discount</span>
+                <span>-{formatAmount(discountShown.discountCents)}</span>
+              </div>
+              <div className="flex justify-between border-t-2 border-black pt-1 font-bold">
+                <span>Total</span>
+                <span>{formatAmount(data.amountCents)}</span>
+              </div>
+            </div>
+          ) : null}
 
           {data.note ? (
             <div>

@@ -9,6 +9,7 @@ import { LuIdCard } from 'react-icons/lu';
 import { useBackgroundMode } from '@/contexts/BackgroundModeContext';
 import { DAY_CYCLE_SKY_ENABLED } from '@/lib/constants/probot';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
+import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 
 export type ViewType = 'card' | 'list' | 'map' | 'chart';
 
@@ -72,6 +73,8 @@ export default function ViewToggle({
   const locale = useLocale();
   const t = useTranslations('common');
   const { mode, setMode } = useBackgroundMode();
+  // In the CRM the 256px sidebar (md and up) takes the left side: center on the content beside it.
+  const inCrm = useCRMChrome() !== null;
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -208,7 +211,7 @@ export default function ViewToggle({
 
   const toggleEl = (
     <div
-      className={`fixed left-1/2 -translate-x-1/2 z-50 bottom-[35px] md:bottom-[75px] transition-all duration-300 ease-out ${
+      className={`fixed left-1/2 ${inCrm ? 'md:left-[calc(50%+8rem)]' : ''} -translate-x-1/2 z-50 bottom-[35px] md:bottom-[75px] transition-all duration-300 ease-out ${
         isHidden
           ? 'opacity-0 translate-y-4 pointer-events-none'
           : 'opacity-100 translate-y-0 pointer-events-auto'

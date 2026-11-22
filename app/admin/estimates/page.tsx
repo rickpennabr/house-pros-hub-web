@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, MoreVertical, Trash2 } from 'lucide-react';
+import { AlertTriangle, MoreVertical, Trash2, UserPlus } from 'lucide-react';
 import { NextIntlClientProvider } from 'next-intl';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
-import type { AdminEstimateRow } from '@/app/api/admin/estimates/route';
+import type { AdminEstimateAssignment, AdminEstimateRow } from '@/app/api/admin/estimates/route';
+import { ASSIGNMENT_CHIP, ASSIGNMENT_LABEL, AssignLeadModal } from '@/components/admin/AssignLeadModal';
 
 const TOGGLE_MESSAGES = {
   common: {
@@ -31,6 +32,7 @@ const COLUMNS: AdminDataTableColumn<AdminEstimateRow>[] = [
   { id: 'location', label: 'Location', width: 160 },
   { id: 'project_type', label: 'Project', width: 160 },
   { id: 'source', label: 'Source', width: 140 },
+  { id: 'assigned', label: 'Assigned', width: 200 },
   { id: 'created_at', label: 'Submitted', width: 140 },
   { id: 'actions', label: 'Actions', resizable: false },
 ];
@@ -78,6 +80,10 @@ function sourceLabel(source: string) {
 function cellText(row: AdminEstimateRow, columnId: string): string {
   if (columnId === 'created_at') return formatDate(row.created_at);
   if (columnId === 'source') return sourceLabel(row.source);
+  if (columnId === 'assigned') {
+    const a = row.assignment;
+    return a && a.status !== 'cancelled' ? `${a.businessName} · ${ASSIGNMENT_LABEL[a.status]}` : '';
+  }
   const value = row[columnId as keyof AdminEstimateRow];
   return typeof value === 'string' ? value : '';
 }
@@ -94,6 +100,10 @@ export default function AdminEstimatesPage() {
   const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
+  const [assignId, setAssignId] = useState<string | null>(null);
+  const assignRow = assignId ? rows.find((row) => row.id === assignId) ?? null : null;
+  const setAssignment = (estimateId: string, assignment: AdminEstimateAssignment | null) =>
+    setRows((current) => current.map((row) => (row.id === estimateId ? { ...row, assignment } : row)));
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
   const actionsButtonRef = useRef<HTMLButtonElement>(null);
@@ -217,7 +227,19 @@ export default function AdminEstimatesPage() {
         primaryColumnId="name"
         openOnFirstClick
         onRowClick={(row) => void openEstimate(row)}
-        renderCell={(row, columnId) => cellText(row, columnId) || '—'}
+        renderCell={(row, columnId) => {
+          if (columnId === 'assigned' && row.assignment && row.assignment.status !== 'cancelled') {
+            return (
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate">{row.assignment.businessName}</span>
+                <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold ${ASSIGNMENT_CHIP[row.assignment.status]}`}>
+                  {ASSIGNMENT_LABEL[row.assignment.status]}
+                </span>
+              </span>
+            );
+          }
+          return cellText(row, columnId) || '—';
+        }}
         renderActions={(row) => (
           <button
             ref={openActionsId === row.id ? actionsButtonRef : undefined}
@@ -231,8 +253,8 @@ export default function AdminEstimatesPage() {
               }
               const rect = event.currentTarget.getBoundingClientRect();
               actionsButtonRef.current = event.currentTarget;
-              const left = Math.min(rect.right - 120, window.innerWidth - 130);
-              const top = window.innerHeight - rect.bottom >= 48 ? rect.bottom + 4 : rect.top - 48;
+              const left = Math.min(rect.right - 170, window.innerWidth - 180);
+              const top = window.innerHeight - rect.bottom >= 90 ? rect.bottom + 4 : rect.top - 90;
               setMenuPosition({ top, left });
               setOpenActionsId(row.id);
             }}
@@ -345,14 +367,32 @@ export default function AdminEstimatesPage() {
                   ))}
                 </div>
               )}
-              <Button
-                type="button"
-                size="sm"
-                className="bg-red-600 hover:bg-red-700 border-red-600 text-white"
-                onClick={() => setDeleteIds([detail.id])}
-              >
-                Delete estimate
-              </Button>
+              {(() => {
+                const assignment = rows.find((row) => row.id === detail.id)?.assignment;
+                return assignment && assignment.status !== 'cancelled' ? (
+                  <p className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-gray-500">Assigned to</span>
+                    <span className="font-semibold">{assignment.businessName}</span>
+                    <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${ASSIGNMENT_CHIP[assignment.status]}`}>
+                      {ASSIGNMENT_LABEL[assignment.status]}
+                    </span>
+                  </p>
+                ) : null;
+              })()}
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={() => setAssignId(detail.id)}>
+                  <UserPlus className="mr-1.5 h-4 w-4" />
+                  Assign to a pro
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 border-red-600 text-white"
+                  onClick={() => setDeleteIds([detail.id])}
+                >
+                  Delete estimate
+                </Button>
+              </div>
             </>
           )}
         </div>
@@ -396,13 +436,37 @@ export default function AdminEstimatesPage() {
         </Modal>
       )}
 
+      <AssignLeadModal
+        estimate={
+          assignRow
+            ? { id: assignRow.id, name: assignRow.name, project: assignRow.project_type, location: assignRow.location, assignment: assignRow.assignment }
+            : null
+        }
+        onClose={() => setAssignId(null)}
+        onAssigned={setAssignment}
+      />
+
       {openActionsId && menuPosition && typeof document !== 'undefined' &&
         createPortal(
           <div
             ref={actionsMenuRef}
-            className="fixed z-[100] min-w-[120px] py-1 bg-white border border-gray-200 rounded-md shadow-lg"
+            className="fixed z-[100] min-w-[170px] py-1 bg-white border border-gray-200 rounded-md shadow-lg"
             style={{ top: menuPosition.top, left: menuPosition.left }}
           >
+            <button
+              type="button"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-black cursor-pointer"
+              onClick={(event) => {
+                event.stopPropagation();
+                const id = openActionsId;
+                setOpenActionsId(null);
+                setMenuPosition(null);
+                if (id) setAssignId(id);
+              }}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Assign to a pro
+            </button>
             <button
               type="button"
               className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600 cursor-pointer"

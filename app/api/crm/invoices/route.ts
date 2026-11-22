@@ -14,6 +14,15 @@ import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import type { Json } from '@/lib/types/supabase';
 import { safeTimeZone } from '@/lib/crm/estimate-chart';
 import { buildInvoiceChart, type InvoiceChart } from '@/lib/crm/list-charts';
+import {
+  DISCOUNT_MIGRATION_ERROR,
+  discountColumns,
+  discountedTotalCents,
+  discountFromRow,
+  isMissingDiscountColumn,
+  lineSubtotalCents,
+  readDiscount,
+} from '@/lib/crm/document-discount';
 import { pickDocPlaceId } from '@/lib/places/contact-places';
 
 const VALID_SORT = ['created_at', 'updated_at', 'status', 'invoice_date', 'due_date', 'amount_cents', 'invoice_number'] as const;
@@ -223,6 +232,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: progress.error }, { status });
       }
 
+      // The first invoice for the whole estimate copies its lines at full price, so it carries the
+      // estimate's discount too (the lines then add up to more than the amount billed).
+      const estimateDiscount = discountFromRow(estimate);
+      const copiedSubtotal = lineSubtotalCents(progress.lineItems);
+      const carriedDiscount =
+        estimateDiscount && copiedSubtotal > progress.amountCents
+          ? { ...discountColumns(copiedSubtotal, estimateDiscount), discount_cents: copiedSubtotal - progress.amountCents }
+          : {};
+
       const invoiceNumber = await getNextInvoiceNumber(supabase, user.id);
       const { data: settings } = await supabase
         .from('pro_invoice_settings')
@@ -253,6 +271,7 @@ export async function POST(request: NextRequest) {
           note: progress.note,
           converted_from_estimate_at: new Date().toISOString(),
           converted_from_estimate_by: user.id,
+          ...carriedDiscount,
         })
         .select('id, display_id, invoice_number, created_at')
         .single();
@@ -260,7 +279,9 @@ export async function POST(request: NextRequest) {
       if (error) {
         const message = error.message.includes('idx_pro_crm_invoices_owner_estimate_unique')
           ? 'Run the progress billing database update before invoicing this estimate again.'
-          : error.message || 'Failed to create invoice';
+          : isMissingDiscountColumn(error)
+            ? DISCOUNT_MIGRATION_ERROR
+            : error.message || 'Failed to create invoice';
         return NextResponse.json({ error: message }, { status: 500 });
       }
       const finished = await finishNewInvoice(supabase, user.id, row.id, progress.lineItems, paidNow.paidNow ? paidNow.method : null, request);
@@ -297,8 +318,14 @@ export async function POST(request: NextRequest) {
       .single();
     const businessId = (settings as { default_business_id?: string } | null)?.default_business_id ?? null;
 
-    const amountCents = typeof body.amountCents === 'number' ? body.amountCents : Math.round(parseFloat(String(body.amountCents || 0)) * 100) || 0;
     const lineItems = body.lineItems ?? body.line_items ?? null;
+    const readDiscountResult = readDiscount(body.discount);
+    if (!readDiscountResult.ok) return NextResponse.json({ error: readDiscountResult.error }, { status: 400 });
+    const discount = readDiscountResult.discount;
+    const typedAmountCents = typeof body.amountCents === 'number' ? body.amountCents : Math.round(parseFloat(String(body.amountCents || 0)) * 100) || 0;
+    // With a discount the total is the line subtotal minus it, worked out here.
+    const discountSubtotal = discount && Array.isArray(lineItems) ? lineSubtotalCents(lineItems) : 0;
+    const amountCents = discount && Array.isArray(lineItems) ? discountedTotalCents(discountSubtotal, discount) : typedAmountCents;
     const invoiceDate = body.invoiceDate ?? body.invoice_date ?? new Date().toISOString().slice(0, 10);
     const dueDateRaw = body.dueDate ?? body.due_date;
     const dueDate =
@@ -327,12 +354,15 @@ export async function POST(request: NextRequest) {
         payment_terms: paymentTerms,
         note,
         company_display: companyDisplay,
+        // Only with a discount, so invoices still save before 159_document_discounts is applied.
+        ...(discount && Array.isArray(lineItems) ? discountColumns(discountSubtotal, discount) : {}),
       })
       .select('id, display_id, invoice_number, created_at')
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message || 'Failed to create invoice' }, { status: 500 });
+      const message = isMissingDiscountColumn(error) ? DISCOUNT_MIGRATION_ERROR : error.message || 'Failed to create invoice';
+      return NextResponse.json({ error: message }, { status: 500 });
     }
     const finished = await finishNewInvoice(supabase, user.id, row.id, lineItems, paidNow.paidNow ? paidNow.method : null, request);
     if (finished.error) return NextResponse.json({ error: finished.error }, { status: finished.status });

@@ -17,6 +17,13 @@ import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { EstimateDocumentForm } from '@/components/estimates/EstimateDocumentForm';
 import { ProgressInvoiceDialog } from '@/components/invoices/ProgressInvoiceDialog';
+import {
+  discountedTotalCents,
+  discountFormText,
+  discountFromForm,
+  type DiscountKind,
+  type DocumentDiscount,
+} from '@/lib/crm/document-discount';
 import { CustomerEstimatePreview, type CustomerEstimatePreviewData } from '@/components/estimates/CustomerEstimatePreview';
 import { AddProductServicePanel, type ProCrmItem } from '@/components/invoices/AddProductServicePanel';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
@@ -48,6 +55,7 @@ const STATUS_OPTIONS = ['draft', 'sent', 'accepted', 'declined'] as const;
 
 function statusOptionLabel(value: string) {
   if (!value) return 'All';
+  if (value === 'accepted') return 'Approved';
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
@@ -174,6 +182,13 @@ export default function CRMEstimatesPage() {
   const [formDueDate, setFormDueDate] = useState(getDefaultEstimateValidityDate());
   const [formNote, setFormNote] = useState('');
   const [formDeposit, setFormDeposit] = useState('');
+  const [formDiscountKind, setFormDiscountKind] = useState<DiscountKind>('percent');
+  const [formDiscountValue, setFormDiscountValue] = useState('');
+  const [convertingToInvoice, setConvertingToInvoice] = useState(false);
+  const applyDiscount = (discount: DocumentDiscount | null | undefined) => {
+    setFormDiscountKind(discount?.kind ?? 'percent');
+    setFormDiscountValue(discountFormText(discount));
+  };
   const [formJobArea, setFormJobArea] = useState('');
   const [formAgreementKind, setFormAgreementKind] = useState<AgreementKind>('project');
   const [formMaintenanceFrequency, setFormMaintenanceFrequency] = useState<MaintenanceFrequency | ''>('');
@@ -305,6 +320,7 @@ export default function CRMEstimatesPage() {
         setFormDueDate(data.dueDate ? data.dueDate.slice(0, 10) : '');
         setFormNote(data.note ?? '');
         setFormDeposit(data.depositCents ? (Number(data.depositCents) / 100).toFixed(2) : '');
+        applyDiscount(data.discount);
         setFormJobArea(typeof data.jobArea === 'string' ? data.jobArea : '');
         setFormAgreementKind((data.agreementKind as AgreementKind) || 'project');
         setFormMaintenanceFrequency((data.maintenanceFrequency as MaintenanceFrequency) || '');
@@ -313,6 +329,7 @@ export default function CRMEstimatesPage() {
         if (!cancelled) {
           setEditingData({ customerId: '', amountCents: 0, status: 'draft', dueDate: '', note: '', estimateNumber: '', customerEmail: null });
           setFormDeposit('');
+          applyDiscount(null);
           setFormJobArea('');
           setFormAgreementKind('project');
           setFormMaintenanceFrequency('');
@@ -418,6 +435,7 @@ export default function CRMEstimatesPage() {
       setFormDueDate(getDefaultEstimateValidityDate());
       setFormNote(draft.note);
       setFormDeposit(data.depositCents ? (Number(data.depositCents) / 100).toFixed(2) : '');
+      applyDiscount(data.discount);
       setFormJobArea(typeof data.jobArea === 'string' ? data.jobArea : '');
       setFormAgreementKind((data.agreementKind as AgreementKind) || 'project');
       setFormMaintenanceFrequency((data.maintenanceFrequency as MaintenanceFrequency) || '');
@@ -580,10 +598,13 @@ export default function CRMEstimatesPage() {
 
   // Same rules as the chat's estimate window (lib/crm/estimate-form).
   const lineItemsPayload = estimateLinesPayload(formLineItems);
-  const totalAmountCents = estimateTotalCents(formLineItems);
+  const formDiscount = discountFromForm(formDiscountKind, formDiscountValue);
+  // The total after the discount: the deposit is checked against it.
+  const totalAmountCents = discountedTotalCents(estimateTotalCents(formLineItems), formDiscount);
   const syncEstimateLinesToReusableItems = syncEstimateLinesToCatalog;
   const depositPayload = () => estimateDeposit(formDeposit, totalAmountCents);
   const getCreateEstimateValidationError = (): string | null =>
+    depositPayload().error ??
     estimateFormError({
       customerId: formCustomerId,
       lines: formLineItems,
@@ -616,6 +637,7 @@ export default function CRMEstimatesPage() {
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
           depositCents: depositPayload().cents,
+          discount: formDiscount,
           jobArea: formJobArea.trim() || null,
           placeId: formPlaceId || null,
           agreementKind: formAgreementKind,
@@ -637,6 +659,7 @@ export default function CRMEstimatesPage() {
       setFormDueDate(getDefaultEstimateValidityDate());
       setFormNote('');
       setFormDeposit('');
+      applyDiscount(null);
       setFormJobArea('');
       setFormAgreementKind('project');
       setFormMaintenanceFrequency('');
@@ -671,6 +694,7 @@ export default function CRMEstimatesPage() {
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
           depositCents: depositPayload().cents,
+          discount: formDiscount,
           jobArea: formJobArea.trim() || null,
           placeId: formPlaceId || null,
           agreementKind: formAgreementKind,
@@ -698,12 +722,12 @@ export default function CRMEstimatesPage() {
     }
   };
 
-  const handleSubmitEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingId) return;
+  /** Save the open estimate. statusOverride saves it with that status (Convert to invoice approves it). */
+  const saveEdit = async (statusOverride?: string): Promise<boolean> => {
+    if (!editingId) return false;
     if (!formCustomerId) {
       setFormError('Select a customer');
-      return;
+      return false;
     }
     const hasInvalidLine = formLineItems.some((line) => {
       const touched =
@@ -716,7 +740,7 @@ export default function CRMEstimatesPage() {
     });
     if (hasInvalidLine) {
       setFormError('Choose a product or service from reusable items before saving.');
-      return;
+      return false;
     }
     const hasExactDuplicateLines = (() => {
       const seen = new Set<string>();
@@ -736,12 +760,12 @@ export default function CRMEstimatesPage() {
     })();
     if (hasExactDuplicateLines) {
       setFormError('You have a duplicated item on your estimate. Modify one before creating.');
-      return;
+      return false;
     }
     const deposit = depositPayload();
     if (deposit.error) {
       setFormError(deposit.error);
-      return;
+      return false;
     }
     setFormError(null);
     const amountCents = totalAmountCents;
@@ -756,10 +780,11 @@ export default function CRMEstimatesPage() {
           customerId: formCustomerId || undefined,
           amountCents,
           lineItems: lineItemsToSend,
-          status: formStatus,
+          status: statusOverride ?? formStatus,
           dueDate: formDueDate || null,
           note: formNote.trim() || null,
           depositCents: depositPayload().cents,
+          discount: formDiscount,
           jobArea: formJobArea.trim() || null,
           placeId: formPlaceId || null,
           agreementKind: formAgreementKind,
@@ -770,16 +795,44 @@ export default function CRMEstimatesPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to update estimate');
       if (typeof data.depositError === 'string' && data.depositError) setError(data.depositError);
       await syncEstimateLinesToReusableItems(lineItemsToSend ?? []);
-      setViewMode('table');
-      setEditingId(null);
-      setEditingData(null);
-      fetchEstimates();
+      return true;
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Request failed');
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  const handleSubmitEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!(await saveEdit())) return;
+    setViewMode('table');
+    setEditingId(null);
+    setEditingData(null);
+    fetchEstimates();
+  };
+
+  /**
+   * QuickBooks-style Convert to invoice: save the estimate as approved (the customer agreed),
+   * then open the invoice step for the full balance or a progress amount.
+   */
+  const handleConvertToInvoice = async () => {
+    if (!editingId || convertingToInvoice) return;
+    setConvertingToInvoice(true);
+    try {
+      const saved = await saveEdit(editingData?.status === 'declined' ? undefined : 'accepted');
+      if (!saved) return;
+      setFormStatus('accepted');
+      setEditingData((current) => (current ? { ...current, status: 'accepted' } : current));
+      fetchEstimates();
+      setProgressEstimateId(editingId);
+    } finally {
+      setConvertingToInvoice(false);
+    }
+  };
+
+
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const applyStatusFilter = (value: string) => {
@@ -910,7 +963,7 @@ export default function CRMEstimatesPage() {
               pins={estimates.map((row) => ({
                 id: row.id,
                 title: listedCustomerName(row) || 'Estimate',
-                detail: `${row.status} · ${formatAmount(row.amount_cents)}`,
+                detail: `${statusOptionLabel(row.status)} · ${formatAmount(row.amount_cents)}`,
                 address: row.customerAddress || '',
               }))}
               onOpen={(id) => {
@@ -1077,6 +1130,18 @@ export default function CRMEstimatesPage() {
                   : undefined
               }
               presentLoading={Boolean(editingId && presentLoadingId === editingId)}
+              discountKind={formDiscountKind}
+              discountValue={formDiscountValue}
+              onDiscountChange={(kind, value) => {
+                setFormDiscountKind(kind);
+                setFormDiscountValue(value);
+              }}
+              onConvertToInvoice={
+                viewMode === 'edit' && editingId && editingData && editingData.status !== 'declined'
+                  ? () => void handleConvertToInvoice()
+                  : undefined
+              }
+              convertLoading={convertingToInvoice}
               onOpenAddReusableItem={(rowIndex) => {
                 setAddItemPanelRowIndex(typeof rowIndex === 'number' ? rowIndex : null);
                 setAddItemPanelOpen(true);
@@ -1169,7 +1234,7 @@ export default function CRMEstimatesPage() {
                   type="button"
                   className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={estimates.find((row) => row.id === openActionsId)?.status !== 'accepted'}
-                  title={estimates.find((row) => row.id === openActionsId)?.status === 'accepted' ? undefined : 'Accept the estimate before creating an invoice'}
+                  title={estimates.find((row) => row.id === openActionsId)?.status === 'accepted' ? undefined : 'Approve the estimate before creating an invoice'}
                   onClick={() => openProgressInvoice(openActionsId)}
                 >
                   <FileCheck className="w-3.5 h-3.5" /> Create invoice
@@ -1178,7 +1243,7 @@ export default function CRMEstimatesPage() {
                   type="button"
                   className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={convertingId === openActionsId || estimates.find((row) => row.id === openActionsId)?.status !== 'accepted'}
-                  title={estimates.find((row) => row.id === openActionsId)?.status === 'accepted' ? undefined : 'Accept the estimate before creating a project'}
+                  title={estimates.find((row) => row.id === openActionsId)?.status === 'accepted' ? undefined : 'Approve the estimate before creating a project'}
                   onClick={() => handleConvertToProject(openActionsId)}
                 >
                   <FolderPlus className="w-3.5 h-3.5" /> Convert to project

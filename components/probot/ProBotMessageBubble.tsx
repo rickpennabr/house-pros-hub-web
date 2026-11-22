@@ -9,6 +9,7 @@ import { ChatMediaAttachment } from '@/components/chat/ChatMediaAttachment';
 import ChatEstimateShareCard from '@/components/chat/ChatEstimateShareCard';
 import ChatInvoiceShareCard from '@/components/chat/ChatInvoiceShareCard';
 import ChatDocCard, { CHAT_DOC_BUBBLE_WIDTH } from '@/components/chat/ChatDocCard';
+import { LeadOfferCard } from '@/components/probot/LeadOfferCard';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import type { ChatCrmEstimateShare, ChatMessage } from '@/lib/types/chat';
 import ProAgentCards from './ProAgentCards';
@@ -80,14 +81,15 @@ export default function ProBotMessageBubble({
   /** ProBot's reply while it is still being written (ProBotChatArea adds it as "stream-…"). */
   const isDraft = msg.sender === 'admin' && msg.id.startsWith('stream-');
   /** Place cards replace their plain-text body. */
-  const showBody = Boolean(body.trim()) && !msg.payload?.placeShare && !msg.payload?.placeLinked;
+  const showBody = Boolean(body.trim()) && !msg.payload?.placeShare && !msg.payload?.placeLinked && !msg.payload?.leadOffer;
   /** Document cards share one width, whatever the caption length. */
   const hasDocCard = Boolean(
     msg.payload?.crmEstimate ||
       msg.payload?.crmInvoice ||
       msg.payload?.bookingInvite ||
       msg.payload?.placeShare ||
-      msg.payload?.placeLinked
+      msg.payload?.placeLinked ||
+      msg.payload?.leadOffer
   );
 
   /**
@@ -399,6 +401,9 @@ export default function ProBotMessageBubble({
               ) : null}
               </div>
             </ChatDocCard>
+          ) : null}
+          {msg.payload?.leadOffer ? (
+            <LeadOfferCard key={`${msg.payload.leadOffer.referralId}-${msg.payload.leadOffer.status}`} lead={msg.payload.leadOffer} canAnswer={!isAdminView} />
           ) : null}
           {msg.payload?.placeLinked ? (
             <ChatDocCard

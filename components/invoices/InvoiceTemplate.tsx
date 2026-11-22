@@ -3,6 +3,7 @@
 import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { DocumentBrandHeader } from '@/components/documents/DocumentBrandHeader';
+import { shownDiscount } from '@/lib/crm/document-discount';
 
 export interface InvoiceLineItem {
   product_or_service?: string | null;
@@ -89,6 +90,7 @@ export function InvoiceTemplate({
 }: InvoiceTemplateProps) {
   const paymentApplied = invoice.payment_applied_cents ?? 0;
   const balanceDue = Math.max(0, invoice.amount_cents - paymentApplied);
+  const discountShown = shownDiscount(invoice.line_items, invoice.amount_cents);
   const lineItems: InvoiceLineItem[] = Array.isArray(invoice.line_items)
     ? invoice.line_items
     : [];
@@ -197,6 +199,18 @@ export function InvoiceTemplate({
       {/* Totals + Status */}
       <div className="flex flex-col items-end gap-2 mb-6">
         <div className="w-full max-w-xs space-y-1 text-sm">
+          {discountShown ? (
+            <>
+              <div className="flex justify-between text-gray-600">
+                <span>Subtotal</span>
+                <span>{formatCurrency(discountShown.subtotalCents)}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Discount</span>
+                <span>-{formatCurrency(discountShown.discountCents)}</span>
+              </div>
+            </>
+          ) : null}
           <div className="flex justify-between font-semibold">
             <span>Total</span>
             <span>{formatCurrency(invoice.amount_cents)}</span>

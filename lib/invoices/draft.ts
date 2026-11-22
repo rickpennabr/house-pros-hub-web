@@ -1,6 +1,7 @@
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
 import type { PaymentMethod } from '@/lib/crm/invoice-books';
 import type { CompanyDisplayOverride } from '@/lib/invoices/companyDisplay';
+import { discountFromForm, type DiscountKind, type DocumentDiscount } from '@/lib/crm/document-discount';
 
 export interface InvoicePendingAttachment {
   id: string;
@@ -65,6 +66,9 @@ export interface InvoiceEditorDraft {
   /** Record a payment for the full total while saving. */
   paidNow: boolean;
   paidNowMethod: PaymentMethod;
+  /** QuickBooks-style discount: percent or dollars, typed in the form. Empty value: none. */
+  discountKind?: DiscountKind;
+  discountValue?: string;
 }
 
 export const EMPTY_INVOICE_BUSINESS: InvoiceBusinessShape = {
@@ -107,4 +111,9 @@ export function invoiceLineItemsPayload(lines: InvoiceLineItem[]): InvoiceLinePa
 export function invoiceTotalCents(lines: InvoiceLinePayload[]): number {
   if (lines.length === 0) return 0;
   return lines.reduce((sum, line) => sum + line.amount_cents, 0);
+}
+
+/** The discount the draft sends to the API (null for none). */
+export function invoiceDraftDiscount(draft: Pick<InvoiceEditorDraft, 'discountKind' | 'discountValue'>): DocumentDiscount | null {
+  return discountFromForm(draft.discountKind ?? 'percent', draft.discountValue ?? '');
 }

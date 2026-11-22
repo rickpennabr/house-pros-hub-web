@@ -14,7 +14,9 @@ import { contactDisplayName } from '@/lib/crm/contact-name';
 import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
 import { ContactPropertySelect } from '@/components/crm/ContactPropertySelect';
 import type { ContactProperty } from '@/lib/places/contact-places';
-import { allowedEstimateStatuses } from '@/lib/schemas/crmEstimate';
+import { allowedEstimateStatuses, ESTIMATE_STATUS_LABELS } from '@/lib/schemas/crmEstimate';
+import { DiscountField } from '@/components/documents/DiscountField';
+import { discountCents as discountCentsFor, discountFromForm, type DiscountKind } from '@/lib/crm/document-discount';
 import {
   DocumentBrandHeader,
   type DocumentBrandBusiness,
@@ -90,6 +92,13 @@ interface EstimateDocumentFormProps {
   /** Opens the customer view fullscreen on this device (phone/tablet handoff). */
   onPresentOnDevice?: () => void;
   presentLoading?: boolean;
+  /** QuickBooks-style discount under Subtotal. Hidden when onDiscountChange is not passed. */
+  discountKind?: DiscountKind;
+  discountValue?: string;
+  onDiscountChange?: (kind: DiscountKind, value: string) => void;
+  /** Saves the estimate as approved and opens the invoice step. Shown in edit mode. */
+  onConvertToInvoice?: () => void;
+  convertLoading?: boolean;
 }
 
 function formatAmount(cents: number) {
@@ -142,6 +151,11 @@ export function EstimateDocumentForm({
   reviewSending = false,
   onPresentOnDevice,
   presentLoading = false,
+  discountKind = 'percent',
+  discountValue = '',
+  onDiscountChange,
+  onConvertToInvoice,
+  convertLoading = false,
 }: EstimateDocumentFormProps) {
   const [editingRateRowIndex, setEditingRateRowIndex] = useState<number | null>(null);
   const [editingRateValue, setEditingRateValue] = useState('');
@@ -228,7 +242,9 @@ export function EstimateDocumentForm({
     .map((line) => ({
       amount_cents: line.amount_cents,
     }));
-  const totalAmountCents = lineItemsPayload.reduce((sum, line) => sum + line.amount_cents, 0);
+  const subtotalCents = lineItemsPayload.reduce((sum, line) => sum + line.amount_cents, 0);
+  const discountAmountCents = onDiscountChange ? discountCentsFor(subtotalCents, discountFromForm(discountKind, discountValue)) : 0;
+  const totalAmountCents = subtotalCents - discountAmountCents;
 
   const addLine = () => {
     onLineItemsChange([
@@ -359,7 +375,7 @@ export function EstimateDocumentForm({
                   <Select value={status} onChange={(e) => onStatusChange(e.target.value)}>
                     {allowedEstimateStatuses(savedStatus).map((option) => (
                       <option key={option} value={option}>
-                        {option}
+                        {ESTIMATE_STATUS_LABELS[option] ?? option}
                       </option>
                     ))}
                   </Select>
@@ -610,8 +626,18 @@ export function EstimateDocumentForm({
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal</span>
-                  <span>{formatAmount(totalAmountCents)}</span>
+                  <span>{formatAmount(subtotalCents)}</span>
                 </div>
+                {onDiscountChange ? (
+                  <DiscountField
+                    kind={discountKind}
+                    value={discountValue}
+                    onChange={onDiscountChange}
+                    discountCents={discountAmountCents}
+                    formatAmount={formatAmount}
+                    disabled={saving}
+                  />
+                ) : null}
                 <div className="flex justify-between font-bold text-base pt-2 border-t-2 border-black mt-2">
                   <span>Total</span>
                   <span>{formatAmount(totalAmountCents)}</span>
@@ -662,6 +688,18 @@ export function EstimateDocumentForm({
                   disabled={saving || presentLoading}
                 >
                   {presentLoading ? 'Opening…' : 'Present on device'}
+                </Button>
+              ) : null}
+              {onConvertToInvoice ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={onConvertToInvoice}
+                  disabled={saving || convertLoading}
+                  title={savedStatus === 'accepted' ? undefined : 'Saves this estimate as approved, then creates the invoice'}
+                >
+                  {convertLoading ? 'Converting…' : 'Convert to invoice'}
                 </Button>
               ) : null}
               {onReviewAndSend && (

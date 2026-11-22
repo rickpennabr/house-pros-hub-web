@@ -33,6 +33,34 @@ async function loadContacts(): Promise<ContactOption[]> {
   }
 }
 
+/** Every property of contacts that have more than one, keyed by contact id. */
+async function loadContactProperties(): Promise<Record<string, ContactProperty[]>> {
+  try {
+    const res = await fetch("/api/crm/customers/properties", {
+      credentials: "include",
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data.byCustomer ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function propertyAddress(property: ContactProperty) {
+  return [property.street, property.city, property.state, property.zipCode]
+    .filter(Boolean)
+    .join(", ");
+}
+
+/** One picker row: a contact, or one of the properties of a contact that has several. */
+interface ContactRow {
+  key: string;
+  contact: ContactOption;
+  property: ContactProperty | null;
+  address: string;
+}
+
 interface ContactOption {
   id: string;
   first_name: string | null;
@@ -66,6 +94,9 @@ export default function AddMaintenanceHousePage() {
   const backHref = `/${locale}/crm/maintenance`;
 
   const [contacts, setContacts] = useState<ContactOption[] | null>(null);
+  const [propertiesByContact, setPropertiesByContact] = useState<
+    Record<string, ContactProperty[]>
+  >({});
   const [contactFilter, setContactFilter] = useState("");
   const [customerId, setCustomerId] = useState(
     searchParams.get("customerId") || "",
@@ -83,34 +114,62 @@ export default function AddMaintenanceHousePage() {
   useEffect(() => {
     let cancelled = false;
     void loadContacts().then((list) => !cancelled && setContacts(list));
+    void loadContactProperties().then(
+      (map) => !cancelled && setPropertiesByContact(map),
+    );
     return () => {
       cancelled = true;
     };
   }, []);
 
+  // A contact with several properties gets one row per property.
+  const contactRows = useMemo<ContactRow[]>(
+    () =>
+      (contacts ?? []).flatMap<ContactRow>((contact) => {
+        const props = propertiesByContact[contact.id];
+        if (!props || props.length < 2)
+          return [
+            {
+              key: contact.id,
+              contact,
+              property: null,
+              address: contactAddress(contact),
+            },
+          ];
+        return props.map((property) => ({
+          key: `${contact.id}:${property.id}`,
+          contact,
+          property,
+          address: propertyAddress(property),
+        }));
+      }),
+    [contacts, propertiesByContact],
+  );
+
   const visibleContacts = useMemo(() => {
     const query = contactFilter.trim().toLowerCase();
-    const list = contacts ?? [];
     const matches = query
-      ? list.filter((contact) =>
-          `${contactDisplayName(contact)} ${contactAddress(contact)}`
+      ? contactRows.filter((row) =>
+          `${contactDisplayName(row.contact)} ${row.property?.name ?? ""} ${row.address}`
             .toLowerCase()
             .includes(query),
         )
-      : list;
+      : contactRows;
     return matches.slice(0, 50);
-  }, [contacts, contactFilter]);
+  }, [contactRows, contactFilter]);
 
   const selected = contacts?.find((contact) => contact.id === customerId);
 
-  const pickContact = (id: string) => {
+  const pickContact = (id: string, property: ContactProperty | null = null) => {
     setCustomerId(id);
     setPickerOpen(false);
     setContactFilter("");
     setProperties([]);
     setExistingHouseId(null);
     setError(null);
-    setValues((current) => ({ ...current, placeId: "" }));
+    // The default property is the empty value.
+    const placeId = property && !property.isDefault ? property.id : "";
+    setValues((current) => ({ ...current, placeId }));
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -228,20 +287,26 @@ export default function AddMaintenanceHousePage() {
                 />
                 {pickerOpen && contacts !== null ? (
                   <ul className="absolute left-0 right-0 z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border-2 border-black bg-white shadow-lg">
-                    {visibleContacts.map((contact) => (
-                      <li key={contact.id}>
+                    {visibleContacts.map((row) => (
+                      <li key={row.key}>
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => pickContact(contact.id)}
+                          onClick={() => pickContact(row.contact.id, row.property)}
                           className="block w-full px-3 py-2 text-left hover:bg-gray-50"
                         >
                           <div className="text-sm font-medium">
-                            {contactDisplayName(contact)}
+                            {contactDisplayName(row.contact)}
+                            {row.property ? (
+                              <span className="font-normal text-gray-600">
+                                {" "}
+                                · {row.property.name}
+                              </span>
+                            ) : null}
                           </div>
-                          {contactAddress(contact) ? (
+                          {row.address ? (
                             <div className="text-xs text-gray-600">
-                              {contactAddress(contact)}
+                              {row.address}
                             </div>
                           ) : null}
                         </button>
