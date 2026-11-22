@@ -5,6 +5,7 @@ import {
   validateChatAttachmentMagicBytes,
   getExtensionFromMimeType,
   MAX_FILE_SIZES,
+  CHAT_ATTACHMENT_ALLOWED_LABEL,
 } from '@/lib/utils/fileValidation';
 import { z } from 'zod';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
@@ -19,8 +20,9 @@ const visitorIdSchema = z.string().trim().min(1).max(100);
 
 /**
  * POST /api/storage/upload-chat-attachment
- * Upload one or more chat attachments (images, PDF, video, or voice). Max 10 files.
- * Photos, PDFs, and voice notes are 10MB. Video is 25MB.
+ * Upload one or more chat attachments: photos, PDF and Office documents, text/CSV, video, audio.
+ * Max 10 files. Each file's type is sniffed from its bytes (ALLOWED_CHAT_ATTACHMENT_TYPES).
+ * Video is 25MB; everything else 10MB.
  * Returns [{ url, name, contentType }].
  * Path is derived from server-validated conversation ownership (visitor or admin/contractor with access).
  */
@@ -122,7 +124,7 @@ export async function POST(request: NextRequest) {
     for (const file of flat) {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      const validation = await validateChatAttachmentMagicBytes(buffer);
+      const validation = await validateChatAttachmentMagicBytes(buffer, file.name);
       const isVideo = validation.mimeType?.startsWith('video/') === true && !file.name.startsWith('voice-note');
       const sizeLimit = isVideo ? MAX_FILE_SIZES.chatVideo : MAX_FILE_SIZES.chat;
       if (file.size > sizeLimit) {
@@ -133,11 +135,17 @@ export async function POST(request: NextRequest) {
         );
       }
       if (!validation.isValid || !validation.mimeType) {
-        const allowed = 'JPEG, PNG, WebP, PDF, MP4, MOV, WebM, and voice notes';
-        const hint =
-          file.name.toLowerCase().endsWith('.pdf')
-            ? ' PDFs must be under 10MB and start with %PDF.'
-            : '';
+        const allowed = CHAT_ATTACHMENT_ALLOWED_LABEL;
+        const lower = file.name.toLowerCase();
+        const hint = lower.endsWith('.pdf')
+          ? ' PDFs must be under 10MB and start with %PDF.'
+          : /\.(docm|xlsm|pptm)$/.test(lower) || validation.mimeType?.includes('officedocument')
+            ? ' Office files with macros are blocked for safety. Save it as a normal .docx, .xlsx or .pptx.'
+            : /\.(doc|xls|ppt)$/.test(lower)
+              ? ' Save older Office files as .docx, .xlsx or .pptx first.'
+              : /\.(zip|rar|7z|exe|msi|bat|cmd|js|html?|svg)$/.test(lower)
+                ? ' Archives, programs, scripts and web pages are blocked for safety.'
+                : '';
         return NextResponse.json(
           { error: `Invalid file type for "${file.name}". Allowed: ${allowed}.${hint}` },
           { status: 400 }
@@ -152,6 +160,7 @@ export async function POST(request: NextRequest) {
         .upload(filePath, buffer, {
           cacheControl: '86400',
           upsert: false,
+          // The sniffed type, never the browser's (text is text/plain or text/csv: it never renders as a page).
           contentType: validation.mimeType,
         });
 

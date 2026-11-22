@@ -54,6 +54,10 @@ export const businessSchema = z.object({
   businessLogo: z.string().optional(),
   businessBackground: z.string().optional(),
   businessBackgroundPosition: z.string().optional(),
+  /** Trade the pro identifies with (lib/pros/house-trades.ts slug). */
+  primaryTrade: z.string().trim().max(40).optional(),
+  /** Other trades they also do. */
+  trades: z.array(z.string().trim().max(40)).max(8).optional().default([]),
   licenses: z.array(licenseItemSchema).min(1, 'At least one license is required'),
   services: z.array(z.object({
     name: z.string().trim().min(1, 'Service name is required'),

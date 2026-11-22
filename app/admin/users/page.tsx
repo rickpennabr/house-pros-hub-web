@@ -11,13 +11,34 @@ import { Select } from '@/components/ui/Select';
 import Modal from '@/components/ui/Modal';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import type { AdminUserRow } from '@/app/api/admin/users/route';
+import { houseTrade, houseTradeTitle } from '@/lib/pros/house-trades';
 
 const ROLE_FILTERS = ['all', 'admin', 'customer', 'contractor', 'realtor', 'installer', 'handyman'] as const;
 type RoleFilter = (typeof ROLE_FILTERS)[number];
 
+const ROLE_LABEL: Record<string, string> = {
+  all: 'All',
+  admin: 'Admin',
+  customer: 'Customer',
+  contractor: 'House Pros',
+  realtor: 'Realtor',
+  installer: 'Installer',
+  handyman: 'Handyman',
+};
+
+/** What the Role column shows: the pro's trade ("Plumber", "House Cleaner"), else the account role. */
+function roleText(row: AdminUserRow): string {
+  const trade = houseTradeTitle(row.trade);
+  const others = row.roles
+    .filter((role) => role !== 'customer' || row.roles.length === 1)
+    .filter((role) => !trade || !['contractor', 'installer', 'handyman'].includes(role))
+    .map((role) => (role === 'contractor' ? 'House Pro' : ROLE_LABEL[role] ?? role));
+  return [trade, ...others].filter(Boolean).join(', ');
+}
+
 const EDITABLE_ROLES = [
   { value: 'customer', label: 'Customer' },
-  { value: 'contractor', label: 'Contractor' },
+  { value: 'contractor', label: 'House Pro (business)' },
   { value: 'realtor', label: 'Realtor' },
   { value: 'installer', label: 'Installer' },
   { value: 'handyman', label: 'Handyman' },
@@ -70,7 +91,7 @@ function userCellText(row: AdminUserRow, columnId: string): string {
     case 'email':
       return row.email || '';
     case 'roles':
-      return row.roles.join(', ');
+      return roleText(row);
     case 'business':
       return row.business_name || '';
     case 'active':
@@ -309,7 +330,13 @@ export default function AdminUsersPage() {
     return () => document.removeEventListener('mousedown', close);
   }, [openActionsId]);
 
-  const shown = role === 'all' ? users : users.filter((user) => user.roles.includes(role));
+  const [tradeFilter, setTradeFilter] = useState('');
+  const tradesInUse = [...new Set(users.map((user) => user.trade).filter((slug): slug is string => Boolean(houseTrade(slug))))].sort(
+    (a, b) => houseTradeTitle(a).localeCompare(houseTradeTitle(b))
+  );
+  const shown = users.filter(
+    (user) => (role === 'all' || user.roles.includes(role)) && (!tradeFilter || user.trade === tradeFilter)
+  );
 
   const openEdit = (row: AdminUserRow) => {
     if (isAdminAccount(row)) return;
@@ -407,14 +434,31 @@ export default function AdminUsersPage() {
               key={item}
               type="button"
               onClick={() => setRole(item)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize whitespace-nowrap ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
                 role === item ? 'border-black text-black' : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              {item === 'all' ? 'All' : item}
+              {ROLE_LABEL[item] ?? item}
             </button>
           ))}
         </div>
+        {tradesInUse.length > 0 && (
+          <div className="mt-3 flex justify-end">
+            <Select
+              value={tradeFilter}
+              onChange={(event) => setTradeFilter(event.target.value)}
+              aria-label="Filter by trade"
+              className="w-56"
+            >
+              <option value="">All trades</option>
+              {tradesInUse.map((slug) => (
+                <option key={slug} value={slug}>
+                  {houseTradeTitle(slug)}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
       </div>
 
       <AdminDataTable

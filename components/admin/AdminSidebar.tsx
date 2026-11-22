@@ -21,7 +21,11 @@ import {
   BookOpen,
   Package,
   QrCode,
+  CreditCard,
+  Shapes,
+  Blocks,
   GripVertical,
+  Sprout,
   LucideIcon 
 } from 'lucide-react';
 import { useAdminSearch } from './AdminSearchContext';
@@ -41,12 +45,16 @@ export const navItems: NavItem[] = [
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/estimates', label: 'Estimates', icon: ClipboardList },
   { href: '/admin/chat', label: 'ProBot Chat', icon: MessageCircle },
+  { href: '/admin/plant-corrections', label: 'Plant ID training', icon: Sprout },
   { href: '/admin/customers', label: 'Customers', icon: User },
   { href: '/admin/businesses', label: 'Businesses', icon: Building2 },
   { href: '/admin/suppliers', label: 'Suppliers', icon: Truck },
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/blog', label: 'Blog', icon: BookOpen },
   { href: '/admin/license-categories', label: 'License categories', icon: FileCheck },
+  { href: '/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
+  { href: '/admin/icons', label: 'Icons', icon: Shapes },
+  { href: '/admin/protrades', label: 'ProTrades databases', icon: Blocks },
   { href: '/admin/invitation-codes', label: 'Invitation codes', icon: Key },
   { href: '/admin/agent-apps', label: 'Agent apps', icon: Bot },
   { href: '/admin/storage', label: 'Storage', icon: Folder },

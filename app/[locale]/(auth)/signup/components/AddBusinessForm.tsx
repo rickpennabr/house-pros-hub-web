@@ -24,12 +24,15 @@ interface AddBusinessFormProps {
   onSubmit: (formData: BusinessFormValues) => Promise<void>;
   /** Realtor signup uses Nevada real-estate license types, not contractor codes. */
   licenseRole?: 'contractor' | 'realtor';
+  /** Trade picked at signup: fills the trade field and the usual license for it. */
+  primaryTrade?: string | null;
 }
 
 export function AddBusinessForm({
   personalData,
   onSubmit,
   licenseRole = 'contractor',
+  primaryTrade = null,
 }: AddBusinessFormProps) {
   const t = useTranslations('businessForm');
   const tSignup = useTranslations('auth.signup.navigation');
@@ -53,7 +56,7 @@ export function AddBusinessForm({
     handleNext,
     handlePrevious,
     handleSubmit,
-  } = useAddBusinessForm(personalData);
+  } = useAddBusinessForm(personalData, primaryTrade, licenseRole !== 'realtor');
 
   // Show warning when user tries to leave on steps 2, 3, or 4
   const { showModal, handleConfirmLeave, handleCancelLeave } = useBeforeUnloadWarning(formState.currentStep);
@@ -88,7 +91,7 @@ export function AddBusinessForm({
   const renderStep = () => {
     switch (formState.currentStep) {
       case 1:
-        return <BusinessStep1 />;
+        return <BusinessStep1 showTrade={licenseRole !== 'realtor'} />;
       case 2:
         return <BusinessStepLicenses reorderLicenses={reorderLicenses} licenseRole={licenseRole} />;
       case 3:

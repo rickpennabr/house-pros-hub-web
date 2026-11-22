@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslations } from 'next-intl';
@@ -22,17 +22,23 @@ import {
   Home,
   QrCode,
   GripVertical,
-  Wrench,
-  LucideIcon,
+  ChevronDown,
 } from 'lucide-react';
 import { BsGrid3X3Gap } from 'react-icons/bs';
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
+import { useProTrades } from '@/hooks/useProTrades';
+import { TRADES, TRADE_SLUGS } from '@/lib/protrades/trades';
+import { HardscapeIcon, LandscapeIcon, MaintenanceIcon, PlantsIcon, ProTradesIcon, PROTRADES_TILE_COLORS, type AppIcon } from '@/components/icons/hub';
 
 interface NavItem {
   href: string;
   labelKey: string;
-  icon: LucideIcon;
+  icon: AppIcon;
+  /** Trade tools use their trade color instead of red. */
+  iconClass?: string;
+  /** A group (e.g. Landscape) that opens and closes on desktop; phones list the children flat. */
+  children?: NavItem[];
 }
 
 interface CRMSidebarProps {
@@ -42,6 +48,7 @@ interface CRMSidebarProps {
 }
 
 const NAV_ORDER_KEY = 'crm-nav-order';
+const NAV_GROUPS_KEY = 'crm-nav-groups-open';
 
 export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps) {
   const pathname = usePathname();
@@ -55,9 +62,46 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
   const didScrollNav = useRef(false);
   const dragHref = useRef<string | null>(null);
   const [navOrder, setNavOrder] = useState<string[] | null>(null);
+  const { state: proTrades } = useProTrades();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  /** Group being hovered: it opens while the pointer is on it; a click keeps it open. */
+  const [hoverGroup, setHoverGroup] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(NAV_GROUPS_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- read saved open/closed groups after mount (same as nav order)
+      if (parsed && typeof parsed === 'object') setOpenGroups(parsed as Record<string, boolean>);
+    } catch {
+      // Private mode or blocked storage: groups start closed.
+    }
+  }, []);
+  const toggleGroup = (key: string, open: boolean) => {
+    setOpenGroups((current) => {
+      const next = { ...current, [key]: open };
+      try {
+        localStorage.setItem(NAV_GROUPS_KEY, JSON.stringify(next));
+      } catch {
+        // Ignore storage errors.
+      }
+      return next;
+    });
+  };
+  const tradeOn = (trade: 'landscape' | 'hardscape') => Boolean(proTrades?.active.includes(trade));
+  // ProTrades icon: a tile per trade in its color (green, orange, blue, red); trades that are on are filled.
+  const activeTradeKey = (proTrades?.active ?? []).join(',');
+  const ProTradesNavIcon = useMemo<AppIcon>(() => {
+    const active = activeTradeKey.split(',');
+    const on = [...TRADE_SLUGS.map((slug) => active.includes(slug)), false, false];
+    function ProTradesNavIcon({ className }: { className?: string }) {
+      return <ProTradesIcon className={className} colors={[...PROTRADES_TILE_COLORS]} on={on} />;
+    }
+    return ProTradesNavIcon;
+  }, [activeTradeKey]);
 
   const realtorCalendarOnly = (roles as string[]).includes('realtor') && !roles.includes('contractor');
-  const navItems: NavItem[] = [
+  const navItems: NavItem[] = (
+  [
     { href: base, labelKey: 'crmDashboard', icon: LayoutDashboard },
     { href: `${base}/customers`, labelKey: 'crmCustomers', icon: Users },
     { href: `${base}/estimates`, labelKey: 'crmEstimates', icon: FileText },
@@ -65,7 +109,23 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     { href: `${base}/projects`, labelKey: 'crmProjects', icon: FolderKanban },
     { href: `${base}/portal`, labelKey: 'crmPortal', icon: Home },
     { href: `${base}/jobsite`, labelKey: 'crmJobsite', icon: Camera },
-    { href: `${base}/maintenance`, labelKey: 'crmMaintenance', icon: Wrench },
+    // ProTrades tools show only while their trade is on.
+    ...(tradeOn('landscape')
+      ? [
+          {
+            href: 'group:landscape',
+            labelKey: 'crmLandscape',
+            icon: LandscapeIcon,
+            iconClass: TRADES.landscape.color.text,
+            children: [
+              { href: `${base}/protrades/landscape`, labelKey: 'crmPlants', icon: PlantsIcon, iconClass: TRADES.landscape.color.text },
+              { href: `${base}/maintenance`, labelKey: 'crmMaintenance', icon: MaintenanceIcon, iconClass: TRADES.landscape.color.text },
+            ],
+          },
+        ]
+      : []),
+    ...(tradeOn('hardscape') ? [{ href: `${base}/protrades/hardscape`, labelKey: 'crmHardscape', icon: HardscapeIcon, iconClass: TRADES.hardscape.color.text }] : []),
+    { href: `${base}/protrades`, labelKey: 'crmProTrades', icon: ProTradesNavIcon },
     { href: `${base}/expenses`, labelKey: 'crmExpenses', icon: Receipt },
     { href: `${base}/mileage`, labelKey: 'crmMileage', icon: Car },
     { href: `${base}/tools`, labelKey: 'crmTools', icon: Hammer },
@@ -74,7 +134,8 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     { href: `${base}/products`, labelKey: 'crmProducts', icon: Package },
     { href: `${base}/calendar`, labelKey: 'crmCalendar', icon: Calendar },
     { href: `${base}/qrcode`, labelKey: 'crmQrcode', icon: QrCode },
-  ].filter((item) => !realtorCalendarOnly || item.href.endsWith('/calendar') || item.href.endsWith('/qrcode'));
+  ] as NavItem[]
+  ).filter((item) => !realtorCalendarOnly || item.href.endsWith('/calendar') || item.href.endsWith('/qrcode'));
 
   useEffect(() => setMounted(true), []);
 
@@ -88,11 +149,18 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     }
   }, []);
 
+  // A trade tool turned on after the pro saved an order goes right above ProTrades, not to the bottom.
+  const proTradesHref = `${base}/protrades`;
+  const isTradeTool = (href: string) => href.startsWith('group:') || (href.startsWith(`${proTradesHref}/`));
   const orderedNavItems = [...navItems].sort((a, b) => {
     if (!navOrder) return 0;
-    const ai = navOrder.indexOf(a.href);
-    const bi = navOrder.indexOf(b.href);
-    return (ai === -1 ? navOrder.length : ai) - (bi === -1 ? navOrder.length : bi);
+    const rank = (href: string) => {
+      const index = navOrder.indexOf(href);
+      if (index !== -1) return index;
+      const proTradesIndex = navOrder.indexOf(proTradesHref);
+      return isTradeTool(href) && proTradesIndex !== -1 ? proTradesIndex : navOrder.length;
+    };
+    return rank(a.href) - rank(b.href);
   });
 
   const moveNavItem = (fromHref: string, toHref: string) => {
@@ -156,7 +224,9 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     if (itemHref === base) return false;
     return pathname.startsWith(itemHref + '/') || pathname === itemHref;
   };
-  const mobileNavItems = orderedNavItems;
+  /** Phones show group children as plain items. */
+  const flatNavItems = orderedNavItems.flatMap((item) => item.children ?? [item]);
+  const mobileNavItems = flatNavItems;
   const activeCount = (href: string): number | null => {
     if (href.endsWith('/customers')) return crmChrome?.customerCount ?? null;
     if (href.endsWith('/estimates')) return sectionCounts.estimates ?? null;
@@ -165,13 +235,59 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     if (href.endsWith('/expenses')) return sectionCounts.expenses ?? null;
     return null;
   };
-  const mobileMenuItems: MobileGridActionItem[] = orderedNavItems.map((item) => ({
+  const mobileMenuItems: MobileGridActionItem[] = flatNavItems.map((item) => ({
     id: item.href,
     href: item.href,
     label: t(item.labelKey),
     icon: item.icon,
+    iconClass: item.iconClass,
     isActive: isActiveRoute(item.href),
   }));
+
+  const renderDesktopLink = (item: NavItem, nested = false) => {
+    const isActive = isActiveRoute(item.href);
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          moveNavItem(dragHref.current || event.dataTransfer.getData('text/plain'), item.href);
+          dragHref.current = null;
+        }}
+        className={`
+          group flex items-center ${nested ? 'py-2 pl-8 pr-4' : 'px-4 py-3'} rounded-lg transition-all duration-300 border-2 hover:scale-[1.02]
+          ${
+            isActive
+              ? 'bg-white border-black text-black font-medium'
+              : 'text-black border-transparent hover:border-gray-400'
+          }
+        `}
+      >
+        <span
+          draggable
+          onDragStart={(event) => {
+            dragHref.current = item.href;
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', item.href);
+          }}
+          onDragEnd={() => { dragHref.current = null; }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          className="flex w-0 cursor-grab items-center overflow-hidden opacity-0 transition-all group-hover:mr-2 group-hover:w-4 group-hover:opacity-100 active:cursor-grabbing"
+          aria-label="Drag to reorder"
+        >
+          <GripVertical className="h-4 w-4 shrink-0 text-gray-500" />
+        </span>
+        <Icon className={`mr-3 w-5 h-5 ${item.iconClass ?? 'text-red-600'} transition-transform duration-300 group-hover:scale-110`} />
+        {t(item.labelKey)}
+      </Link>
+    );
+  };
 
   return (
     <>
@@ -196,7 +312,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
                     }
                   `}
                 >
-                  <Icon className={`w-4 h-4 transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-white' : 'text-red-600'}`} />
+                  <Icon className={`w-4 h-4 transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
                   {t(item.labelKey)}
                   {isActive && activeCount(item.href) != null && (
                     <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border-2 border-black bg-white px-1 text-xs font-semibold text-black">
@@ -229,49 +345,55 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
 
       {/* Desktop: vertical sidebar */}
       <aside className="no-print hidden md:block w-64 border-r-2 border-black bg-white h-full min-h-0 flex-shrink-0 overflow-y-auto overscroll-contain scrollbar-custom">
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 pb-14 space-y-2">
           {orderedNavItems.map((item) => {
-            const isActive = isActiveRoute(item.href);
+            if (!item.children) return renderDesktopLink(item);
             const Icon = item.icon;
+            const childActive = item.children.some((child) => isActiveRoute(child.href));
+            const pinned = openGroups[item.href] ?? childActive;
+            const open = pinned || hoverGroup === item.href;
             return (
-              <Link
+              <div
                 key={item.href}
-                href={item.href}
+                onMouseEnter={() => setHoverGroup(item.href)}
+                onMouseLeave={() => setHoverGroup((current) => (current === item.href ? null : current))}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   event.preventDefault();
                   moveNavItem(dragHref.current || event.dataTransfer.getData('text/plain'), item.href);
                   dragHref.current = null;
                 }}
-                className={`
-                  group flex items-center px-4 py-3 rounded-lg transition-all duration-300 border-2 hover:scale-[1.02]
-                  ${
-                    isActive
-                      ? 'bg-white border-black text-black font-medium'
-                      : 'text-black border-transparent hover:border-gray-400'
-                  }
-                `}
               >
-                <span
-                  draggable
-                  onDragStart={(event) => {
-                    dragHref.current = item.href;
-                    event.dataTransfer.effectAllowed = 'move';
-                    event.dataTransfer.setData('text/plain', item.href);
-                  }}
-                  onDragEnd={() => { dragHref.current = null; }}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }}
-                  className="flex w-0 cursor-grab items-center overflow-hidden opacity-0 transition-all group-hover:mr-2 group-hover:w-4 group-hover:opacity-100 active:cursor-grabbing"
-                  aria-label="Drag to reorder"
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(item.href, !pinned)}
+                  aria-expanded={open}
+                  aria-pressed={pinned}
+                  title={pinned ? 'Click to close' : 'Click to keep open'}
+                  className={`group flex w-full cursor-pointer items-center rounded-lg border-2 px-4 py-3 text-left transition-all duration-300 hover:border-gray-400 ${
+                    childActive && !open ? 'border-black font-medium' : 'border-transparent'
+                  }`}
                 >
-                  <GripVertical className="h-4 w-4 shrink-0 text-gray-500" />
-                </span>
-                <Icon className="mr-3 w-5 h-5 text-red-600 transition-transform duration-300 group-hover:scale-110" />
-                {t(item.labelKey)}
-              </Link>
+                  <span
+                    draggable
+                    onDragStart={(event) => {
+                      dragHref.current = item.href;
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/plain', item.href);
+                    }}
+                    onDragEnd={() => { dragHref.current = null; }}
+                    onClick={(event) => event.stopPropagation()}
+                    className="flex w-0 cursor-grab items-center overflow-hidden opacity-0 transition-all group-hover:mr-2 group-hover:w-4 group-hover:opacity-100 active:cursor-grabbing"
+                    aria-label="Drag to reorder"
+                  >
+                    <GripVertical className="h-4 w-4 shrink-0 text-gray-500" />
+                  </span>
+                  <Icon className={`mr-3 h-5 w-5 transition-transform duration-300 group-hover:scale-110 ${item.iconClass ?? 'text-red-600'}`} />
+                  <span className="flex-1 font-semibold">{t(item.labelKey)}</span>
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''} ${pinned ? 'text-black' : 'text-gray-400'}`} />
+                </button>
+                {open ? <div className="mt-1 space-y-1">{item.children.map((child) => renderDesktopLink(child, true))}</div> : null}
+              </div>
             );
           })}
         </nav>

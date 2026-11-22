@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Camera, Leaf, Loader2, Minus, Plus, Trash2, X } from 'lucide-react';
+import { Camera, Leaf, Loader2, Minus, Plus, ScanSearch, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { FileDropTarget } from '@/components/ui/FileDropTarget';
 import { FileDropZone } from '@/components/ui/FileDropZone';
 import { uploadProDriveFile } from '@/lib/drive/upload-client';
+import { PlantIdentifierModal } from '@/components/ai/PlantIdentifierModal';
+import type { PlantIdentification } from '@/lib/ai/plant-id';
 
 interface PlantImage {
   id: string;
@@ -50,6 +52,7 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
   const [saving, setSaving] = useState(false);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [identifying, setIdentifying] = useState(false);
   const newPhotosInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -213,12 +216,33 @@ export function MaintenancePlantsPanel({ customerId, planId = null, businessId, 
           )}
         </div>
         {!showForm && (
-          <Button type="button" size="sm" disabled={disabled} onClick={() => setShowForm(true)} className="rounded-lg">
-            <Plus className="mr-1 h-4 w-4" />
-            {t('add')}
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" size="sm" variant="secondary" disabled={disabled} onClick={() => setIdentifying(true)}>
+              <ScanSearch className="mr-1 h-4 w-4" />
+              {t('identify')}
+            </Button>
+            <Button type="button" size="sm" disabled={disabled} onClick={() => setShowForm(true)} className="rounded-lg">
+              <Plus className="mr-1 h-4 w-4" />
+              {t('add')}
+            </Button>
+          </div>
         )}
       </div>
+
+      <PlantIdentifierModal
+        isOpen={identifying}
+        onClose={() => setIdentifying(false)}
+        useLabel={t('addIdentified')}
+        onUse={(result: PlantIdentification, photo: File) => {
+          // Fill the plant form: the name the crew knows, the Latin name and care in the notes, the photo.
+          const care = [result.care.water, result.care.pruning].filter(Boolean).join(' ');
+          setName(result.commonName || result.scientificName);
+          setNotes([result.commonName && result.scientificName ? result.scientificName : '', care].filter(Boolean).join('. '));
+          setPendingPhotos([photo]);
+          setShowForm(true);
+          setIdentifying(false);
+        }}
+      />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

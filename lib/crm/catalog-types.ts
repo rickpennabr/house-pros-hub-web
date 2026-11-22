@@ -43,6 +43,8 @@ export interface CrmProduct {
   price_cents: number;
   /** When true, this product appears on the public pro details Products tab. */
   show_on_profile: boolean;
+  /** ProTrade the product came from (landscape, hardscape) or null for general products. */
+  trade: string | null;
   images: CrmImage[];
   specs: CrmProductSpec[];
   created_at: string;

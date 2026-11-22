@@ -31,6 +31,50 @@ function placeAddress(place: PlaceCard): string {
   return [place.street, place.city, place.state, place.zipCode].filter(Boolean).join(', ');
 }
 
+/**
+ * Until the person proves they own their email, no pro's records saved under it are shared
+ * (someone could have signed up with another person's address).
+ */
+function VerifyEmailBanner({ locale }: { locale: string }) {
+  const t = useTranslations('places');
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const linkFailed = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('verified') === '0';
+
+  async function send() {
+    setState('sending');
+    try {
+      const res = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale }),
+      });
+      setState(res.ok ? 'sent' : 'failed');
+    } catch {
+      setState('failed');
+    }
+  }
+
+  return (
+    <div className="mx-auto mt-2 max-w-2xl rounded-lg border-2 border-red-600 bg-red-50 p-3 text-sm text-red-700">
+      <p>{linkFailed ? t('verifyLinkFailed') : t('confirmEmail')}</p>
+      {state === 'sent' ? (
+        <p className="mt-2 font-medium">{t('verifySent')}</p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void send()}
+          disabled={state === 'sending'}
+          className="mt-2 rounded-lg bg-black px-3 py-1.5 font-semibold text-white disabled:opacity-60"
+        >
+          {state === 'sending' ? '…' : t('verifySend')}
+        </button>
+      )}
+      {state === 'failed' ? <p className="mt-1">{t('verifyFailed')}</p> : null}
+    </div>
+  );
+}
+
 export function PlacesHome() {
   const t = useTranslations('places');
   const tAccount = useTranslations('common.account');
@@ -166,7 +210,7 @@ export function PlacesHome() {
         {noPlaces ? (
           <Button type="button" variant="primary" onClick={() => setAdding(true)}>{t('add')}</Button>
         ) : null}
-        {!emailConfirmed ? <p className="mt-1 text-sm text-red-600">{t('confirmEmail')}</p> : null}
+        {!emailConfirmed ? <VerifyEmailBanner locale={locale} /> : null}
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

@@ -196,7 +196,19 @@ export function parseAgentPayload(value: unknown): ProAgentPayload | null {
       payload.placeLinked = { placeId: linked.placeId, name: typeof linked.name === 'string' ? linked.name : '' };
     }
   }
-  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.crmInvoice && !payload.placeShare && !payload.bookingInvite && !payload.placeLinked) return null;
+  if (row.plantId && typeof row.plantId === 'object') {
+    const plant = row.plantId as Record<string, unknown>;
+    if (typeof plant.photoUrl === 'string' && plant.photoUrl) {
+      payload.plantId = {
+        photoUrl: plant.photoUrl,
+        commonName: typeof plant.commonName === 'string' ? plant.commonName : '',
+        scientificName: typeof plant.scientificName === 'string' ? plant.scientificName : '',
+        confidence: plant.confidence === 'high' || plant.confidence === 'medium' ? plant.confidence : 'low',
+        ...(typeof plant.correctedTo === 'string' && plant.correctedTo ? { correctedTo: plant.correctedTo } : {}),
+      };
+    }
+  }
+  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.crmInvoice && !payload.placeShare && !payload.bookingInvite && !payload.placeLinked && !payload.plantId) return null;
   return payload;
 }
 

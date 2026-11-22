@@ -9,7 +9,15 @@
 import createMiddleware from 'next-intl/middleware';
 import { locales } from './i18n';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, sessionNeedsRefresh } from '@/lib/supabase/middleware';
+import { createClient, sessionClaims, sessionNeedsRefresh } from '@/lib/supabase/middleware';
+import {
+  ADMIN_MFA_PATH,
+  TWO_STEP_SEGMENT,
+  adminEmailFromEnv,
+  adminMfaEnforced,
+  allowedBeforeAdminMfa,
+} from '@/lib/auth/admin-mfa';
+import { userHasTwoStep } from '@/lib/auth/two-step';
 
 const CSRF_COOKIE = 'hph_csrf';
 const CSRF_HEADER = 'x-hph-csrf';
@@ -83,8 +91,38 @@ function withSeoHeaders(request: NextRequest): NextRequest {
   return new NextRequest(request, { headers });
 }
 
+/**
+ * Two-step sign-in. The admin account always needs it; anyone else needs it once they turned it on
+ * (Account management > Settings). Until the code is entered in this session (aal2), only the
+ * code page, sign-in pages and auth APIs work. See lib/auth/admin-mfa.ts and lib/auth/two-step.ts.
+ */
+async function twoStepResult(request: NextRequest): Promise<NextResponse | null> {
+  const pathname = request.nextUrl.pathname;
+  if (allowedBeforeAdminMfa(pathname)) return null;
+  const claims = sessionClaims(request);
+  if (!claims || claims.aal === 'aal2' || !claims.userId) return null;
+  const adminEmail = adminEmailFromEnv();
+  const isAdmin = Boolean(adminEmail) && claims.email === adminEmail;
+  const required = isAdmin ? adminMfaEnforced() : await userHasTwoStep(claims.userId);
+  if (!required) return null;
+  if (pathname.startsWith('/api')) {
+    return NextResponse.json(
+      { error: 'Finish two-step sign-in first.', code: isAdmin ? 'admin_mfa_required' : 'two_step_required' },
+      { status: 401 }
+    );
+  }
+  const url = request.nextUrl.clone();
+  const segment = pathname.split('/')[1] ?? '';
+  const locale = (locales as readonly string[]).includes(segment) ? segment : 'en';
+  url.pathname = isAdmin ? ADMIN_MFA_PATH : `/${locale}/${TWO_STEP_SEGMENT}`;
+  url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
+  return NextResponse.redirect(url);
+}
+
 export default async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const mfaBlocked = await twoStepResult(request);
+  if (mfaBlocked) return mfaBlocked;
   const seoRequest = withSeoHeaders(request);
 
   if (pathname.startsWith('/api')) {

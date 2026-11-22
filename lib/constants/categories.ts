@@ -25,7 +25,14 @@ import {
   Shield,
   Box,
   Wifi,
-  Wrench
+  Wrench,
+  Droplets,
+  Bug,
+  ClipboardCheck,
+  Truck,
+  Trash2,
+  Refrigerator,
+  KeyRound
 } from 'lucide-react';
 import { ComponentType } from 'react';
 
@@ -68,6 +75,25 @@ export const SERVICE_CATEGORIES: CategoryItem[] = [
   { label: 'Pools & Spas', icon: Waves, color: 'text-cyan-600' },
   { label: 'Solar', icon: Sun, color: 'text-yellow-600' },
   { label: 'Fire Protection', icon: Shield, color: 'text-red-700' },
+  // Home services
+  { label: 'Insulation', icon: Layers, color: 'text-pink-600' },
+  { label: 'Drywall', icon: Square, color: 'text-stone-500' },
+  { label: 'Countertops', icon: Square, color: 'text-zinc-600' },
+  { label: 'Interior Design', icon: Sparkles, color: 'text-fuchsia-600' },
+  { label: 'Lawn Care', icon: TreePine, color: 'text-lime-600' },
+  { label: 'Tree Service', icon: TreePine, color: 'text-emerald-700' },
+  { label: 'House Cleaning', icon: Sparkles, color: 'text-pink-500' },
+  { label: 'Carpet Cleaning', icon: SquareStack, color: 'text-violet-600' },
+  { label: 'Window Cleaning', icon: RectangleHorizontal, color: 'text-sky-500' },
+  { label: 'Pressure Washing', icon: Droplets, color: 'text-blue-600' },
+  { label: 'Air Duct Cleaning', icon: Wind, color: 'text-teal-600' },
+  { label: 'Pool Service', icon: Waves, color: 'text-cyan-500' },
+  { label: 'Pest Control', icon: Bug, color: 'text-lime-700' },
+  { label: 'Home Inspection', icon: ClipboardCheck, color: 'text-indigo-600' },
+  { label: 'Moving', icon: Truck, color: 'text-orange-600' },
+  { label: 'Junk Removal', icon: Trash2, color: 'text-stone-600' },
+  { label: 'Appliance Repair', icon: Refrigerator, color: 'text-sky-600' },
+  { label: 'Locksmith', icon: KeyRound, color: 'text-amber-600' },
 ];
 
 export const ALL_CATEGORY: CategoryItem = { label: 'All', icon: Grid, color: 'text-black' };

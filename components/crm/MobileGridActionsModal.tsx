@@ -1,18 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import type { AppIcon } from '@/components/icons/hub';
 import Link from 'next/link';
 import Modal from '@/components/ui/Modal';
 
 export interface MobileGridActionItem {
   id: string;
   label: string;
-  icon: LucideIcon;
+  icon: AppIcon;
   href?: string;
   onClick?: () => void;
   isActive?: boolean;
   external?: boolean;
+  /** Icon color when not active (trade tools use their trade color). */
+  iconClass?: string;
 }
 
 interface MobileGridActionsModalProps {
@@ -154,7 +156,7 @@ export function MobileGridActionsModal({
                   className={className}
                   {...dragProps}
                 >
-                  <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : 'text-red-600'}`} />
+                  <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
                   <span className="text-sm text-center">{item.label}</span>
                 </a>
               );
@@ -171,7 +173,7 @@ export function MobileGridActionsModal({
                 className={className}
                 {...dragProps}
               >
-                <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : 'text-red-600'}`} />
+                <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
                 <span className="text-sm text-center">{item.label}</span>
               </Link>
             );
@@ -189,7 +191,7 @@ export function MobileGridActionsModal({
               className={className}
               {...dragProps}
             >
-              <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : 'text-red-600'}`} />
+              <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
               <span className="text-sm text-center">{item.label}</span>
             </button>
           );

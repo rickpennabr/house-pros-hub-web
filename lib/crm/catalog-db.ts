@@ -52,6 +52,7 @@ interface ProductRow {
   unit: string;
   price_cents: number;
   show_on_profile?: boolean | null;
+  trade?: string | null;
   created_at: string;
 }
 
@@ -167,6 +168,7 @@ function mapProduct(row: ProductRow, images: CrmImage[], specs: CrmProductSpec[]
     unit: row.unit,
     price_cents: row.price_cents,
     show_on_profile: row.show_on_profile === true,
+    trade: row.trade ?? null,
     images,
     specs,
     created_at: row.created_at,
@@ -210,11 +212,20 @@ export async function listServices(supabase: Db, ownerId: string): Promise<CrmSe
 }
 
 export async function listProducts(supabase: Db, ownerId: string): Promise<CrmProduct[]> {
-  const products = await supabase
+  const columns = 'id, name, brand, sku, upc, category, description, unit, price_cents, show_on_profile, created_at';
+  let products = await supabase
     .from('pro_crm_products')
-    .select('id, name, brand, sku, upc, category, description, unit, price_cents, show_on_profile, created_at')
+    .select(`${columns}, trade`)
     .eq('owner_id', ownerId)
     .order('name', { ascending: true });
+  // Before migration 151 there is no trade column.
+  if (products.error && /trade/.test(products.error.message ?? '')) {
+    products = (await supabase
+      .from('pro_crm_products')
+      .select(columns)
+      .eq('owner_id', ownerId)
+      .order('name', { ascending: true })) as typeof products;
+  }
   if (products.error) throw products.error;
   const images = await supabase
     .from('pro_crm_product_images')

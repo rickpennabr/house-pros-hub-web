@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { saveBusinessTrades, tradesFromRow } from '@/lib/pros/business-trades';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
 import { transformBusinessToProCardData } from '@/lib/utils/businessTransform';
@@ -53,6 +54,9 @@ function blankText(value: unknown): string | null {
 
 interface BusinessUpdateBody {
   businessName?: string;
+  /** House trade slug (lib/pros/house-trades.ts); null clears it. */
+  primaryTrade?: string | null;
+  trades?: string[];
   slug?: string;
   businessLogo?: string;
   businessBackground?: string;
@@ -215,6 +219,7 @@ async function handleGetBusiness(
         links,
         userId: business.owner_id,
         showCalendarOnProCard: (business as { show_calendar_on_procard?: boolean }).show_calendar_on_procard ?? false,
+        ...tradesFromRow(business),
       },
       { licenseCategories: licenseCategoriesList }
     );
@@ -440,7 +445,8 @@ async function handleUpdateBusiness(
     if (body.operatingHours !== undefined) updateData.operating_hours = body.operatingHours;
     if (body.showCalendarOnProCard !== undefined) updateData.show_calendar_on_procard = body.showCalendarOnProCard;
 
-    if (Object.keys(updateData).length === 0) {
+    const tradesChanged = body.primaryTrade !== undefined || body.trades !== undefined;
+    if (Object.keys(updateData).length === 0 && !tradesChanged) {
       return NextResponse.json(
         { error: 'No valid fields to update' },
         { status: 400 }
@@ -449,12 +455,12 @@ async function handleUpdateBusiness(
 
     // Use service role for update so RLS does not block RETURNING (ownership already verified above)
     const serviceSupabase = createServiceRoleClient();
-    const { error: updateError } = await serviceSupabase
-      .from('businesses')
-      .update(updateData)
-      .eq('id', businessId)
-      .select()
-      .single();
+    if (tradesChanged) {
+      await saveBusinessTrades(businessId, { primaryTrade: body.primaryTrade, trades: body.trades }, serviceSupabase);
+    }
+    const { error: updateError } = Object.keys(updateData).length
+      ? await serviceSupabase.from('businesses').update(updateData).eq('id', businessId).select().single()
+      : { error: null };
 
     if (updateError) {
       logger.error('Error updating business', {
@@ -646,6 +652,7 @@ async function handleUpdateBusiness(
         mobilePhone: completeBusiness.mobile_phone || undefined,
         links: normalizeLinks(completeBusiness.links),
         userId: completeBusiness.owner_id,
+        ...tradesFromRow(completeBusiness),
       },
       { licenseCategories: licenseCategoriesList }
     );

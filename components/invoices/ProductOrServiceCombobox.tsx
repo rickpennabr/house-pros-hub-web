@@ -34,14 +34,25 @@ export function ProductOrServiceCombobox({
   const listRef = useRef<HTMLDivElement>(null);
 
   const query = value.trim().toLowerCase();
+  // Best match first: exact name, then name starts with the text, then a word in the name
+  // starts with it, then name contains it, and last the items that only mention it in the description.
+  const rank = (item: (typeof items)[number]): number => {
+    const name = item.name.toLowerCase();
+    if (name === query) return 0;
+    if (name.startsWith(query)) return 1;
+    if (name.split(/[\s\-/&,()]+/).some((word) => word.startsWith(query))) return 2;
+    if (name.includes(query)) return 3;
+    if ((item.description ?? '').toLowerCase().includes(query)) return 4;
+    return -1;
+  };
   const filtered =
     query === ''
       ? items
-      : items.filter(
-          (i) =>
-            i.name.toLowerCase().includes(query) ||
-            (i.description ?? '').toLowerCase().includes(query)
-        );
+      : items
+          .map((item, index) => ({ item, index, score: rank(item) }))
+          .filter((row) => row.score >= 0)
+          .sort((a, b) => a.score - b.score || a.index - b.index)
+          .map((row) => row.item);
   const addNewIndex = 0;
   const itemStartIndex = 1;
   const totalOptions = 1 + filtered.length;

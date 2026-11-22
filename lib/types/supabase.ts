@@ -18,8 +18,55 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      ai_plant_corrections: {
+        Row: {
+          id: string;
+          created_by: string | null;
+          photo_url: string;
+          wrong_common_name: string | null;
+          wrong_scientific_name: string | null;
+          correct_common_name: string;
+          correct_scientific_name: string | null;
+          notes: string | null;
+          active: boolean;
+          source_message_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          created_by?: string | null;
+          photo_url: string;
+          wrong_common_name?: string | null;
+          wrong_scientific_name?: string | null;
+          correct_common_name: string;
+          correct_scientific_name?: string | null;
+          notes?: string | null;
+          active?: boolean;
+          source_message_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          created_by?: string | null;
+          photo_url?: string;
+          wrong_common_name?: string | null;
+          wrong_scientific_name?: string | null;
+          correct_common_name?: string;
+          correct_scientific_name?: string | null;
+          notes?: string | null;
+          active?: boolean;
+          source_message_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
+          verified_email: string | null
+          email_verified_at: string | null
           id: string;
           first_name: string | null;
           last_name: string | null;
@@ -37,6 +84,8 @@ export interface Database {
           updated_at: string;
         };
         Insert: {
+          verified_email?: string | null
+          email_verified_at?: string | null
           id: string;
           first_name?: string | null;
           last_name?: string | null;
@@ -53,6 +102,8 @@ export interface Database {
           updated_at?: string;
         };
         Update: {
+          verified_email?: string | null
+          email_verified_at?: string | null
           id?: string;
           first_name?: string | null;
           last_name?: string | null;
@@ -445,6 +496,7 @@ export interface Database {
           read_at: string | null;
           attachments: Json;
           reply_to: Json | null;
+          reactions: Json;
           admin_sent_as: string | null;
           admin_user_id: string | null;
           payload: Json | null;
@@ -459,6 +511,7 @@ export interface Database {
           read_at?: string | null;
           attachments?: Json;
           reply_to?: Json | null;
+          reactions?: Json;
           admin_sent_as?: string | null;
           admin_user_id?: string | null;
           payload?: Json | null;
@@ -473,6 +526,7 @@ export interface Database {
           read_at?: string | null;
           attachments?: Json;
           reply_to?: Json | null;
+          reactions?: Json;
           admin_sent_as?: string | null;
           admin_user_id?: string | null;
           payload?: Json | null;
@@ -677,6 +731,8 @@ export interface Database {
           display_order: number | null;
           show_calendar_on_procard: boolean;
           appointment_slot_minutes: number;
+          primary_trade: string | null;
+          trades: string[];
           created_at: string;
           updated_at: string;
         };
@@ -710,6 +766,8 @@ export interface Database {
           display_order?: number | null;
           show_calendar_on_procard?: boolean;
           appointment_slot_minutes?: number;
+          primary_trade?: string | null;
+          trades?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -743,6 +801,8 @@ export interface Database {
           display_order?: number | null;
           show_calendar_on_procard?: boolean;
           appointment_slot_minutes?: number;
+          primary_trade?: string | null;
+          trades?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -2811,13 +2871,165 @@ export interface Database {
         };
         Relationships: [];
       };
+      pro_trade_activations: {
+        Row: {
+          user_id: string;
+          trade: string;
+          activated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          trade: string;
+          activated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          trade?: string;
+          activated_at?: string;
+        };
+        Relationships: [];
+      };
+      trade_catalog_items: {
+        Row: {
+          id: string;
+          trade: string;
+          kind: string;
+          name: string;
+          brand: string;
+          scientific_name: string | null;
+          category: string | null;
+          description: string | null;
+          image_url: string | null;
+          unit: string;
+          typical_price_cents: number | null;
+          specs: Json;
+          region: string;
+          also_trades: string[];
+          is_active: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          trade: string;
+          kind: string;
+          name: string;
+          brand?: string;
+          scientific_name?: string | null;
+          category?: string | null;
+          description?: string | null;
+          image_url?: string | null;
+          unit?: string;
+          typical_price_cents?: number | null;
+          specs?: Json;
+          region?: string;
+          also_trades?: string[];
+          is_active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          trade?: string;
+          kind?: string;
+          name?: string;
+          brand?: string;
+          scientific_name?: string | null;
+          category?: string | null;
+          description?: string | null;
+          image_url?: string | null;
+          unit?: string;
+          typical_price_cents?: number | null;
+          specs?: Json;
+          region?: string;
+          also_trades?: string[];
+          is_active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      hub_plans: {
+        Row: {
+          slug: string;
+          name: string;
+          tagline: string;
+          monthly_price_cents: number;
+          yearly_price_cents: number;
+          included_users: number | null;
+          extra_user_price_cents: number;
+          storage_gb: number;
+          protrades_limit: number | null;
+          trial_days: number;
+          features: string[];
+          highlight: boolean;
+          is_active: boolean;
+          sort_order: number;
+          stripe_product_id: string | null;
+          stripe_monthly_price_id: string | null;
+          stripe_yearly_price_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          slug: string;
+          name: string;
+          tagline?: string;
+          monthly_price_cents?: number;
+          yearly_price_cents?: number;
+          included_users?: number | null;
+          extra_user_price_cents?: number;
+          storage_gb?: number;
+          protrades_limit?: number | null;
+          trial_days?: number;
+          features?: string[];
+          highlight?: boolean;
+          is_active?: boolean;
+          sort_order?: number;
+          stripe_product_id?: string | null;
+          stripe_monthly_price_id?: string | null;
+          stripe_yearly_price_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          slug?: string;
+          name?: string;
+          tagline?: string;
+          monthly_price_cents?: number;
+          yearly_price_cents?: number;
+          included_users?: number | null;
+          extra_user_price_cents?: number;
+          storage_gb?: number;
+          protrades_limit?: number | null;
+          trial_days?: number;
+          features?: string[];
+          highlight?: boolean;
+          is_active?: boolean;
+          sort_order?: number;
+          stripe_product_id?: string | null;
+          stripe_monthly_price_id?: string | null;
+          stripe_yearly_price_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       hub_subscriptions: {
         Row: {
           user_id: string;
           stripe_customer_id: string | null;
           stripe_subscription_id: string | null;
-          plan: 'free' | 'pro';
+          plan: string;
           status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'incomplete';
+          billing_interval: 'month' | 'year' | null;
+          cancel_at_period_end: boolean;
+          comped: boolean;
+          comped_until: string | null;
+          admin_note: string | null;
           current_period_end: string | null;
           created_at: string;
           updated_at: string;
@@ -2826,8 +3038,13 @@ export interface Database {
           user_id: string;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
-          plan?: 'free' | 'pro';
+          plan?: string;
           status?: 'active' | 'trialing' | 'past_due' | 'canceled' | 'incomplete';
+          billing_interval?: 'month' | 'year' | null;
+          cancel_at_period_end?: boolean;
+          comped?: boolean;
+          comped_until?: string | null;
+          admin_note?: string | null;
           current_period_end?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -2836,8 +3053,13 @@ export interface Database {
           user_id?: string;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
-          plan?: 'free' | 'pro';
+          plan?: string;
           status?: 'active' | 'trialing' | 'past_due' | 'canceled' | 'incomplete';
+          billing_interval?: 'month' | 'year' | null;
+          cancel_at_period_end?: boolean;
+          comped?: boolean;
+          comped_until?: string | null;
+          admin_note?: string | null;
           current_period_end?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -3388,6 +3610,8 @@ export interface Database {
           description: string | null;
           unit: string;
           price_cents: number;
+          trade: string | null;
+          catalog_item_id: string | null;
           show_on_profile: boolean;
           status: 'active' | 'draft';
           display_order: number;
@@ -3406,6 +3630,8 @@ export interface Database {
           description?: string | null;
           unit?: string;
           price_cents?: number;
+          trade?: string | null;
+          catalog_item_id?: string | null;
           show_on_profile?: boolean;
           status?: 'active' | 'draft';
           display_order?: number;
@@ -3424,6 +3650,8 @@ export interface Database {
           description?: string | null;
           unit?: string;
           price_cents?: number;
+          trade?: string | null;
+          catalog_item_id?: string | null;
           show_on_profile?: boolean;
           status?: 'active' | 'draft';
           display_order?: number;
@@ -3924,6 +4152,10 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      revoke_other_sessions: {
+        Args: { p_user_id: string; p_keep_session_id?: string }
+        Returns: number
+      }
       cleanup_expired_password_reset_attempts: {
         Args: Record<string, never>;
         Returns: void;

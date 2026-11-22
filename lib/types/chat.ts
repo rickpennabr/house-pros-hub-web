@@ -126,6 +126,17 @@ export interface ProAgentPayload {
   placeLinked?: ChatPlaceLinked;
   /** Pro-shared CRM invoice or payment request the customer can pay from the chat */
   crmInvoice?: ChatCrmInvoiceShare;
+  /** ProBot's answer came from a plant photo: what the identifier said, so an admin can correct it. */
+  plantId?: ChatPlantId;
+}
+
+export interface ChatPlantId {
+  photoUrl: string;
+  commonName: string;
+  scientificName: string;
+  confidence: 'high' | 'medium' | 'low';
+  /** Set once an admin corrected this answer. */
+  correctedTo?: string;
 }
 
 export interface ChatPlaceLinked {
@@ -167,4 +178,6 @@ export interface ChatMessage {
   /** Resolved from profiles when admin_sent_as === 'hub_agent'. */
   admin_display_name?: string | null;
   payload?: ProAgentPayload | null;
+  /** Emoji reactions, one per side: { visitor, admin }. */
+  reactions?: Partial<Record<'visitor' | 'admin', string>>;
 }

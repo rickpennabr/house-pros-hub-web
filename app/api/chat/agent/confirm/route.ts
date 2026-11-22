@@ -7,6 +7,7 @@ import { ensureProAgentApp } from '@/lib/agent/proagent-app';
 import { createAgentEstimate } from '@/lib/agent/estimates';
 import { requestLocale } from '@/lib/agent/constants';
 import type { Json } from '@/lib/types/supabase';
+import { isMissingColumnError } from '@/lib/chat/probot-reply';
 
 /**
  * POST /api/chat/agent/confirm
@@ -95,16 +96,21 @@ export async function POST(request: NextRequest) {
       await supabase.from('probot_messages').update({ payload: next as Json }).eq('id', draftMessage.id);
     }
 
-    const { data: filed } = await supabase
+    const reply = {
+      conversation_id: parsed.data.conversationId,
+      sender: 'admin' as const,
+      body: result.body.messageForUser,
+    };
+    let saved = await supabase
       .from('probot_messages')
-      .insert({
-        conversation_id: parsed.data.conversationId,
-        sender: 'admin',
-        body: result.body.messageForUser,
-        admin_sent_as: 'probot',
-      })
+      .insert({ ...reply, admin_sent_as: 'probot' })
       .select('id, conversation_id, sender, body, created_at')
       .single();
+    // Older databases lack admin_sent_as.
+    if (isMissingColumnError(saved.error)) {
+      saved = await supabase.from('probot_messages').insert(reply).select('id, conversation_id, sender, body, created_at').single();
+    }
+    const filed = saved.data;
 
     return NextResponse.json({
       messageForUser: result.body.messageForUser,

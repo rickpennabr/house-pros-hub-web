@@ -17,6 +17,8 @@ import { SignupSuccessMessage } from './components/SignupSuccessMessage';
 import { BusinessSuccessMessage } from './components/BusinessSuccessMessage';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { RoleSelectionScreen } from './components/RoleSelectionScreen';
+import { TradeSelectionScreen } from './components/TradeSelectionScreen';
+import { houseTrade } from '@/lib/pros/house-trades';
 import { CustomerSignupChoiceScreen } from './components/CustomerSignupChoiceScreen';
 import { InstallerProfileForm } from './components/InstallerProfileForm';
 import { InvitationCodeScreen } from './components/InvitationCodeScreen';
@@ -30,7 +32,18 @@ import { LeavePageWarningModal } from './components/LeavePageWarningModal';
 import { FormProvider } from 'react-hook-form';
 import type { BusinessFormValues } from '@/lib/schemas/business';
 
-type SignupStep = 'role-selection' | 'customer-signup-choice' | 'invitation-code' | 'form' | 'success' | 'business-form';
+type SignupStep = 'role-selection' | 'trade-selection' | 'customer-signup-choice' | 'invitation-code' | 'form' | 'success' | 'business-form';
+
+const TRADE_STORAGE_KEY = 'signup-primary-trade';
+
+function readStoredTrade(): string | null {
+  try {
+    const value = typeof window !== 'undefined' ? window.sessionStorage.getItem(TRADE_STORAGE_KEY) : null;
+    return houseTrade(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 function SignUpForm() {
   const router = useRouter();
@@ -57,6 +70,8 @@ function SignUpForm() {
   const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | null>(
     fromQuickRepair || skipRoleSelection ? 'customer' : urlRole
   );
+  // House Pro signup: the trade picked on the trade screen (kept for the business form after the personal steps).
+  const [selectedTrade, setSelectedTrade] = useState<string | null>(() => (urlRole === 'customer' ? null : readStoredTrade()));
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [customerChoseForm, setCustomerChoseForm] = useState(false);
@@ -146,11 +161,30 @@ function SignUpForm() {
     setIsGoogleLoading(false);
   };
 
-  const handleRoleSelect = (role: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman') => {
-    setSelectedRole(role);
+  const handleRoleSelect = (role: 'customer' | 'pro' | 'realtor') => {
     setCustomerChoseForm(false);
-    setCurrentStep(role === 'customer' ? 'customer-signup-choice' : 'invitation-code');
     setIsAuthLoading(false);
+    if (role === 'pro') {
+      setCurrentStep('trade-selection');
+      return;
+    }
+    setSelectedTrade(null);
+    setSelectedRole(role);
+    setCurrentStep(role === 'customer' ? 'customer-signup-choice' : 'invitation-code');
+  };
+
+  // House Pro: the trade picks the account path (licensed trades and home services → business; handyman; installer).
+  const handleTradeSelect = (slug: string) => {
+    const trade = houseTrade(slug);
+    if (!trade) return;
+    setSelectedTrade(slug);
+    try {
+      window.sessionStorage.setItem(TRADE_STORAGE_KEY, slug);
+    } catch {
+      // Private mode: the trade still lives in state for this visit.
+    }
+    setSelectedRole(trade.role);
+    setCurrentStep('invitation-code');
   };
 
   const handleCustomerFormChoice = () => {
@@ -174,7 +208,7 @@ function SignUpForm() {
 
   const handleInvitationCodeBack = () => {
     setSelectedRole(null);
-    setCurrentStep('role-selection');
+    setCurrentStep(selectedTrade ? 'trade-selection' : 'role-selection');
   };
 
   const handleStepPrevious = () => {
@@ -322,6 +356,14 @@ function SignUpForm() {
           />
         )}
 
+        {currentStep === 'trade-selection' && (
+          <TradeSelectionScreen
+            selected={selectedTrade}
+            onSelect={handleTradeSelect}
+            onBack={() => setCurrentStep('role-selection')}
+          />
+        )}
+
         {currentStep === 'customer-signup-choice' && (
           <CustomerSignupChoiceScreen
             isLoading={isGoogleLoading}
@@ -357,6 +399,7 @@ function SignUpForm() {
                 personalData={getPersonalData()}
                 onSubmit={handleBusinessSubmit}
                 licenseRole={selectedRole === 'realtor' ? 'realtor' : 'contractor'}
+                primaryTrade={selectedRole === 'realtor' ? null : selectedTrade}
               />
             ) : formState.businessSuccessMessage ? (
               <>

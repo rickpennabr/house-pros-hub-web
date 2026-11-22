@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Template with empty values only; safe to commit.
 !.env.example
+
+# Supabase CLI local state
+supabase/.temp/

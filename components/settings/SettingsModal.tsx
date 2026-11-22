@@ -7,6 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import Modal from '@/components/ui/Modal';
+import { TwoStepPanel } from '@/components/security/TwoStep';
 import { UsFlagIcon, SpainFlagIcon, BrazilFlagIcon } from '@/components/pageslayout/LocaleFlagIcons';
 import { locales, type Locale } from '@/i18n';
 import ContractorPushButton from '@/components/probot/ContractorPushButton';
@@ -18,7 +19,7 @@ import {
   setJobLocationAllowed,
 } from '@/lib/media/job-camera-prefs';
 
-type AccordionSection = 'language' | 'privacy' | null;
+type AccordionSection = 'language' | 'privacy';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -36,7 +37,10 @@ export default function SettingsModal({
   const currentLocale = useLocale() as Locale;
   const [selectedLocale, setSelectedLocale] = useState<Locale>(currentLocale);
   const [isUpdatingLocale, setIsUpdatingLocale] = useState(false);
-  const [openSection, setOpenSection] = useState<AccordionSection>(null);
+  // Each section opens and closes on its own; both can be open at once.
+  const [openSections, setOpenSections] = useState<AccordionSection[]>([]);
+  const toggleSection = (section: AccordionSection) =>
+    setOpenSections((prev) => (prev.includes(section) ? prev.filter((item) => item !== section) : [...prev, section]));
   const [cameraAllowed, setCameraAllowed] = useState(false);
   const [locationAllowed, setLocationAllowed] = useState(false);
   const tJob = useTranslations('jobsite');
@@ -45,7 +49,7 @@ export default function SettingsModal({
   useEffect(() => {
     if (isOpen) {
       setSelectedLocale(currentLocale);
-      setOpenSection(null);
+      setOpenSections([]);
       setCameraAllowed(jobCameraAllowed());
       setLocationAllowed(jobLocationAllowed());
     }
@@ -173,20 +177,20 @@ export default function SettingsModal({
           <div className="border-2 border-black rounded-lg bg-white">
             <button
               type="button"
-              onClick={() => setOpenSection('language')}
+              onClick={() => toggleSection('language')}
               className="w-full p-4 flex items-center justify-between gap-2 hover:bg-gray-50/50 transition-colors text-left rounded-t-lg"
-              aria-expanded={openSection === 'language'}
+              aria-expanded={openSections.includes('language')}
             >
               <div className="flex items-center gap-2">
                 <Globe className="w-5 h-5 text-black shrink-0" />
                 <h3 className="text-base font-bold text-black">Language</h3>
               </div>
               <ChevronDown
-                className={`w-5 h-5 text-black shrink-0 transition-transform ${openSection === 'language' ? 'rotate-180' : ''}`}
+                className={`w-5 h-5 text-black shrink-0 transition-transform ${openSections.includes('language') ? 'rotate-180' : ''}`}
                 aria-hidden
               />
             </button>
-            {openSection === 'language' && (
+            {openSections.includes('language') && (
             <>
               <p className="px-4 pt-1 text-xs text-gray-600 border-t-2 border-black">
                 {t('settings.languagePreferenceSaved')}
@@ -258,21 +262,22 @@ export default function SettingsModal({
           <div className="border-2 border-black rounded-lg bg-white">
             <button
               type="button"
-              onClick={() => setOpenSection('privacy')}
+              onClick={() => toggleSection('privacy')}
               className="w-full p-4 flex items-center justify-between gap-2 hover:bg-gray-50/50 transition-colors text-left rounded-t-lg"
-              aria-expanded={openSection === 'privacy'}
+              aria-expanded={openSections.includes('privacy')}
             >
               <div className="flex items-center gap-2">
                 <Shield className="w-5 h-5 text-black shrink-0" />
                 <h3 className="text-base font-bold text-black">Privacy & Security</h3>
               </div>
               <ChevronDown
-                className={`w-5 h-5 text-black shrink-0 transition-transform ${openSection === 'privacy' ? 'rotate-180' : ''}`}
+                className={`w-5 h-5 text-black shrink-0 transition-transform ${openSections.includes('privacy') ? 'rotate-180' : ''}`}
                 aria-hidden
               />
             </button>
-            {openSection === 'privacy' && (
+            {openSections.includes('privacy') && (
             <div className="space-y-1 border-t-2 border-black p-2">
+              <TwoStepPanel />
               <p className="px-4 py-2 text-xs text-gray-600">{tJob('permissionHint')}</p>
               <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-4 py-2.5 hover:bg-gray-50">
                 <span className="font-medium text-black">{tJob('cameraSetting')}</span>

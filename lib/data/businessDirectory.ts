@@ -16,6 +16,7 @@ import { normalizeLinks } from '@/lib/utils/normalizeLinks';
 import { getBusinessCategories, licenseCodesForCategory } from '@/lib/utils/businessSearch';
 import { DIRECTORY_CARD_PAGE_SIZE, DIRECTORY_MAX_PAGE_SIZE } from '@/lib/constants/businessDirectory';
 import { primaryProAccountRole } from '@/lib/utils/proAccountRole';
+import { loadBusinessTrades, type BusinessTrades } from '@/lib/pros/business-trades';
 import type { ProCardData } from '@/components/proscard/ProCard';
 
 export { sanitizeDirectoryCategory, sanitizeDirectoryCity, sanitizeDirectorySearch } from '@/lib/data/directoryParams';
@@ -146,14 +147,18 @@ async function toCardsWithRoles(
   rows: DbBusinessRow[],
   licenseCategories: Array<{ code: string; name: string }>
 ): Promise<ProCardData[]> {
-  const ownerRoles = await loadOwnerRoles(rows.map((row) => row.owner_id));
-  return toCards(rows, licenseCategories, ownerRoles);
+  const [ownerRoles, trades] = await Promise.all([
+    loadOwnerRoles(rows.map((row) => row.owner_id)),
+    loadBusinessTrades(rows.map((row) => row.id)),
+  ]);
+  return toCards(rows, licenseCategories, ownerRoles, trades);
 }
 
 function toCards(
   rows: DbBusinessRow[],
   licenseCategories: Array<{ code: string; name: string }>,
-  ownerRoles: Map<string, string[]> = new Map()
+  ownerRoles: Map<string, string[]> = new Map(),
+  trades: Map<string, BusinessTrades> = new Map()
 ): ProCardData[] {
   return rows.map((business) => {
     const licenses = (business.licenses || []).map((license) => ({
@@ -188,6 +193,7 @@ function toCards(
         userId: business.owner_id,
         showCalendarOnProCard: business.show_calendar_on_procard ?? false,
         accountRole: accountRole ?? undefined,
+        ...trades.get(business.id),
       },
       { licenseCategories }
     );

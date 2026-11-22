@@ -7,6 +7,7 @@ import { locales, type Locale } from '@/i18n';
 import { provisionGoogleCustomer, type GoogleCustomerProvision } from '@/lib/auth/googleCustomer';
 import { isGoogleAccountConflict } from '@/lib/auth/googleAccount';
 import { finishSetupPath } from '@/lib/auth/finishSetup';
+import { markEmailVerified, secureAfterGoogleSignIn } from '@/lib/auth/email-ownership';
 
 function safeLocale(value: string | null): Locale {
   return locales.includes(value as Locale) ? (value as Locale) : 'en';
@@ -184,6 +185,24 @@ export async function GET(request: NextRequest) {
     }
 
     if (exchangeData?.user ?? exchangeData?.session) {
+      // Proof of email ownership. Google verified the address; a reset/email link was opened
+      // from that inbox. A Google sign-in also wipes a password someone set on this address
+      // without ever proving it (pre-account takeover). Never blocks the sign-in.
+      if (exchangeData.user) {
+        try {
+          const hasGoogle = exchangeData.user.identities?.some((identity) => identity.provider === 'google');
+          if (isCustomerGoogle || hasGoogle) {
+            await secureAfterGoogleSignIn(exchangeData.user, exchangeData.session?.access_token);
+          }
+          if (!isCustomerGoogle && exchangeData.user.email) {
+            await markEmailVerified(exchangeData.user.id, exchangeData.user.email);
+          }
+        } catch (ownershipError) {
+          logger.warn('[Auth Callback] email ownership step failed', {
+            error: ownershipError instanceof Error ? ownershipError.message : 'unknown',
+          });
+        }
+      }
       let accountKind: GoogleCustomerProvision = 'existing';
       if (isCustomerGoogle && exchangeData.user) {
         try {

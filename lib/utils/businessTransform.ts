@@ -7,6 +7,7 @@ import { parseGallery } from '@/lib/business/gallery';
 import { LinkItem } from '@/components/proscard/ProLinks';
 import { cardLinks } from '@/lib/utils/cardLinks';
 import { RESIDENTIAL_CONTRACTOR_LICENSES, HANDYMAN_LICENSE_CODE } from '@/lib/constants/contractorLicenses';
+import { cleanTradeSlugs, houseTrade, isHouseTradeSlug, tradeFromLicense } from '@/lib/pros/house-trades';
 
 /**
  * Maps license codes to categories
@@ -173,6 +174,10 @@ export function transformBusinessToProCardData(
     showCalendarOnProCard?: boolean;
     /** Owner account role from user_roles (shown under the business name). */
     accountRole?: 'contractor' | 'realtor' | 'installer' | 'handyman';
+    /** businesses.primary_trade (slug). Falls back to the first license's trade. */
+    primaryTrade?: string | null;
+    /** businesses.trades (slugs). */
+    trades?: string[] | null;
   },
   options?: TransformBusinessOptions
 ): ProCardData & { userId: string } {
@@ -194,8 +199,17 @@ export function transformBusinessToProCardData(
   }
 
   // Calculate category from license code - always ensure a category is set
-  const category = getCategoryFromLicense(licenseCode);
-  const tradeIcon = getTradeIconFromLicense(licenseCode);
+  // The trade the pro identifies with: what they picked, else what their first license says.
+  const proTrade =
+    businessData.accountRole === 'realtor'
+      ? undefined
+      : isHouseTradeSlug(businessData.primaryTrade)
+        ? businessData.primaryTrade
+        : tradeFromLicense(licenseCode) ?? undefined;
+  const trade = houseTrade(proTrade);
+  const category = trade?.category ?? getCategoryFromLicense(licenseCode);
+  const tradeIcon = trade?.icon ?? getTradeIconFromLicense(licenseCode);
+  if (trade && isHouseTradeSlug(businessData.primaryTrade)) contractorType = trade.title.en;
 
   // Process all licenses to include trade name and icon (use DB names when available)
   const processedLicenses = businessData.licenses.map(license => {
@@ -268,6 +282,8 @@ export function transformBusinessToProCardData(
     businessName: businessData.businessName,
     contractorType,
     accountRole: businessData.accountRole,
+    proTrade,
+    trades: cleanTradeSlugs(businessData.trades).filter((slug) => slug !== proTrade),
     category,
     tradeIcon,
     licenses: processedLicenses,

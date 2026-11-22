@@ -33,7 +33,8 @@ export function ChatMediaAttachment({ att }: { att: ChatAttachment }) {
   if (isVoice(att)) {
     return <audio src={att.url} controls preload="none" className="mt-1 w-full max-w-[260px]" />;
   }
-  if (att.contentType.startsWith('video/')) {
+  // Browsers cannot play AVI inline; it falls through to the download link.
+  if (att.contentType.startsWith('video/') && att.contentType !== 'video/vnd.avi') {
     return (
       <video
         src={att.url}

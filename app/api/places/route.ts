@@ -18,7 +18,7 @@ export async function GET() {
     return NextResponse.json({
       places,
       pendingPros,
-      emailConfirmed: Boolean(user.email_confirmed_at),
+      emailConfirmed: user.emailOwned,
     });
   } catch (err) {
     console.error('GET /api/places', err);

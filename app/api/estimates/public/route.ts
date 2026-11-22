@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { docPlaceLabel } from '@/lib/places/contact-places';
 import { loadEstimateBusinessBrand } from '@/lib/crm/estimate-business-brand';
+import { checkRateLimit } from '@/lib/middleware/rateLimit';
 
 /**
  * GET /api/estimates/public?token=uuid
@@ -9,6 +10,8 @@ import { loadEstimateBusinessBrand } from '@/lib/crm/estimate-business-brand';
  */
 export async function GET(request: NextRequest) {
   try {
+    const limited = await checkRateLimit(request, 'publicLinkRead');
+    if (limited) return limited;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     if (!token) return NextResponse.json({ error: 'Token required' }, { status: 400 });

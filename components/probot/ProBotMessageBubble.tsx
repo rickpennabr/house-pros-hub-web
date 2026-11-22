@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { Building2, User, Check, CheckCheck, ImageIcon, Reply, Trash2, UserPlus, CalendarDays, Home as HomeIcon, FileText, Receipt } from 'lucide-react';
+import { Building2, User, Check, CheckCheck, ChevronDown, Copy, Download, ImageIcon, Reply, Trash2, UserPlus, CalendarDays, Home as HomeIcon, FileText, Receipt, Sprout } from 'lucide-react';
 import { ChatMediaAttachment } from '@/components/chat/ChatMediaAttachment';
 import ChatEstimateShareCard from '@/components/chat/ChatEstimateShareCard';
 import ChatInvoiceShareCard from '@/components/chat/ChatInvoiceShareCard';
@@ -12,6 +12,7 @@ import ChatDocCard, { CHAT_DOC_BUBBLE_WIDTH } from '@/components/chat/ChatDocCar
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
 import type { ChatCrmEstimateShare, ChatMessage } from '@/lib/types/chat';
 import ProAgentCards from './ProAgentCards';
+import { MessageActionsMenu, type MessageAction } from './MessageActionsMenu';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
 
 interface ProBotMessageBubbleProps {
@@ -30,12 +31,18 @@ interface ProBotMessageBubbleProps {
   onCrmEstimateApproved?: (messageId: string, next: ChatCrmEstimateShare) => void;
   /** Shown on the viewer's own messages. Deletes for everyone. */
   onDelete?: (msg: ChatMessage) => void;
+  /** Set or clear the viewer's emoji reaction (null clears). */
+  onReact?: (msg: ChatMessage, emoji: string | null) => void;
   /** Pro side: add the customer who shared a place to the CRM. */
   onAddPlaceToCrm?: (msg: ChatMessage) => Promise<void>;
   /** Customer side: open the shared calendar to pick a time. */
   onPickTime?: (msg: ChatMessage) => void;
   /** Pro view: open the estimate / invoice picker for this customer. */
   onCrmQuickAction?: (kind: 'estimate' | 'invoice') => void;
+  /** While ProBot works on a reply: what it is doing ("Thinking…"), shown in its draft bubble. */
+  draftStatus?: string | null;
+  /** Admin: correct a wrong plant identification on a ProBot answer. */
+  onCorrectPlant?: (msg: ChatMessage) => void;
 }
 
 export default function ProBotMessageBubble({
@@ -52,18 +59,26 @@ export default function ProBotMessageBubble({
   onReply,
   onCrmEstimateApproved,
   onDelete,
+  onReact,
   onAddPlaceToCrm,
   onPickTime,
   onCrmQuickAction,
+  draftStatus,
+  onCorrectPlant,
 }: ProBotMessageBubbleProps) {
   const [addingToCrm, setAddingToCrm] = useState(false);
   const [crmError, setCrmError] = useState<string | null>(null);
+  const [menu, setMenu] = useState<null | 'below' | 'above'>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const t = useTranslations('probot');
   const locale = useLocale();
   const isVisitor = msg.sender === 'visitor';
   /** WhatsApp layout: the viewer's own messages sit on the right in green. */
   const isOwn = isAdminView ? !isVisitor : isVisitor;
   const body = typeof msg.body === 'string' ? msg.body : '';
+  /** ProBot's reply while it is still being written (ProBotChatArea adds it as "stream-…"). */
+  const isDraft = msg.sender === 'admin' && msg.id.startsWith('stream-');
   /** Place cards replace their plain-text body. */
   const showBody = Boolean(body.trim()) && !msg.payload?.placeShare && !msg.payload?.placeLinked;
   /** Document cards share one width, whatever the caption length. */
@@ -75,10 +90,22 @@ export default function ProBotMessageBubble({
       msg.payload?.placeLinked
   );
 
-  const renderBody = (text: string) => {
-    const parts = text.split(/(https?:\/\/[^\s]+)/g);
-    if (parts.length === 1) return text;
-    return parts.map((part, index) =>
+  /**
+   * The AI writes light markdown: **bold**, *italic* / _italic_, and "- " or "* " list lines.
+   * Show it formatted instead of raw asterisks. Links stay clickable.
+   */
+  const renderInline = (text: string, keyPrefix: string) =>
+    text.split(/(\*\*[^*\n]+\*\*|\*[^*\s][^*\n]*\*|_[^_\s][^_\n]*_)/g).map((part, index) => {
+      const key = `${keyPrefix}-${index}`;
+      if (/^\*\*[^*\n]+\*\*$/.test(part)) return <strong key={key}>{part.slice(2, -2)}</strong>;
+      if (/^\*[^*\s][^*\n]*\*$/.test(part) || /^_[^_\s][^_\n]*_$/.test(part)) return <em key={key}>{part.slice(1, -1)}</em>;
+      return <span key={key}>{part}</span>;
+    });
+
+  const renderBody = (raw: string) => {
+    // List lines: "- item" / "* item" → "• item" (whitespace-pre-wrap keeps the line breaks).
+    const text = raw.replace(/^([ \t]*)[-*][ \t]+/gm, '$1• ');
+    return text.split(/(https?:\/\/[^\s]+)/g).map((part, index) =>
       /^https?:\/\//.test(part) ? (
         <a
           key={`${part}-${index}`}
@@ -90,7 +117,7 @@ export default function ProBotMessageBubble({
           {part}
         </a>
       ) : (
-        <span key={`t-${index}`}>{part}</span>
+        <span key={`t-${index}`}>{renderInline(part, `t-${index}`)}</span>
       )
     );
   };
@@ -128,19 +155,123 @@ export default function ProBotMessageBubble({
   ) : msg.admin_avatar_url ? (
     <img src={msg.admin_avatar_url} alt="" width={32} height={32} className="w-full h-full object-cover" />
   ) : (
-    <Image src={PROBOT_ASSETS.avatar} alt="" width={32} height={32} className="w-full h-full object-contain" />
+    <Image
+      src={isDraft ? PROBOT_ASSETS.avatarAnimated : PROBOT_ASSETS.avatar}
+      alt=""
+      width={32}
+      height={32}
+      unoptimized={isDraft}
+      className="w-full h-full object-contain"
+    />
   );
 
+  /** Open the menu above the arrow when the message sits low in the window. */
+  const openMenu = () => {
+    const rect = bubbleRef.current?.getBoundingClientRect();
+    setMenu(rect && rect.top > window.innerHeight * 0.55 ? 'above' : 'below');
+  };
+  const cancelPress = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
+
+  const downloadAttachment = async (url: string, name: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = name || 'file';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(href), 1000);
+    } catch {
+      window.open(url, '_blank', 'noopener');
+    }
+  };
+
+  const myReaction = msg.reactions?.[isAdminView ? 'admin' : 'visitor'];
+  const reactionList = [msg.reactions?.visitor, msg.reactions?.admin].filter((emoji): emoji is string => Boolean(emoji));
+  const attachmentsToSave = (msg.attachments ?? []).filter((att) => !att.contentType.startsWith('audio/')).slice(0, 3);
+  const menuActions: MessageAction[] = [
+    ...(onReply ? [{ key: 'reply', icon: <Reply className="h-4 w-4" />, label: t('reply'), onClick: () => onReply(msg) }] : []),
+    ...(body.trim()
+      ? [{ key: 'copy', icon: <Copy className="h-4 w-4" />, label: t('copyMessage'), onClick: () => void navigator.clipboard?.writeText(body) }]
+      : []),
+    ...attachmentsToSave.map((att, index) => ({
+      key: `download-${index}`,
+      icon: <Download className="h-4 w-4" />,
+      label: attachmentsToSave.length > 1 ? `${t('downloadFile')} ${index + 1}` : t('downloadFile'),
+      onClick: () => void downloadAttachment(att.url, att.name),
+    })),
+    ...(onDelete
+      ? [{ key: 'delete', icon: <Trash2 className="h-4 w-4" />, label: t('deleteMessageShort'), onClick: () => onDelete(msg), danger: true }]
+      : []),
+  ];
+  const hasMenu = menuActions.length > 0 || Boolean(onReact);
+
   return (
-    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${reactionList.length > 0 ? 'mb-3' : ''}`}>
       <div
-        className={`${hasDocCard ? CHAT_DOC_BUBBLE_WIDTH : 'max-w-[85%]'} rounded-lg px-2.5 py-1.5 text-sm text-gray-900 flex items-start gap-2 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] ${
+        ref={bubbleRef}
+        onContextMenu={(event) => {
+          if (!hasMenu) return;
+          event.preventDefault();
+          openMenu();
+        }}
+        onTouchStart={() => {
+          if (!hasMenu) return;
+          cancelPress();
+          pressTimer.current = setTimeout(openMenu, 500);
+        }}
+        onTouchEnd={cancelPress}
+        onTouchMove={cancelPress}
+        className={`group relative max-md:select-none max-md:[-webkit-touch-callout:none] ${hasDocCard ? CHAT_DOC_BUBBLE_WIDTH : 'max-w-[85%]'} rounded-lg px-2.5 py-1.5 text-sm text-gray-900 flex items-start gap-2 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] ${
           isOwn ? 'rounded-tr-none bg-[#d9fdd3]' : 'rounded-tl-none bg-white'
         }`}
       >
         <div className="w-8 h-8 shrink-0 rounded-lg border-2 border-black overflow-hidden bg-gray-200 flex items-center justify-center">
           {avatarContent}
         </div>
+        {hasMenu ? (
+          <button
+            type="button"
+            onClick={() => (menu ? setMenu(null) : openMenu())}
+            className={`absolute right-1 top-1 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-gray-500 transition-opacity hover:text-black ${
+              isOwn ? 'bg-[#d9fdd3]' : 'bg-white'
+            } ${menu ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100 max-md:hidden'}`}
+            aria-label={t('messageMenu')}
+            aria-haspopup="menu"
+            aria-expanded={Boolean(menu)}
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        ) : null}
+        {menu ? (
+          <MessageActionsMenu
+            align={isOwn ? 'right' : 'left'}
+            placement={menu}
+            myReaction={myReaction}
+            onReact={onReact ? (emoji) => onReact(msg, emoji) : undefined}
+            actions={menuActions}
+            onClose={() => setMenu(null)}
+          />
+        ) : null}
+        {reactionList.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => onReact && myReaction && onReact(msg, null)}
+            title={myReaction ? t('removeReaction') : undefined}
+            className={`absolute -bottom-3.5 ${isOwn ? 'right-3' : 'left-12'} z-10 flex cursor-pointer items-center gap-0.5 rounded-md border border-black/10 bg-white px-1.5 py-0.5 text-sm leading-none shadow-sm`}
+          >
+            {reactionList.map((emoji, index) => (
+              <span key={`${emoji}-${index}`}>{emoji}</span>
+            ))}
+            {reactionList.length > 1 ? <span className="ml-0.5 text-xs text-gray-500">{reactionList.length}</span> : null}
+          </button>
+        ) : null}
         <div className="min-w-0 flex-1">
           {msg.sender === 'admin' && (
             <p className="text-xs font-medium text-gray-500 mb-1">
@@ -164,38 +295,35 @@ export default function ProBotMessageBubble({
                       : msg.replyTo.body}
             </p>
           ) : null}
-          {showBody || onReply || onDelete ? (
-            <div className="flex items-start gap-1.5">
-              {showBody ? (
-                <p className="min-w-0 flex-1 whitespace-pre-wrap break-words">{renderBody(body)}</p>
-              ) : (
-                <span className="flex-1" />
-              )}
-              {onReply || onDelete ? (
-                <span className="flex shrink-0 items-center">
-                  {onDelete ? (
-                    <button
-                      type="button"
-                      onClick={() => onDelete(msg)}
-                      className="cursor-pointer p-0.5 opacity-70 hover:opacity-100"
-                      aria-label={t('deleteMessage')}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  ) : null}
-                  {onReply ? (
-                    <button
-                      type="button"
-                      onClick={() => onReply(msg)}
-                      className="cursor-pointer p-0.5 opacity-70 hover:opacity-100"
-                      aria-label={t('reply')}
-                    >
-                      <Reply className="h-3.5 w-3.5" />
-                    </button>
-                  ) : null}
-                </span>
-              ) : null}
-            </div>
+          {isDraft && !body.trim() ? (
+            <p className="flex items-center gap-2 text-gray-500" aria-live="polite">
+              <span className="flex gap-1" aria-hidden>
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" />
+              </span>
+              {draftStatus ? <span className="text-xs">{draftStatus}</span> : null}
+            </p>
+          ) : null}
+          {showBody ? (
+            <p className="min-w-0 whitespace-pre-wrap break-words pr-5 leading-relaxed">{renderBody(body)}</p>
+          ) : null}
+          {msg.payload?.plantId ? (
+            msg.payload.plantId.correctedTo ? (
+              <p className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-green-700 px-2 py-0.5 text-xs text-green-800">
+                <Sprout className="h-3.5 w-3.5" aria-hidden />
+                {t('plantCorrected', { name: msg.payload.plantId.correctedTo })}
+              </p>
+            ) : onCorrectPlant ? (
+              <button
+                type="button"
+                onClick={() => onCorrectPlant(msg)}
+                className="mt-1.5 inline-flex cursor-pointer items-center gap-1 rounded-md border border-black px-2 py-0.5 text-xs font-medium hover:bg-gray-50"
+              >
+                <Sprout className="h-3.5 w-3.5 text-red-500" aria-hidden />
+                {t('plantCorrect')}
+              </button>
+            ) : null
           ) : null}
           {msg.payload?.bookingInvite ? (
             <ChatDocCard

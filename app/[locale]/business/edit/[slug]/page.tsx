@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
 import { useForm, useFieldArray, FormProvider } from 'react-hook-form';
+import { TradePickerField } from '@/components/pros/TradePickerField';
 import type { FieldPath } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChevronDown, ChevronUp, Building2, Trash2, Globe, X, MessageCircle, Star, Home, Hammer, GripVertical, Phone, MapPin, AtSign, PenTool, Settings, FileText, ImagePlus, QrCode, ArrowUpCircle } from 'lucide-react';
@@ -465,6 +466,8 @@ export default function EditBusinessPage() {
 
           const formData: BusinessFormValues = {
             businessName: business.businessName || '',
+            primaryTrade: business.proTrade || undefined,
+            trades: Array.isArray(business.trades) ? business.trades : [],
             slug: business.slug || '',
             companyDescription: business.companyDescription || '',
             ownerBio: business.ownerBio || '',
@@ -903,6 +906,8 @@ export default function EditBusinessPage() {
         licenses: data.licenses || undefined,
         services: data.services || undefined,
         images: data.images || undefined,
+        primaryTrade: data.primaryTrade || null,
+        trades: data.trades ?? [],
         csrfToken,
       };
 
@@ -1226,6 +1231,8 @@ export default function EditBusinessPage() {
                       error={errors.businessName?.message}
                     />
                   </FormField>
+
+                  <TradePickerField disabled={isSubmitting} />
 
                   {/* Licenses */}
                   <div className="space-y-4">

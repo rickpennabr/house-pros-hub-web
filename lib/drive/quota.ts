@@ -31,8 +31,10 @@ export function buildAccountDriveUsage(input: {
   usedBytes: number;
   plan: 'free' | 'pro';
   overageEnabled: boolean;
+  /** Storage included in the company's plan (hub_plans.storage_gb). Defaults to the legacy Free/Pro sizes. */
+  includedBytes?: number;
 }): AccountDriveUsage {
-  const freeBytes = freeBytesForPlan(input.plan);
+  const freeBytes = input.includedBytes ?? freeBytesForPlan(input.plan);
   const usedBytes = Math.max(0, input.usedBytes);
   const overageBytes = Math.max(0, usedBytes - freeBytes);
   const percentUsed = freeBytes > 0 ? usedBytes / freeBytes : 1;

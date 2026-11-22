@@ -79,6 +79,20 @@ export const RATE_LIMIT_CONFIGS = {
     message: 'Too many booking attempts. Please try again later.',
   } as RateLimitConfig,
 
+  // Public invoice/estimate links (token in the URL). Keyed by IP.
+  publicLinkRead: {
+    windowMs: 60 * 60 * 1000,
+    maxRequests: 120,
+    message: 'Too many requests. Please try again later.',
+  } as RateLimitConfig,
+
+  // Pay or approve from a public link (creates Stripe sessions, signs estimates).
+  publicLinkWrite: {
+    windowMs: 60 * 60 * 1000,
+    maxRequests: 20,
+    message: 'Too many attempts. Please try again later.',
+  } as RateLimitConfig,
+
   appointmentManage: {
     windowMs: 60 * 60 * 1000,
     maxRequests: 60,

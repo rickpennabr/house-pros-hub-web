@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { getExtensionFromMimeType, validateFileMagicBytes } from '@/lib/utils/fileValidation';
 import { FEEDBACK_BUCKET, loadFeedbackBusiness } from '@/lib/feedback/businessFeedback';
 
@@ -28,6 +29,8 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'Sign in to add photos.' }, { status: 401 });
   }
+  const limited = await checkRateLimit(request, 'upload', user.id);
+  if (limited) return limited;
 
   const formData = await request.formData();
   const file = formData.get('file');

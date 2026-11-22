@@ -28,11 +28,21 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createServiceRoleClient();
-    const { count, error } = await supabase
+    // Admins' own chats with ProBot don't count: their own messages are never "new" to them.
+    const { data: adminUsers } = await supabase.from('admin_users').select('user_id');
+    const adminIds = (adminUsers ?? []).map((row) => (row as { user_id: string }).user_id).filter(Boolean);
+    let ownConversationIds: string[] = [];
+    if (adminIds.length > 0) {
+      const { data: ownConvs } = await supabase.from('probot_conversations').select('id').in('user_id', adminIds);
+      ownConversationIds = (ownConvs ?? []).map((row) => (row as { id: string }).id);
+    }
+    let query = supabase
       .from('probot_messages')
       .select('*', { count: 'exact', head: true })
       .eq('sender', 'visitor')
       .is('read_at', null);
+    if (ownConversationIds.length > 0) query = query.not('conversation_id', 'in', `(${ownConversationIds.join(',')})`);
+    const { count, error } = await query;
 
     if (error) {
       console.error('ProBot admin unread-count error:', error);

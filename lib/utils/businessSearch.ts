@@ -1,4 +1,5 @@
 import { ProCardData } from '@/components/proscard/ProCard';
+import { houseTrade, NV_BUSINESS_LICENSE_CODE } from '@/lib/pros/house-trades';
 
 /**
  * Maps license codes to categories
@@ -82,6 +83,12 @@ export function getBusinessCategories(business: ProCardData): string[] {
     addCategory(business.category);
   }
 
+  // The trade the pro picked, plus the other trades they do.
+  for (const slug of [business.proTrade, ...(business.trades ?? [])]) {
+    const trade = houseTrade(slug);
+    if (trade) addCategory(trade.category);
+  }
+
   // Role chips: Handyman / Installer come from the owner account, not a trade license.
   if (business.accountRole === 'handyman') addCategory('Handyman');
   if (business.accountRole === 'installer') addCategory('Installer');
@@ -90,6 +97,8 @@ export function getBusinessCategories(business: ProCardData): string[] {
   if (business.licenses && business.licenses.length > 0) {
     business.licenses.forEach((license) => {
       const raw = license.license || 'GENERAL';
+      // A Nevada Business License says nothing about the trade; its trade name was added above.
+      if (raw === NV_BUSINESS_LICENSE_CODE) return;
       const licenseCode = typeof raw === 'string' ? raw.toUpperCase().replace(/\s+/g, ' ').trim() : raw;
       const category = licenseToCategoryMap[licenseCode] ?? licenseToCategoryMap[raw] ?? 'General Contractor';
       addCategory(category);

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { PortalPropertyHistory, type PropertyHistory } from '@/components/crm/PortalPropertyHistory';
 import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
+import { Home, User } from 'lucide-react';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
 
@@ -89,7 +90,14 @@ export default function CustomerPortalPage() {
       </div>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-      <FormField label="Customer">
+      <FormField
+        label={
+          <span className="inline-flex items-center gap-1.5">
+            <User className="h-4 w-4 text-red-600" aria-hidden />
+            Customer
+          </span>
+        }
+      >
         <Select value={customerId} onChange={(event) => pickCustomer(event.target.value)}>
           {customers.length === 0 ? <option value="">No customers yet</option> : null}
           {customers.map((row) => (
@@ -112,7 +120,14 @@ export default function CustomerPortalPage() {
       </FormField>
 
       {customer && properties.length > 1 ? (
-        <FormField label={`Property (${properties.length})`}>
+        <FormField
+          label={
+            <span className="inline-flex items-center gap-1.5">
+              <Home className="h-4 w-4 text-red-600" aria-hidden />
+              {`Property (${properties.length})`}
+            </span>
+          }
+        >
           <Select value={property?.id ?? ''} onChange={(event) => setPlaceId(event.target.value)}>
             {properties.map((row) => (
               <option key={row.id} value={row.id}>

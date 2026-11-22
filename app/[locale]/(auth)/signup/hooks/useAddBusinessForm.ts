@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { LinkItem } from '@/components/proscard/ProLinks';
 import { businessSchema, type BusinessFormValues } from '@/lib/schemas/business';
 import { useAddressField } from '@/hooks/useAddressField';
+import { houseTrade } from '@/lib/pros/house-trades';
 import { type PersonalData } from '@/lib/utils/personalData';
 
 export interface BusinessUIState {
@@ -17,7 +18,9 @@ export interface BusinessUIState {
 
 const TOTAL_STEPS = 7;
 
-export function useAddBusinessForm(personalData?: PersonalData) {
+/** requireTrade: step 1 can't continue until a primary trade is picked (house pros, not realtors). */
+export function useAddBusinessForm(personalData?: PersonalData, primaryTrade?: string | null, requireTrade = false) {
+  const trade = houseTrade(primaryTrade);
   const [uiState, setUiState] = useState<BusinessUIState>({
     currentStep: 1,
     error: null,
@@ -33,7 +36,10 @@ export function useAddBusinessForm(personalData?: PersonalData) {
       businessLogo: '',
       businessBackground: '',
       businessBackgroundPosition: '50% 50%',
-      licenses: [{ license: '', licenseNumber: '' }],
+      primaryTrade: trade?.slug,
+      trades: [],
+      // Licensed trades start on their usual classification; home services on the Nevada Business License.
+      licenses: [{ license: trade?.license ?? '', licenseNumber: '' }],
       services: [],
       images: [],
       address: '',
@@ -168,6 +174,10 @@ export function useAddBusinessForm(personalData?: PersonalData) {
   };
 
   const handleNext = async () => {
+    if (uiState.currentStep === 1 && requireTrade && !methods.getValues('primaryTrade')) {
+      setUiState((prev) => ({ ...prev, error: 'Pick your trade. It is the title on your card.' }));
+      return;
+    }
     let fieldsToValidate: FieldPath<BusinessFormValues>[] = [];
     if (uiState.currentStep === 1) {
       fieldsToValidate = ['businessName', 'slug', 'companyDescription'];

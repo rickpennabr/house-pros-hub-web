@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { createInvoiceCheckoutSession } from '@/lib/billing/invoice-checkout';
 import { safeChatReturnTo } from '@/lib/chat/crm-doc-share';
+import { checkRateLimit } from '@/lib/middleware/rateLimit';
 
 /**
  * POST /api/invoices/public/pay
@@ -9,6 +10,8 @@ import { safeChatReturnTo } from '@/lib/chat/crm-doc-share';
  */
 export async function POST(request: NextRequest) {
   try {
+    const limited = await checkRateLimit(request, 'publicLinkWrite');
+    if (limited) return limited;
     const body = await request.json().catch(() => ({}));
     const token = typeof body.token === 'string' ? body.token : '';
     if (!token) return NextResponse.json({ error: 'Token required' }, { status: 400 });

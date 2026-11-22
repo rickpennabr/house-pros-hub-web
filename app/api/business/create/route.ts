@@ -13,6 +13,8 @@ import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
 import { invalidateBusinessDirectoryCache } from '@/lib/data/businessDirectory';
 import { MAX_BUSINESS_GALLERY_IMAGES } from '@/lib/constants/businessGallery';
 import { businessAddressError } from '@/lib/schemas/business';
+import { houseTrade, NV_BUSINESS_LICENSE_CODE } from '@/lib/pros/house-trades';
+import { saveBusinessTrades } from '@/lib/pros/business-trades';
 
 /**
  * Convert base64 string to Buffer for server-side file handling
@@ -97,6 +99,8 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
       services,
       images,
       operatingHours,
+      primaryTrade,
+      trades,
     } = body;
 
     // Validate required fields
@@ -243,10 +247,16 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
     const safeEmail = email ? (sanitizeText(email) || email.trim().toLowerCase()) : null;
     const safePhone = phone ? (sanitizeText(phone) || null) : null;
     const safeMobilePhone = mobilePhone ? (sanitizeText(mobilePhone) || null) : null;
+    const pickedTrade = houseTrade(typeof primaryTrade === 'string' ? primaryTrade : null);
     const safeLicenses = licenses.map((lic: { license?: string; licenseNumber?: string; trade?: string }) => ({
       license: lic.license ? sanitizeText(lic.license) || lic.license : lic.license,
       licenseNumber: lic.licenseNumber ? sanitizeText(lic.licenseNumber) || lic.licenseNumber : lic.licenseNumber,
-      trade: lic.trade ? sanitizeText(lic.trade) || lic.trade : lic.trade,
+      // A Nevada Business License row carries the service pro's trade (e.g. "House Cleaning") so category filters find it.
+      trade: lic.trade
+        ? sanitizeText(lic.trade) || lic.trade
+        : pickedTrade && lic.license === NV_BUSINESS_LICENSE_CODE
+          ? pickedTrade.category
+          : lic.trade,
     }));
     const safeLinks = links && Array.isArray(links)
       ? links.map((link: { type?: string; url?: string; value?: string }) => {
@@ -432,6 +442,10 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
         .eq('id', businessData.id);
     }
 
+    if (pickedTrade || trades !== undefined) {
+      await saveBusinessTrades(businessData.id, { primaryTrade: pickedTrade?.slug ?? null, trades });
+    }
+
     // Create licenses (only rows with required fields)
     const licenseInserts = safeLicenses
       .filter(
@@ -577,6 +591,8 @@ async function handleCreateBusiness(request: AuthenticatedRequest) {
           ? imageUrls
           : (Array.isArray(completeBusiness?.images) ? (completeBusiness.images as string[]) : []),
       userId,
+      primaryTrade: pickedTrade?.slug ?? null,
+      trades: Array.isArray(trades) ? trades : [],
     });
 
     invalidateBusinessDirectoryCache();

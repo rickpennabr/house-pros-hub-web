@@ -7,9 +7,12 @@ import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { filterAllowedAttachments } from '@/lib/utils/chatAttachmentAllowlist';
 import { chatPushUrl, sendAdminPushNotification, sendBusinessPushNotification } from '@/lib/services/pushNotificationService';
 import { answerHubThread } from '@/lib/chat/hub-agent-reply';
+import { photoContext } from '@/lib/chat/photo-context';
+import { parseReactions } from '@/lib/chat/reactions';
 import { claimHubReply, releaseHubReply } from '@/lib/chat/hub-reply-lock';
 import { parseAgentPayload } from '@/lib/chat/proagent-policy';
 import type { ProbotTurn } from '@/lib/chat/probot-ai';
+import type { ChatAttachment } from '@/lib/types/chat';
 import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 import { parseStoredReply, snapshotFromRow } from '@/lib/chat/reply-snapshot';
@@ -233,11 +236,14 @@ export async function POST(request: NextRequest) {
           try {
             send('message', visitorMessage);
             const history = await recentHubTurns(supabase, conversationId);
+            if (attachments?.some((att) => att.contentType.startsWith('image/'))) send('status', { label: 'reading_photo' });
+            const photo = await photoContext(messageBody ?? '', attachments, locale);
             const answered = await answerHubThread({
               conversationId,
               locale,
               history: history.slice(0, -1),
-              body: messageBody ?? '',
+              body: photo.body,
+              plantId: photo.plantId,
               userId: await sessionUserId(),
               onProgress: (progress) => {
                 if (progress.type === 'status') send('status', { label: progress.label });
@@ -269,11 +275,13 @@ export async function POST(request: NextRequest) {
     if (!businessId && conversationId && (await claimHubReply(conversationId))) {
       try {
         const history = await recentHubTurns(supabase, conversationId);
+        const photo = await photoContext(messageBody ?? '', attachments, locale);
         const answered = await answerHubThread({
           conversationId,
           locale,
           history: history.slice(0, -1),
-          body: messageBody ?? '',
+          body: photo.body,
+          plantId: photo.plantId,
           userId: await sessionUserId(),
         });
         if (answered) botMessage = answered;
@@ -442,11 +450,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null; read_at?: string | null; attachments?: unknown; reply_to?: unknown; admin_sent_as?: string | null; admin_user_id?: string | null; payload?: unknown };
+    type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null; read_at?: string | null; attachments?: unknown; reply_to?: unknown; admin_sent_as?: string | null; admin_user_id?: string | null; payload?: unknown; reactions?: unknown };
     let rawMessages: MessageRow[] | null = null;
 
     // Newest columns first. Fallbacks only drop optional columns and keep the card payload while it exists.
     const columnSets = [
+      'id, sender, body, created_at, business_id, read_at, attachments, reply_to, admin_user_id, payload, reactions',
       'id, sender, body, created_at, business_id, read_at, attachments, reply_to, admin_user_id, payload',
       'id, sender, body, created_at, business_id, read_at, attachments, payload',
       'id, sender, body, created_at, business_id, read_at, payload',
@@ -491,9 +500,17 @@ export async function GET(request: NextRequest) {
     if (isVisitorContext && !contractorReadBusinessId) {
       const hubRows = rows.filter((m) => !m.business_id);
       const lastHub = hubRows[hubRows.length - 1];
+      // The stored photos (our chat storage only), so a reply made here sees them like the send path does.
+      const lastPhotos = Array.isArray(lastHub?.attachments)
+        ? filterAllowedAttachments(
+            (lastHub.attachments as ChatAttachment[]).filter(
+              (att) => att && typeof att.url === 'string' && typeof att.contentType === 'string'
+            )
+          ) ?? []
+        : [];
       if (
         lastHub?.sender === 'visitor' &&
-        lastHub.body.trim() &&
+        (lastHub.body.trim() || lastPhotos.length > 0) &&
         (await claimHubReply(parsed.data.conversationId))
       ) {
         try {
@@ -501,11 +518,13 @@ export async function GET(request: NextRequest) {
             sender: row.sender === 'admin' ? ('admin' as const) : ('visitor' as const),
             body: row.body,
           }));
+          const photo = await photoContext(lastHub.body, lastPhotos, parsed.data.locale);
           const answered = await answerHubThread({
             conversationId: parsed.data.conversationId,
             locale: parsed.data.locale,
             history,
-            body: lastHub.body,
+            body: photo.body,
+            plantId: photo.plantId,
             userId: await sessionUserId(),
           });
           if (answered) {
@@ -618,6 +637,7 @@ export async function GET(request: NextRequest) {
         admin_avatar_url: adminProfile?.admin_avatar_url ?? undefined,
         admin_display_name: adminProfile?.admin_display_name ?? undefined,
         payload: parseAgentPayload(m.payload),
+        reactions: parseReactions(m.reactions),
       };
     });
 

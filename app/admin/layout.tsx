@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { ADMIN_MFA_PATH, adminSessionVerified } from '@/lib/auth/admin-mfa';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { privateRobots } from '@/lib/seo/metadata';
 
@@ -30,6 +31,11 @@ export default async function AdminLayoutWrapper({
 
   if (userEmail !== ADMIN_EMAIL.toLowerCase().trim()) {
     redirect('/');
+  }
+
+  // Second layer behind proxy.ts: two-step sign-in finished in this session.
+  if (!(await adminSessionVerified(supabase))) {
+    redirect(`${ADMIN_MFA_PATH}?next=/admin`);
   }
 
   return <AdminLayout userEmail={user.email || ''}>{children}</AdminLayout>;

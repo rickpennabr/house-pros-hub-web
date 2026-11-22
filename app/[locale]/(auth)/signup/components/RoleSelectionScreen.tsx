@@ -3,15 +3,15 @@
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Hand, HardHat, User } from 'lucide-react';
-import { GrUserWorker } from 'react-icons/gr';
+import { HardHat, User } from 'lucide-react';
 import { FaPersonShelter } from 'react-icons/fa6';
 import Logo from '@/components/Logo';
 import { ProRoleScopeNotice } from '@/components/auth/ProRoleScopeNotice';
 import type { ProAccountRole } from '@/lib/utils/proAccountRole';
 
 interface RoleSelectionScreenProps {
-  onRoleSelect: (role: 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman') => void;
+  /** 'pro' opens the trade picker; the trade decides the account path. */
+  onRoleSelect: (role: 'customer' | 'pro' | 'realtor') => void;
   isLoading?: boolean;
 }
 
@@ -24,7 +24,7 @@ function ProRoleCard({
   disabled,
   onSelect,
 }: {
-  role: ProAccountRole;
+  role?: ProAccountRole;
   title: string;
   invitationLabel: string;
   description: string;
@@ -51,9 +51,11 @@ function ProRoleCard({
           </div>
         </div>
       </button>
-      <div className="px-2 pb-2">
-        <ProRoleScopeNotice role={role} compact />
-      </div>
+      {role && (
+        <div className="px-2 pb-2">
+          <ProRoleScopeNotice role={role} compact />
+        </div>
+      )}
     </div>
   );
 }
@@ -79,7 +81,7 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
         </h2>
       </div>
 
-      {/* Role Selection Cards: Customer first, then Contractor, then Realtor */}
+      {/* Role Selection Cards: Customer, House Pro (every trade), Realtor */}
       <div className="space-y-4">
         {/* Customer Option */}
         <button
@@ -104,33 +106,12 @@ export function RoleSelectionScreen({ onRoleSelect, isLoading = false }: RoleSel
         </button>
 
         <ProRoleCard
-          role="contractor"
-          title={t('contractor.title')}
-          invitationLabel={t('contractor.invitationCodeRequired')}
-          description={t('contractor.description')}
-          icon={<GrUserWorker className="w-6 h-6 text-red-500" />}
-          disabled={isLoading}
-          onSelect={() => onRoleSelect('contractor')}
-        />
-
-        <ProRoleCard
-          role="installer"
-          title={t('installer.title')}
-          invitationLabel={t('installer.invitationCodeRequired')}
-          description={t('installer.description')}
+          title={t('pro.title')}
+          invitationLabel={t('pro.invitationCodeRequired')}
+          description={t('pro.description')}
           icon={<HardHat className="w-6 h-6 text-red-500" />}
           disabled={isLoading}
-          onSelect={() => onRoleSelect('installer')}
-        />
-
-        <ProRoleCard
-          role="handyman"
-          title={t('handyman.title')}
-          invitationLabel={t('handyman.invitationCodeRequired')}
-          description={t('handyman.description')}
-          icon={<Hand className="w-6 h-6 text-red-500" />}
-          disabled={isLoading}
-          onSelect={() => onRoleSelect('handyman')}
+          onSelect={() => onRoleSelect('pro')}
         />
 
         <ProRoleCard

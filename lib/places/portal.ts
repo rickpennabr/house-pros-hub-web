@@ -42,7 +42,11 @@ type Admin = ReturnType<typeof createServiceRoleClient>;
 export interface PortalUser {
   id: string;
   email?: string | null;
-  email_confirmed_at?: string | null;
+  /**
+   * The person proved they own this email (lib/auth/email-ownership.ts). Supabase's
+   * email_confirmed_at is NOT proof: signup confirms every address right away.
+   */
+  emailOwned: boolean;
 }
 
 function norm(value: string | null | undefined): string {
@@ -321,7 +325,8 @@ export async function ensurePersonalPlaceFromAddress(
 export async function claimPortalCustomers(user: PortalUser): Promise<void> {
   const admin = createServiceRoleClient();
   const email = user.email?.trim() ?? '';
-  if (!email || !user.email_confirmed_at) return;
+  // Never hand a pro's records to someone who merely typed this address at signup.
+  if (!email || !user.emailOwned) return;
   const safe = email.replace(/[%_\\]/g, '');
   const { data: pending } = await admin
     .from('pro_crm_customers')

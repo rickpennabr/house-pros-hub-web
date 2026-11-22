@@ -5,6 +5,7 @@ import { ensureBillable } from '@/lib/crm/hub-customer';
 import { linkContactPlace } from '@/lib/places/contact-places';
 import { recordProLinked } from '@/lib/places/timeline';
 import type { ChatPlaceShare } from '@/lib/types/chat';
+import { userEmailOwned } from '@/lib/auth/email-ownership';
 
 /** Last 10 digits, so "(702) 555-0100" and "+1 702-555-0100" match. Too short to trust → null. */
 function phoneDigits(value: string | null | undefined): string | null {
@@ -136,7 +137,9 @@ export async function POST(request: NextRequest) {
       null;
 
     // Then a contact the pro already entered by hand: same email, else same phone, not linked to another login.
-    if (!match) {
+    // Only once the customer proved they own their email: anyone can sign up with another person's
+    // address or type their phone, and this link would show them that pro's records.
+    if (!match && (await userEmailOwned(customerUserId))) {
       const { data: unlinked } = await db
         .from('pro_crm_customers')
         .select('id, place_id, portal_user_id, email, phone')

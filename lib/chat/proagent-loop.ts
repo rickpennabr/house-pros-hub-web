@@ -111,7 +111,7 @@ How to work:
 - create_estimate only when every required field came from the homeowner in this chat. If a field is missing, ask for it. Do not invent contact details, an address, a budget, or a timeline.
 ${moneyRule}
 - Reply in ${language} unless the user clearly wrote in another language.
-- 2 to 5 sentences. No markdown headings.${placeTools}${notes}${places}`
+- Keep it short. A simple answer is 2 to 5 sentences. When the answer has several facts, steps, or options (a plant, its care, how to do something, things to check), write one lead sentence, then short "- " bullets that start with a **bold** label, e.g. "- **Water:** Deep, infrequent watering." Use **bold** for key names and *italic* for scientific names. No markdown headings, no tables.${placeTools}${notes}${places}`
 }
 
 function rememberPros(found: ProAgentProCard[], data: unknown, locale: string): ProAgentProCard[] {

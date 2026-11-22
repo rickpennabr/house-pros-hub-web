@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
+import { TradePickerField } from '@/components/pros/TradePickerField';
 import { Building2, Check, X } from 'lucide-react';
 import type { BusinessFormValues } from '@/lib/schemas/business';
 import { resizeImage, validateFileSize } from '@/lib/utils/image';
@@ -20,7 +21,8 @@ import { FileDropTarget } from '@/components/ui/FileDropTarget';
 const LOGO_MAX_MB = 5;
 const BACKGROUND_MAX_MB = 5;
 
-export function BusinessStep1() {
+/** showTrade: house pros pick their trade here; realtors don't. */
+export function BusinessStep1({ showTrade = true }: { showTrade?: boolean } = {}) {
   const t = useTranslations('businessForm.brand');
   const { register, setValue, watch, setError, clearErrors, formState: { errors, isSubmitting } } = useFormContext<BusinessFormValues>();
   
@@ -414,6 +416,8 @@ export function BusinessStep1() {
       </div>
       
       {/* User Name */}
+      {showTrade && <TradePickerField disabled={isSubmitting} />}
+
       <FormField label={t('userNameLabel')} required error={errors.slug?.message}>
         <div className="space-y-2">
           <div className={`flex items-center border-2 rounded-lg overflow-hidden transition-all ${

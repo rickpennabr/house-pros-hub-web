@@ -13,6 +13,7 @@ import {
 } from '@/lib/crm/hub-customer-copy';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/types/supabase';
+import { userEmailOwned } from '@/lib/auth/email-ownership';
 
 type Client = SupabaseClient<Database>;
 
@@ -99,6 +100,8 @@ export async function attachHubLogin(contactId: string, ownerId: string, email: 
   if (!normalized || normalized.length > 320) return;
   const hub = await lookupHubCustomer(normalized);
   if (!hub) return;
+  // Only link a login that proved it owns this email (anyone can sign up with any address).
+  if (!(await userEmailOwned(hub.userId))) return;
 
   const admin = createServiceRoleClient();
   const { data: row } = await admin

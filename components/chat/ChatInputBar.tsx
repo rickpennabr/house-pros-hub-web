@@ -1,9 +1,13 @@
 'use client';
 
-import { type ChangeEvent, type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
-import { Camera, Cloud, ImageIcon, Mic, Paperclip, Plus, Send, Square } from 'lucide-react';
+import { type ChangeEvent, type ClipboardEvent, type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
+import { dropFilesIntoInput, fileMatchesAccept, useFileDrop } from '@/hooks/useFileDrop';
+import { CHAT_ATTACHMENT_ACCEPT } from '@/lib/utils/chatAttachmentAccept';
+import { FileUp, Camera, Cloud, ImageIcon, Mic, Paperclip, Plus, Send, Square } from 'lucide-react';
 
 export interface ChatInputBarLabels {
+  /** Shown in the tall drop area while files are dragged over the box. */
+  dropFiles?: string;
   attachFiles: string;
   uploadFiles: string;
   addFromGoogleDrive: string;
@@ -42,6 +46,8 @@ export interface ChatInputBarProps {
   labels: ChatInputBarLabels;
   /** Extra + menu actions (CRM share tools for contractors). */
   crmActions?: ChatInputBarCrmAction[];
+  /** Files waiting to send, shown inside the box above the text row. */
+  attachments?: ReactNode;
   replyPreview?: string | null;
   onCancelReply?: () => void;
   onRecorderError?: (message: string) => void;
@@ -83,6 +89,7 @@ export default function ChatInputBar({
   hasText = false,
   labels,
   crmActions,
+  attachments,
   replyPreview,
   onCancelReply,
   onRecorderError,
@@ -136,8 +143,53 @@ export default function ChatInputBar({
     }
   };
 
+  const { isDragging, dropProps } = useFileDrop({
+    onFiles: (files) => {
+      const input = fileInputRef.current;
+      if (input && !input.disabled) dropFilesIntoInput(input, files);
+    },
+    accept: 'image/*,video/*,application/pdf',
+    multiple: true,
+    disabled: attachDisabled,
+  });
+
+  // Pasting a screenshot or copied file (Ctrl+V / Cmd+V, or Paste on iPhone and iPad) attaches it.
+  const onPaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    if (attachDisabled) return;
+    const data = event.clipboardData;
+    let files = Array.from(data?.files ?? []);
+    // iOS Safari sometimes exposes the image only through items.
+    if (files.length === 0 && data?.items) {
+      files = Array.from(data.items)
+        .filter((item) => item.kind === 'file')
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => Boolean(file));
+    }
+    const accepted = files.filter((file) => fileMatchesAccept(file, CHAT_ATTACHMENT_ACCEPT));
+    if (accepted.length === 0) return;
+    event.preventDefault();
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    // Pasted screenshots all arrive as "image.png"; give each a readable, unique name.
+    const named = accepted.map((file, index) =>
+      /^image\.\w+$/i.test(file.name) || !file.name
+        ? new File([file], `screenshot-${stamp}${accepted.length > 1 ? `-${index + 1}` : ''}.${(file.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`, { type: file.type })
+        : file
+    );
+    const input = fileInputRef.current;
+    if (input && !input.disabled) dropFilesIntoInput(input, named);
+  };
+
+  // Dropping files anywhere on the chat box attaches them like the + menu does.
   return (
+    <div {...dropProps} className="relative w-full min-w-0">
     <div className="flex w-full min-w-0 flex-col gap-1">
+      {isDragging ? (
+        <div className="pointer-events-none m-1 flex h-36 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-red-600 bg-red-50 text-sm font-semibold text-red-600 transition-all">
+          <FileUp className="h-7 w-7" />
+          {labels.dropFiles ?? 'Drop images, PDFs or videos here'}
+        </div>
+      ) : null}
+      {attachments}
       {replyPreview ? (
         <div className="flex items-center justify-between gap-2 rounded-lg border border-black/20 bg-white px-3 py-1.5 text-xs text-black">
           <span className="min-w-0 truncate">
@@ -157,7 +209,7 @@ export default function ChatInputBar({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*,application/pdf"
+          accept={CHAT_ATTACHMENT_ACCEPT}
           multiple
           className="hidden"
           onChange={onFileSelect}
@@ -247,6 +299,7 @@ export default function ChatInputBar({
           <input
             ref={inputRef}
             type="text"
+            onPaste={onPaste}
             value={value}
             onChange={onChange}
             placeholder={placeholder}
@@ -278,6 +331,7 @@ export default function ChatInputBar({
           </span>
         </button>
       </div>
+    </div>
     </div>
   );
 }

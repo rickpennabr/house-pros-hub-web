@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { acceptSentEstimate } from '@/lib/crm/accept-estimate';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
+import { checkRateLimit } from '@/lib/middleware/rateLimit';
 
 /**
  * POST /api/estimates/public/approve
@@ -9,6 +10,8 @@ import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
  */
 export async function POST(request: NextRequest) {
   try {
+    const limited = await checkRateLimit(request, 'publicLinkWrite');
+    if (limited) return limited;
     const body = await request.json().catch(() => ({}));
     const token = typeof body.token === 'string' ? body.token : '';
     if (!token) return NextResponse.json({ error: 'Token required' }, { status: 400 });

@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   FolderInput,
+  Leaf,
   Image as ImageIcon,
   ImagePlus,
   MapPin,
@@ -30,6 +31,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { JobPhotoMap } from '@/components/media/JobPhotoMap';
 import { JobPhotoMarkup } from '@/components/media/JobPhotoMarkup';
 import { uploadProDriveFile } from '@/lib/drive/upload-client';
+import { PlantIdentifierModal } from '@/components/ai/PlantIdentifierModal';
 
 export interface JobPhoto {
   id: string;
@@ -526,6 +528,19 @@ export function JobPhotoViewer({
     }
   };
 
+  // "What plant is this?": the photo being viewed goes to plant ID.
+  const [plantPhoto, setPlantPhoto] = useState<File | null>(null);
+  const identifyPlant = async () => {
+    if (!photo.url || photo.mimeType.startsWith('video/')) return;
+    setSheet(null);
+    try {
+      const blob = await (await fetch(photo.url)).blob();
+      setPlantPhoto(new File([blob], photo.name || 'plant.jpg', { type: blob.type || photo.mimeType || 'image/jpeg' }));
+    } catch {
+      setError(t('loadFailed'));
+    }
+  };
+
   const saveToDevice = async () => {
     if (!photo.url) return;
     setBusy(true);
@@ -591,6 +606,7 @@ export function JobPhotoViewer({
   const when = new Date(photo.takenAt).toLocaleString(locale, { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   const menu = [
+    ...(photo.mimeType.startsWith('video/') ? [] : [{ icon: Leaf, label: t('identifyPlant'), run: () => void identifyPlant() }]),
     { icon: Tag, label: t('tag'), run: () => setSheet('tags') },
     { icon: Share2, label: t('share'), run: () => void share() },
     { icon: ImagePlus, label: t('takeAfter'), run: () => onTakeAfter(photo.id) },
@@ -629,6 +645,12 @@ export function JobPhotoViewer({
 
   return createPortal(
     <div className="fixed inset-0 flex flex-col bg-black text-white" style={{ zIndex: 400 }}>
+      <PlantIdentifierModal
+        isOpen={plantPhoto !== null}
+        initialFile={plantPhoto}
+        onClose={() => setPlantPhoto(null)}
+        overlayClassName="!z-[500] text-black"
+      />
       {editing && photo.url ? (
         <JobPhotoMarkup url={photo.url} saving={busy} onClose={() => setEditing(false)} onSave={saveMarkup} />
       ) : null}

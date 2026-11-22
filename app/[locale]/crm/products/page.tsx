@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { MoreVertical, Plus } from 'lucide-react';
@@ -10,6 +10,9 @@ import { CatalogDeleteDialog } from '@/components/crm/catalog/catalog-delete-dia
 import { ProductEditor } from '@/components/crm/catalog/product-editor';
 import { formatCents } from '@/lib/crm/catalog-options';
 import type { CrmCatalogTerm, CrmProduct } from '@/lib/crm/catalog-types';
+import { useTranslations } from 'next-intl';
+import { TRADES, isTradeSlug } from '@/lib/protrades/trades';
+import { useProTrades } from '@/hooks/useProTrades';
 
 const ACTIONS_MENU_HEIGHT = 132;
 
@@ -19,6 +22,7 @@ const COLUMNS: AdminDataTableColumn<CrmProduct>[] = [
   { id: 'brand', label: 'Brand', width: 140 },
   { id: 'sku', label: 'SKU', width: 120 },
   { id: 'category', label: 'Category', width: 140 },
+  { id: 'trade', label: 'Trade', width: 120 },
   { id: 'unit', label: 'Sold by', width: 100 },
   { id: 'price', label: 'Price', width: 110 },
   { id: 'specs', label: 'Specs', width: 90 },
@@ -36,6 +40,8 @@ function cellText(product: CrmProduct, columnId: string): string {
       return product.sku ?? '';
     case 'category':
       return product.category ?? '';
+    case 'trade':
+      return product.trade ?? '';
     case 'unit':
       return product.unit;
     case 'price':
@@ -75,6 +81,25 @@ export default function CRMProductsPage() {
   const [deleting, setDeleting] = useState(false);
   const [openActionsId, setOpenActionsId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const tTrades = useTranslations('protrades');
+  const { state: proTrades } = useProTrades();
+  /** '' = all, 'general' = no trade, or a trade slug. */
+  const [tradeFilter, setTradeFilter] = useState('');
+  // Trades with products, plus trades that are on (so the filter shows up as soon as a trade is on).
+  const tradeOptions = useMemo(() => {
+    const set = new Set<string>(proTrades?.active ?? []);
+    for (const product of products) if (product.trade) set.add(product.trade);
+    return [...set].filter(isTradeSlug);
+  }, [products, proTrades]);
+  const shownProducts = useMemo(
+    () =>
+      tradeFilter === ''
+        ? products
+        : tradeFilter === 'general'
+          ? products.filter((product) => !product.trade)
+          : products.filter((product) => product.trade === tradeFilter),
+    [products, tradeFilter]
+  );
 
   const load = useCallback(async () => {
     try {
@@ -203,13 +228,36 @@ export default function CRMProductsPage() {
           New product
         </Button>
       </div>
+      {tradeOptions.length > 0 ? (
+        <div className="flex gap-2 overflow-x-auto pb-3">
+          {[
+            { key: '', label: tTrades('filterAll'), cls: 'border-black', on: 'bg-black text-white' },
+            { key: 'general', label: tTrades('filterGeneral'), cls: 'border-black', on: 'bg-black text-white' },
+            ...tradeOptions.map((slug) => ({
+              key: slug,
+              label: tTrades(`trade_${slug}`),
+              cls: TRADES[slug].color.border,
+              on: `${TRADES[slug].color.solid} text-white`,
+            })),
+          ].map((option) => (
+            <button
+              key={option.key || 'all'}
+              type="button"
+              onClick={() => setTradeFilter(option.key)}
+              className={`shrink-0 cursor-pointer whitespace-nowrap rounded-lg border-2 px-3 py-1 text-sm ${option.cls} ${tradeFilter === option.key ? option.on : 'bg-white text-black'}`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <AdminDataTable
         clientSide
         columnOrderKey="crm-products"
         exportName="products"
         columns={COLUMNS}
-        data={products}
-        total={products.length}
+        data={shownProducts}
+        total={shownProducts.length}
         pageSize={25}
         isLoading={loading}
         hasLoadedOnce={!loading}
@@ -234,6 +282,15 @@ export default function CRMProductsPage() {
             return photo ? <img src={photo} alt="" className="h-8 w-8 rounded object-cover" /> : <span className="inline-block h-8 w-8 rounded bg-neutral-100" />;
           }
           if (columnId === 'specs') return String(row.specs.length);
+          if (columnId === 'trade') {
+            if (!row.trade || !isTradeSlug(row.trade)) return <span className="text-gray-400">—</span>;
+            const color = TRADES[row.trade].color;
+            return (
+              <span className={`inline-block rounded-md border px-2 py-0.5 text-xs font-medium ${color.border} ${color.soft} ${color.text}`}>
+                {tTrades(`trade_${row.trade}`)}
+              </span>
+            );
+          }
           if (columnId === 'on_page') {
             return (
               <button

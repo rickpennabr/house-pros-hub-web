@@ -11,12 +11,14 @@ import {
 } from '@/lib/drive/constants';
 import {
   buildAccountDriveUsage,
+  DRIVE_BYTES_PER_GB,
   quotaAllows,
   type AccountDriveUsage,
 } from '@/lib/drive/quota';
 import type { DriveBreadcrumb, DriveFile, DriveFolder, DriveListResult, DriveOwnerType } from '@/lib/drive/types';
 import { getResendClient, getResendFromEmail } from '@/lib/utils/resend';
 import { logger } from '@/lib/utils/logger';
+import { currentPlanForUser } from '@/lib/billing/plans';
 
 type Db = SupabaseClient<Database>;
 
@@ -117,14 +119,10 @@ export async function getAccountDriveUsage(supabase: Db, userId: string): Promis
     used += (businessFiles ?? []).reduce((sum, row) => sum + Number(row.size_bytes), 0);
   }
 
-  const { data: subscription } = await supabase
-    .from('hub_subscriptions')
-    .select('plan, status')
-    .eq('user_id', userId)
-    .maybeSingle();
-  const plan = subscription?.plan === 'pro' && (subscription.status === 'active' || subscription.status === 'trialing')
-    ? 'pro'
-    : 'free';
+  // Any paid or comped plan counts as "pro" for the meter; its storage comes from the plan.
+  const { plan: currentPlan } = await currentPlanForUser(userId);
+  const plan: 'free' | 'pro' = currentPlan.slug === 'free' ? 'free' : 'pro';
+  const includedBytes = Math.round(Number(currentPlan.storage_gb) * DRIVE_BYTES_PER_GB);
 
   const { data: billing } = await supabase
     .from('pro_drive_billing')
@@ -136,6 +134,7 @@ export async function getAccountDriveUsage(supabase: Db, userId: string): Promis
     usedBytes: used,
     plan,
     overageEnabled: Boolean(billing?.overage_enabled),
+    includedBytes,
   });
 
   void noteDriveWarnings(userId, usage, billing?.warned_at_80 ?? null, billing?.warned_at_100 ?? null);

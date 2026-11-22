@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { Share2, Phone, MessageCircle } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { houseTrade, houseTradeTitle } from '@/lib/pros/house-trades';
 import {
   proAccountRoleIcon,
   proAccountRoleLabel,
@@ -24,6 +25,8 @@ interface ProCardHeaderProps {
   contractorType: string;
   /** Owner account role shown under the business name. */
   accountRole?: ProAccountRole | string | null;
+  /** Trade slug the pro identifies with. Its title replaces the generic role ("Contractor"). */
+  proTrade?: string;
   tradeIcon?: string; // Deprecated - use licenses array
   category?: string;
   licenses?: LicenseInfo[];
@@ -70,6 +73,25 @@ function getIconColor(iconName?: string): string {
     'Hammer': 'text-gray-600',
     'Wrench': 'text-gray-600',
     'HardHat': 'text-gray-600',
+    'Sparkles': 'text-pink-500',
+    'Waves': 'text-cyan-500',
+    'Bug': 'text-lime-600',
+    'ClipboardCheck': 'text-indigo-500',
+    'FlaskConical': 'text-teal-500',
+    'Truck': 'text-orange-500',
+    'Trash2': 'text-stone-500',
+    'Refrigerator': 'text-sky-500',
+    'KeyRound': 'text-amber-500',
+    'Droplets': 'text-blue-400',
+    'Sofa': 'text-violet-400',
+    'SquareStack': 'text-indigo-400',
+    'Sun': 'text-yellow-400',
+    'Wifi': 'text-indigo-400',
+    'Shield': 'text-red-500',
+    'Box': 'text-gray-500',
+    'Umbrella': 'text-orange-400',
+    'CircleDot': 'text-sky-400',
+    'RectangleHorizontal': 'text-sky-400',
   };
   return colorMap[iconName || ''] || 'text-gray-400';
 }
@@ -163,6 +185,7 @@ export default function ProCardHeader({
   businessName, 
   contractorType,
   accountRole,
+  proTrade,
   tradeIcon,
   licenses,
   phone,
@@ -181,8 +204,16 @@ export default function ProCardHeader({
   }));
   const imageError = imageErrorState.logo === logo ? imageErrorState.hasError : false;
 
-  const roleLabel = proAccountRoleLabel(accountRole) || contractorType.replace(/\s*Contractor\s*/gi, '').trim();
-  const roleIconName = accountRole ? proAccountRoleIcon(accountRole) : tradeIcon || licenses?.[0]?.tradeIcon;
+  const locale = useLocale();
+  const trade = accountRole === 'realtor' ? null : houseTrade(proTrade);
+  const roleLabel = trade
+    ? houseTradeTitle(trade.slug, locale)
+    : proAccountRoleLabel(accountRole) || contractorType.replace(/\s*Contractor\s*/gi, '').trim();
+  const roleIconName = trade
+    ? trade.icon
+    : accountRole
+      ? proAccountRoleIcon(accountRole)
+      : tradeIcon || licenses?.[0]?.tradeIcon;
   const RoleIcon =
     roleIconName && roleIconName in LucideIcons
       ? (LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }>>)[roleIconName]

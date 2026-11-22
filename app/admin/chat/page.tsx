@@ -12,6 +12,7 @@ import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import type { ProAgentPayload } from '@/lib/types/chat';
 import { hasPushSubscription } from '@/lib/push/has-subscription';
+import { CHAT_ATTACHMENT_ACCEPT } from '@/lib/utils/chatAttachmentAccept';
 
 interface Conversation {
   id: string;
@@ -610,7 +611,7 @@ export default function AdminChatPage() {
                     : 'Your reply pauses ProAgent until you hand the chat back.'}
                 </p>
                 <div className="flex gap-0 items-end">
-                  <input ref={fileInputRef} type="file" accept="image/*,video/*,application/pdf" multiple className="hidden" onChange={handleAdminFileSelect} />
+                  <input ref={fileInputRef} type="file" accept={CHAT_ATTACHMENT_ACCEPT} multiple className="hidden" onChange={handleAdminFileSelect} />
                   <div className="relative">
                     <button
                       type="button"

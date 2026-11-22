@@ -27,21 +27,48 @@ export const MAX_FILE_SIZES = {
   invoiceAttachment: 20 * 1024 * 1024, // 20MB per invoice attachment (QuickBooks-style)
 } as const;
 
-/** Allowed chat attachment MIME types (images, PDF, video, voice). */
+/**
+ * Allowed chat attachment MIME types, as sniffed from the file's bytes (never its name or the
+ * browser's claim). Close to what AI chat apps accept (photos incl. iPhone HEIC, PDF and Office
+ * documents, common video and audio), minus anything that can run code:
+ *   never SVG, HTML, XML or scripts (they run in the browser from our storage domain),
+ *   never macro-enabled Office (.docm/.xlsm/.pptm) or old binary Office (.doc/.xls/.ppt),
+ *   never archives (.zip/.rar/.7z) or executables.
+ * Keep in sync with the chat-attachments bucket (migration 150).
+ */
 export const ALLOWED_CHAT_ATTACHMENT_TYPES = [
   'image/jpeg',
   'image/png',
   'image/webp',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+  'image/avif',
   'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/csv',
   'video/mp4',
   'video/webm',
   'video/quicktime',
+  'video/matroska',
+  'video/vnd.avi',
+  'video/3gpp',
   'audio/webm',
   'audio/mp4',
+  'audio/x-m4a',
   'audio/mpeg',
   'audio/ogg',
   'audio/wav',
+  'audio/aac',
+  'audio/flac',
 ] as const;
+
+/** What the upload error lists as allowed. */
+export const CHAT_ATTACHMENT_ALLOWED_LABEL =
+  'photos (JPEG, PNG, WebP, GIF, HEIC), PDF, Word, Excel, PowerPoint, TXT, CSV, video (MP4, MOV, WebM, MKV, AVI, 3GP) and audio (MP3, M4A, WAV, OGG, AAC, FLAC)';
 
 export type FileType = keyof typeof MAX_FILE_SIZES;
 
@@ -133,8 +160,48 @@ export function getExtensionFromMimeType(mimeType: string): string {
     'audio/mpeg': '.mp3',
     'audio/ogg': '.ogg',
     'audio/wav': '.wav',
+    'image/gif': '.gif',
+    'image/heic': '.heic',
+    'image/heif': '.heif',
+    'image/avif': '.avif',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    'text/plain': '.txt',
+    'text/csv': '.csv',
+    'video/matroska': '.mkv',
+    'video/vnd.avi': '.avi',
+    'video/3gpp': '.3gp',
+    'audio/x-m4a': '.m4a',
+    'audio/aac': '.aac',
+    'audio/flac': '.flac',
   };
   return mimeToExt[mimeType] || '.bin';
+}
+
+/**
+ * A .txt or .csv file has no magic bytes: accept it only when it is plain UTF-8 text (no NUL
+ * bytes, no binary) and does not look like HTML, SVG or XML, which a browser could run.
+ */
+function sniffPlainText(buf: Buffer, fileName: string): string | null {
+  const ext = fileName.toLowerCase().match(/\.(txt|csv)$/)?.[1];
+  if (!ext || buf.length === 0) return null;
+  if (buf.includes(0)) return null;
+  let text: string;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(buf.subarray(0, 64 * 1024));
+  } catch {
+    return null;
+  }
+  // Control characters other than tab, newline and carriage return mean binary.
+  if (/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text)) return null;
+  if (/^\s*(<!doctype|<html|<svg|<\?xml|<script)/i.test(text) || /<script[\s>]/i.test(text)) return null;
+  return ext === 'csv' ? 'text/csv' : 'text/plain';
+}
+
+/** An Office file that carries a VBA macro project, whatever its extension says. */
+function hasOfficeMacros(buf: Buffer): boolean {
+  return buf.includes('vbaProject.bin') || buf.includes('vbaData.xml');
 }
 
 /**
@@ -142,7 +209,9 @@ export function getExtensionFromMimeType(mimeType: string): string {
  * PDF: magic is %PDF; allow one optional leading whitespace byte (some generators add it).
  */
 export async function validateChatAttachmentMagicBytes(
-  buffer: Buffer | ArrayBuffer | Uint8Array
+  buffer: Buffer | ArrayBuffer | Uint8Array,
+  /** Only used for .txt/.csv, which have no magic bytes. */
+  fileName = ''
 ): Promise<{ isValid: boolean; mimeType: string | null }> {
   try {
     const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer);
@@ -155,8 +224,11 @@ export async function validateChatAttachmentMagicBytes(
       if (hasPdfMagic) {
         return { isValid: true, mimeType: 'application/pdf' };
       }
-      return { isValid: false, mimeType: null };
+      const text = sniffPlainText(buf, fileName);
+      return text ? { isValid: true, mimeType: text } : { isValid: false, mimeType: null };
     }
+    const isOffice = fileType.mime.startsWith('application/vnd.openxmlformats-officedocument.');
+    if (isOffice && hasOfficeMacros(buf)) return { isValid: false, mimeType: fileType.mime };
     const isValid = (ALLOWED_CHAT_ATTACHMENT_TYPES as readonly string[]).includes(fileType.mime);
     return { isValid, mimeType: fileType.mime };
   } catch {
@@ -180,4 +252,5 @@ export async function validateInvoiceAttachmentMagicBytes(
 ): Promise<{ isValid: boolean; mimeType: string | null }> {
   return validateChatAttachmentMagicBytes(buffer);
 }
+
 

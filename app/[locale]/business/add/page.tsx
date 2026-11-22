@@ -33,7 +33,12 @@ import { LinkItem } from '@/components/proscard/ProLinks';
 export default function AddBusinessPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get('returnTo');
+  // Only a path inside this site: never "//evil.com", "https://…", "\evil" or "javascript:".
+  const rawReturnTo = searchParams.get('returnTo');
+  const returnTo =
+    rawReturnTo && rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//') && !/[\\\s]|:\/\//.test(rawReturnTo)
+      ? rawReturnTo
+      : null;
   const locale = useLocale() as Locale;
   const t = useTranslations('accountManagement');
   const tBusinessForm = useTranslations('businessForm');

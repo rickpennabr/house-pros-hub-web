@@ -4,6 +4,7 @@ import { docPlaceLabel } from '@/lib/places/contact-places';
 import { applyCompanyDisplay } from '@/lib/invoices/companyDisplay';
 import { applyInvoiceBrand } from '@/lib/invoices/invoice-brand';
 import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
+import { checkRateLimit } from '@/lib/middleware/rateLimit';
 
 /**
  * GET /api/invoices/public?token=uuid
@@ -11,6 +12,8 @@ import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
  */
 export async function GET(request: NextRequest) {
   try {
+    const limited = await checkRateLimit(request, 'publicLinkRead');
+    if (limited) return limited;
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     if (!token) return NextResponse.json({ error: 'Token required' }, { status: 400 });

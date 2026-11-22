@@ -9,6 +9,7 @@ import { getMessages } from 'next-intl/server';
 import { logger } from '@/lib/utils/logger';
 import { findInvitationCode, invitationCodeBlockReason, type InvitationRole } from '@/lib/auth/invitationCodes';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
+import { sendEmailVerification } from '@/lib/auth/email-ownership';
 import { ensurePersonalPlaceFromAddress } from '@/lib/places/portal';
 import type { WelcomeEmailTranslations } from '@/lib/utils/emailTemplates';
 
@@ -205,9 +206,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // This signup signs the person in immediately, so the email is confirmed.
+    // This signup signs the person in immediately, so the Supabase email is confirmed.
     // Supabase only keeps the password when that address is confirmed. Otherwise
     // a later Google sign-in with the same email deletes the password identity.
+    // SECURITY: this does NOT prove they own the address. Anything that hands out data by
+    // email checks profiles.verified_email (lib/auth/email-ownership.ts), set by the link
+    // emailed below, a reset link, or Google sign-in (which also resets a password set by
+    // someone who never proved the address).
     if (!authData.user.email_confirmed_at) {
       const { error: confirmError } = await serviceRoleClient.auth.admin.updateUserById(
         authData.user.id,
@@ -429,6 +434,16 @@ export async function POST(request: NextRequest) {
       companyRole: normalizeString(companyRole),
       userPicture: profilePictureUrl || null,
     };
+
+    // Proof of email ownership (non-blocking): until they click it, no pro's CRM records
+    // saved under this address are shared with the account.
+    await sendEmailVerification({
+      userId: authData.user.id,
+      email: normalizedEmail,
+      origin: process.env.NEXT_PUBLIC_SITE_URL || 'https://houseproshub.com',
+      locale: request.headers.get('x-locale') || 'en',
+      firstName: typeof firstName === 'string' ? firstName : '',
+    });
 
     // Send welcome email (non-blocking - don't fail signup if email fails)
     try {

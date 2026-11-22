@@ -32,9 +32,14 @@ interface ProBotMessageListProps {
   onCrmEstimateApproved?: (messageId: string, next: ChatCrmEstimateShare) => void;
   canDelete?: (msg: ChatMessage) => boolean;
   onDelete?: (msg: ChatMessage) => void;
+  onReact?: (msg: ChatMessage, emoji: string | null) => void;
   onAddPlaceToCrm?: (msg: ChatMessage) => Promise<void>;
   onPickTime?: (msg: ChatMessage) => void;
   onCrmQuickAction?: (kind: 'estimate' | 'invoice') => void;
+  /** While ProBot works on a reply: what it is doing ("Thinking…"), shown in its draft bubble. */
+  draftStatus?: string | null;
+  /** Admin: correct a wrong plant identification on a ProBot answer. */
+  onCorrectPlant?: (msg: ChatMessage) => void;
 }
 
 export default function ProBotMessageList({
@@ -53,9 +58,12 @@ export default function ProBotMessageList({
   onCrmEstimateApproved,
   canDelete,
   onDelete,
+  onReact,
   onAddPlaceToCrm,
   onPickTime,
   onCrmQuickAction,
+  draftStatus,
+  onCorrectPlant,
 }: ProBotMessageListProps) {
   const uniqueMessages = useMemo(() => dedupeMessagesById(messages), [messages]);
   const listRef = useRef<HTMLDivElement>(null);
@@ -114,7 +122,8 @@ export default function ProBotMessageList({
   }, [scrollContainerRef]);
 
   return (
-    <div ref={listRef} className="p-4 space-y-3 min-h-0">
+    // Desktop: one centered reading column (like AI chat apps), the same width as the composer.
+    <div ref={listRef} className="p-4 space-y-3 min-h-0 w-full md:mx-auto md:max-w-3xl">
       {uniqueMessages.map((msg) => (
         <ProBotMessageBubble
           key={msg.id}
@@ -131,9 +140,12 @@ export default function ProBotMessageList({
           onReply={onReply}
           onCrmEstimateApproved={onCrmEstimateApproved}
           onDelete={onDelete && canDelete?.(msg) ? onDelete : undefined}
+          onReact={onReact}
           onAddPlaceToCrm={onAddPlaceToCrm}
           onPickTime={onPickTime}
           onCrmQuickAction={onCrmQuickAction}
+          draftStatus={draftStatus}
+          onCorrectPlant={onCorrectPlant}
         />
       ))}
     </div>

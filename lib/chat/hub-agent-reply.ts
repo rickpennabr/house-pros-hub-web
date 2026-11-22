@@ -5,7 +5,7 @@ import { recordProbotTrace } from '@/lib/chat/probot-trace'
 import { parseAgentPayload } from '@/lib/chat/proagent-policy'
 import { runProAgentTurn, type AgentStepDraft, type ProAgentProgress } from '@/lib/chat/proagent-loop'
 import type { ProbotTurn } from '@/lib/chat/probot-ai'
-import type { ProAgentPayload } from '@/lib/types/chat'
+import type { ChatPlantId, ProAgentPayload } from '@/lib/types/chat'
 import { portalBriefForUser } from '@/lib/places/portal'
 
 export interface HubBotMessage {
@@ -70,6 +70,8 @@ export async function answerHubThread(input: {
   body: string
   userId?: string
   onProgress?: (event: ProAgentProgress) => void
+  /** The reply answers a plant photo: kept on the reply so an admin can correct it. */
+  plantId?: ChatPlantId
 }): Promise<HubBotMessage | null> {
   if (await conversationPaused(input.conversationId)) return null
   await supersedePendingDrafts(input.conversationId)
@@ -98,7 +100,7 @@ export async function answerHubThread(input: {
     sender: 'admin' as const,
     body: turn.body,
     admin_sent_as: 'probot' as const,
-    payload: (turn.payload ?? null) as Json,
+    payload: (input.plantId ? { ...(turn.payload ?? {}), plantId: input.plantId } : turn.payload ?? null) as Json,
   }
   let inserted = await supabase
     .from('probot_messages')
@@ -106,11 +108,20 @@ export async function answerHubThread(input: {
     .select('id, conversation_id, sender, body, created_at, payload')
     .single()
 
+  // Older databases lack payload and/or admin_sent_as; save the reply without them.
   if (isMissingColumnError(inserted.error)) {
     const { payload: _payload, ...withoutPayload } = withPayload
     inserted = await supabase
       .from('probot_messages')
       .insert(withoutPayload)
+      .select('id, conversation_id, sender, body, created_at')
+      .single()
+  }
+  if (isMissingColumnError(inserted.error)) {
+    const { payload: _payload, admin_sent_as: _sentAs, ...plain } = withPayload
+    inserted = await supabase
+      .from('probot_messages')
+      .insert(plain)
       .select('id, conversation_id, sender, body, created_at')
       .single()
   }

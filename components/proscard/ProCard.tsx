@@ -28,6 +28,10 @@ export interface ProCardData {
   contractorType: string;
   /** Owner account role from user_roles — shown under the business name. */
   accountRole?: 'contractor' | 'realtor' | 'installer' | 'handyman';
+  /** Trade the pro identifies with (lib/pros/house-trades.ts slug). Title on the card and details page. */
+  proTrade?: string;
+  /** Other trades the pro also does (slugs). */
+  trades?: string[];
   /** Owner user id. */
   userId?: string;
   tradeIcon?: string; // Icon name from lucide-react (deprecated - use licenses array)
@@ -147,6 +151,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
           businessName={data.businessName}
           contractorType={data.contractorType}
           accountRole={accountRole}
+          proTrade={data.proTrade}
           tradeIcon={data.tradeIcon}
           category={data.category}
           licenses={data.licenses}
@@ -191,6 +196,7 @@ export default function ProCard({ data, onShare, onReaction, isListMode = false,
         businessName={data.businessName}
         contractorType={data.contractorType}
         accountRole={accountRole}
+        proTrade={data.proTrade}
         tradeIcon={data.tradeIcon}
         category={data.category}
         licenses={data.licenses}

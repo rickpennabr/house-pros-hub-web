@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { validateFileMagicBytes, validateFileSize, getExtensionFromMimeType } from '@/lib/utils/fileValidation';
 import { handleError } from '@/lib/utils/errorHandler';
@@ -54,10 +54,12 @@ export async function POST(request: NextRequest) {
     // Generate unique file path using timestamp and random string
     // Format: estimates/timestamp-random.ext
     const fileExt = getExtensionFromMimeType(fileValidation.mimeType);
-    const randomString = Math.random().toString(36).substring(2, 15);
-    const filePath = `estimates/${Date.now()}-${randomString}${fileExt}`;
+    const filePath = `estimates/${Date.now()}-${crypto.randomUUID()}${fileExt}`;
 
-    const { data, error } = await supabase.storage
+    // Upload as the server after the checks above: storage no longer lets anonymous clients
+    // write to (or delete from) this bucket (migration 152).
+    const storage = createServiceRoleClient().storage;
+    const { data, error } = await storage
       .from('estimate-images')
       .upload(filePath, buffer, {
         cacheControl: '3600',
@@ -74,7 +76,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get public URL
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = storage
       .from('estimate-images')
       .getPublicUrl(data.path);
 

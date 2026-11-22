@@ -206,7 +206,9 @@ export async function GET(request: NextRequest) {
         const row = c as ConvRow;
         const last = lastByConv.get(row.id);
         const firstVisitor = firstVisitorByConv.get(row.id);
-        const unread_count = unreadCountByConv.get(row.id) ?? 0;
+        // An admin's own chat with ProBot: their messages are not "new" for them, so they never count as unread.
+        const ownAdminChat = Boolean(row.user_id && adminUserIdsSet.has(row.user_id));
+        const unread_count = ownAdminChat ? 0 : unreadCountByConv.get(row.id) ?? 0;
         const lastSeenAt = lastSeenByVisitor.get(row.visitor_id) ?? null;
         const visitorOnline = lastSeenAt
           ? new Date(lastSeenAt).getTime() > Date.now() - ONLINE_THRESHOLD_MS

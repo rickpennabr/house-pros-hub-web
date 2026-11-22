@@ -21,6 +21,7 @@ import {
   resolveProDetailsRole,
 } from '@/lib/constants/proDetailsTabs';
 import SignInRequiredModal from '@/components/auth/SignInRequiredModal';
+import { houseTrade, houseTradeTitle } from '@/lib/pros/house-trades';
 import { HphQrCodeModal } from '@/components/qr/HphQrCodeModal';
 import { publicPageUrl } from '@/lib/qr/public-origin';
 import { createLocalePath } from '@/lib/redirect';
@@ -121,6 +122,7 @@ export default function BusinessDetailsPage() {
   const slug = params.slug as string;
   const locale = useLocale();
   const tHours = useTranslations('businessHours');
+  const tTrades = useTranslations('houseTrades');
   const { user, isAuthenticated } = useAuth();
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isSignInRequiredOpen, setIsSignInRequiredOpen] = useState(false);
@@ -150,8 +152,11 @@ export default function BusinessDetailsPage() {
   const detailsRole = resolveProDetailsRole(ownerRoles);
   const roleTabs = normalizeTabsForRole(detailsRole, business?.tabOrder);
   const showServices = detailsRole === 'contractor' || detailsRole === 'handyman' || detailsRole === 'installer';
+  // Service pros (cleaners, pool service, pest control...) sell visits, not products.
+  const proTrade = business?.accountRole === 'realtor' ? null : houseTrade(business?.proTrade);
   const showProducts =
     (detailsRole === 'contractor' || detailsRole === 'installer') &&
+    proTrade?.layout !== 'service' &&
     (isOwner || profileProductCount > 0);
   const showProperties = detailsRole === 'realtor';
   const showTrades = detailsRole === 'handyman';
@@ -601,9 +606,16 @@ export default function BusinessDetailsPage() {
         businessName={business.businessName}
         contractorType={business.contractorType}
         subtitle={
-          business.accountRole
-            ? business.accountRole.charAt(0).toUpperCase() + business.accountRole.slice(1)
-            : business.contractorType
+          proTrade
+            ? [
+                houseTradeTitle(proTrade.slug, locale),
+                proTrade.licensed && business.licenses?.some((license) => license.licenseNumber) ? tTrades('licensed') : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : business.accountRole
+              ? business.accountRole.charAt(0).toUpperCase() + business.accountRole.slice(1)
+              : business.contractorType
         }
         isOwner={isOwner}
       />
