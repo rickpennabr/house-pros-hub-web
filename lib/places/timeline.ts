@@ -25,6 +25,10 @@ export const PLACE_EVENT_KINDS = [
   'appointment_completed',
   'appointment_rescheduled',
   'place_updated',
+  'invoice_reminder',
+  'payment_received',
+  'project_completed',
+  'visit_completed',
 ] as const;
 
 export type PlaceEventKind = (typeof PLACE_EVENT_KINDS)[number];

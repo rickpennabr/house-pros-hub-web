@@ -3138,6 +3138,7 @@
     "maintenanceStarted": "Maintenance visits are now on this place.",
     "maintenanceAgreement": "Maintenance",
     "openAgreement": "Open & sign",
+    "signedApproved": "Signed & approved",
     "payAfterSign": "Payment is ready. Pay by card to start.",
     "payNow": "Pay now",
     "payFailed": "Could not start the payment.",

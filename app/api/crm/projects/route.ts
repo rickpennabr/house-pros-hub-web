@@ -1,3 +1,4 @@
+import { recordCustomerPlaceEvent } from '@/lib/places/timeline';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
@@ -324,6 +325,16 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message || 'Failed to create project' }, { status: 500 });
+    if (customerId) {
+      await recordCustomerPlaceEvent(customerId, {
+        placeId: placeId || undefined,
+        kind: 'project_shared',
+        title: `Project added · ${name}`,
+        detail: startDate ? `Starts ${startDate}` : null,
+        projectId: row.id,
+        ownerId: user.id,
+      }).catch(() => null);
+    }
     return NextResponse.json({ id: row.id, display_id: row.display_id, created_at: row.created_at }, { status: 201 });
   } catch (err) {
     console.error('POST /api/crm/projects', err);

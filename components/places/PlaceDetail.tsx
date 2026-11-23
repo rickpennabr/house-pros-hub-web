@@ -539,17 +539,6 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
                     <Share2 className="h-4 w-4 text-red-500" />
                     {tPros('share')}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setSharePickerOpen(true);
-                    }}
-                    className="mt-1 hidden w-full items-center gap-2 rounded-lg border-t border-gray-200 px-2 py-1.5 text-left text-sm font-medium hover:bg-gray-100 md:flex"
-                  >
-                    <Share2 className="h-4 w-4 text-red-500" />
-                    {tPros('share')}
-                  </button>
                   </>
                 )}
               </div>
@@ -908,9 +897,12 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
                   <button
                     type="button"
                     onClick={() => void openEstimate(estimate.id)}
-                    className="shrink-0 rounded-lg border-2 border-black px-3 py-1.5 text-sm font-medium"
+                    className={`shrink-0 rounded-lg border-2 px-3 py-1.5 text-sm font-medium ${
+                      estimate.status === 'accepted' ? 'border-green-700 bg-green-50 text-green-800' : 'border-black'
+                    }`}
                   >
-                    {t('openAgreement')}
+                    {/* Already signed: say so; the button still opens it to read. */}
+                    {estimate.status === 'accepted' ? `✓ ${t('signedApproved')}` : t('openAgreement')}
                   </button>
                 </div>
                 {openEstimateId === estimate.id ? (

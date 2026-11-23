@@ -33,3 +33,20 @@ ALTER TABLE public.pro_crm_activity ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS pro_crm_activity_owner_read ON public.pro_crm_activity;
 CREATE POLICY pro_crm_activity_owner_read ON public.pro_crm_activity
   FOR SELECT USING (auth.uid() = owner_id);
+
+-- More steps on the homeowner's My Places timeline (and their badges): payment reminders, partial
+-- payments, finished projects and finished maintenance visits.
+ALTER TABLE public.customer_place_events
+  DROP CONSTRAINT IF EXISTS customer_place_events_kind_check;
+ALTER TABLE public.customer_place_events
+  ADD CONSTRAINT customer_place_events_kind_check
+  CHECK (kind IN (
+    'place_entered', 'pro_linked',
+    'estimate_received', 'estimate_approved', 'estimate_declined',
+    'invoice_received', 'invoice_paid', 'invoice_reminder', 'payment_received',
+    'document_received',
+    'project_shared', 'project_completed',
+    'maintenance_started', 'maintenance_stopped', 'visit_completed',
+    'appointment_booked', 'appointment_cancelled', 'appointment_completed', 'appointment_rescheduled',
+    'place_updated'
+  ));

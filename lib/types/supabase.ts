@@ -1708,7 +1708,11 @@ export interface Database {
             | 'appointment_cancelled'
             | 'appointment_completed'
             | 'appointment_rescheduled'
-            | 'place_updated';
+            | 'place_updated'
+            | 'invoice_reminder'
+            | 'payment_received'
+            | 'project_completed'
+            | 'visit_completed';
           occurred_at: string;
           title: string;
           detail: string | null;
@@ -1744,7 +1748,11 @@ export interface Database {
             | 'appointment_cancelled'
             | 'appointment_completed'
             | 'appointment_rescheduled'
-            | 'place_updated';
+            | 'place_updated'
+            | 'invoice_reminder'
+            | 'payment_received'
+            | 'project_completed'
+            | 'visit_completed';
           occurred_at?: string;
           title: string;
           detail?: string | null;
@@ -1780,7 +1788,11 @@ export interface Database {
             | 'appointment_cancelled'
             | 'appointment_completed'
             | 'appointment_rescheduled'
-            | 'place_updated';
+            | 'place_updated'
+            | 'invoice_reminder'
+            | 'payment_received'
+            | 'project_completed'
+            | 'visit_completed';
           occurred_at?: string;
           title?: string;
           detail?: string | null;

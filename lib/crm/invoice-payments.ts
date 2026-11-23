@@ -10,7 +10,7 @@ import {
   type ProInvoiceStatus,
 } from '@/lib/crm/invoice-books';
 import { emailPaymentReceipt, type ReceiptResult } from '@/lib/crm/payment-receipt';
-import { recordInvoicePaid } from '@/lib/places/timeline';
+import { recordCustomerPlaceEvent, recordInvoicePaid } from '@/lib/places/timeline';
 
 type Client = SupabaseClient<Database>;
 
@@ -127,6 +127,16 @@ export async function recordInvoicePayment(
     payload: { payment_id: payment.id, amount_cents: input.amountCents, status, receipt },
   });
 
+  if (status !== 'paid') {
+    // No invoice id: each partial payment is its own step.
+    await recordCustomerPlaceEvent(invoice.customer_id, {
+      kind: 'payment_received',
+      title: 'Payment received',
+      detail: invoice.invoice_number,
+      amountCents: input.amountCents,
+      ownerId,
+    }).catch(() => null);
+  }
   if (status === 'paid') {
     await recordInvoicePaid({
       customerId: invoice.customer_id,

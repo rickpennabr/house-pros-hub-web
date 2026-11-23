@@ -1,3 +1,4 @@
+import { recordCustomerPlaceEvent } from '@/lib/places/timeline';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
@@ -65,7 +66,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const supabase = await createClient();
     const { data: currentProject } = await supabase
       .from('pro_crm_projects')
-      .select('customer_id, estimate_id')
+      .select('customer_id, estimate_id, status, name, place_id')
       .eq('id', id)
       .eq('owner_id', user.id)
       .single();
@@ -97,6 +98,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { error } = await supabase.from('pro_crm_projects').update(updates).eq('id', id).eq('owner_id', user.id);
     if (error) return NextResponse.json({ error: error.message || 'Failed to update project' }, { status: 500 });
+    if (updates.status === 'completed' && currentProject.status !== 'completed' && targetCustomerId) {
+      await recordCustomerPlaceEvent(targetCustomerId, {
+        placeId: currentProject.place_id || undefined,
+        kind: 'project_completed',
+        title: `Project finished · ${(updates.name as string | undefined) || currentProject.name}`,
+        projectId: id,
+        ownerId: user.id,
+      }).catch(() => null);
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('PUT /api/crm/projects/[id]', err);

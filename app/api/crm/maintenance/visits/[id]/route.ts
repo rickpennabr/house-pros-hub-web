@@ -1,3 +1,4 @@
+import { recordCustomerPlaceEvent } from '@/lib/places/timeline';
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -258,6 +259,17 @@ export async function PATCH(
 
     const next = await loadVisitBundle(scope.supabase, scope.ownerId, id);
     if (!next) return NextResponse.json({ error: 'Visit not found' }, { status: 404 });
+
+    const visitCustomerId = (next.visit as { customer_id?: string | null }).customer_id;
+    if (parsed.data.finish && next.visit.status === 'completed' && visitCustomerId) {
+      const seconds = (next.visit as { labor_seconds?: number | null }).labor_seconds ?? 0;
+      await recordCustomerPlaceEvent(visitCustomerId, {
+        kind: 'visit_completed',
+        title: 'Maintenance visit done',
+        detail: seconds > 0 ? `${(seconds / 3600).toFixed(1)}h of work` : null,
+        ownerId: scope.ownerId,
+      }).catch(() => null);
+    }
 
     if ((parsed.data.finish || parsed.data.status === 'cancelled') && next.visit.day_id) {
       await recomputeDayTotals(scope.supabase, next.visit.day_id, scope.ownerId);

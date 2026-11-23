@@ -1,3 +1,4 @@
+import { recordCustomerPlaceEvent } from '@/lib/places/timeline';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
@@ -79,6 +80,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .eq('id', id)
       .eq('owner_id', user.id);
     if (stampError) console.error('invoice reminder stamp', stampError.message);
+    await recordCustomerPlaceEvent(built.customerId, {
+      kind: 'invoice_reminder',
+      title: built.state.daysOverdue > 0 ? 'Payment reminder · past due' : 'Payment reminder · due today',
+      detail: built.invoiceNumber,
+      amountCents: built.state.balanceCents,
+      ownerId: user.id,
+    }).catch(() => null);
 
     return NextResponse.json({ ok: true, sentTo: built.to });
   } catch (err) {

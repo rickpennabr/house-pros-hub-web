@@ -129,6 +129,10 @@ const PLACE_EVENT_STEP: Record<string, TimelineStepKind> = {
   appointment_cancelled: 'appointment',
   appointment_completed: 'visit',
   appointment_rescheduled: 'appointment',
+  invoice_reminder: 'reminder',
+  payment_received: 'payment',
+  project_completed: 'project_done',
+  visit_completed: 'visit',
 };
 
 export function placeEventStepKind(kind: string): TimelineStepKind {

@@ -2889,6 +2889,7 @@
     "maintenanceStarted": "Las visitas de mantenimiento ya están en este lugar.",
     "maintenanceAgreement": "Mantenimiento",
     "openAgreement": "Abrir y firmar",
+    "signedApproved": "Firmado y aprobado",
     "payAfterSign": "El pago está listo. Paga con tarjeta para empezar.",
     "payNow": "Pagar ahora",
     "payFailed": "No se pudo iniciar el pago.",

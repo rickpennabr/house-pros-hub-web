@@ -22,12 +22,14 @@ export async function GET() {
 
   // Homeowner: events from pros on each place.
   const places: Record<string, number> = {};
+  type Recent = { id: string; title: string; detail: string | null; at: string; href: string; who: 'pro' | 'customer' };
+  const recent: Recent[] = [];
   const { data: placeRows } = await supabase.from('customer_places').select('id').eq('user_id', user.id);
   const placeIds = (placeRows ?? []).map((row) => row.id);
   if (placeIds.length) {
     const { data: events } = await createServiceRoleClient()
       .from('customer_place_events')
-      .select('place_id, kind, occurred_at')
+      .select('id, place_id, kind, title, detail, pro_name, occurred_at')
       .in('place_id', placeIds)
       .order('occurred_at', { ascending: false })
       .limit(1000);
@@ -36,6 +38,16 @@ export async function GET() {
       const since = seen.get(`place:${event.place_id}:timeline`);
       if (since && Date.parse(event.occurred_at) <= Date.parse(since)) continue;
       places[event.place_id] = (places[event.place_id] ?? 0) + 1;
+      if (recent.length < 6) {
+        recent.push({
+          id: `p-${event.id}`,
+          title: event.title,
+          detail: [event.pro_name, event.detail].filter(Boolean).join(' · ') || null,
+          at: event.occurred_at,
+          href: `/myplaces/${event.place_id}`,
+          who: 'pro',
+        });
+      }
     }
   }
   const placesTotal = Object.values(places).reduce((sum, n) => sum + n, 0);
@@ -74,5 +86,45 @@ export async function GET() {
     : { count: 0 };
   crmTotal = (views ?? 0) + (approvals ?? 0) + (payments ?? 0) + (bookings ?? 0);
 
-  return NextResponse.json({ places, placesTotal, crmTotal });
+  // The latest important customer actions, for the feed card.
+  if (crmTotal > 0) {
+    const { data: approved } = await supabase
+      .from('pro_crm_estimates')
+      .select('id, display_id, signer_name, signed_at, amount_cents')
+      .eq('owner_id', user.id)
+      .not('signer_name', 'is', null)
+      .gt('signed_at', crmSince)
+      .order('signed_at', { ascending: false })
+      .limit(5);
+    for (const row of approved ?? []) {
+      recent.push({ id: `e-${row.id}`, title: 'Estimate approved', detail: `#${row.display_id} · signed by ${row.signer_name}`, at: row.signed_at!, href: `/crm/estimates?id=${row.id}`, who: 'customer' });
+    }
+    const { data: paid } = await supabase
+      .from('pro_crm_invoice_payments')
+      .select('id, invoice_id, amount_cents, created_at')
+      .eq('owner_id', user.id)
+      .is('voided_at', null)
+      .or('method.ilike.%card%,method.ilike.%stripe%,method.ilike.%online%')
+      .gt('created_at', crmSince)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    for (const row of paid ?? []) {
+      recent.push({ id: `pay-${row.id}`, title: 'Paid online', detail: (row.amount_cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' }), at: row.created_at, href: `/crm/invoices/${row.invoice_id}`, who: 'customer' });
+    }
+    const { data: booked } = businessIds.length
+      ? await createServiceRoleClient()
+          .from('pro_estimate_bookings')
+          .select('id, service_name, guest_first_name, created_at')
+          .in('business_id', businessIds)
+          .gt('created_at', crmSince)
+          .order('created_at', { ascending: false })
+          .limit(5)
+      : { data: [] };
+    for (const row of booked ?? []) {
+      recent.push({ id: `b-${row.id}`, title: 'Appointment booked', detail: [row.guest_first_name, row.service_name].filter(Boolean).join(' · ') || null, at: row.created_at, href: '/crm/calendar', who: 'customer' });
+    }
+  }
+  recent.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+
+  return NextResponse.json({ places, placesTotal, crmTotal, recent: recent.slice(0, 8) });
 }

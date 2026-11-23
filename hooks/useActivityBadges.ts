@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { unreadCounts, stepTab, type TimelineStep } from '@/lib/timeline/steps';
 
 /** How long a tab must stay open before its badge clears. */
@@ -14,7 +14,7 @@ const SEEN_DELAY_MS = 1500;
 export function useActivityBadges(prefix: string | null, steps: TimelineStep[], viewer: 'pro' | 'customer', openTab: string) {
   const [seen, setSeen] = useState<Record<string, string | undefined> | null>(null);
   const [loadedPrefix, setLoadedPrefix] = useState<string | null>(null);
-  const snapshot = useRef<Record<string, string | undefined>>({});
+  const [snapshot, setSnapshot] = useState<Record<string, string | undefined>>({});
 
   useEffect(() => {
     if (!prefix) return;
@@ -24,7 +24,7 @@ export function useActivityBadges(prefix: string | null, steps: TimelineStep[], 
       .then((data: { seen?: Record<string, string> }) => {
         if (cancelled) return;
         const byTab = Object.fromEntries(Object.entries(data.seen ?? {}).map(([scope, at]) => [scope.slice(prefix.length), at]));
-        snapshot.current = byTab;
+        setSnapshot(byTab);
         setSeen(byTab);
         setLoadedPrefix(prefix);
       })
@@ -63,7 +63,7 @@ export function useActivityBadges(prefix: string | null, steps: TimelineStep[], 
   // "New" tags: unread as of when the page loaded, kept while the viewer looks.
   const newIds = useMemo(() => {
     if (!ready) return new Set<string>();
-    const base = snapshot.current;
+    const base = snapshot;
     const ids = new Set<string>();
     const time = (iso: string) => Date.parse(iso.length === 10 ? `${iso}T12:00:00` : iso) || 0;
     for (const step of steps) {
@@ -74,7 +74,7 @@ export function useActivityBadges(prefix: string | null, steps: TimelineStep[], 
       if (!seenAt || time(step.at) > time(seenAt)) ids.add(step.id);
     }
     return ids;
-  }, [ready, steps, viewer, openTab]);
+  }, [ready, steps, viewer, openTab, snapshot]);
 
   return { counts, newIds };
 }
