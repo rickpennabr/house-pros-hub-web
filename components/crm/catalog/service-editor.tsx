@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { SavedLineDescriptions } from '@/components/crm/catalog/SavedLineDescriptions';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -273,6 +274,7 @@ export function ServiceEditor({ open, initial, terms, onClose, onSaved, onTermsC
           />
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-gray-700">Description</span>
+            <span className="mb-1 block text-xs text-gray-500">Shown on your pro page and when customers book.</span>
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
@@ -280,6 +282,7 @@ export function ServiceEditor({ open, initial, terms, onClose, onSaved, onTermsC
               className="w-full resize-y rounded-lg border-2 border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
             />
           </label>
+          <SavedLineDescriptions itemName={name} />
           {priceMode !== 'unit' ? unitField : null}
           <div>
             <span className="mb-1 block text-sm font-medium text-gray-700">Price type</span>

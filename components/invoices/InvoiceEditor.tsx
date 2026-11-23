@@ -17,6 +17,7 @@ import {
 import { AddProductServicePanel, type ProCrmItem } from '@/components/invoices/AddProductServicePanel';
 import { ProductOrServiceCombobox } from '@/components/invoices/ProductOrServiceCombobox';
 import { UnitCombobox } from '@/components/invoices/UnitCombobox';
+import { LineDescriptionInput } from '@/components/invoices/LineDescriptionInput';
 import type { CompanyDisplayOverride } from '@/lib/invoices/companyDisplay';
 import { useLocale } from 'next-intl';
 import { InvoiceViewPreview, InvoiceViewTabs, type InvoiceView } from '@/components/invoices/InvoiceViews';
@@ -212,7 +213,9 @@ export function InvoiceEditor({
         next[rowIndex] = {
           ...next[rowIndex],
           product_or_service: item.name,
-          description: item.description ?? next[rowIndex].description,
+          // A service's own description is for the pro page; on the invoice the pro writes (or
+          // picks a saved) description for this job. Products keep theirs.
+          description: item.item_type === 'service' ? '' : item.description ?? next[rowIndex].description,
           unit: item.unit || DEFAULT_UNIT,
           rate_cents: item.price_cents,
           amount_cents: Math.round((next[rowIndex].qty || 1) * item.price_cents),
@@ -458,13 +461,15 @@ export function InvoiceEditor({
                         />
                       </td>
                       <td className="py-1 px-2 align-top">
-                        <Input
-                          placeholder="Description"
+                        <LineDescriptionInput
+                          itemName={line.product_or_service}
                           value={line.description}
-                          onChange={(e) => {
-                            const next = [...lineItems];
-                            next[idx] = { ...next[idx], description: e.target.value };
-                            setLineItems(next);
+                          onChange={(text) => {
+                            setLineItems((prev) => {
+                              const next = [...prev];
+                              next[idx] = { ...next[idx], description: text };
+                              return next;
+                            });
                           }}
                           className="text-sm py-1.5 border-gray-300 min-w-[120px]"
                         />

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { linkInvoiceToJob } from '@/lib/crm/job-links';
+import { rememberLineDescriptions } from '@/lib/crm/line-descriptions';
+import type { CrmDb } from '@/lib/crm/crm-scope';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
 import { applyCompanyDisplay, sanitizeCompanyDisplay } from '@/lib/invoices/companyDisplay';
@@ -324,6 +326,7 @@ export async function PATCH(
     }
 
     if (body.lineItems !== undefined) {
+      await rememberLineDescriptions(supabase as unknown as CrmDb, user.id, body.lineItems).catch(() => undefined);
       const synced = await syncBilledExpenses(supabase, user.id, id, body.lineItems);
       if (synced.error) return NextResponse.json({ error: synced.error }, { status: 400 });
     }

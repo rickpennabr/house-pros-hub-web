@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { linkInvoiceToJob } from '@/lib/crm/job-links';
+import { rememberLineDescriptions } from '@/lib/crm/line-descriptions';
+import type { CrmDb } from '@/lib/crm/crm-scope';
 import { createClient } from '@/lib/supabase/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { sanitizeCompanyDisplay } from '@/lib/invoices/companyDisplay';
@@ -373,6 +375,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: message }, { status: 500 });
     }
     await linkInvoiceToJob(supabase, user.id, row.id, { projectId: body.projectId, maintenancePlanId: body.maintenancePlanId });
+    await rememberLineDescriptions(supabase as unknown as CrmDb, user.id, lineItems).catch(() => undefined);
     const finished = await finishNewInvoice(supabase, user.id, row.id, lineItems, paidNow.paidNow ? paidNow.method : null, request);
     if (finished.error) return NextResponse.json({ error: finished.error }, { status: finished.status });
     return NextResponse.json({ id: row.id, display_id: row.display_id, invoice_number: row.invoice_number, created_at: row.created_at, receipt: finished.receipt ?? null }, { status: 201 });
