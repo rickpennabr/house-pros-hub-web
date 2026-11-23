@@ -323,8 +323,8 @@ function DescriptionField({
 
 export default function CRMExpensesPage() {
   const searchParams = useSearchParams();
-  const [savedListView, setSavedListView] = useLocalStorage<string>('crmExpensesView', 'list');
-  const listView: ViewType = savedListView === 'chart' ? 'chart' : 'list';
+  const [savedListView, setSavedListView] = useLocalStorage<string>('crmExpensesView', 'table');
+  const listView: ViewType = savedListView === 'chart' ? 'chart' : 'table';
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const {
     rows: expenses,
@@ -871,7 +871,7 @@ export default function CRMExpensesPage() {
             <ViewToggle
               currentView={listView}
               onViewChange={setSavedListView}
-              views={['list', 'chart']}
+              views={['table', 'chart']}
               hideBackgroundToggle
               onAdd={openNewExpense}
               addLabel="New expense"

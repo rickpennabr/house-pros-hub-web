@@ -9,6 +9,7 @@ import {
   proProbotConversation,
   sendLeadOfferEmail,
   siteOrigin,
+  markLeadMessageRead,
   updateLeadCard,
   userLocale,
   type LeadEstimate,
@@ -27,7 +28,10 @@ async function cancelOpenOffer(admin: Admin, estimateId: string): Promise<void> 
     .eq('estimate_id', estimateId)
     .eq('status', 'offered')
     .select('id, message_id');
-  for (const row of open ?? []) await updateLeadCard(admin, row.message_id, { status: 'cancelled' });
+  for (const row of open ?? []) {
+    await updateLeadCard(admin, row.message_id, { status: 'cancelled' });
+    await markLeadMessageRead(admin, row.message_id);
+  }
 }
 
 /**

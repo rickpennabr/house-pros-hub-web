@@ -7,6 +7,17 @@
  * For now, we'll define the types manually based on the database schema
  */
 
+export type HubFeedKind =
+  | 'member_joined'
+  | 'pro_joined'
+  | 'estimate_requested'
+  | 'fix_requested'
+  | 'estimate_sent'
+  | 'estimate_approved'
+  | 'project_scheduled'
+  | 'project_photos'
+  | 'feedback_left';
+
 export type Json =
   | string
   | number
@@ -469,6 +480,40 @@ export interface Database {
           created_at?: string;
           expires_at?: string;
           responded_at?: string | null;
+        };
+        Relationships: [];
+      };
+      hub_feed_events: {
+        Row: {
+          id: string;
+          kind: HubFeedKind;
+          occurred_at: string;
+          actor_name: string | null;
+          actor_avatar: string | null;
+          actor_user_id: string | null;
+          business_id: string | null;
+          target_name: string | null;
+          target_user_id: string | null;
+          city: string | null;
+          service_label: string | null;
+          event_date: string | null;
+          project_id: string | null;
+          photo_drive_file_ids: string[];
+          photo_day: number;
+          photo_day_no: number | null;
+          photo_single_day: boolean;
+          excerpt: string | null;
+          visibility: 'public' | 'pending' | 'hidden';
+          source_table: string;
+          source_id: string;
+          created_at: string;
+        };
+        /** Rows are written by database triggers only. */
+        Insert: {
+          visibility?: 'public' | 'pending' | 'hidden';
+        };
+        Update: {
+          visibility?: 'public' | 'pending' | 'hidden';
         };
         Relationships: [];
       };

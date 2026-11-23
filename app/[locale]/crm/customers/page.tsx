@@ -1,5 +1,6 @@
 'use client';
 
+import { PendingLeadsPanel } from '@/components/leads/PendingLeadsPanel';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -226,8 +227,8 @@ export default function CRMCustomersPage() {
   /** The contact just added: asks what to do next (estimate, invoice, payment link…). */
   const [newContact, setNewContact] = useState<NewContactSummary | null>(null);
 
-  const [savedListView, setSavedListView] = useLocalStorage<string>('crmCustomersView', 'card');
-  const listView: ViewType = savedListView === 'card' || savedListView === 'list' || savedListView === 'map' || savedListView === 'chart' ? savedListView : 'card';
+  const [savedListView, setSavedListView] = useLocalStorage<string>('crmCustomersView.v2', 'card');
+  const listView: ViewType = savedListView === 'card' || savedListView === 'list' || savedListView === 'table' || savedListView === 'map' || savedListView === 'chart' ? savedListView : 'card';
   const [contactChart, setContactChart] = useState<unknown>(null);
   const setListView = (v: ViewType) => setSavedListView(v);
   const { isAtBottom } = useScrollPosition({ threshold: 50 });
@@ -386,7 +387,7 @@ export default function CRMCustomersPage() {
     if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
   }, []);
   useEffect(() => {
-    if (listView === 'list' || !crmChrome?.searchOpen) return;
+    if (listView === 'table' || !crmChrome?.searchOpen) return;
     const close = (event: PointerEvent) => {
       if (cardSearchRef.current?.contains(event.target as Node)) return;
       crmChrome.setSearchOpen(false);
@@ -557,7 +558,8 @@ export default function CRMCustomersPage() {
               <ContactBooksBar books={books} />
             </div>
           ) : null}
-          {listView !== 'list' && (
+          <PendingLeadsPanel onAccepted={fetchCustomers} />
+          {listView !== 'table' && (
           <div className="md:flex md:items-center md:gap-3 md:pb-2">
           <CRMSearchField
             formRef={cardSearchRef}
@@ -600,7 +602,7 @@ export default function CRMCustomersPage() {
             ]}
           />
 
-          {listView !== 'list' && error && (
+          {listView !== 'table' && error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>
           )}
 
@@ -625,7 +627,7 @@ export default function CRMCustomersPage() {
               }))}
               onOpen={(id) => { setEditingId(id); setViewMode('edit'); }}
             />
-          ) : listView === 'card' ? (
+          ) : listView === 'card' || listView === 'list' ? (
             <div>
               {isLoading && !hasLoadedOnce ? (
                 <div className="p-12 text-center text-gray-500 text-sm">Loading customers…</div>
@@ -643,6 +645,7 @@ export default function CRMCustomersPage() {
                       <CustomerCard
                         key={row.id}
                         customer={row}
+                        compact={listView === 'list'}
                         onEdit={(id) => { setEditingId(id); setViewMode('edit'); }}
                         onCreateInvoice={(id) => router.push(`/${locale}/crm/invoices/new?customerId=${id}`)}
                         onCreateEstimate={(id) => router.push(`/${locale}/crm/estimates?customerId=${id}`)}
@@ -740,7 +743,7 @@ export default function CRMCustomersPage() {
             />
           )}
 
-          {listView !== 'list' && !isLoading && total > 0 && (
+          {listView !== 'table' && !isLoading && total > 0 && (
             <div className="md:mt-4">
               <Pagination
                 currentPage={page}
@@ -991,7 +994,7 @@ export default function CRMCustomersPage() {
         <ViewToggle
           currentView={listView}
           onViewChange={setListView}
-          views={['card', 'list', 'map', 'chart']}
+          views={['card', 'list', 'table', 'map', 'chart']}
           hideBackgroundToggle
           onAdd={() => setViewMode('add')}
           addLabel="New contact"

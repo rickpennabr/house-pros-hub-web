@@ -35,6 +35,7 @@
     "view": {
       "card": "Card",
       "list": "List",
+      "table": "Table",
       "map": "Map",
       "chart": "Chart",
       "bgToggle": "BG",
@@ -392,7 +393,7 @@
     "leadAdding": "Adding…",
     "leadDecline": "Decline",
     "leadDeclining": "Declining…",
-    "leadDeclineConfirm": "Decline this job? House Pros Hub will send it to another pro.",
+    "leadDeclineConfirm": "House Pros Hub will send it to another pro. You cannot undo this.",
     "leadHint": "The customer's name, phone and address unlock when you add it. We will let them know you will contact them. Answer within 48 hours.",
     "leadAccepted": "Added to your CRM. The customer knows you will contact them.",
     "leadOpenContact": "Open contact",
@@ -400,7 +401,18 @@
     "leadCancelled": "This job went to another pro.",
     "leadWaiting": "Waiting for the pro to answer.",
     "leadFailed": "Could not update this job. Try again.",
-    "leadExpired": "This job request expired after 48 hours without an answer."
+    "leadExpired": "This job request expired after 48 hours without an answer.",
+    "leadDeclineTitle": "Are you sure you want to decline this lead?",
+    "leadDeclineYes": "Yes, decline",
+    "leadKeep": "Cancel",
+    "leadModalTitle": "New job request",
+    "leadPendingTitle": "Waiting for your approval",
+    "leadPendingHint": "New customers House Pros Hub sent you. Add one to see their name, phone and address.",
+    "leadPendingChip": "Pending approval",
+    "leadNewCustomer": "New customer",
+    "leadReview": "Review",
+    "leadHoursLeft": "{hours, plural, one {# hour left} other {# hours left}}",
+    "leadUnderHour": "Less than 1 hour left"
   },
   "businessServices": {
     "tab": "Services",
@@ -583,7 +595,8 @@
     "proJobs": "ProJobs",
     "proSuppliers": "ProSuppliers",
     "proProducts": "ProProducts",
-    "quickRepair": "Quick Repair"
+    "quickRepair": "Quick Repair",
+    "feed": "HubFeed"
   },
   "proProducts": {
     "title": "ProProducts",
@@ -3429,5 +3442,85 @@
     "group_pool": "Pool & spa service",
     "group_pest_inspection": "Pest control & inspection",
     "group_moving_repair": "Moving, hauling & repair"
+  },
+  "feed": {
+    "title": "Hub Feed",
+    "subtitle": "Real work by real pros and neighbors, as it happens.",
+    "metaTitle": "Hub Feed | Real Projects by Local Pros | House Pros Hub",
+    "metaDescription": "See real projects, estimates and repairs happening on House Pros Hub: pavers, turf, landscape, hardscape and more by local pros. Free for everyone.",
+    "scope": {
+      "local": "Local",
+      "all": "All"
+    },
+    "filters": {
+      "all": "All",
+      "projects": "Projects",
+      "estimates": "Estimates",
+      "repairs": "Repairs",
+      "reviews": "Reviews",
+      "members": "New members"
+    },
+    "items": {
+      "member_joined": "<b>{actor}</b> joined the Hub",
+      "pro_joined": "<b>{actor}</b> joined the Hub as a pro",
+      "estimate_requested": "<b>{actor}</b> sent an estimate request to the Hub",
+      "fix_requested": "<b>{actor}</b> sent a FixCam repair request to the Hub",
+      "estimate_sent": "<b>{actor}</b> sent an estimate to <b>{target}</b>",
+      "estimate_approved": "<b>{actor}</b> approved the estimate from <b>{target}</b>",
+      "project_scheduled": "<b>{target}</b> set a project start date with <b>{actor}</b>: {date}",
+      "project_photos_first": "<b>{actor}</b> shared first day photos of the project for <b>{target}</b>",
+      "project_photos_day": "<b>{actor}</b> shared day {day} photos of the project for <b>{target}</b>",
+      "project_photos": "<b>{actor}</b> shared photos of the project for <b>{target}</b>",
+      "feedback_left": "<b>{actor}</b> left feedback for <b>{target}</b>"
+    },
+    "someone": "Someone",
+    "aCustomer": "A customer",
+    "aCustomerIn": "A customer in {city}",
+    "aPro": "A pro",
+    "bookPro": "Book this pro",
+    "viewPro": "View pro",
+    "approve": "Approve",
+    "hide": "Hide",
+    "remove": "Remove from feed",
+    "removeConfirm": "Remove this from the Hub Feed?",
+    "pending": "Waiting for approval",
+    "hidden": "Hidden",
+    "loadMore": "Load more",
+    "loading": "Loading…",
+    "empty": "Nothing here yet. New projects, estimates and repairs will show up here.",
+    "error": "Could not load the feed.",
+    "retry": "Try again",
+    "photoAlt": "Project photo {n}",
+    "close": "Close",
+    "tagline": [
+      "Welcome to HubFeed",
+      "Real work by real pros, as it happens.",
+      "New pros, estimates, projects, repairs and more..."
+    ],
+    "types": {
+      "member_joined": "New member",
+      "pro_joined": "New pro",
+      "estimate_requested": "Estimate request",
+      "fix_requested": "FixCam request",
+      "estimate_sent": "Estimate sent",
+      "estimate_approved": "Estimate approved",
+      "project_scheduled": "Project scheduled",
+      "project_photos": "Project photos",
+      "feedback_left": "Feedback"
+    },
+    "home": "House Pros Hub home",
+    "search": "Search",
+    "searchPlaceholder": "Search the feed...",
+    "clearSearch": "Clear search",
+    "closeSearch": "Close search",
+    "filter": "Filter",
+    "removeFilter": "Remove filter",
+    "add": "Add",
+    "options": "Post options",
+    "localTitle": "Local · {city}",
+    "allTitle": "All cities",
+    "noMatches": "No matching posts.",
+    "tryAll": "Nothing nearby yet. Try All to see every city.",
+    "trySearch": "Try a different search."
   }
 }

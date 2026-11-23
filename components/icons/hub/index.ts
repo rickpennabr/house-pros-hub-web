@@ -13,3 +13,4 @@ export { DecorativeRockIcon } from './DecorativeRockIcon';
 export { BoulderIcon } from './BoulderIcon';
 export { SoilIcon } from './SoilIcon';
 export { FlagstoneIcon } from './FlagstoneIcon';
+export { FeedIcon } from './FeedIcon';

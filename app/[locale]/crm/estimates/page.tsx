@@ -160,8 +160,8 @@ export default function CRMEstimatesPage() {
   const [addItemPanelOpen, setAddItemPanelOpen] = useState(false);
   const [addItemPanelRowIndex, setAddItemPanelRowIndex] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
-  const [savedListView, setSavedListView] = useLocalStorage<string>('crmEstimatesView', 'list');
-  const listView: ViewType = savedListView === 'map' || savedListView === 'chart' ? savedListView : 'list';
+  const [savedListView, setSavedListView] = useLocalStorage<string>('crmEstimatesView', 'table');
+  const listView: ViewType = savedListView === 'map' || savedListView === 'chart' ? savedListView : 'table';
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<{
     customerId: string;
@@ -1038,7 +1038,7 @@ export default function CRMEstimatesPage() {
             <ViewToggle
               currentView={listView}
               onViewChange={setSavedListView}
-              views={['list', 'map', 'chart']}
+              views={['table', 'map', 'chart']}
               hideBackgroundToggle
               onAdd={() => setViewMode('add')}
               addLabel="New estimate"

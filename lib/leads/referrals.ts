@@ -264,6 +264,51 @@ export async function updateLeadCard(admin: Admin, messageId: string | null, pat
   if (error) console.error('[leads] update card', error.message);
 }
 
+export type OpenLead = ChatLeadOffer & { createdAt: string; expiresAt: string };
+
+/**
+ * Job requests waiting for this owner's answer (Contacts "pending approval" list, the menu badge,
+ * the bell modal). The card comes from the ProBot message so it reads the same everywhere.
+ */
+export async function listOpenLeads(admin: Admin, ownerId: string): Promise<OpenLead[]> {
+  const { data: rows, error } = await admin
+    .from('lead_referrals')
+    .select('id, estimate_id, message_id, created_at, expires_at')
+    .eq('owner_id', ownerId)
+    .eq('status', 'offered')
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error || !rows?.length) return [];
+  const messageIds = rows.map((row) => row.message_id).filter((id): id is string => Boolean(id));
+  const cardByMessage = new Map<string, ChatLeadOffer>();
+  if (messageIds.length) {
+    const { data: messages } = await admin.from('probot_messages').select('id, payload').in('id', messageIds);
+    for (const message of messages ?? []) {
+      const payload = message.payload as { leadOffer?: ChatLeadOffer } | null;
+      if (payload?.leadOffer?.referralId) cardByMessage.set(message.id, payload.leadOffer);
+    }
+  }
+  // A card whose message is gone: rebuild it from the request.
+  const missing = rows.filter((row) => !row.message_id || !cardByMessage.has(row.message_id));
+  const estimateById = new Map<string, LeadEstimate>();
+  if (missing.length) {
+    const { data: estimates } = await admin.from('estimates').select(LEAD_ESTIMATE_COLUMNS).in('id', missing.map((row) => row.estimate_id));
+    for (const estimate of (estimates ?? []) as LeadEstimate[]) estimateById.set(estimate.id, estimate);
+  }
+  const locale = missing.length ? await userLocale(admin, ownerId) : 'en';
+  return rows.flatMap((row) => {
+    const card = (row.message_id && cardByMessage.get(row.message_id)) || (estimateById.has(row.estimate_id) ? leadOfferCard(estimateById.get(row.estimate_id)!, row.id, locale) : null);
+    return card ? [{ ...card, referralId: row.id, status: 'offered' as const, createdAt: row.created_at, expiresAt: row.expires_at }] : [];
+  });
+}
+
+/** The pro answered (or the offer ended): the ProBot message no longer lights their bell. */
+export async function markLeadMessageRead(admin: Admin, messageId: string | null): Promise<void> {
+  if (!messageId) return;
+  await admin.from('probot_messages').update({ read_at: new Date().toISOString() }).eq('id', messageId).is('read_at', null);
+}
+
 /** Admin bell: the pro added, declined, or never answered. */
 export async function notifyAdminOfLead(
   admin: Admin,

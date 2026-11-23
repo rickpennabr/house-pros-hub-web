@@ -143,8 +143,8 @@ export default function CRMProjectsPage() {
   const locale = useLocale();
   const [statusFilter, setStatusFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [savedListView, setSavedListView] = useLocalStorage<string>('crmProjectsView', 'list');
-  const listView: ViewType = savedListView === 'map' || savedListView === 'chart' ? savedListView : 'list';
+  const [savedListView, setSavedListView] = useLocalStorage<string>('crmProjectsView', 'table');
+  const listView: ViewType = savedListView === 'map' || savedListView === 'chart' ? savedListView : 'table';
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const crmChrome = useCRMChrome();
   const {
@@ -420,7 +420,7 @@ export default function CRMProjectsPage() {
                 ))}
               </div>
             )}
-            hideBody={listView !== 'list'}
+            hideBody={listView !== 'table'}
             columnOrderKey="crm-projects"
             exportName="projects"
             columns={PROJECT_COLUMNS}
@@ -509,7 +509,7 @@ export default function CRMProjectsPage() {
             <ViewToggle
               currentView={listView}
               onViewChange={setSavedListView}
-              views={['list', 'map', 'chart']}
+              views={['table', 'map', 'chart']}
               hideBackgroundToggle
               onAdd={() => setViewMode('add')}
               addLabel="New project"

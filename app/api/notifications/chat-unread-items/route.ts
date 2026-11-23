@@ -5,6 +5,7 @@ import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { getUnreadCountQuerySchema } from '@/lib/schemas/chat';
 import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
+import type { ChatLeadOffer } from '@/lib/types/chat';
 
 type MsgRow = {
   id: string;
@@ -13,6 +14,14 @@ type MsgRow = {
   body: string | null;
   created_at: string;
 };
+
+type PersonalRow = MsgRow & { business_id: string | null; payload: unknown };
+
+/** An open job request card in the message: the bell opens it in a modal instead of ProBot. */
+function openLeadOffer(payload: unknown): ChatLeadOffer | null {
+  const lead = (payload as { leadOffer?: ChatLeadOffer } | null)?.leadOffer;
+  return lead?.referralId && lead.status === 'offered' ? lead : null;
+}
 
 type ConvMeta = {
   id: string;
@@ -39,7 +48,8 @@ function displayNameFromConv(
 
 /**
  * GET /api/notifications/chat-unread-items
- * Lists each unread chat message as its own row (contractor: visitor + ProBot messages for their business;
+ * Lists each unread chat message as its own row (contractor: customers' messages to their business plus ProBot /
+ * pro replies in their own chats, matching the bell count;
  * customer: unread ProBot replies in their visitor thread). Used by the header notification bell.
  * Query: optional visitorId when the user is authenticated without a business (same rules as unread-count).
  */
@@ -79,29 +89,33 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ error: 'Failed to load notifications' }, { status: 500 });
         }
 
-        const { data: convRows } = await supabase
-          .from('probot_messages')
-          .select('conversation_id')
-          .eq('business_id', userBusinessId);
-        const conversationIds = [
-          ...new Set((convRows ?? []).map((r: { conversation_id: string }) => r.conversation_id)),
-        ];
-
-        let adminMsgs: MsgRow[] = [];
-        if (conversationIds.length > 0) {
-          const { data: aData, error: aErr } = await supabase
+        // Personal side, same rule as the bell count (loadUnreadByContact): unread ProBot / pro replies in
+        // the user's own chats, e.g. a job request card. Replies from their own business are not personal mail.
+        const { data: myConvs } = await supabase.from('probot_conversations').select('id').eq('user_id', user.id);
+        const myConvIds = (myConvs ?? []).map((c: { id: string }) => c.id);
+        let personalMsgs: PersonalRow[] = [];
+        if (myConvIds.length > 0) {
+          const { data: pData, error: pErr } = await supabase
             .from('probot_messages')
-            .select('id, conversation_id, sender, body, created_at')
+            .select('id, conversation_id, sender, body, created_at, business_id, payload')
             .eq('sender', 'admin')
-            .in('conversation_id', conversationIds)
+            .in('conversation_id', myConvIds)
             .is('read_at', null)
             .order('created_at', { ascending: false })
             .limit(40);
-          if (aErr) {
-            console.error('chat-unread-items contractor admin msgs:', aErr);
+          if (pErr) {
+            console.error('chat-unread-items contractor personal msgs:', pErr);
           } else {
-            adminMsgs = (aData ?? []) as MsgRow[];
+            personalMsgs = ((pData ?? []) as PersonalRow[]).filter((m) => m.business_id !== userBusinessId);
           }
+        }
+        const adminMsgs: MsgRow[] = personalMsgs;
+        const personalById = new Map(personalMsgs.map((m) => [m.id, m]));
+        const senderBusinessIds = [...new Set(personalMsgs.map((m) => m.business_id).filter((id): id is string => Boolean(id)))];
+        const businessNameById = new Map<string, string>();
+        if (senderBusinessIds.length > 0) {
+          const { data: bizRows } = await supabase.from('businesses').select('id, business_name').in('id', senderBusinessIds);
+          for (const b of bizRows ?? []) businessNameById.set(b.id, b.business_name);
         }
 
         const combined = [...((visitorMsgs ?? []) as MsgRow[]), ...adminMsgs].sort(
@@ -139,7 +153,9 @@ export async function GET(request: NextRequest) {
           const title =
             m.sender === 'visitor'
               ? `Message from ${conv ? displayNameFromConv(conv, prof) : 'Customer'}`
-              : 'House Pros Hub';
+              : (personalById.get(m.id)?.business_id ? businessNameById.get(personalById.get(m.id)?.business_id ?? '') : null) || 'House Pros Hub';
+          const personal = personalById.get(m.id);
+          const lead = personal ? openLeadOffer(personal.payload) : null;
           return {
             id: m.id,
             conversationId: m.conversation_id,
@@ -147,7 +163,10 @@ export async function GET(request: NextRequest) {
             title,
             preview: previewBody(m.body),
             createdAt: m.created_at,
-            probotHrefQuery: `conversation=${encodeURIComponent(m.conversation_id)}`,
+            ...(lead ? { lead } : {}),
+            probotHrefQuery: personal
+              ? `contact=${encodeURIComponent(personal.business_id ?? 'probot')}&as=personal`
+              : `conversation=${encodeURIComponent(m.conversation_id)}`,
           };
         });
 

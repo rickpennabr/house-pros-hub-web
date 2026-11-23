@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { notifyAdminOfLead, updateLeadCard } from '@/lib/leads/referrals';
+import { markLeadMessageRead, notifyAdminOfLead, updateLeadCard } from '@/lib/leads/referrals';
 
 /**
  * GET /api/cron/lead-expiry
@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
 
   for (const row of expired ?? []) {
     await updateLeadCard(admin, row.message_id, { status: 'expired' });
+    await markLeadMessageRead(admin, row.message_id);
     await notifyAdminOfLead(admin, row, 'lead_expired');
   }
   return NextResponse.json({ expired: expired?.length ?? 0 });

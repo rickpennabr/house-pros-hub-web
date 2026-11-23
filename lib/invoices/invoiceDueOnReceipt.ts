@@ -48,3 +48,14 @@ export function formatInvoiceDueDisplay(
   }
   return formatDate(dueDate ?? null);
 }
+
+/** "Terms" line on the invoice: the saved terms, or "Due on receipt" when none are saved (QuickBooks default). */
+export function invoiceTermsLabel(invoice: {
+  payment_terms?: string | null;
+  invoice_date?: string | null;
+  due_date?: string | null;
+}): string {
+  const saved = invoice.payment_terms?.trim();
+  if (saved) return saved;
+  return isInvoiceDueOnReceipt(null, invoice.invoice_date, invoice.due_date) ? 'Due on receipt' : '';
+}

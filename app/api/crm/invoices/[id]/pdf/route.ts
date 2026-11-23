@@ -9,9 +9,11 @@ import React from 'react';
 import { InvoicePdfDocument } from '@/components/invoices/InvoicePdfDocument';
 import type { InvoiceLineItem, InvoiceTemplateInvoice, InvoiceTemplateCustomer, InvoiceTemplateBusiness } from '@/components/invoices/InvoiceTemplate';
 import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
+import { getOrCreateInvoicePayLink, invoiceTakesPayLink, payLinkQrDataUrl } from '@/lib/invoices/payLink';
+import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -143,12 +145,29 @@ export async function GET(
         }
       : { first_name: '', last_name: '', billing_address: null };
 
+    // Pay link + QR like a QuickBooks invoice. A failure here should not block the PDF.
+    let payUrl: string | null = null;
+    let payQrDataUrl: string | null = null;
+    if (invoiceTakesPayLink(row.status, row.amount_cents, row.payment_applied_cents)) {
+      try {
+        const link = await getOrCreateInvoicePayLink(supabase, id, getPublicSiteUrlForEmail(request));
+        if (link) {
+          payUrl = link.url;
+          payQrDataUrl = await payLinkQrDataUrl(link.url);
+        }
+      } catch (payErr) {
+        console.error('invoice pdf: pay link', payErr);
+      }
+    }
+
     const pdf = await renderToBuffer(
       React.createElement(InvoicePdfDocument, {
         invoice: invoiceData,
         customer: customerData,
         business,
         themeColor: themeColorHex,
+        payUrl,
+        payQrDataUrl,
       }) as React.ReactElement<DocumentProps>
     );
 

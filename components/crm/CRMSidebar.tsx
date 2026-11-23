@@ -1,5 +1,6 @@
 'use client';
 
+import { useOpenLeads } from '@/components/leads/useOpenLeads';
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -177,6 +178,17 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
   };
 
   const setCustomerCount = crmChrome?.setCustomerCount;
+  // Job requests from House Pros Hub waiting for approval: red counter on Contacts.
+  const pendingLeads = useOpenLeads().leads.length;
+  const leadBadge = (href: string) =>
+    href.endsWith('/customers') && pendingLeads > 0 ? (
+      <span
+        className="ml-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold leading-none text-white"
+        aria-label={`${pendingLeads} pending`}
+      >
+        {pendingLeads > 99 ? '99+' : pendingLeads}
+      </span>
+    ) : null;
   const [sectionCounts, setSectionCounts] = useState<Partial<Record<'estimates' | 'invoices' | 'projects' | 'expenses', number>>>({});
   useEffect(() => {
     let cancelled = false;
@@ -285,6 +297,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
         </span>
         <Icon className={`mr-3 w-5 h-5 ${item.iconClass ?? 'text-red-600'} transition-transform duration-300 group-hover:scale-110`} />
         {t(item.labelKey)}
+        {leadBadge(item.href)}
       </Link>
     );
   };
@@ -314,6 +327,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
                 >
                   <Icon className={`w-4 h-4 transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
                   {t(item.labelKey)}
+                  {leadBadge(item.href)}
                   {isActive && activeCount(item.href) != null && (
                     <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border-2 border-black bg-white px-1 text-xs font-semibold text-black">
                       {activeCount(item.href)}

@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { PortalPropertyHistory, type PropertyHistory } from '@/components/crm/PortalPropertyHistory';
 import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
-import { Home, User } from 'lucide-react';
+import { Building, Building2, Home, User } from 'lucide-react';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
 
@@ -80,7 +80,7 @@ export default function CustomerPortalPage() {
     properties.find((row) => row.id === placeId) ?? properties.find((row) => row.isDefault) ?? properties[0] ?? null;
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl space-y-6">
+    <div className="p-4 md:p-6 max-w-4xl space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Customer portal</h1>
         <p className="text-sm text-gray-700 mt-1">
@@ -141,16 +141,44 @@ export default function CustomerPortalPage() {
       ) : null}
 
       {customer ? (
-        <div className="border-2 border-black rounded-lg p-4 space-y-1 text-sm">
-          <p className="font-medium">
-            {property
-              ? [property.name, property.street, property.city].filter(Boolean).join(', ')
-              : [customer.street_address, customer.city].filter(Boolean).join(', ') || 'No street on the customer yet.'}
-          </p>
-          <p className="text-xs text-gray-600">
-            {customer.email ? customer.email : 'No email on this customer.'}
-            {customer.portal_user_id ? ' · Linked to their account.' : ' · Waiting for them to sign in with that email.'}
-          </p>
+        <div className="flex items-center gap-3">
+          {/* Same header as the customer's My Places page: kind tile, name, address. */}
+          <span className="flex h-[77px] w-[77px] shrink-0 items-center justify-center rounded-xl border-2 border-black bg-gray-50 text-red-600 md:h-28 md:w-28">
+            {(property?.kind ?? customer.portal_kind) === 'business' ? (
+              <Building2 className="h-8 w-8" aria-hidden />
+            ) : (property?.kind ?? customer.portal_kind) === 'building' ? (
+              <Building className="h-8 w-8" aria-hidden />
+            ) : (
+              <Home className="h-8 w-8" aria-hidden />
+            )}
+          </span>
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="hidden text-xs uppercase tracking-wide text-gray-500 md:block">
+              {contactDisplayName(customer)}
+              {customer.company_name ? ` · ${customer.company_name}` : ''}
+            </p>
+            <h2 className="text-[18.4px] font-semibold leading-tight md:text-2xl">
+              {property?.name || contactDisplayName(customer)}
+            </h2>
+            {(() => {
+              const street = (property ? property.street : customer.street_address)?.trim() || '';
+              const locality = property
+                ? [property.city, property.state, property.zipCode].filter(Boolean).join(', ')
+                : customer.city?.trim() || '';
+              return street || locality ? (
+                <p className="text-sm text-gray-700">
+                  {street ? <span className="block">{street}</span> : null}
+                  {locality ? <span className="block">{locality}</span> : null}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-700">No street on the customer yet.</p>
+              );
+            })()}
+            <p className="mt-1 text-xs text-gray-500">
+              {customer.email ? customer.email : 'No email on this customer.'}
+              {customer.portal_user_id ? ' · Linked to their account' : ' · Waiting for them to sign in with that email'}
+            </p>
+          </div>
         </div>
       ) : null}
 

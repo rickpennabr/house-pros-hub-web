@@ -240,7 +240,7 @@ export function AdminSidebar() {
 
       {/* Desktop: Vertical sidebar */}
       <aside className="hidden md:block w-64 shrink-0 border-r-2 border-black bg-white md:h-full md:min-h-0 md:overflow-y-auto">
-        <nav className="space-y-2 p-4">
+        <nav className="space-y-2 p-4 pb-14">
           {orderedNavItems.map((item) => {
             const isActive = isActiveRoute(item.href);
             const Icon = item.icon;

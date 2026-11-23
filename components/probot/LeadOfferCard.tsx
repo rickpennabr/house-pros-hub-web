@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { Briefcase, Check, ImageIcon, UserPlus, X } from 'lucide-react';
 import ChatDocCard from '@/components/chat/ChatDocCard';
+import { SimpleConfirmDialog } from '@/components/ui/SimpleConfirmDialog';
+import { LEADS_CHANGED_EVENT } from '@/lib/leads/events';
 import type { ChatLeadOffer } from '@/lib/types/chat';
 
 /**
@@ -12,15 +14,31 @@ import type { ChatLeadOffer } from '@/lib/types/chat';
  * job; "Add to my CRM" creates the contact and reveals the customer. Read-only when someone else
  * (the admin) looks at the thread.
  */
-export function LeadOfferCard({ lead, canAnswer }: { lead: ChatLeadOffer; canAnswer: boolean }) {
+export function LeadOfferCard({
+  lead,
+  canAnswer,
+  onAnswered,
+  onConfirmOpenChange,
+}: {
+  lead: ChatLeadOffer;
+  canAnswer: boolean;
+  onAnswered?: (lead: ChatLeadOffer) => void;
+  /** Lets a surrounding modal ignore clicks on the confirm box (it renders outside the modal). */
+  onConfirmOpenChange?: (open: boolean) => void;
+}) {
   const t = useTranslations('probot');
   const locale = useLocale();
   const [state, setState] = useState<ChatLeadOffer>(lead);
   const [busy, setBusy] = useState<null | 'accept' | 'decline'>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDecline, setConfirmDecline] = useState(false);
+
+  function setConfirm(open: boolean) {
+    setConfirmDecline(open);
+    onConfirmOpenChange?.(open);
+  }
 
   async function answer(action: 'accept' | 'decline') {
-    if (action === 'decline' && !window.confirm(t('leadDeclineConfirm'))) return;
     setBusy(action);
     setError(null);
     try {
@@ -35,16 +53,20 @@ export function LeadOfferCard({ lead, canAnswer }: { lead: ChatLeadOffer; canAns
         if (data.status === 'cancelled' || data.status === 'declined' || data.status === 'expired') setState((current) => ({ ...current, status: data.status }));
         throw new Error(typeof data.error === 'string' ? data.error : t('leadFailed'));
       }
-      setState((current) => ({
-        ...current,
+      const next: ChatLeadOffer = {
+        ...state,
         status: data.status,
         ...(typeof data.customerId === 'string' ? { crmCustomerId: data.customerId } : {}),
         ...(typeof data.customerName === 'string' ? { customerName: data.customerName } : {}),
-      }));
+      };
+      setState(next);
+      onAnswered?.(next);
+      window.dispatchEvent(new Event(LEADS_CHANGED_EVENT));
     } catch (err) {
       setError(err instanceof Error ? err.message : t('leadFailed'));
     } finally {
       setBusy(null);
+      if (action === 'decline') setConfirm(false);
     }
   }
 
@@ -115,7 +137,7 @@ export function LeadOfferCard({ lead, canAnswer }: { lead: ChatLeadOffer; canAns
             <button
               type="button"
               disabled={busy !== null}
-              onClick={() => void answer('decline')}
+              onClick={() => setConfirm(true)}
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:border-gray-500 disabled:opacity-60"
             >
               <X className="h-4 w-4" />
@@ -128,6 +150,16 @@ export function LeadOfferCard({ lead, canAnswer }: { lead: ChatLeadOffer; canAns
         )}
         {error ? <p className="text-xs text-red-600">{error}</p> : null}
       </div>
+      <SimpleConfirmDialog
+        isOpen={confirmDecline}
+        onClose={() => busy === null && setConfirm(false)}
+        onConfirm={() => void answer('decline')}
+        title={t('leadDeclineTitle')}
+        message={t('leadDeclineConfirm')}
+        confirmLabel={busy === 'decline' ? t('leadDeclining') : t('leadDeclineYes')}
+        cancelLabel={t('leadKeep')}
+        busy={busy === 'decline'}
+      />
     </ChatDocCard>
   );
 }

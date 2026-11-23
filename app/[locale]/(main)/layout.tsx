@@ -33,6 +33,8 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
   const isProJobs = pathname?.includes('/projobs') ?? false;
   const isProProducts = pathname?.includes('/proproducts') ?? false;
   const isDetailShell = isBlogArticle || isProProductDetail;
+  /** HubFeed has its own phone-width shell: feed header, posts, bottom bar. No menu or footer. */
+  const isFeed = /^\/[a-z]{2}\/feed\/?$/.test(pathname ?? '');
   const keepsMenuVisible =
     isProJobs ||
     (pathname?.includes('/prosuppliers') ?? false) ||
@@ -54,8 +56,10 @@ function MainLayoutContent({ children }: { children: ReactNode }) {
             <ProBotNevadaMountains />
           </div>
         )}
-        <PageContainer transparentBg={showSkyBg}>
-          {isDetailShell ? (
+        <PageContainer transparentBg={showSkyBg} narrow={isFeed}>
+          {isFeed ? (
+            children
+          ) : isDetailShell ? (
             <div className="flex min-h-full flex-col">
               {children}
               {!isProProductDetail ? <Footer /> : null}

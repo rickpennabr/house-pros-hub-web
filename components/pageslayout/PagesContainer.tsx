@@ -12,9 +12,11 @@ interface PageContainerProps {
   transparentBg?: boolean;
   /** Grow with the content so a long form scrolls with the page instead of being clipped. */
   grow?: boolean;
+  /** Phone-width column (600px), used by HubFeed. */
+  narrow?: boolean;
 }
 
-export default function PageContainer({ children, transparentBg = false, grow = false }: PageContainerProps) {
+export default function PageContainer({ children, transparentBg = false, grow = false, narrow = false }: PageContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [emerging, setEmerging] = useState(false);
   const [emerged, setEmerged] = useState(false);
@@ -87,7 +89,7 @@ export default function PageContainer({ children, transparentBg = false, grow = 
   return (
     <div
       ref={containerRef}
-      className={`w-full max-w-[960px] mx-auto flex flex-col md:min-h-0
+      className={`w-full ${narrow ? 'max-w-[600px]' : 'max-w-[960px]'} mx-auto flex flex-col md:min-h-0
       border-2 rounded-lg
       max-md:h-auto max-md:min-h-[calc(100dvh-1rem)] max-md:overflow-visible
       ${grow

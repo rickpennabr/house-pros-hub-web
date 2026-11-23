@@ -7,6 +7,7 @@ import { autoNickname } from '@/lib/places/auto-nickname';
 import {
   LEAD_ESTIMATE_COLUMNS,
   leadNote,
+  markLeadMessageRead,
   notifyAdminOfLead,
   sendCustomerIntroEmail,
   updateLeadCard,
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .select('id');
       if (expired?.length) {
         await updateLeadCard(admin, referral.message_id, { status: 'expired' });
+        await markLeadMessageRead(admin, referral.message_id);
         await notifyAdminOfLead(admin, referral, 'lead_expired');
       }
       referral.status = 'expired';
@@ -90,6 +92,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .select('id');
       if (!declined?.length) return NextResponse.json({ error: 'This job request is no longer open.' }, { status: 409 });
       await updateLeadCard(admin, referral.message_id, { status: 'declined' });
+      await markLeadMessageRead(admin, referral.message_id);
       await notifyAdminOfLead(admin, referral, 'lead_declined');
       return NextResponse.json({ status: 'declined' });
     }
@@ -182,6 +185,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await Promise.all([
       admin.from('lead_referrals').update({ crm_customer_id: customerId }).eq('id', id),
       updateLeadCard(admin, referral.message_id, { status: 'accepted', crmCustomerId: customerId, customerName }),
+      markLeadMessageRead(admin, referral.message_id),
       notifyAdminOfLead(admin, referral, 'lead_accepted'),
     ]);
 

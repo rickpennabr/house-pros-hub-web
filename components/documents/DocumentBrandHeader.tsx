@@ -106,15 +106,13 @@ export function DocumentBrandHeader({
       <div className="flex items-start justify-end gap-3">
         <LogoMark name={name} logo={business?.business_logo} />
         <div className="min-w-0 text-right">
+          {/* The name already shows top-left under the title, so the default here is only the tagline. */}
           {rightMeta ?? (
-            <>
-              <p className="font-bold text-black">{name}</p>
-              {business?.company_tagline ? (
-                <p className="mt-0.5 text-sm italic" style={{ color: themeColor }}>
-                  {business.company_tagline}
-                </p>
-              ) : null}
-            </>
+            business?.company_tagline ? (
+              <p className="mt-0.5 text-sm italic" style={{ color: themeColor }}>
+                {business.company_tagline}
+              </p>
+            ) : null
           )}
         </div>
       </div>

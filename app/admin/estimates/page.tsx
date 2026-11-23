@@ -90,7 +90,7 @@ function cellText(row: AdminEstimateRow, columnId: string): string {
 
 export default function AdminEstimatesPage() {
   const [rows, setRows] = useState<AdminEstimateRow[]>([]);
-  const [listView, setListView] = useState<ViewType>('list');
+  const [listView, setListView] = useState<ViewType>('table');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -275,7 +275,7 @@ export default function AdminEstimatesPage() {
           <ViewToggle
             currentView={listView}
             onViewChange={setListView}
-            views={['list', 'map']}
+            views={['table', 'map']}
             hideBackgroundToggle
           />
         </NextIntlClientProvider>

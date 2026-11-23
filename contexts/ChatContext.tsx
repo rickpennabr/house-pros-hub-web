@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, Re
 import '@/components/security/CsrfFetchPatch';
 import { useAuth } from '@/contexts/AuthContext';
 import { runWhileVisible } from '@/lib/utils/runWhileVisible';
+import { LEADS_CHANGED_EVENT } from '@/lib/leads/events';
 
 const VISITOR_ID_KEY = 'probot_visitor_id';
 
@@ -131,7 +132,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // ignore
       }
     };
-    return runWhileVisible(fetchUnread, isOpen ? CHAT_UNREAD_POLL_MS_OPEN : CHAT_UNREAD_POLL_MS_CLOSED);
+    // A job request answered from the bell or Contacts: update the badge now, not at the next poll.
+    const onLeadsChanged = () => void fetchUnread();
+    window.addEventListener(LEADS_CHANGED_EVENT, onLeadsChanged);
+    const stop = runWhileVisible(fetchUnread, isOpen ? CHAT_UNREAD_POLL_MS_OPEN : CHAT_UNREAD_POLL_MS_CLOSED);
+    return () => {
+      window.removeEventListener(LEADS_CHANGED_EVENT, onLeadsChanged);
+      stop();
+    };
   }, [isAdmin, isContractor, visitorId, isOpen]);
 
   // Sync app icon badge (e.g. iPhone home screen) with unread count. Supported in iOS 16.4+ PWA.

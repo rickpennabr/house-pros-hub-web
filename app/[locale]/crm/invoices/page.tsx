@@ -21,6 +21,7 @@ import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 import { ChartLoading, InvoiceListChart } from '@/components/crm/ListCharts';
 import { isInvoiceChart } from '@/lib/crm/list-charts';
+import { InvoiceCard } from '@/components/crm/InvoiceCard';
 
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Created' },
@@ -103,8 +104,9 @@ export default function CRMInvoicesPage() {
   const locale = useLocale();
   const [statusFilter, setStatusFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [savedListView, setSavedListView] = useLocalStorage<string>('crmInvoicesView', 'list');
-  const listView: ViewType = savedListView === 'map' || savedListView === 'chart' ? savedListView : 'list';
+  const [savedListView, setSavedListView] = useLocalStorage<string>('crmInvoicesView.v2', 'table');
+  const listView: ViewType =
+    savedListView === 'card' || savedListView === 'list' || savedListView === 'map' || savedListView === 'chart' ? savedListView : 'table';
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const crmChrome = useCRMChrome();
   const {
@@ -276,7 +278,7 @@ export default function CRMInvoicesPage() {
             ))}
           </div>
         )}
-        hideBody={listView !== 'list'}
+        hideBody={listView !== 'table'}
         columnOrderKey="crm-invoices"
         exportName="invoices"
         columns={INVOICE_COLUMNS}
@@ -315,6 +317,40 @@ export default function CRMInvoicesPage() {
         itemLabel="invoices"
         primaryColumnId="invoice_number"
       />
+      {(listView === 'card' || listView === 'list') && (
+        isLoading && !hasLoadedOnce ? (
+          <div className="p-12 text-center text-gray-500 text-sm">Loading invoices…</div>
+        ) : invoices.length === 0 ? (
+          <div className="py-12 text-center text-gray-500 text-sm">{error || 'No invoices found.'}</div>
+        ) : (
+          <div className="relative">
+            {isLoading && (
+              <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center rounded-lg" aria-hidden>
+                <span className="text-sm text-gray-500">Updating…</span>
+              </div>
+            )}
+            <div className="grid grid-cols-1 min-[500px]:grid-cols-2 min-[768px]:grid-cols-3 min-[1100px]:grid-cols-4 gap-3 w-full">
+              {invoices.map((row) => (
+                <InvoiceCard
+                  key={row.id}
+                  id={row.id}
+                  invoiceNumber={row.invoice_number}
+                  customerName={listedCustomerName(row)}
+                  amount={formatAmount(row.amount_cents)}
+                  status={row.status}
+                  due={invoiceCellText(row, 'due')}
+                  invoiceDate={formatDate(row.invoice_date)}
+                  address={row.customerAddress}
+                  onOpen={(id) => router.push(`/${locale}/crm/invoices/${id}`)}
+                  actionsOpenId={rowActions.openId}
+                  onToggleActions={rowActions.toggle}
+                  compact={listView === 'list'}
+                />
+              ))}
+            </div>
+          </div>
+        )
+      )}
       {listView === 'chart' && (
         isInvoiceChart(chart) ? (
           <InvoiceListChart
@@ -338,7 +374,7 @@ export default function CRMInvoicesPage() {
           onOpen={(id) => router.push(`/${locale}/crm/invoices/${id}`)}
         />
       )}
-      {listView === 'map' && !isLoading && total > 0 && (
+      {(listView === 'map' || listView === 'card' || listView === 'list') && !isLoading && total > 0 && (
         <div className="mt-4">
           <Pagination
             currentPage={page}
@@ -354,7 +390,7 @@ export default function CRMInvoicesPage() {
         <ViewToggle
           currentView={listView}
           onViewChange={setSavedListView}
-          views={['list', 'map', 'chart']}
+          views={['card', 'list', 'table', 'map', 'chart']}
           hideBackgroundToggle
           onAdd={() => router.push(`/${locale}/crm/invoices/new`)}
           addLabel="New invoice"

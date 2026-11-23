@@ -29,6 +29,8 @@ interface CustomerCardProps {
   onCreateProject?: (customerId: string) => void;
   onScheduleTask?: (customerId: string) => void;
   onDelete?: (customerId: string) => void;
+  /** List view: only the top part of the card (no contact action strip), like the directory list. */
+  compact?: boolean;
 }
 
 function displayName(c: CRMCustomerRow): string {
@@ -85,6 +87,7 @@ export default function CustomerCard({
   onCreateProject,
   onScheduleTask,
   onDelete,
+  compact = false,
 }: CustomerCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; above: boolean } | null>(null);
@@ -283,7 +286,7 @@ export default function CustomerCard({
           </div>
         </div>
       </div>
-      {hasEmail || hasPhone || hasWebsite || mapsUrl ? (
+      {!compact && (hasEmail || hasPhone || hasWebsite || mapsUrl) ? (
       <div className="mt-auto flex h-[50px] items-center border-t border-black px-2">
         <div className="flex items-center gap-2 w-full">
           <ContactAction href={hasEmail ? `mailto:${customer.email}` : null} label="Email">

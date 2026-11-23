@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
-import Accordion from '@/components/ui/Accordion';
+import { FileCheck, FileText, FolderKanban, History, LayoutGrid, Receipt, Wrench } from 'lucide-react';
 import type { ContactProperty } from '@/lib/places/contact-places';
+import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
 import { TimelineSteps } from '@/components/timeline/TimelineSteps';
 import { buildProPropertyTimeline } from '@/lib/timeline/steps';
 
@@ -73,184 +74,317 @@ export interface PropertyHistory {
   documents: Array<{ id: string; title: string; kind: string; created_at: string; visible_to_customer?: boolean | null }>;
 }
 
-const money = (cents: number) =>
-  (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+/** Same tabs, icons and order as the customer's My Places page. */
+const TABS = [
+  { id: 'timeline', label: 'Timeline', icon: History },
+  { id: 'projects', label: 'Projects', icon: FolderKanban },
+  { id: 'maintenance', label: 'Maintenance', icon: Wrench },
+  { id: 'documents', label: 'Documents', icon: FileText },
+  { id: 'invoices', label: 'Invoices', icon: Receipt },
+  { id: 'estimates', label: 'Estimates', icon: FileCheck },
+] as const;
+type PortalTab = (typeof TABS)[number]['id'];
 
-const day = (value: string | null) => (value ? value.slice(0, 10) : '');
+const money = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
 const hours = (seconds: number) => `${(seconds / 3600).toFixed(1)}h`;
 
-const label = (value: string) => value.replace(/_/g, ' ');
+const label = (value: string) => {
+  const text = value.replace(/_/g, ' ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
 
-function Group({
-  title,
-  count,
-  children,
-  defaultOpen = false,
-  subtitle,
-}: {
-  title: string;
-  count: number;
-  children: ReactNode;
-  defaultOpen?: boolean;
-  subtitle?: string;
-}) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+/** "Nov 22, 2026" from a date or timestamp. */
+function formatDay(value: string | null | undefined) {
+  if (!value) return '—';
+  const [year, month, dayOfMonth] = value.slice(0, 10).split('-').map(Number);
+  if (!year || !month || !dayOfMonth) return value;
+  return new Date(year, month - 1, dayOfMonth).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatWhen(value: string | null | undefined) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime()) || value.length <= 10) return formatDay(value);
+  return date.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function Panel({ children, empty, emptyText }: { children: ReactNode; empty: boolean; emptyText: string }) {
   return (
-    <Accordion
-      title={title}
-      subtitle={subtitle ?? (count === 1 ? '1 record' : `${count} records`)}
-      isOpen={isOpen}
-      onToggle={() => setIsOpen((open) => !open)}
-    >
-      {count === 0 ? <p className="text-sm text-gray-600">Nothing yet.</p> : <ul className="space-y-1 text-sm">{children}</ul>}
-    </Accordion>
+    <section className="space-y-2 rounded-lg border-2 border-black p-4" role="tabpanel">
+      {empty ? <p className="text-sm text-gray-600">{emptyText}</p> : children}
+    </section>
   );
 }
 
-function Row({ href, left, right }: { href?: string; left: ReactNode; right?: ReactNode }) {
+function SubHeading({ children }: { children: ReactNode }) {
+  return <h3 className="pt-1 text-xs font-semibold uppercase tracking-wide text-gray-500">{children}</h3>;
+}
+
+/** One record, like the rows on My Places: name, a gray line under it, and a red action on the right. */
+function RecordRow({
+  href,
+  external = false,
+  title,
+  meta,
+  amount,
+  action = 'Open',
+}: {
+  href?: string;
+  external?: boolean;
+  title: ReactNode;
+  meta: ReactNode;
+  amount?: string;
+  action?: string;
+}) {
   const body = (
     <>
-      <span className="min-w-0 truncate">{left}</span>
-      {right ? <span className="shrink-0 text-gray-700">{right}</span> : null}
+      <span className="min-w-0">
+        <span className="block truncate font-medium">{title}</span>
+        <span className="block text-xs text-gray-600">{meta}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-3">
+        {amount ? <span className="font-semibold">{amount}</span> : null}
+        {href ? <span className="font-medium text-red-600">{action}</span> : null}
+      </span>
     </>
   );
-  return (
-    <li>
-      {href ? (
-        <Link href={href} className="flex items-center justify-between gap-3 rounded px-1 py-1 hover:bg-gray-100">
-          {body}
-        </Link>
-      ) : (
-        <div className="flex items-center justify-between gap-3 px-1 py-1">{body}</div>
-      )}
-    </li>
+  const className = 'flex items-center justify-between gap-3 rounded-lg border border-black px-3 py-2 text-sm';
+  if (!href) return <div className={className}>{body}</div>;
+  return external ? (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={`${className} hover:bg-gray-50`}>
+      {body}
+    </a>
+  ) : (
+    <Link href={href} className={`${className} hover:bg-gray-50`}>
+      {body}
+    </Link>
   );
 }
 
 /** Everything done on one of the customer's properties, for the pro on the Customer portal page. */
 export function PortalPropertyHistory({ data, locale }: { data: PropertyHistory; locale: string }) {
   const { totals } = data;
+  const [tab, setTab] = useState<PortalTab>('timeline');
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const invoiceNumber = new Map(data.invoices.map((row) => [row.id, row.invoice_number || row.display_id]));
   const planName = new Map(data.plans.map((row) => [row.id, row.name]));
   const crm = `/${locale}/crm`;
   const timeline = buildProPropertyTimeline(data, crm);
-  const [timelineOpen, setTimelineOpen] = useState(true);
+  const counts: Record<PortalTab, number> = {
+    timeline: timeline.length,
+    projects: data.projects.length,
+    maintenance: data.plans.length + data.visits.length,
+    documents: data.documents.length,
+    invoices: data.invoices.length + data.payments.length,
+    estimates: data.estimates.length,
+  };
 
   return (
-    <section className="border-2 border-black rounded-lg p-4 space-y-3">
-      <h2 className="font-semibold">Everything on this property</h2>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
         {[
           ['Invoiced', money(totals.invoicedCents)],
           ['Paid', money(totals.paidCents)],
           ['Balance due', money(totals.balanceCents)],
           ['Visits', `${totals.visits} · ${hours(totals.laborSeconds)}`],
         ].map(([name, value]) => (
-          <div key={name} className="border border-black rounded-lg px-3 py-2">
+          <div key={name} className="rounded-lg border-2 border-black px-3 py-2">
             <p className="text-xs text-gray-600">{name}</p>
             <p className="font-semibold">{value}</p>
           </div>
         ))}
       </div>
 
-      <Accordion
-        title="Timeline"
-        subtitle={timeline.length === 1 ? '1 step · what you and the customer see' : `${timeline.length} steps · what you and the customer see`}
-        isOpen={timelineOpen}
-        onToggle={() => setTimelineOpen((open) => !open)}
-      >
-        <TimelineSteps steps={timeline} emptyText="Nothing on this property yet." showAudience />
-      </Accordion>
+      {/* Tabs: same bar as My Places. The phone gets a grid button too. */}
+      <div className="flex items-start gap-2 pt-1">
+        <button
+          type="button"
+          onClick={() => setTabMenuOpen(true)}
+          aria-label="All sections"
+          className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-black bg-black hover:bg-gray-800 md:hidden"
+        >
+          <LayoutGrid className="h-5 w-5 text-white" />
+        </button>
+        <MobileGridActionsModal
+          isOpen={tabMenuOpen}
+          onClose={() => setTabMenuOpen(false)}
+          title={data.property?.name ?? 'This property'}
+          items={TABS.map((item) => ({
+            id: item.id,
+            label: item.label,
+            icon: item.icon,
+            isActive: tab === item.id,
+            onClick: () => setTab(item.id),
+          }))}
+        />
+        <div className="min-w-0 flex-1 overflow-x-auto pb-2" role="tablist">
+          <div className="flex h-10 w-max items-center gap-2">
+            {TABS.map((item) => {
+              const selected = tab === item.id;
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setTab(item.id)}
+                  className={`group flex h-10 shrink-0 items-center justify-center gap-1 rounded-lg border-2 px-2.5 text-sm font-medium transition-all duration-300 md:gap-2 md:px-3 ${
+                    selected ? 'border-black bg-black text-white' : 'border-transparent bg-transparent text-black hover:border-gray-400'
+                  }`}
+                >
+                  <Icon className="h-[1.125rem] w-[1.125rem] text-red-500" />
+                  <span className="whitespace-nowrap">{item.label}</span>
+                  {counts[item.id] > 0 ? (
+                    <span
+                      className={`rounded-md px-1.5 text-xs font-semibold ${selected ? 'bg-white text-black' : 'bg-gray-100 text-gray-700'}`}
+                    >
+                      {counts[item.id]}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
-      <Group title="Payments" count={data.payments.length}>
-        {data.payments.map((row) => (
-          <Row
-            key={row.id}
-            href={`${crm}/invoices/${row.invoice_id}`}
-            left={`${day(row.payment_date)} · ${label(row.method)} · invoice ${invoiceNumber.get(row.invoice_id) ?? ''}`}
-            right={money(row.amount_cents)}
-          />
-        ))}
-      </Group>
+      {tab === 'timeline' ? (
+        <section className="space-y-3 rounded-lg border-2 border-black p-4" role="tabpanel">
+          <p className="text-sm text-gray-600">
+            Everything that happened on this property: estimates, approvals, invoices, payments, visits and files. Each step
+            says whether the customer sees it.
+          </p>
+          <TimelineSteps steps={timeline} emptyText="Nothing on this property yet." showAudience formatWhen={formatWhen} />
+        </section>
+      ) : null}
 
-      <Group title="Invoices" count={data.invoices.length}>
-        {data.invoices.map((row) => (
-          <Row
-            key={row.id}
-            href={`${crm}/invoices/${row.id}`}
-            left={`${row.invoice_number || row.display_id} · ${day(row.invoice_date)} · ${label(row.status)}`}
-            right={
-              row.payment_applied_cents > 0 && row.payment_applied_cents < row.amount_cents
-                ? `${money(row.payment_applied_cents)} of ${money(row.amount_cents)}`
-                : money(row.amount_cents)
-            }
-          />
-        ))}
-      </Group>
+      {tab === 'projects' ? (
+        <Panel empty={data.projects.length === 0} emptyText="No projects on this property yet.">
+          {data.projects.map((row) => (
+            <RecordRow
+              key={row.id}
+              href={`${crm}/projects`}
+              title={row.name}
+              meta={[
+                label(row.status),
+                `${formatDay(row.start_date)} – ${formatDay(row.end_date)}`,
+                row.shared ? 'Shared with the customer' : 'Not shared',
+              ].join(' · ')}
+            />
+          ))}
+        </Panel>
+      ) : null}
 
-      <Group title="Estimates" count={data.estimates.length}>
-        {data.estimates.map((row) => (
-          <Row
-            key={row.id}
-            href={`${crm}/estimates?id=${row.id}`}
-            left={`${row.display_id} · ${day(row.created_at)} · ${label(row.agreement_kind)}${row.job_area ? ` · ${row.job_area}` : ''} · ${label(row.status)}`}
-            right={money(row.amount_cents)}
-          />
-        ))}
-      </Group>
+      {tab === 'maintenance' ? (
+        <Panel empty={data.plans.length + data.visits.length === 0} emptyText="No maintenance on this property yet.">
+          {data.plans.length > 0 ? <SubHeading>Agreements</SubHeading> : null}
+          {data.plans.map((row) => (
+            <RecordRow
+              key={row.id}
+              href={`${crm}/maintenance/houses/${row.id}`}
+              title={row.name}
+              meta={[
+                label(row.frequency),
+                row.is_active ? 'Active' : 'Ended',
+                `Next visit: ${formatDay(row.next_visit_date)}`,
+                `Last visit: ${formatDay(row.last_visit_date)}`,
+              ].join(' · ')}
+              amount={row.amount_cents != null ? `${money(row.amount_cents)} / visit` : undefined}
+            />
+          ))}
+          {data.visits.length > 0 ? <SubHeading>Visits</SubHeading> : null}
+          {data.visits.map((row) => (
+            <RecordRow
+              key={row.id}
+              href={`${crm}/maintenance/visits/${row.id}`}
+              title={
+                (row.maintenance_plan_id && planName.get(row.maintenance_plan_id)) || `Visit on ${formatDay(row.started_at)}`
+              }
+              meta={[formatWhen(row.started_at), label(row.status), hours(row.labor_seconds ?? row.duration_seconds ?? 0)].join(' · ')}
+            />
+          ))}
+        </Panel>
+      ) : null}
 
-      <Group title="Maintenance visits" count={data.visits.length}>
-        {data.visits.map((row) => (
-          <Row
-            key={row.id}
-            href={`${crm}/maintenance/visits/${row.id}`}
-            left={`${day(row.started_at)}${row.maintenance_plan_id && planName.get(row.maintenance_plan_id) ? ` · ${planName.get(row.maintenance_plan_id)}` : ''} · ${label(row.status)}`}
-            right={hours(row.labor_seconds ?? row.duration_seconds ?? 0)}
-          />
-        ))}
-      </Group>
-
-      <Group title="Maintenance agreements" count={data.plans.length}>
-        {data.plans.map((row) => (
-          <Row
-            key={row.id}
-            href={`${crm}/maintenance/houses/${row.id}`}
-            left={`${row.name} · ${row.frequency}${row.is_active ? '' : ' · ended'}${row.next_visit_date ? ` · next ${row.next_visit_date}` : ''}`}
-            right={row.amount_cents != null ? `${money(row.amount_cents)} / visit` : undefined}
-          />
-        ))}
-      </Group>
-
-      <Group title="Projects" count={data.projects.length}>
-        {data.projects.map((row) => (
-          <Row
-            key={row.id}
-            href={`${crm}/projects`}
-            left={`${row.name} · ${label(row.status)}`}
-            right={[day(row.start_date), day(row.end_date)].filter(Boolean).join(' – ') || undefined}
-          />
-        ))}
-      </Group>
-
-      <Group title="Files" count={data.documents.length}>
-        {data.documents.map((row) => (
-          <li key={row.id}>
-            <a
+      {tab === 'documents' ? (
+        <Panel empty={data.documents.length === 0} emptyText="No files on this property yet.">
+          {data.documents.map((row) => (
+            <RecordRow
+              key={row.id}
               href={`/api/places/documents/${row.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between gap-3 rounded px-1 py-1 hover:bg-gray-100"
-            >
-              <span className="min-w-0 truncate">{row.title}</span>
-              <span className="shrink-0 text-gray-700">
-                {label(row.kind)} · {day(row.created_at)}
-              </span>
-            </a>
-          </li>
-        ))}
-      </Group>
-    </section>
+              external
+              title={row.title}
+              meta={[
+                label(row.kind),
+                `Added ${formatWhen(row.created_at)}`,
+                row.visible_to_customer === false ? 'Hidden from the customer' : 'Customer sees it',
+              ].join(' · ')}
+              action="Open file"
+            />
+          ))}
+        </Panel>
+      ) : null}
+
+      {tab === 'invoices' ? (
+        <Panel empty={data.invoices.length + data.payments.length === 0} emptyText="No invoices on this property yet.">
+          {data.invoices.length > 0 ? <SubHeading>Invoices</SubHeading> : null}
+          {data.invoices.map((row) => {
+            const balance = Math.max(0, row.amount_cents - row.payment_applied_cents);
+            return (
+              <RecordRow
+                key={row.id}
+                href={`${crm}/invoices/${row.id}`}
+                title={row.invoice_number || row.display_id}
+                meta={[
+                  label(row.status),
+                  `Balance ${money(balance)}`,
+                  row.due_date ? `Due ${formatDay(row.due_date)}` : null,
+                  `Dated ${formatDay(row.invoice_date)}`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                amount={money(row.amount_cents)}
+              />
+            );
+          })}
+          {data.payments.length > 0 ? <SubHeading>Payments</SubHeading> : null}
+          {data.payments.map((row) => (
+            <RecordRow
+              key={row.id}
+              href={`${crm}/invoices/${row.invoice_id}`}
+              title={`Payment on ${invoiceNumber.get(row.invoice_id) ?? 'invoice'}`}
+              meta={[label(row.method), formatDay(row.payment_date), row.reference ? `Ref ${row.reference}` : null]
+                .filter(Boolean)
+                .join(' · ')}
+              amount={money(row.amount_cents)}
+            />
+          ))}
+        </Panel>
+      ) : null}
+
+      {tab === 'estimates' ? (
+        <Panel empty={data.estimates.length === 0} emptyText="No estimates on this property yet.">
+          {data.estimates.map((row) => (
+            <RecordRow
+              key={row.id}
+              href={`${crm}/estimates?id=${row.id}`}
+              title={`#${row.display_id}${row.job_area ? ` · ${row.job_area}` : ''}${
+                row.agreement_kind === 'maintenance' ? ' · Maintenance agreement' : ''
+              }`}
+              meta={[
+                label(row.status),
+                row.signed_at ? `Signed ${formatWhen(row.signed_at)}${row.signer_name ? ` by ${row.signer_name}` : ''}` : null,
+                `Created ${formatWhen(row.created_at)}`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+              amount={money(row.amount_cents)}
+            />
+          ))}
+        </Panel>
+      ) : null}
+    </div>
   );
 }

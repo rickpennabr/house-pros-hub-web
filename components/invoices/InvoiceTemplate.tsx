@@ -1,6 +1,6 @@
 'use client';
 
-import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
+import { invoiceTermsLabel, resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { DocumentBrandHeader } from '@/components/documents/DocumentBrandHeader';
 import { shownDiscount } from '@/lib/crm/document-discount';
@@ -61,6 +61,10 @@ interface InvoiceTemplateProps {
   themeColor: string;
   /** For print: hide non-content UI */
   forPrint?: boolean;
+  /** Customer pay link. When set, a "Pay online" block with the link (and QR) shows under the totals. */
+  payUrl?: string | null;
+  /** PNG data URL of the pay link QR code. */
+  payQrDataUrl?: string | null;
 }
 
 function formatDate(iso: string | null) {
@@ -87,7 +91,11 @@ export function InvoiceTemplate({
   business,
   themeColor,
   forPrint = false,
+  payUrl = null,
+  payQrDataUrl = null,
 }: InvoiceTemplateProps) {
+  const termsLabel = invoiceTermsLabel(invoice);
+  const dueDateIso = resolveInvoiceDueDate(invoice.invoice_date, invoice.due_date, invoice.payment_terms);
   const paymentApplied = invoice.payment_applied_cents ?? 0;
   const balanceDue = Math.max(0, invoice.amount_cents - paymentApplied);
   const discountShown = shownDiscount(invoice.line_items, invoice.amount_cents);
@@ -106,7 +114,10 @@ export function InvoiceTemplate({
   const businessAddress = business.address ?? '';
 
   return (
-    <div className={`bg-white text-black ${forPrint ? 'print-invoice' : ''}`} style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <div
+      className={`invoice-doc bg-white text-black ${forPrint ? 'print-invoice' : ''}`}
+      style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+    >
       <DocumentBrandHeader
         title="INVOICE"
         themeColor={themeColor}
@@ -138,21 +149,14 @@ export function InvoiceTemplate({
               <span className="font-semibold">{invoice.invoice_number}</span>
               <span className="text-gray-600">Invoice date</span>
               <span>{formatDate(invoice.invoice_date)}</span>
-              <span className="text-gray-600">Due date</span>
-              <span>
-                {formatInvoiceDueDisplay(
-                  invoice.invoice_date,
-                  invoice.due_date,
-                  invoice.payment_terms,
-                  formatDate
-                )}
-              </span>
-              {invoice.payment_terms && (
+              {termsLabel && (
                 <>
                   <span className="text-gray-600">Terms</span>
-                  <span>{invoice.payment_terms}</span>
+                  <span>{termsLabel}</span>
                 </>
               )}
+              <span className="text-gray-600">Due date</span>
+              <span>{formatDate(dueDateIso)}</span>
             </div>
           </div>
         </div>
@@ -183,7 +187,7 @@ export function InvoiceTemplate({
               lineItems.map((line, i) => (
                 <tr key={i} className="border-b border-gray-200">
                   <td className="py-2 px-3 text-sm text-gray-600">{i + 1}</td>
-                  <td className="py-2 px-3 font-medium text-black">{line.product_or_service || '—'}</td>
+                  <td className="py-2 px-3 text-sm font-medium text-black">{line.product_or_service || '—'}</td>
                   <td className="py-2 px-3 text-sm text-gray-700">{line.description || '—'}</td>
                   <td className="py-2 px-3 text-sm text-gray-600">{line.unit || '—'}</td>
                   <td className="py-2 px-3 text-sm text-right">{line.qty}</td>
@@ -199,17 +203,15 @@ export function InvoiceTemplate({
       {/* Totals + Status */}
       <div className="flex flex-col items-end gap-2 mb-6">
         <div className="w-full max-w-xs space-y-1 text-sm">
+          <div className="flex justify-between text-gray-600">
+            <span>Subtotal</span>
+            <span>{formatCurrency(discountShown ? discountShown.subtotalCents : invoice.amount_cents)}</span>
+          </div>
           {discountShown ? (
-            <>
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal</span>
-                <span>{formatCurrency(discountShown.subtotalCents)}</span>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Discount</span>
-                <span>-{formatCurrency(discountShown.discountCents)}</span>
-              </div>
-            </>
+            <div className="flex justify-between text-gray-600">
+              <span>Discount</span>
+              <span>-{formatCurrency(discountShown.discountCents)}</span>
+            </div>
           ) : null}
           <div className="flex justify-between font-semibold">
             <span>Total</span>
@@ -226,12 +228,15 @@ export function InvoiceTemplate({
             <span>{formatCurrency(balanceDue)}</span>
           </div>
         </div>
-        <div className="mt-2">
-          {invoice.status === 'paid' && (
+        {invoice.status === 'paid' && (
+          <div className="mt-2">
             <span className="inline-block px-3 py-1 rounded font-bold text-sm text-white bg-green-600">
               Paid in Full
             </span>
-          )}
+          </div>
+        )}
+        {/* Working statuses are for the pro's screen only; the printed customer copy only gets the Paid stamp. */}
+        <div className="mt-2 no-print">
           {invoice.status === 'overdue' && (
             <span className="inline-block px-3 py-1 rounded font-bold text-sm text-white bg-amber-600">
               Overdue
@@ -264,6 +269,24 @@ export function InvoiceTemplate({
           )}
         </div>
       </div>
+
+      {payUrl && balanceDue > 0 && (
+        <div className="mb-6 flex items-center gap-4 rounded-lg border-2 border-black p-4 break-inside-avoid">
+          {payQrDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- data URL, no optimization needed
+            <img src={payQrDataUrl} alt="QR code to pay this invoice" className="h-24 w-24 shrink-0" />
+          ) : null}
+          <div className="min-w-0">
+            <p className="font-bold text-black">Pay online: {formatCurrency(balanceDue)}</p>
+            <p className="mt-1 text-sm text-gray-700">
+              {payQrDataUrl ? 'Scan the code with your phone camera, or open this link to pay by card:' : 'Open this link to pay by card:'}
+            </p>
+            <a href={payUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-sm text-blue-700 underline">
+              {payUrl}
+            </a>
+          </div>
+        </div>
+      )}
 
       {invoice.note && (
         <div className="pt-4 border-t border-gray-200">

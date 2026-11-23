@@ -13,6 +13,7 @@ const TRANSLATED_PATHS = [
   '/prosuppliers',
   '/proproducts',
   '/blog',
+  '/feed',
   '/estimate',
   '/help',
   '/legal/terms',

@@ -35,6 +35,7 @@
     "view": {
       "card": "Cartão",
       "list": "Lista",
+      "table": "Tabela",
       "map": "Mapa",
       "chart": "Gráfico",
       "bgToggle": "BG",
@@ -392,7 +393,7 @@
     "leadAdding": "Adicionando…",
     "leadDecline": "Recusar",
     "leadDeclining": "Recusando…",
-    "leadDeclineConfirm": "Recusar este serviço? O House Pros Hub vai enviá-lo a outro profissional.",
+    "leadDeclineConfirm": "O House Pros Hub vai enviá-lo a outro profissional. Não é possível desfazer.",
     "leadHint": "Nome, telefone e endereço do cliente são liberados quando você adiciona. Vamos avisar que você entrará em contato. Responda em 48 horas.",
     "leadAccepted": "Adicionado ao seu CRM. O cliente sabe que você entrará em contato.",
     "leadOpenContact": "Abrir contato",
@@ -400,7 +401,18 @@
     "leadCancelled": "Este serviço foi enviado a outro profissional.",
     "leadWaiting": "Aguardando a resposta do profissional.",
     "leadFailed": "Não foi possível atualizar este serviço. Tente de novo.",
-    "leadExpired": "Este pedido expirou após 48 horas sem resposta."
+    "leadExpired": "Este pedido expirou após 48 horas sem resposta.",
+    "leadDeclineTitle": "Tem certeza de que quer recusar este cliente em potencial?",
+    "leadDeclineYes": "Sim, recusar",
+    "leadKeep": "Cancelar",
+    "leadModalTitle": "Novo pedido de serviço",
+    "leadPendingTitle": "Aguardando sua aprovação",
+    "leadPendingHint": "Clientes novos que o House Pros Hub enviou para você. Adicione para ver nome, telefone e endereço.",
+    "leadPendingChip": "Aguardando aprovação",
+    "leadNewCustomer": "Cliente novo",
+    "leadReview": "Revisar",
+    "leadHoursLeft": "{hours, plural, one {Resta # hora} other {Restam # horas}}",
+    "leadUnderHour": "Resta menos de 1 hora"
   },
   "businessServices": {
     "tab": "Serviços",
@@ -583,7 +595,8 @@
     "proJobs": "ProJobs",
     "proSuppliers": "ProSuppliers",
     "proProducts": "ProProducts",
-    "quickRepair": "Quick Repair"
+    "quickRepair": "Quick Repair",
+    "feed": "HubFeed"
   },
   "proProducts": {
     "title": "ProProducts",
@@ -3429,5 +3442,85 @@
     "group_pool": "Serviço de piscinas e spas",
     "group_pest_inspection": "Controle de pragas e inspeção",
     "group_moving_repair": "Mudanças, remoção e consertos"
+  },
+  "feed": {
+    "title": "Feed do Hub",
+    "subtitle": "Trabalho real de profissionais e vizinhos reais, acontecendo agora.",
+    "metaTitle": "Feed do Hub | Projetos reais de profissionais locais | House Pros Hub",
+    "metaDescription": "Veja projetos, orçamentos e reparos reais no House Pros Hub: pavers, grama sintética, paisagismo e mais, por profissionais locais. Grátis para todos.",
+    "scope": {
+      "local": "Local",
+      "all": "Todos"
+    },
+    "filters": {
+      "all": "Todos",
+      "projects": "Projetos",
+      "estimates": "Orçamentos",
+      "repairs": "Reparos",
+      "reviews": "Avaliações",
+      "members": "Novos membros"
+    },
+    "items": {
+      "member_joined": "<b>{actor}</b> entrou no Hub",
+      "pro_joined": "<b>{actor}</b> entrou no Hub como profissional",
+      "estimate_requested": "<b>{actor}</b> enviou um pedido de orçamento ao Hub",
+      "fix_requested": "<b>{actor}</b> enviou um pedido de reparo FixCam ao Hub",
+      "estimate_sent": "<b>{actor}</b> enviou um orçamento para <b>{target}</b>",
+      "estimate_approved": "<b>{actor}</b> aprovou o orçamento de <b>{target}</b>",
+      "project_scheduled": "<b>{target}</b> definiu a data de início do projeto com <b>{actor}</b>: {date}",
+      "project_photos_first": "<b>{actor}</b> compartilhou fotos do primeiro dia do projeto de <b>{target}</b>",
+      "project_photos_day": "<b>{actor}</b> compartilhou fotos do dia {day} do projeto de <b>{target}</b>",
+      "project_photos": "<b>{actor}</b> compartilhou fotos do projeto de <b>{target}</b>",
+      "feedback_left": "<b>{actor}</b> deixou uma avaliação para <b>{target}</b>"
+    },
+    "someone": "Alguém",
+    "aCustomer": "Um cliente",
+    "aCustomerIn": "Um cliente em {city}",
+    "aPro": "Um profissional",
+    "bookPro": "Agendar este profissional",
+    "viewPro": "Ver profissional",
+    "approve": "Aprovar",
+    "hide": "Ocultar",
+    "remove": "Remover do feed",
+    "removeConfirm": "Remover isto do Feed do Hub?",
+    "pending": "Aguardando aprovação",
+    "hidden": "Oculto",
+    "loadMore": "Carregar mais",
+    "loading": "Carregando…",
+    "empty": "Nada aqui ainda. Novos projetos, orçamentos e reparos vão aparecer aqui.",
+    "error": "Não foi possível carregar o feed.",
+    "retry": "Tentar de novo",
+    "photoAlt": "Foto do projeto {n}",
+    "close": "Fechar",
+    "tagline": [
+      "Bem-vindo ao HubFeed",
+      "Trabalho real de profissionais reais, acontecendo agora.",
+      "Novos profissionais, orçamentos, projetos, reparos e mais..."
+    ],
+    "types": {
+      "member_joined": "Novo membro",
+      "pro_joined": "Novo profissional",
+      "estimate_requested": "Pedido de orçamento",
+      "fix_requested": "Pedido FixCam",
+      "estimate_sent": "Orçamento enviado",
+      "estimate_approved": "Orçamento aprovado",
+      "project_scheduled": "Projeto agendado",
+      "project_photos": "Fotos do projeto",
+      "feedback_left": "Avaliação"
+    },
+    "home": "Início do House Pros Hub",
+    "search": "Buscar",
+    "searchPlaceholder": "Buscar no feed...",
+    "clearSearch": "Limpar busca",
+    "closeSearch": "Fechar busca",
+    "filter": "Filtrar",
+    "removeFilter": "Remover filtro",
+    "add": "Adicionar",
+    "options": "Opções da publicação",
+    "localTitle": "Local · {city}",
+    "allTitle": "Todas as cidades",
+    "noMatches": "Nenhuma publicação encontrada.",
+    "tryAll": "Nada por perto ainda. Toque em Todos para ver todas as cidades.",
+    "trySearch": "Tente outra busca."
   }
 }

@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardList, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { GoogleHandoffOverlay } from '@/components/auth/GoogleHandoffOverlay';
 import { SignupStepsIndicator } from '@/app/[locale]/(auth)/signup/components/SignupStepsIndicator';
@@ -527,6 +527,7 @@ export default function ProEstimateBookingFlow({
               });
               const priceClass = `text-sm font-bold ${selected ? 'text-white' : blockedByGeneral ? 'text-gray-400' : 'text-green-600'}`;
               const thumbRing = selected ? 'ring-1 ring-white/70' : 'ring-1 ring-black/20';
+              const placeholderClass = `flex shrink-0 items-center justify-center rounded-lg ${thumbRing} ${selected ? 'bg-white/10 text-white/70' : 'bg-gray-100 text-gray-400'}`;
               return (
                 <button
                   key={service.id}
@@ -542,7 +543,7 @@ export default function ProEstimateBookingFlow({
                   }}
                   aria-pressed={selected}
                   aria-disabled={blockedByGeneral}
-                  className={`w-full rounded-lg border-2 border-black p-2 text-left md:self-start md:p-3 ${
+                  className={`h-full w-full rounded-lg border-2 border-black p-2 text-left md:p-3 ${
                     selected
                       ? 'cursor-pointer bg-black text-white'
                       : blockedByGeneral
@@ -561,7 +562,11 @@ export default function ProEstimateBookingFlow({
                           height={40}
                           className={`h-10 w-10 shrink-0 rounded object-cover ${thumbRing}`}
                         />
-                      ) : null}
+                      ) : (
+                        <span aria-hidden className={`h-10 w-10 ${placeholderClass}`}>
+                          <ImageIcon className="h-5 w-5" />
+                        </span>
+                      )}
                       <p className="min-w-0 flex-1 font-semibold leading-tight">{service.name}</p>
                     </div>
                     <p className={`mt-1 text-center ${priceClass}`}>{price}</p>
@@ -576,7 +581,11 @@ export default function ProEstimateBookingFlow({
                         height={72}
                         className={`h-[4.5rem] w-[4.5rem] shrink-0 rounded-lg object-cover ${thumbRing}`}
                       />
-                    ) : null}
+                    ) : (
+                      <span aria-hidden className={`h-[4.5rem] w-[4.5rem] ${placeholderClass}`}>
+                        <ImageIcon className="h-7 w-7" />
+                      </span>
+                    )}
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
                       <p className="font-semibold leading-tight">{service.name}</p>
                       {service.description?.trim() ? (

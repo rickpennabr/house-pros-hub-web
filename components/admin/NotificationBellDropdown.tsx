@@ -8,6 +8,9 @@ import type { AdminNotificationEntityType, AdminNotificationEventType } from '@/
 import { useOptionalChat } from '@/contexts/ChatContext';
 import { useOptionalAuth } from '@/contexts/AuthContext';
 import { useHoverMenu } from '@/hooks/useHoverMenu';
+import { LeadOfferModal } from '@/components/leads/LeadOfferModal';
+import { LeadBellTitle } from '@/components/leads/LeadBellTitle';
+import type { ChatLeadOffer } from '@/lib/types/chat';
 
 export type NewSignupItem = {
   id: string;
@@ -82,6 +85,8 @@ type ChatUnreadBellItem = {
   preview: string;
   createdAt: string;
   probotHrefQuery: string;
+  /** An open job request: opens the review modal instead of ProBot. */
+  lead?: ChatLeadOffer;
 };
 
 function formatRelativeTime(iso: string) {
@@ -110,6 +115,7 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState<NewSignupItem[]>([]);
   const [chatUnreadItems, setChatUnreadItems] = useState<ChatUnreadBellItem[]>([]);
+  const [openLead, setOpenLead] = useState<ChatLeadOffer | null>(null);
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -252,6 +258,27 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
                   <ul className="space-y-0.5">
                     {chatUnreadItems.map((item) => (
                       <li key={item.id}>
+                        {item.lead ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenLead(item.lead ?? null);
+                              setNotificationOpen(false);
+                            }}
+                            className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-gray-100 transition-colors cursor-pointer"
+                          >
+                            <span className="flex-shrink-0 w-8 h-8 rounded-lg border-2 border-red-600 flex items-center justify-center bg-red-50">
+                              <Briefcase className="w-4 h-4 text-red-600" />
+                            </span>
+                            <span className="flex-1 min-w-0">
+                              <LeadBellTitle />
+                              <span className="block text-[10px] text-gray-500 truncate">
+                                {[item.lead.projectType, item.lead.area].filter(Boolean).join(' · ')}
+                              </span>
+                              <span className="block text-[10px] text-gray-400 mt-0.5">{formatRelativeTime(item.createdAt)}</span>
+                            </span>
+                          </button>
+                        ) : (
                         <Link
                           href={`/${locale}/probot?${item.probotHrefQuery}`}
                           onClick={() => setNotificationOpen(false)}
@@ -268,6 +295,7 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
                             </span>
                           </span>
                         </Link>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -340,6 +368,16 @@ export function NotificationBellDropdown({ notificationCount = 0, onMarkAllRead,
         </div>,
         document.body
       )}
+      {isChat && openLead ? (
+        <LeadOfferModal
+          lead={openLead}
+          onClose={() => setOpenLead(null)}
+          onAnswered={(answered) => {
+            setOpenLead(answered);
+            setChatUnreadItems((items) => items.filter((entry) => entry.lead?.referralId !== answered.referralId));
+          }}
+        />
+      ) : null}
     </div>
   );
 }

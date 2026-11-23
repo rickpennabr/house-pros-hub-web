@@ -4,7 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import Link from 'next/link';
-import { ArrowLeft, Pencil, Printer, Download, Send, FileText, Image, Loader2, Link2, Tablet } from 'lucide-react';
+import { ArrowLeft, Pencil, Printer, Download, Send, FileText, Image, Loader2, Link2, Tablet, Building2 } from 'lucide-react';
+import { BsGrid3X3Gap } from 'react-icons/bs';
+import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
+import { invoiceTakesPayLink, payLinkQrDataUrl } from '@/lib/invoices/payLink';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -29,6 +32,8 @@ export default function CRMInvoiceDetailPage() {
   const [linkNote, setLinkNote] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  const [actionsGridOpen, setActionsGridOpen] = useState(false);
+  const [payLink, setPayLink] = useState<{ url: string; qr: string | null } | null>(null);
   /** Came from "Send payment link" on a new contact: show the payment link panel first. */
   const searchParams = useSearchParams();
   const [payDismissed, setPayDismissed] = useState(false);
@@ -92,8 +97,54 @@ export default function CRMInvoiceDetailPage() {
     }
   }, [data]);
 
+  const openSendDialog = () => {
+    setSendDialogStep('preview');
+    setSendError(null);
+    setSendOpen(true);
+  };
+
+  const collectCardOnDevice = () => {
+    setPresenting(true);
+    setLinkNote(null);
+    void createPaymentLinkUrl()
+      .then((url) => {
+        window.open(`${url}${url.includes('?') ? '&' : '?'}present=1`, '_blank', 'noopener,noreferrer');
+        setLinkNote('Opened pay screen — hand the device to the customer for card payment.');
+      })
+      .catch((err: unknown) => {
+        setLinkNote(err instanceof Error ? err.message : 'Could not open payment');
+      })
+      .finally(() => setPresenting(false));
+  };
+
+  // Pay link + QR for the printed copy. Drafts get none: asking for a link marks a draft as sent.
+  const payStatus = data?.invoice.status;
+  const payBalance = data ? data.invoice.amount_cents - (data.invoice.payment_applied_cents ?? 0) : 0;
+  const wantsPayLink = Boolean(payStatus && invoiceTakesPayLink(payStatus, payBalance, 0));
+  useEffect(() => {
+    if (!wantsPayLink) return;
+    let cancelled = false;
+    void createPaymentLinkUrl()
+      .then(async (url) => {
+        const qr = await payLinkQrDataUrl(url).catch(() => null);
+        if (!cancelled) setPayLink({ url, qr });
+      })
+      .catch(() => {
+        if (!cancelled) setPayLink(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when the invoice or its payability changes
+  }, [id, wantsPayLink]);
+
   const handlePrint = () => {
+    // The tab title becomes the "Save as PDF" file name.
+    const previousTitle = document.title;
+    const number = data?.invoice.invoice_number;
+    if (number) document.title = `Invoice ${number}`;
     window.print();
+    document.title = previousTitle;
   };
 
   const handleDownloadPDF = () => {
@@ -277,7 +328,19 @@ export default function CRMInvoiceDetailPage() {
           <ArrowLeft className="w-5 h-5 shrink-0" />
           Back to Invoices
         </Link>
-        <div className="flex items-center gap-2">
+        {/* Phone: one row that scrolls sideways, edge to edge. Desktop: normal row. */}
+        <div className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 overflow-x-auto px-2 pb-1 md:mx-0 md:w-auto md:overflow-visible md:px-0 md:pb-0 [&_button]:shrink-0 [&_button]:whitespace-nowrap [&_svg]:shrink-0 [&>a]:shrink-0">
+          {invoice.status !== 'cancelled' && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={openSendDialog}
+              className="flex items-center gap-2"
+            >
+              <Send className="w-4 h-4" />
+              Send invoice
+            </Button>
+          )}
           {invoice.status === 'draft' && (
             <>
               <Link href={`/${locale}/crm/invoices/${id}/edit`}>
@@ -298,19 +361,7 @@ export default function CRMInvoiceDetailPage() {
                 size="sm"
                 disabled={presenting}
                 className="flex items-center gap-2"
-                onClick={() => {
-                  setPresenting(true);
-                  setLinkNote(null);
-                  void createPaymentLinkUrl()
-                    .then((url) => {
-                      window.open(`${url}${url.includes('?') ? '&' : '?'}present=1`, '_blank', 'noopener,noreferrer');
-                      setLinkNote('Opened pay screen — hand the device to the customer for card payment.');
-                    })
-                    .catch((err: unknown) => {
-                      setLinkNote(err instanceof Error ? err.message : 'Could not open payment');
-                    })
-                    .finally(() => setPresenting(false));
-                }}
+                onClick={collectCardOnDevice}
               >
                 <Tablet className="w-4 h-4" />
                 {presenting ? 'Opening…' : 'Collect card on device'}
@@ -335,24 +386,47 @@ export default function CRMInvoiceDetailPage() {
             <Download className="w-4 h-4" />
             Download PDF
           </Button>
-          {invoice.status !== 'cancelled' && (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setSendDialogStep('preview');
-              setSendError(null);
-              setSendOpen(true);
-            }}
-            className="flex items-center gap-2"
-          >
-            <Send className="w-4 h-4" />
-            Send invoice
-          </Button>
-          )}
+          {/* Nine-dot menu: pinned to the right end so it stays reachable while the row scrolls. */}
+          <div className="sticky right-0 ml-auto shrink-0 md:hidden">
+            <button
+              type="button"
+              onClick={() => setActionsGridOpen(true)}
+              className="flex h-10 w-10 items-center justify-center rounded-lg bg-black border-2 border-black text-white cursor-pointer hover:bg-gray-800 transition-all"
+              aria-label="Invoice actions menu"
+              title="Invoice actions menu"
+            >
+              <BsGrid3X3Gap className="w-5 h-5" />
+            </button>
+          </div>
         </div>
         {linkNote ? <p className="mt-2 text-sm text-gray-700">{linkNote}</p> : null}
       </div>
+
+      <MobileGridActionsModal
+        isOpen={actionsGridOpen}
+        onClose={() => setActionsGridOpen(false)}
+        title="Invoice actions"
+        items={[
+          ...(invoice.status !== 'cancelled'
+            ? [{ id: 'send', label: 'Send invoice', icon: Send, onClick: () => { setActionsGridOpen(false); openSendDialog(); } }]
+            : []),
+          ...(invoice.status === 'draft'
+            ? [
+                { id: 'edit', label: 'Edit invoice', icon: Pencil, href: `/${locale}/crm/invoices/${id}/edit` },
+                { id: 'company', label: 'Edit company info', icon: Building2, onClick: () => { setActionsGridOpen(false); setCompanyEditorOpen(true); } },
+              ]
+            : []),
+          ...(invoice.status !== 'cancelled' && invoice.amount_cents - (invoice.payment_applied_cents ?? 0) > 0
+            ? [
+                { id: 'collect', label: 'Collect card on device', icon: Tablet, onClick: () => { setActionsGridOpen(false); collectCardOnDevice(); } },
+                { id: 'link', label: 'Copy payment link', icon: Link2, onClick: () => { setActionsGridOpen(false); void copyPaymentLink(); } },
+              ]
+            : []),
+          { id: 'print', label: 'Print', icon: Printer, onClick: () => { setActionsGridOpen(false); handlePrint(); } },
+          { id: 'pdf', label: 'Download PDF', icon: Download, onClick: () => { setActionsGridOpen(false); void handleDownloadPDF(); } },
+          { id: 'back', label: 'All invoices', icon: FileText, href: `/${locale}/crm/invoices` },
+        ]}
+      />
 
       <Modal
         isOpen={sendOpen}
@@ -474,6 +548,8 @@ export default function CRMInvoiceDetailPage() {
           business={displayBusiness}
           themeColor={themeColorHex}
           forPrint={false}
+          payUrl={wantsPayLink ? payLink?.url : null}
+          payQrDataUrl={wantsPayLink ? payLink?.qr : null}
         />
         <InvoiceLedger
           invoiceId={id}

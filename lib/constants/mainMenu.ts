@@ -4,6 +4,7 @@ export const MAIN_MENU_KEYS = [
   'proProducts',
   'prosBlog',
   'housePros',
+  'feed',
   'quickRepair',
 ] as const;
 
@@ -15,6 +16,7 @@ export const MAIN_MENU_LABELS: Record<MainMenuKey, string> = {
   proProducts: 'ProProducts',
   prosBlog: 'ProsBlog',
   housePros: 'HousePros',
+  feed: 'HubFeed',
   quickRepair: 'Quick Repair',
 };
 
@@ -28,8 +30,12 @@ export function normalizeMainMenuOrder(value: unknown): MainMenuKey[] {
       picked.push(item as MainMenuKey);
     }
   }
-  for (const key of MAIN_MENU_KEYS) {
-    if (!picked.includes(key)) picked.push(key);
-  }
+  // A key missing from a saved order (a newly added menu item) goes right after the key that
+  // comes before it by default, so Feed lands beside Pros instead of at the end.
+  MAIN_MENU_KEYS.forEach((key, index) => {
+    if (picked.includes(key)) return;
+    const before = index > 0 ? picked.indexOf(MAIN_MENU_KEYS[index - 1]) : -1;
+    picked.splice(before + 1, 0, key);
+  });
   return picked;
 }

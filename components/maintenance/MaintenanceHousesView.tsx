@@ -214,7 +214,7 @@ export function MaintenanceHousesView({ onOpen, onAdd }: MaintenanceHousesViewPr
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [savedView, setSavedView] = useLocalStorage<string>('crmMaintenanceHousesView', 'card');
   const listView: ViewType =
-    savedView === 'list' || savedView === 'map' || savedView === 'chart' ? savedView : 'card';
+    savedView === 'table' || savedView === 'map' || savedView === 'chart' ? savedView : savedView === 'list' ? 'table' : 'card';
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const {
@@ -310,7 +310,7 @@ export function MaintenanceHousesView({ onOpen, onAdd }: MaintenanceHousesViewPr
             ))}
           </div>
         )}
-        hideBody={listView !== 'list'}
+        hideBody={listView !== 'table'}
         columnOrderKey="crm-maintenance-houses"
         exportName="maintenance-houses"
         columns={COLUMNS}
@@ -415,7 +415,7 @@ export function MaintenanceHousesView({ onOpen, onAdd }: MaintenanceHousesViewPr
         <ViewToggle
           currentView={listView}
           onViewChange={setSavedView}
-          views={['card', 'list', 'map', 'chart']}
+          views={['card', 'table', 'map', 'chart']}
           hideBackgroundToggle
           onAdd={onAdd}
           addLabel="Add house"

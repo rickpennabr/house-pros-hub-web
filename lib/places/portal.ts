@@ -1,4 +1,5 @@
 import { joinMailLine, mailStreetKey } from '@/lib/address/unit';
+import { isHouseTradeSlug, tradeFromLicense } from '@/lib/pros/house-trades';
 import { canChangeAppointment } from '@/lib/booking/appointmentPolicy';
 import { safeTimeZone } from '@/lib/booking/dayOfReminder';
 import { createServiceRoleClient } from '@/lib/supabase/server';
@@ -608,8 +609,10 @@ export interface PlacePro {
   businessName: string;
   slug: string | null;
   logoUrl: string | null;
-  /** The pro's services (their trade), as on their pro card. */
+  /** The pro's services, as on their pro card. */
   trades: string[];
+  /** House trade slug the pro does (their pick, else from their first license), shown under the name like their pro card. */
+  primaryTrade: string | null;
   phone: string | null;
   email: string | null;
   /** Unpaid on this house's sent invoices. */
@@ -625,6 +628,10 @@ export interface PlacePro {
 }
 
 type ProBusiness = {
+  id: string;
+  primary_trade: string | null;
+  /** Filled after load: trade from the first license when no trade was picked. */
+  license_trade?: string | null;
   owner_id: string;
   business_name: string;
   slug: string | null;
@@ -640,13 +647,25 @@ async function loadProBusinesses(admin: ReturnType<typeof createServiceRoleClien
   if (ids.length === 0) return [];
   const { data } = await admin
     .from('businesses')
-    .select('owner_id, business_name, slug, business_logo, services, phone, mobile_phone, email, is_active')
+    .select('id, primary_trade, owner_id, business_name, slug, business_logo, services, phone, mobile_phone, email, is_active')
     .in('owner_id', ids)
     .order('is_active', { ascending: false });
   // One business per pro: the active one first.
-  return ids
+  const picked = ids
     .map((id) => (data ?? []).find((row) => row.owner_id === id))
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
+  // Pros without a picked trade: use their first license, same fallback as the pro card.
+  const needLicense = picked.filter((row) => !isHouseTradeSlug(row.primary_trade)).map((row) => row.id);
+  if (needLicense.length === 0) return picked;
+  const { data: licenses } = await admin
+    .from('licenses')
+    .select('business_id, license_type, created_at')
+    .in('business_id', needLicense)
+    .order('created_at', { ascending: true });
+  return picked.map((row) => {
+    const first = (licenses ?? []).find((license) => license.business_id === row.id);
+    return { ...row, license_trade: tradeFromLicense(first?.license_type) };
+  });
 }
 
 function serviceNames(value: unknown): string[] {
@@ -816,6 +835,7 @@ export async function loadPlaceBundle(
         slug: business?.slug ?? null,
         logoUrl: business?.business_logo ?? null,
         trades: serviceNames(business?.services),
+        primaryTrade: isHouseTradeSlug(business?.primary_trade) ? business!.primary_trade : business?.license_trade ?? null,
         phone: business?.phone || business?.mobile_phone || null,
         email: business?.email ?? null,
         openBalanceCents: work.invoices

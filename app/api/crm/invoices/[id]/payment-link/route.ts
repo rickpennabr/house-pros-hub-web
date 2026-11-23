@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
+import { getOrCreateInvoicePayLink } from '@/lib/invoices/payLink';
 
 /**
  * POST /api/crm/invoices/[id]/payment-link
@@ -41,26 +42,17 @@ export async function POST(
       if (statusError) return NextResponse.json({ error: statusError.message }, { status: 500 });
     }
 
-    const service = createServiceRoleClient();
-    const { data: tokenRow, error: tokenError } = await service
-      .from('pro_invoice_view_tokens')
-      .insert({
-        invoice_id: id,
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      })
-      .select('token')
-      .single();
-    if (tokenError || !tokenRow) {
-      return NextResponse.json({ error: 'Failed to create payment link' }, { status: 500 });
-    }
-
     const baseUrl = getPublicSiteUrlForEmail(request);
     const locale = request.headers.get('x-next-intl-locale') || 'en';
-    const url = `${baseUrl}/${locale}/invoices/view?token=${tokenRow.token}`;
+    const link = await getOrCreateInvoicePayLink(createServiceRoleClient(), id, baseUrl, locale);
+    if (!link) {
+      return NextResponse.json({ error: 'Failed to create payment link' }, { status: 500 });
+    }
+    const { url, token } = link;
     // The chat attaches this invoice as a card; it needs the token and the numbers, not just the link.
     return NextResponse.json({
       url,
-      token: tokenRow.token,
+      token,
       invoiceId: id,
       invoiceNumber: invoice.invoice_number,
       balanceCents: invoice.amount_cents - invoice.payment_applied_cents,

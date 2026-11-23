@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { ChartColumn, List, Map, Plus, Settings } from 'lucide-react';
+import { ChartColumn, List, Map, Plus, Settings, Table2 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { LuIdCard } from 'react-icons/lu';
 import { useBackgroundMode } from '@/contexts/BackgroundModeContext';
@@ -11,7 +11,7 @@ import { DAY_CYCLE_SKY_ENABLED } from '@/lib/constants/probot';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 
-export type ViewType = 'card' | 'list' | 'map' | 'chart';
+export type ViewType = 'card' | 'list' | 'table' | 'map' | 'chart';
 
 interface ViewToggleProps {
   currentView: ViewType;
@@ -49,6 +49,7 @@ interface ViewOption {
 const VIEW_OPTIONS: ViewOption[] = [
   { type: 'card', icon: LuIdCard, labelKey: 'view.card' },
   { type: 'list', icon: List, labelKey: 'view.list' },
+  { type: 'table', icon: Table2, labelKey: 'view.table' },
   { type: 'map', icon: Map, labelKey: 'view.map' },
   { type: 'chart', icon: ChartColumn, labelKey: 'view.chart' },
 ];

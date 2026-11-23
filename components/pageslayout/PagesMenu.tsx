@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { openQuickRepairCamera } from '@/lib/media/quick-repair-camera';
 import { BookOpen, Briefcase, HardHat, Package, Truck } from 'lucide-react';
+import { FeedIcon } from '@/components/icons/hub';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeMainMenuOrder, type MainMenuKey } from '@/lib/constants/mainMenu';
 
@@ -25,6 +26,7 @@ const menuItems: MenuItem[] = [
   { labelKey: 'proProducts', path: '/proproducts', icon: Package },
   { labelKey: 'prosBlog', path: '/blog', icon: BookOpen },
   { labelKey: 'housePros', path: '/businesslist', icon: HardHat },
+  { labelKey: 'feed', path: '/feed', icon: FeedIcon },
   { labelKey: 'quickRepair', path: '/quick-repair' },
 ];
 

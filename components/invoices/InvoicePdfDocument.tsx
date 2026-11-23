@@ -1,7 +1,7 @@
 import React from 'react';
-import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, View, Text, Image, Link, StyleSheet } from '@react-pdf/renderer';
 import type { InvoiceTemplateInvoice, InvoiceTemplateCustomer, InvoiceTemplateBusiness } from './InvoiceTemplate';
-import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
+import { invoiceTermsLabel, resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { shownDiscount } from '@/lib/crm/document-discount';
 
@@ -15,7 +15,7 @@ const styles = StyleSheet.create({
   businessName: { fontWeight: 'bold', marginBottom: 4 },
   address: { fontSize: 9, color: '#374151', marginTop: 2 },
   contact: { fontSize: 9, color: '#374151', marginTop: 2 },
-  logo: { width: 48, height: 48, borderRadius: 24, marginRight: 12 },
+  logo: { width: 48, height: 48, borderRadius: 6, marginRight: 12 },
   tagline: { fontSize: 9, fontStyle: 'italic', marginTop: 2 },
   tintBlock: { padding: 16, marginBottom: 24, borderRadius: 4 },
   tintRow: { flexDirection: 'row', marginBottom: 8 },
@@ -44,6 +44,10 @@ const styles = StyleSheet.create({
   noteSection: { marginTop: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e5e7eb' },
   noteLabel: { fontSize: 8, fontWeight: 'bold', color: '#6b7280', marginBottom: 4, textTransform: 'uppercase' },
   noteText: { fontSize: 9, color: '#374151' },
+  payBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: '#000', borderRadius: 6, padding: 12, marginBottom: 16 },
+  payQr: { width: 72, height: 72, marginRight: 12 },
+  payTitle: { fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
+  payLink: { fontSize: 9, color: '#1d4ed8', textDecoration: 'underline', marginTop: 2 },
 });
 
 function formatDate(iso: string | null) {
@@ -66,9 +70,14 @@ interface InvoicePdfDocumentProps {
   customer: InvoiceTemplateCustomer;
   business: InvoiceTemplateBusiness;
   themeColor: string;
+  /** Customer pay link and its QR (PNG data URL). Shown under the totals when set. */
+  payUrl?: string | null;
+  payQrDataUrl?: string | null;
 }
 
-export function InvoicePdfDocument({ invoice, customer, business, themeColor }: InvoicePdfDocumentProps) {
+export function InvoicePdfDocument({ invoice, customer, business, themeColor, payUrl = null, payQrDataUrl = null }: InvoicePdfDocumentProps) {
+  const termsLabel = invoiceTermsLabel(invoice);
+  const dueDateIso = resolveInvoiceDueDate(invoice.invoice_date, invoice.due_date, invoice.payment_terms);
   const paymentApplied = invoice.payment_applied_cents ?? 0;
   const balanceDue = Math.max(0, invoice.amount_cents - paymentApplied);
   const lineItems = Array.isArray(invoice.line_items) ? invoice.line_items : [];
@@ -78,7 +87,7 @@ export function InvoicePdfDocument({ invoice, customer, business, themeColor }: 
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size="LETTER" style={styles.page}>
         <View style={[styles.header, { borderBottomColor: themeColor }]}>
           <View style={styles.headerLeft}>
             <Text style={[styles.title, { color: themeColor }]}>INVOICE</Text>
@@ -94,12 +103,10 @@ export function InvoicePdfDocument({ invoice, customer, business, themeColor }: 
             {business.business_logo ? (
               <Image src={business.business_logo} style={styles.logo} />
             ) : null}
-            <View>
-              <Text style={styles.businessName}>{business.business_name}</Text>
-              {business.company_tagline ? (
-                <Text style={[styles.tagline, { color: themeColor }]}>{business.company_tagline}</Text>
-              ) : null}
-            </View>
+            {/* Name already shows top-left; only the tagline goes beside the logo. */}
+            {business.company_tagline ? (
+              <Text style={[styles.tagline, { color: themeColor }]}>{business.company_tagline}</Text>
+            ) : null}
           </View>
         </View>
 
@@ -118,23 +125,16 @@ export function InvoicePdfDocument({ invoice, customer, business, themeColor }: 
               <Text style={styles.metaLabel}>Invoice date</Text>
               <Text style={styles.metaValue}>{formatDate(invoice.invoice_date)}</Text>
             </View>
-            <View style={styles.metaCol}>
-              <Text style={styles.metaLabel}>Due date</Text>
-              <Text style={styles.metaValue}>
-                {formatInvoiceDueDisplay(
-                  invoice.invoice_date,
-                  invoice.due_date,
-                  invoice.payment_terms,
-                  formatDate
-                )}
-              </Text>
-            </View>
-            {invoice.payment_terms ? (
+            {termsLabel ? (
               <View style={styles.metaCol}>
                 <Text style={styles.metaLabel}>Terms</Text>
-                <Text style={styles.metaValue}>{invoice.payment_terms}</Text>
+                <Text style={styles.metaValue}>{termsLabel}</Text>
               </View>
             ) : null}
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Due date</Text>
+              <Text style={styles.metaValue}>{formatDate(dueDateIso)}</Text>
+            </View>
           </View>
         </View>
 
@@ -168,17 +168,15 @@ export function InvoicePdfDocument({ invoice, customer, business, themeColor }: 
         </View>
 
         <View style={styles.totals}>
+          <View style={[styles.totalRow, { color: '#6b7280' }]}>
+            <Text>Subtotal</Text>
+            <Text>{formatCurrency(discountShown ? discountShown.subtotalCents : invoice.amount_cents)}</Text>
+          </View>
           {discountShown ? (
-            <>
-              <View style={[styles.totalRow, { color: '#6b7280' }]}>
-                <Text>Subtotal</Text>
-                <Text>{formatCurrency(discountShown.subtotalCents)}</Text>
-              </View>
-              <View style={[styles.totalRow, { color: '#6b7280' }]}>
-                <Text>Discount</Text>
-                <Text>-{formatCurrency(discountShown.discountCents)}</Text>
-              </View>
-            </>
+            <View style={[styles.totalRow, { color: '#6b7280' }]}>
+              <Text>Discount</Text>
+              <Text>-{formatCurrency(discountShown.discountCents)}</Text>
+            </View>
           ) : null}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
@@ -199,22 +197,25 @@ export function InvoicePdfDocument({ invoice, customer, business, themeColor }: 
               <Text>Paid in Full</Text>
             </View>
           )}
-          {invoice.status === 'overdue' && (
-            <View style={[styles.statusBadge, { backgroundColor: '#d97706', color: '#fff' }]}>
-              <Text>Overdue</Text>
-            </View>
-          )}
-          {invoice.status === 'partial' && (
-            <View style={[styles.statusBadge, { backgroundColor: '#dbeafe', color: '#1e40af' }]}>
-              <Text>Partial</Text>
-            </View>
-          )}
           {invoice.status === 'cancelled' && (
             <View style={[styles.statusBadge, { backgroundColor: '#e5e7eb', color: '#374151' }]}>
               <Text>Cancelled</Text>
             </View>
           )}
         </View>
+
+        {payUrl && balanceDue > 0 ? (
+          <View style={styles.payBox} wrap={false}>
+            {payQrDataUrl ? <Image src={payQrDataUrl} style={styles.payQr} /> : null}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.payTitle}>Pay online: {formatCurrency(balanceDue)}</Text>
+              <Text style={styles.noteText}>
+                {payQrDataUrl ? 'Scan the code with your phone camera, or open this link to pay by card:' : 'Open this link to pay by card:'}
+              </Text>
+              <Link src={payUrl} style={styles.payLink}>{payUrl}</Link>
+            </View>
+          </View>
+        ) : null}
 
         {invoice.note ? (
           <View style={styles.noteSection}>
