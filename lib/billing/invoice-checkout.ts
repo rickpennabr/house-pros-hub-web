@@ -1,9 +1,11 @@
+import { getDefaultCompanyForInvoice } from '@/lib/invoices/defaultCompany';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
 import type { Database } from '@/lib/types/supabase';
 import { canRecordPayment, todayDateKey, type ProInvoiceStatus } from '@/lib/crm/invoice-books';
 import { recordInvoicePayment } from '@/lib/crm/invoice-payments';
 import { getStripe } from '@/lib/billing/stripe';
+import { resolvePublicSiteUrl } from '@/lib/utils/publicSiteUrl';
 
 type Client = SupabaseClient<Database>;
 
@@ -26,7 +28,7 @@ export async function createInvoiceCheckoutSession(
 ): Promise<{ url: string } | { error: string }> {
   const { data: invoice, error } = await supabase
     .from('pro_crm_invoices')
-    .select('id, owner_id, invoice_number, amount_cents, payment_applied_cents, status, business_id')
+    .select('id, owner_id, invoice_number, amount_cents, payment_applied_cents, status, business_id, customer_id')
     .eq('id', invoiceId)
     .single();
   if (error || !invoice) return { error: 'Invoice not found' };
@@ -47,7 +49,19 @@ export async function createInvoiceCheckoutSession(
       .eq('id', invoice.business_id)
       .maybeSingle();
     if (business?.business_name) businessName = business.business_name;
+  } else {
+    // No business on the invoice: use the pro's default invoice company.
+    const fallback = await getDefaultCompanyForInvoice(supabase as never, invoice.owner_id);
+    if (fallback?.business_name) businessName = fallback.business_name;
   }
+
+  // Prefill the customer's email on the Stripe page (they can still change it).
+  const { data: customer } = await supabase
+    .from('pro_crm_customers')
+    .select('email')
+    .eq('id', invoice.customer_id)
+    .maybeSingle();
+  const customerEmail = customer?.email?.trim() || undefined;
 
   const stripe = getStripe();
   const session = await stripe.checkout.sessions.create({
@@ -55,6 +69,7 @@ export async function createInvoiceCheckoutSession(
     success_url: urls.successUrl,
     cancel_url: urls.cancelUrl,
     client_reference_id: invoice.id,
+    ...(customerEmail ? { customer_email: customerEmail } : {}),
     metadata: {
       product_kind: 'invoice_payment',
       invoice_id: invoice.id,
@@ -122,7 +137,7 @@ export async function applyInvoiceCheckoutSession(
       reference,
       note: 'Paid online',
     },
-    { baseUrl: process.env.NEXT_PUBLIC_APP_URL?.trim() || null, locale: 'en' }
+    { baseUrl: resolvePublicSiteUrl(null), locale: 'en' }
   );
   if ('error' in result) {
     const { data: raced } = await supabase

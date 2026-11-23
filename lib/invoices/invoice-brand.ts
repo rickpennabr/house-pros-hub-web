@@ -11,6 +11,11 @@ export type InvoiceBrandSettings = {
   footerText: string | null;
   defaultPaymentTerms: string | null;
   defaultNote: string | null;
+  /** Company info for every invoice header; null keeps the business profile value. */
+  companyAddress: string | null;
+  companyEmail: string | null;
+  companyPhone: string | null;
+  companyWebsite: string | null;
 };
 
 export async function loadInvoiceBrandSettings(supabase: Db, ownerId: string): Promise<InvoiceBrandSettings> {
@@ -23,6 +28,10 @@ export async function loadInvoiceBrandSettings(supabase: Db, ownerId: string): P
     footerText: text('footer_text'),
     defaultPaymentTerms: text('default_payment_terms'),
     defaultNote: text('default_note'),
+    companyAddress: text('company_address'),
+    companyEmail: text('company_email'),
+    companyPhone: text('company_phone'),
+    companyWebsite: text('company_website'),
   };
 }
 
@@ -48,12 +57,23 @@ export async function ownerBusinessLogo(supabase: Db, ownerId: string): Promise<
  * business has none) and the footer. Call before applyCompanyDisplay, so a per-invoice override wins.
  */
 export async function applyInvoiceBrand<
-  T extends { business_logo?: string | null; invoice_footer?: string | null },
+  T extends {
+    business_logo?: string | null;
+    invoice_footer?: string | null;
+    address?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    website?: string | null;
+  },
 >(supabase: Db, ownerId: string, business: T): Promise<InvoiceBrandSettings> {
   const settings = await loadInvoiceBrandSettings(supabase, ownerId);
   if (settings.logoUrl) business.business_logo = settings.logoUrl;
   else if (!business.business_logo) business.business_logo = await ownerBusinessLogo(supabase, ownerId);
   business.invoice_footer = settings.footerText;
+  if (settings.companyAddress) business.address = settings.companyAddress;
+  if (settings.companyEmail) business.email = settings.companyEmail;
+  if (settings.companyPhone) business.phone = settings.companyPhone;
+  if (settings.companyWebsite) (business as { website?: string | null }).website = settings.companyWebsite;
   return settings;
 }
 

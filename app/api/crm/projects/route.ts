@@ -6,36 +6,69 @@ import { contactCanBeInvoiced } from '@/lib/crm/contact-role';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { safeTimeZone } from '@/lib/crm/estimate-chart';
 import { buildProjectChart, type ProjectChart } from '@/lib/crm/list-charts';
+import type { CrmDb } from '@/lib/crm/crm-scope';
+import { jobFinancialsFrom, loadOwnerJobData } from '@/lib/crm/job-financials-db';
+import type { JobFinancials } from '@/lib/crm/job-financials';
 
 const VALID_SORT = ['created_at', 'updated_at', 'name', 'status', 'start_date', 'end_date'] as const;
 
 /** Sum job expenses for the projects on this page. Pages past the default row cap so the total is complete. */
+/**
+ * True cost of each project, the same number its financial report shows: linked expenses, logged
+ * hours, mileage and equipment days, plus the overhead %.
+ */
+async function projectFinancialsById(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ownerId: string,
+  projectIds: string[]
+): Promise<Map<string, JobFinancials>> {
+  const result = new Map<string, JobFinancials>();
+  if (projectIds.length === 0) return result;
+  const data = await loadOwnerJobData(supabase as unknown as CrmDb, ownerId, { today: new Date().toISOString().slice(0, 10) });
+  for (const id of projectIds) {
+    const key = `project:${id}` as const;
+    if (data.jobs.has(key)) result.set(id, jobFinancialsFrom(data, key));
+  }
+  return result;
+}
+
 async function sumExpenseCentsByProject(
   supabase: Awaited<ReturnType<typeof createClient>>,
   ownerId: string,
   projectIds: string[]
 ): Promise<Map<string, number>> {
-  const totals = new Map<string, number>();
-  if (projectIds.length === 0) return totals;
-  const pageSize = 1000;
-  let from = 0;
-  for (;;) {
-    const { data, error } = await supabase
-      .from('pro_crm_expenses')
-      .select('project_id, amount_cents')
-      .eq('owner_id', ownerId)
-      .in('project_id', projectIds)
-      .order('id', { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) throw new Error(error.message || 'Failed to load project costs');
-    for (const row of data ?? []) {
-      if (!row.project_id) continue;
-      totals.set(row.project_id, (totals.get(row.project_id) ?? 0) + (row.amount_cents ?? 0));
-    }
-    if (!data || data.length < pageSize) break;
-    from += pageSize;
+  const financials = await projectFinancialsById(supabase, ownerId, projectIds);
+  return new Map([...financials].map(([id, fin]) => [id, fin.totalCostCents]));
+}
+
+/** Project manager on each project: the team member with the Project manager role. */
+async function projectManagersById(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projectIds: string[]
+): Promise<Map<string, string>> {
+  const managers = new Map<string, string>();
+  if (projectIds.length === 0) return managers;
+  const { data: members } = await supabase
+    .from('pro_crm_project_members')
+    .select('project_id, contact_id, role_id')
+    .in('project_id', projectIds);
+  if (!members?.length) return managers;
+  const roleIds = [...new Set(members.map((row) => row.role_id))];
+  const { data: roles } = await supabase.from('pro_crm_roles').select('id, slug').in('id', roleIds);
+  const pmRoles = new Set((roles ?? []).filter((role) => role.slug === 'project_manager').map((role) => role.id));
+  const pmRows = members.filter((row) => pmRoles.has(row.role_id));
+  if (pmRows.length === 0) return managers;
+  const { data: contacts } = await supabase
+    .from('pro_crm_customers')
+    .select('id, first_name, last_name, display_name, company_name')
+    .in('id', [...new Set(pmRows.map((row) => row.contact_id))]);
+  const names = new Map((contacts ?? []).map((contact) => [contact.id, contactDisplayName(contact)]));
+  for (const row of pmRows) {
+    const name = names.get(row.contact_id);
+    if (!name) continue;
+    managers.set(row.project_id, managers.has(row.project_id) ? `${managers.get(row.project_id)}, ${name}` : name);
   }
-  return totals;
+  return managers;
 }
 
 async function validateEstimateLink(
@@ -109,7 +142,7 @@ export async function GET(request: NextRequest) {
     const estimateIds = [...new Set(list.map((p) => p.estimate_id).filter((id): id is string => Boolean(id)))];
     const projectIds = list.map((p) => p.id);
 
-    const [customersResult, estimatesResult, expenseTotals] = await Promise.all([
+    const [customersResult, estimatesResult, financials, managers] = await Promise.all([
       customerIds.length > 0
         ? supabase.from('pro_crm_customers').select('id, first_name, last_name, display_name, company_name, street_address, apartment, city, state, zip_code, billing_address_street_1, billing_address_street_2, billing_address_city, billing_address_state, billing_address_zip_code').in('id', customerIds)
         : Promise.resolve({ data: [] as {
@@ -132,7 +165,8 @@ export async function GET(request: NextRequest) {
       estimateIds.length > 0
         ? supabase.from('pro_crm_estimates').select('id, amount_cents').eq('owner_id', user.id).in('id', estimateIds)
         : Promise.resolve({ data: [] as { id: string; amount_cents: number }[], error: null }),
-      sumExpenseCentsByProject(supabase, user.id, projectIds),
+      projectFinancialsById(supabase, user.id, projectIds),
+      projectManagersById(supabase, projectIds),
     ]);
     if (customersResult.error) {
       return NextResponse.json({ error: customersResult.error.message || 'Failed to load customers' }, { status: 500 });
@@ -185,7 +219,13 @@ export async function GET(request: NextRequest) {
         customerDisplayName: c ? contactDisplayName(c) : null,
         customerAddress: home || billing,
         contract_amount_cents: contractAmountCents,
-        project_cost_cents: expenseTotals.get(p.id) ?? 0,
+        project_cost_cents: financials.get(p.id)?.totalCostCents ?? 0,
+        invoiced_cents: financials.get(p.id)?.revenue.invoicedCents ?? 0,
+        collected_cents: financials.get(p.id)?.revenue.collectedCents ?? 0,
+        balance_cents: financials.get(p.id)?.revenue.outstandingCents ?? 0,
+        labor_hours: financials.get(p.id)?.laborHours ?? 0,
+        project_manager: managers.get(p.id) ?? null,
+        city: c?.city?.trim() || c?.billing_address_city?.trim() || null,
       };
     });
 

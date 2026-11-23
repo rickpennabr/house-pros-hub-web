@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Plus, Pencil, Trash2, AlertTriangle, Settings, Filter, LayoutGrid, FileText, Send, CircleDollarSign, CircleCheck, Clock, Ban } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, Settings, Filter, LayoutGrid, FileText, Send, CircleDollarSign, CircleCheck, Clock, Ban, BellRing } from 'lucide-react';
 import Link from 'next/link';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
@@ -14,7 +14,9 @@ import { AddressPinsMap } from '@/components/maps/AddressPinsMap';
 import { CrmRowActionsButton, CrmRowActionsPortal, useCrmRowActions } from '@/components/crm/CrmRowActionsMenu';
 import { CRM_LIST_PAGE_SIZE, useCrmListQuery } from '@/hooks/useCrmListQuery';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { formatInvoiceDueDisplay } from '@/lib/invoices/invoiceDueOnReceipt';
+import { effectiveInvoiceStatus, invoiceDueLabel, invoiceDueState } from '@/lib/invoices/dueState';
+import { InvoiceReminderDialog } from '@/components/crm/InvoiceReminderDialog';
+import { BulkInvoiceReminderDialog, type BulkReminderInvoice } from '@/components/crm/BulkInvoiceReminderDialog';
 import { invoiceStatusLabel } from '@/lib/crm/invoice-books';
 import { listedCustomerName } from '@/lib/crm/contact-name';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
@@ -57,6 +59,7 @@ interface InvoiceRow {
   invoice_date: string;
   due_date: string | null;
   payment_terms?: string | null;
+  payment_applied_cents?: number | null;
   created_at: string;
   customerAddress?: string | null;
 }
@@ -89,9 +92,9 @@ function invoiceCellText(row: InvoiceRow, columnId: string): string {
     case 'amount':
       return formatAmount(row.amount_cents);
     case 'status':
-      return invoiceStatusLabel(row.status);
+      return invoiceStatusLabel(effectiveInvoiceStatus(row));
     case 'due':
-      return formatInvoiceDueDisplay(row.invoice_date, row.due_date, row.payment_terms, formatDate);
+      return invoiceDueLabel(invoiceDueState(row), formatDate);
     case 'invoice_date':
       return formatDate(row.invoice_date);
     default:
@@ -141,6 +144,9 @@ export default function CRMInvoicesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [reminderFor, setReminderFor] = useState<{ id: string; number: string } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [bulkReminders, setBulkReminders] = useState<BulkReminderInvoice[]>([]);
 
   const handleDelete = async (id: string) => {
     setDeleting(true);
@@ -303,7 +309,14 @@ export default function CRMInvoicesPage() {
         error={error}
         getRowId={(row) => row.id}
         getCellText={invoiceCellText}
-        renderCell={(row, columnId) => invoiceCellText(row, columnId) || '—'}
+        renderCell={(row, columnId) => {
+          const text = invoiceCellText(row, columnId) || '—';
+          if (columnId !== 'due' && columnId !== 'status') return text;
+          const kind = invoiceDueState(row).kind;
+          if (kind === 'overdue') return <span className="font-semibold text-red-600">{text}</span>;
+          if (kind === 'due_today' && columnId === 'due') return <span className="font-semibold text-amber-700">{text}</span>;
+          return text;
+        }}
         onRowClick={(row) => router.push(`/${locale}/crm/invoices/${row.id}`)}
         renderActions={(row) => (
           <CrmRowActionsButton rowId={row.id} openId={rowActions.openId} onToggle={rowActions.toggle} />
@@ -312,6 +325,29 @@ export default function CRMInvoicesPage() {
           onDelete: (ids) => setBulkDeleteIds(ids),
           onCopyAsJson: (rows) => { void navigator.clipboard.writeText(JSON.stringify(rows, null, 2)); },
           onEdit: (row) => router.push(`/${locale}/crm/invoices/${row.id}`),
+          extra: [
+            {
+              id: 'remind',
+              label: (rows) => {
+                const late = rows.filter((row) => invoiceDueState(row).canRemind).length;
+                return late > 0 ? `Send ${late} ${late === 1 ? 'reminder' : 'reminders'}` : null;
+              },
+              onClick: (rows) =>
+                setBulkReminders(
+                  rows
+                    .filter((row) => invoiceDueState(row).canRemind)
+                    .map((row) => ({
+                      id: row.id,
+                      number: row.invoice_number,
+                      customer: listedCustomerName(row),
+                      balanceLabel: formatAmount(invoiceDueState(row).balanceCents),
+                      dueLabel: invoiceCellText(row, 'due'),
+                    }))
+                ),
+              icon: <BellRing className="h-3.5 w-3.5" />,
+              className: 'border-red-600 text-red-700 hover:bg-red-50',
+            },
+          ],
         }}
         emptyMessage="No invoices found."
         itemLabel="invoices"
@@ -337,7 +373,7 @@ export default function CRMInvoicesPage() {
                   invoiceNumber={row.invoice_number}
                   customerName={listedCustomerName(row)}
                   amount={formatAmount(row.amount_cents)}
-                  status={row.status}
+                  status={effectiveInvoiceStatus(row)}
                   due={invoiceCellText(row, 'due')}
                   invoiceDate={formatDate(row.invoice_date)}
                   address={row.customerAddress}
@@ -429,6 +465,29 @@ export default function CRMInvoicesPage() {
         </Modal>
       )}
 
+      <InvoiceReminderDialog
+        invoiceId={reminderFor?.id ?? null}
+        invoiceNumber={reminderFor?.number}
+        onClose={() => setReminderFor(null)}
+        onSent={(to) => {
+          setNotice(`Reminder sent to ${to}`);
+          window.setTimeout(() => setNotice(null), 4000);
+          fetchInvoices();
+        }}
+      />
+      <BulkInvoiceReminderDialog
+        invoices={bulkReminders}
+        onClose={() => setBulkReminders([])}
+        onDone={(sent) => {
+          if (sent > 0) fetchInvoices();
+        }}
+      />
+      {notice ? (
+        <div className="fixed left-1/2 top-4 z-[120] -translate-x-1/2 rounded-lg border-2 border-black bg-emerald-50 px-4 py-2 text-sm font-medium shadow-lg">
+          {notice}
+        </div>
+      ) : null}
+
       <CrmRowActionsPortal openId={rowActions.openId} position={rowActions.position} menuRef={rowActions.menuRef}>
         {(() => {
           const row = invoices.find((invoice) => invoice.id === rowActions.openId);
@@ -445,6 +504,18 @@ export default function CRMInvoicesPage() {
               >
                 <Pencil className="w-3.5 h-3.5" /> View / Edit
               </button>
+              {row && invoiceDueState(row).canRemind && (
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    setReminderFor({ id: row.id, number: row.invoice_number });
+                    rowActions.close();
+                  }}
+                >
+                  <BellRing className="w-3.5 h-3.5 text-red-600" /> Send reminder
+                </button>
+              )}
               {isDraft && row && (
                 <button
                   type="button"

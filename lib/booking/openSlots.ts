@@ -3,12 +3,14 @@ import type { Database } from '@/lib/types/supabase';
 import {
   dateKeyInZone,
   dayKeyForDateKey,
+  padBusy,
   pruneSlots,
   slotsForDateKey,
   zonedDayRange,
   type BusyRange,
 } from '@/lib/booking/businessHours';
 import { loadBusinessBookingWindow, type BusinessBookingWindow } from '@/lib/booking/loadBookingWindow';
+import { recurringBusyForDate, type RecurringBlock } from '@/lib/booking/recurringBlocks';
 
 type ServiceClient = SupabaseClient<Database>;
 
@@ -21,9 +23,10 @@ async function loadBusy(
   service: ServiceClient,
   window: BusinessBookingWindow,
   range: { start: Date; end: Date },
+  dateKey: string,
   ignoreBookingId?: string
 ): Promise<{ unavailable: BusyRange[]; available: BusyRange[]; bookings: BusyRange[] }> {
-  const [blocks, bookings] = await Promise.all([
+  const [blocks, bookings, recurring] = await Promise.all([
     service
       .from('pro_crm_availability')
       .select('start_at, end_at, type')
@@ -37,9 +40,16 @@ async function loadBusy(
       .eq('status', 'confirmed')
       .lt('slot_start_at', range.end.toISOString())
       .gt('slot_end_at', range.start.toISOString()),
+    // Repeating busy times (every Monday 2:30-4:30, every other Friday...). If the table is not there yet, skip it.
+    service
+      .from('pro_recurring_blocks' as never)
+      .select('id, weekdays, start_time, end_time, every_weeks, starts_on, ends_on, note')
+      .eq('owner_id', window.ownerId),
   ]);
 
-  const unavailable: BusyRange[] = [];
+  const unavailable: BusyRange[] = recurring.error
+    ? []
+    : recurringBusyForDate((recurring.data ?? []) as unknown as RecurringBlock[], dateKey, window.timezone);
   const available: BusyRange[] = [];
   for (const row of blocks.data ?? []) {
     const rangeRow = { start: row.start_at, end: row.end_at };
@@ -49,9 +59,13 @@ async function loadBusy(
   return {
     unavailable,
     available,
-    bookings: (bookings.data ?? [])
-      .filter((row) => row.id !== ignoreBookingId)
-      .map((row) => ({ start: row.slot_start_at, end: row.slot_end_at })),
+    // Booked appointments keep the travel time free on both sides.
+    bookings: padBusy(
+      (bookings.data ?? [])
+        .filter((row) => row.id !== ignoreBookingId)
+        .map((row) => ({ start: row.slot_start_at, end: row.slot_end_at })),
+      window.bufferMinutes
+    ),
   };
 }
 
@@ -69,7 +83,7 @@ export async function openSlotsForDay(
   }
   const closed = !window.schedule[dayKeyForDateKey(dateKey, window.timezone)]?.open;
   const range = zonedDayRange(dateKey, window.timezone);
-  const busy = await loadBusy(service, window, range, ignoreBookingId);
+  const busy = await loadBusy(service, window, range, dateKey, ignoreBookingId);
   const generated = slotsForDateKey({
     dateKey,
     schedule: window.schedule,
@@ -109,7 +123,7 @@ export async function slotIsOpen(
   if (start.getTime() < Date.now() - 60 * 1000) return 'taken';
 
   const range = zonedDayRange(dateKey, window.timezone);
-  const busy = await loadBusy(service, window, range, ignoreBookingId);
+  const busy = await loadBusy(service, window, range, dateKey, ignoreBookingId);
   const open = pruneSlots(generated, busy);
   const still = open.some((slot) => slot.start.getTime() === start.getTime() && slot.end.getTime() === end.getTime());
   return still ? 'ok' : 'taken';

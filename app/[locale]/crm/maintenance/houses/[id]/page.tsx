@@ -203,6 +203,12 @@ export default function MaintenanceHousePage() {
           </span>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href={`/${locale}/crm/maintenance/houses/${house.id}/financials`}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border-2 border-black px-3 text-sm font-medium hover:bg-gray-50"
+          >
+            Financial report
+          </Link>
           {house.phone ? (
             <a href={`tel:${house.phone}`} className="inline-flex h-9 items-center gap-1.5 rounded-lg border-2 border-black px-3 text-sm hover:bg-gray-50">
               <Phone className="h-4 w-4" /> Call

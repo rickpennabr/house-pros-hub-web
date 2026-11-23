@@ -40,7 +40,11 @@ export default function CustomerPortalPage() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not load the portal');
     setCustomers(data.customers ?? []);
-    setCustomerId((current) => current || data.customers?.[0]?.id || '');
+    // ?customerId= from a contact's "Go to portal" opens on that customer.
+    const requested = new URLSearchParams(window.location.search).get('customerId');
+    const list: CustomerRow[] = data.customers ?? [];
+    const fromLink = requested && list.some((row) => row.id === requested) ? requested : '';
+    setCustomerId((current) => current || fromLink || list[0]?.id || '');
   }, []);
 
   useEffect(() => {
@@ -182,7 +186,7 @@ export default function CustomerPortalPage() {
         </div>
       ) : null}
 
-      {customer && propertyData ? <PortalPropertyHistory data={propertyData} locale={locale} /> : null}
+      {customer && propertyData ? <PortalPropertyHistory data={propertyData} locale={locale} customerId={customerId} /> : null}
     </div>
   );
 }

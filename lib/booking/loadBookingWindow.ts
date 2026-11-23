@@ -4,6 +4,7 @@ import {
   DEFAULT_SLOT_MINUTES,
   DEFAULT_TIMEZONE,
   isSlotMinutes,
+  readBufferMinutes,
   parseWeekSchedule,
   type SlotMinutes,
   type WeekSchedule,
@@ -18,6 +19,8 @@ export interface BusinessBookingWindow {
   timezone: string;
   bookingEnabled: boolean;
   slotMinutes: SlotMinutes;
+  /** Travel time kept free before and after each booked appointment. */
+  bufferMinutes: number;
   schedule: WeekSchedule;
   hoursConfigured: boolean;
 }
@@ -49,6 +52,7 @@ function toWindow(row: Record<string, unknown>): BusinessBookingWindow | null {
     timezone: typeof row.timezone === 'string' && row.timezone ? row.timezone : DEFAULT_TIMEZONE,
     bookingEnabled: row.show_calendar_on_procard === true,
     slotMinutes: isSlotMinutes(slot) ? slot : DEFAULT_SLOT_MINUTES,
+    bufferMinutes: 0,
     schedule: parsed.schedule,
     hoursConfigured: parsed.configured,
   };
@@ -73,5 +77,16 @@ export async function loadBusinessBookingWindow(
       .maybeSingle();
   }
   if (result.error || !result.data) return null;
-  return toWindow(result.data as Record<string, unknown>);
+  const window = toWindow(result.data as Record<string, unknown>);
+  if (!window) return null;
+  // Read on its own so a database without migration 164 still books (with no travel gap).
+  const buffer = await service
+    .from('businesses')
+    .select('appointment_buffer_minutes' as never)
+    .eq('id', businessId)
+    .maybeSingle();
+  if (!buffer.error && buffer.data) {
+    window.bufferMinutes = readBufferMinutes((buffer.data as { appointment_buffer_minutes?: unknown }).appointment_buffer_minutes);
+  }
+  return window;
 }

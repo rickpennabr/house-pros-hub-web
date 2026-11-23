@@ -34,8 +34,8 @@ export const TOOL_CATEGORIES = [
 /** Typical years an item lasts, used to suggest a useful life. */
 export const DEFAULT_LIFE_YEARS: Record<ToolKind, number> = { tool: 3, equipment: 7 };
 
-export const TOOL_SELECT =
-  'id, owner_id, kind, name, category, brand, model, serial_number, quantity, purchase_date, purchase_cents, useful_life_years, salvage_cents, status, assigned_crew_id, project_id, maintenance_plan_id, location, next_service_date, photo_drive_file_id, note, retired_at, created_at, updated_at';
+/** Every column, so daily_rate_cents (migration 167) comes back once it exists. */
+export const TOOL_SELECT = '*';
 
 export type ToolRow = {
   id: string;
@@ -51,6 +51,8 @@ export type ToolRow = {
   purchase_cents: number;
   useful_life_years: number | string;
   salvage_cents: number;
+  /** Cost charged to a job for each day the item works there (migration 167). */
+  daily_rate_cents?: number | null;
   status: ToolStatus;
   assigned_crew_id: string | null;
   project_id: string | null;
@@ -80,6 +82,8 @@ export const toolInputSchema = z.object({
   purchaseCents: z.number().int().min(0).max(100_000_000).default(0),
   usefulLifeYears: z.number().positive().max(50).default(5),
   salvageCents: z.number().int().min(0).max(100_000_000).default(0),
+  /** Left out keeps the current rate (and works before migration 167). */
+  dailyRateCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
   status: z.enum(TOOL_STATUSES).default('available'),
   assignedCrewId: z.string().uuid().nullable().optional(),
   projectId: z.string().uuid().nullable().optional(),
@@ -112,6 +116,7 @@ export function toolColumns(input: ToolInput) {
     next_service_date: input.nextServiceDate || null,
     photo_drive_file_id: input.photoDriveFileId || null,
     note: input.note || null,
+    ...(input.dailyRateCents !== undefined ? { daily_rate_cents: input.dailyRateCents } : {}),
     retired_at: input.status === 'retired' || input.status === 'lost' ? new Date().toISOString().slice(0, 10) : null,
   };
 }

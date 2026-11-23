@@ -4,6 +4,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import { sendInvoiceEmail } from '@/lib/services/emailService';
 import { recordInvoiceReceived } from '@/lib/places/timeline';
+import { loadInvoiceEmailBranding } from '@/lib/invoices/reminder';
 
 export async function POST(
   request: NextRequest,
@@ -22,7 +23,7 @@ export async function POST(
     const supabase = await createClient();
     const { data: row, error } = await supabase
       .from('pro_crm_invoices')
-      .select('id, customer_id, invoice_number, amount_cents, status, business_id')
+      .select('id, customer_id, invoice_number, amount_cents, status, business_id, company_display, payment_applied_cents')
       .eq('id', id)
       .eq('owner_id', user.id)
       .single();
@@ -46,15 +47,7 @@ export async function POST(
       return NextResponse.json({ error: 'Customer has no email address' }, { status: 400 });
     }
 
-    let businessName = 'Us';
-    if (row.business_id) {
-      const { data: biz } = await supabase
-        .from('businesses')
-        .select('business_name')
-        .eq('id', row.business_id)
-        .single();
-      businessName = biz?.business_name ?? 'Us';
-    }
+    const branding = await loadInvoiceEmailBranding(supabase, user.id, row.business_id ?? null, row.company_display);
 
     // Same pattern as estimate send: token INSERT RLS + nested estimate/invoice checks can fail under WITH CHECK.
     const serviceSupabase = createServiceRoleClient();
@@ -74,9 +67,10 @@ export async function POST(
 
     const emailResult = await sendInvoiceEmail(
       {
-        businessName,
+        ...branding,
         invoiceNumber: row.invoice_number,
         amountCents: row.amount_cents,
+        balanceCents: row.amount_cents - (row.payment_applied_cents ?? 0),
         viewUrl,
         message,
       },

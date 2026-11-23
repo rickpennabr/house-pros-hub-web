@@ -4,6 +4,7 @@ import type { CrmDb } from '@/lib/crm/crm-scope';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { deny } from '@/lib/places/session';
 import { listContactProperties, type ContactProperty } from '@/lib/places/contact-places';
+import { mailStreetKey } from '@/lib/address/unit';
 
 /**
  * GET /api/crm/portal/property?customerId=…&placeId=…
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     const { data: contact } = await supabase
       .from('pro_crm_customers')
-      .select('id, place_id')
+      .select('id, place_id, email, portal_user_id, street_address')
       .eq('id', customerId)
       .eq('owner_id', user.id)
       .maybeSingle();
@@ -157,6 +158,60 @@ export async function GET(request: NextRequest) {
     if (paymentsError) return NextResponse.json({ error: paymentsError.message }, { status: 500 });
     const payments = (paymentRows ?? []).filter((row) => !row.voided_at);
 
+    // Invoice activity log: sends, re-sends, reminders (manual and automatic), voids and cancels.
+    const { data: eventRows } = invoiceIds.length
+      ? await supabase
+          .from('pro_crm_document_events')
+          .select('id, invoice_id, action, payload, created_at')
+          .eq('owner_id', user.id)
+          .in('invoice_id', invoiceIds)
+          .order('created_at', { ascending: true })
+      : { data: [] };
+    const invoiceEvents = eventRows ?? [];
+
+    // Estimate sends, link views and statements (migration 166; empty before it).
+    const estimateIds = new Set(estimates.map((row) => row.id));
+    const invoiceIdSet = new Set(invoiceIds);
+    const { data: activityRows } = await (supabase as unknown as CrmDb)
+      .from('pro_crm_activity' as never)
+      .select('id, kind, estimate_id, invoice_id, detail, occurred_at')
+      .eq('owner_id', user.id)
+      .eq('customer_id', contact.id)
+      .order('occurred_at', { ascending: true })
+      .then((res: { data: unknown }) => res, () => ({ data: null }));
+    const activity = ((activityRows ?? []) as Array<{
+      id: string;
+      kind: string;
+      estimate_id: string | null;
+      invoice_id: string | null;
+      detail: string | null;
+      occurred_at: string;
+    }>).filter((row) =>
+      row.estimate_id ? estimateIds.has(row.estimate_id) : row.invoice_id ? invoiceIdSet.has(row.invoice_id) : isDefault
+    );
+
+    // Appointments booked with the pro: matched to the contact by account or email, to the property by street.
+    const { data: ownBusinesses } = await supabase.from('businesses').select('id').eq('owner_id', user.id);
+    const businessIds = (ownBusinesses ?? []).map((row) => row.id);
+    const contactEmail = contact.email?.trim().toLowerCase() ?? '';
+    const bookingFilters = [
+      contact.portal_user_id ? `customer_user_id.eq.${contact.portal_user_id}` : null,
+      contactEmail && !/[,()]/.test(contactEmail) ? `guest_email.ilike.${contactEmail}` : null,
+    ].filter(Boolean);
+    const { data: bookingRows } =
+      businessIds.length && bookingFilters.length
+        ? await createServiceRoleClient()
+            .from('pro_estimate_bookings')
+            .select('id, service_name, status, slot_start_at, visit_street, created_at, updated_at')
+            .in('business_id', businessIds)
+            .or(bookingFilters.join(','))
+        : { data: [] };
+    const propertyStreet = mailStreetKey(property?.street ?? contact.street_address ?? null);
+    const bookings = (bookingRows ?? []).filter((row) => {
+      const visit = mailStreetKey(row.visit_street);
+      return visit && propertyStreet ? visit === propertyStreet : isDefault;
+    });
+
     const billed = invoices.filter((row) => row.status !== 'cancelled' && row.status !== 'draft');
     const invoicedCents = billed.reduce((sum, row) => sum + row.amount_cents, 0);
     const paidCents = billed.reduce((sum, row) => sum + row.payment_applied_cents, 0);
@@ -174,6 +229,9 @@ export async function GET(request: NextRequest) {
       estimates,
       invoices,
       payments,
+      invoiceEvents,
+      activity,
+      bookings,
       plans,
       visits,
       projects,

@@ -1869,6 +1869,65 @@ button[data-bg-toggle="sky"] {
   margin: 0;
 }
 
+/* A page that shows an invoice prints the invoice and nothing else: the app layout (menus,
+   sidebar, scroll boxes, payments ledger) is dropped, and the boxes that hold the invoice stop
+   clipping or scrolling. Without this the layout fills a blank first page and the scroll box's
+   bar prints as a black line down the side. */
+@media print {
+  body:has(.invoice-doc) *:not(.invoice-doc):not(.invoice-doc *):not(:has(.invoice-doc)) {
+    display: none !important;
+  }
+  body:has(.invoice-doc),
+  body:has(.invoice-doc) *:has(.invoice-doc) {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  /* Only the first invoice on the page (the editor's previews can hold a second copy). */
+  body:has(.invoice-doc) .invoice-doc ~ .invoice-doc {
+    display: none !important;
+  }
+}
+
+/* A job's financial report prints alone, the same way: app layout and buttons dropped. */
+@media print {
+  body:has(.job-report) *:not(.job-report):not(.job-report *):not(:has(.job-report)) {
+    display: none !important;
+  }
+  body:has(.job-report),
+  body:has(.job-report) *:has(.job-report) {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .job-report {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .job-report .no-print {
+    display: none !important;
+  }
+}
+
 @media print {
   .invoice-doc {
     page: invoice-doc;

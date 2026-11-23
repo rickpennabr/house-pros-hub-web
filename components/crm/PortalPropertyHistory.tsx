@@ -1,12 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
-import { FileCheck, FileText, FolderKanban, History, LayoutGrid, Receipt, Wrench } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { FileCheck, FileText, FolderKanban, History, Receipt, Wrench } from 'lucide-react';
+import { BsGrid3X3Gap } from 'react-icons/bs';
 import type { ContactProperty } from '@/lib/places/contact-places';
 import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
 import { TimelineSteps } from '@/components/timeline/TimelineSteps';
 import { buildProPropertyTimeline } from '@/lib/timeline/steps';
+import { useActivityBadges } from '@/hooks/useActivityBadges';
+import { NotificationCount } from '@/components/ui/NotificationCount';
 
 export interface PropertyHistory {
   properties: ContactProperty[];
@@ -43,6 +46,8 @@ export interface PropertyHistory {
     method: string;
     reference: string | null;
   }>;
+  /** Invoice activity log (sent, reminded, payment_voided, cancelled, …). Older API responses lack it. */
+  invoiceEvents?: Array<{ id: string; invoice_id: string; action: string; payload: unknown; created_at: string }>;
   plans: Array<{
     id: string;
     name: string;
@@ -163,14 +168,21 @@ function RecordRow({
 }
 
 /** Everything done on one of the customer's properties, for the pro on the Customer portal page. */
-export function PortalPropertyHistory({ data, locale }: { data: PropertyHistory; locale: string }) {
+export function PortalPropertyHistory({ data, locale, customerId }: { data: PropertyHistory; locale: string; customerId?: string }) {
   const { totals } = data;
   const [tab, setTab] = useState<PortalTab>('timeline');
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const invoiceNumber = new Map(data.invoices.map((row) => [row.id, row.invoice_number || row.display_id]));
   const planName = new Map(data.plans.map((row) => [row.id, row.name]));
   const crm = `/${locale}/crm`;
-  const timeline = buildProPropertyTimeline(data, crm);
+  const timeline = useMemo(() => buildProPropertyTimeline(data, crm), [data, crm]);
+  // What the customer did since the pro last opened each tab.
+  const { counts: unread, newIds } = useActivityBadges(
+    customerId ? `crm:${customerId}:${data.property?.id || 'home'}:` : null,
+    timeline,
+    'pro',
+    tab
+  );
   const counts: Record<PortalTab, number> = {
     timeline: timeline.length,
     projects: data.projects.length,
@@ -196,23 +208,15 @@ export function PortalPropertyHistory({ data, locale }: { data: PropertyHistory;
         ))}
       </div>
 
-      {/* Tabs: same bar as My Places. The phone gets a grid button too. */}
+      {/* Tabs: same bar as My Places. On the phone the nine-dot menu sits on the right, like the other CRM menus. */}
       <div className="flex items-start gap-2 pt-1">
-        <button
-          type="button"
-          onClick={() => setTabMenuOpen(true)}
-          aria-label="All sections"
-          className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-black bg-black hover:bg-gray-800 md:hidden"
-        >
-          <LayoutGrid className="h-5 w-5 text-white" />
-        </button>
         <MobileGridActionsModal
           isOpen={tabMenuOpen}
           onClose={() => setTabMenuOpen(false)}
           title={data.property?.name ?? 'This property'}
           items={TABS.map((item) => ({
             id: item.id,
-            label: item.label,
+            label: (unread[item.id] ?? 0) > 0 ? `${item.label} (${unread[item.id]} new)` : item.label,
             icon: item.icon,
             isActive: tab === item.id,
             onClick: () => setTab(item.id),
@@ -236,6 +240,7 @@ export function PortalPropertyHistory({ data, locale }: { data: PropertyHistory;
                 >
                   <Icon className="h-[1.125rem] w-[1.125rem] text-red-500" />
                   <span className="whitespace-nowrap">{item.label}</span>
+                  <NotificationCount count={unread[item.id] ?? 0} />
                   {counts[item.id] > 0 ? (
                     <span
                       className={`rounded-md px-1.5 text-xs font-semibold ${selected ? 'bg-white text-black' : 'bg-gray-100 text-gray-700'}`}
@@ -248,6 +253,15 @@ export function PortalPropertyHistory({ data, locale }: { data: PropertyHistory;
             })}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setTabMenuOpen(true)}
+          aria-label="All sections"
+          title="All sections"
+          className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-black transition-all hover:bg-gray-800 md:hidden"
+        >
+          <BsGrid3X3Gap className="h-5 w-5 text-white" />
+        </button>
       </div>
 
       {tab === 'timeline' ? (
@@ -256,7 +270,7 @@ export function PortalPropertyHistory({ data, locale }: { data: PropertyHistory;
             Everything that happened on this property: estimates, approvals, invoices, payments, visits and files. Each step
             says whether the customer sees it.
           </p>
-          <TimelineSteps steps={timeline} emptyText="Nothing on this property yet." showAudience formatWhen={formatWhen} />
+          <TimelineSteps newIds={newIds} steps={timeline} emptyText="Nothing on this property yet." showAudience formatWhen={formatWhen} />
         </section>
       ) : null}
 

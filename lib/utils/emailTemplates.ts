@@ -1089,35 +1089,93 @@ export interface InvoiceEmailData {
   amountCents: number;
   viewUrl: string;
   message?: string;
+  /** Branding (optional; without it the email is plain black and white). */
+  logoUrl?: string | null;
+  /** Brand color for the panel tint, the button and the contact links. */
+  themeColor?: string | null;
+  businessAddress?: string | null;
+  businessEmail?: string | null;
+  businessPhone?: string | null;
+  businessWebsite?: string | null;
+  /** Unpaid part; defaults to the total. */
+  balanceCents?: number;
+  /** Invoice settings footer (payment instructions, terms). */
+  footerText?: string | null;
+}
+
+/** Brand color mixed with white, for a light panel behind the totals (email-safe hex). */
+function emailTint(color: string, strength = 0.1): string {
+  const hex = color.replace('#', '');
+  const mix = (offset: number) => {
+    const channel = parseInt(hex.slice(offset, offset + 2), 16);
+    return Math.round(255 - (255 - channel) * strength)
+      .toString(16)
+      .padStart(2, '0');
+  };
+  return '#' + mix(0) + mix(2) + mix(4);
 }
 
 /**
- * Generate HTML for "You have an invoice" email (customer)
+ * Branded "your invoice is ready" email (customer), laid out like QuickBooks: logo, a tinted panel
+ * with the total and balance due, the pro's message, a pay button, then the business details.
  */
 export function generateInvoiceEmail(data: InvoiceEmailData): string {
-  const amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(data.amountCents / 100);
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-    <tr>
-      <td style="padding: 32px 24px;">
-        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">You have an invoice from ${data.businessName}</h1>
-        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Invoice #${data.invoiceNumber}</p>
-        <p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
-        ${data.message ? `<p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">${data.message}</p>` : ''}
-        <p style="margin: 0 0 24px 0;"><a href="${data.viewUrl}" style="display: inline-block; padding: 12px 24px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">View and pay</a></p>
-        <p style="margin: 0 0 16px 0; font-size: 13px; color: #374151;">Open the invoice to pay the balance by card, or download it from My Places.</p>
-        <p style="margin: 0; font-size: 12px; color: #6b7280;">If the button doesn't work, copy and paste this link into your browser:</p>
-        <p style="margin: 4px 0 0 0; font-size: 12px; word-break: break-all;"><a href="${data.viewUrl}" style="color: #2563eb;">${data.viewUrl}</a></p>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim();
+  const color = safeEmailColor(data.themeColor);
+  const tint = color === '#000000' ? '#f3f4f6' : emailTint(color);
+  const business = escapeEmailHtml(data.businessName);
+  const number = escapeEmailHtml(data.invoiceNumber);
+  const total = emailMoney(data.amountCents);
+  const balance = emailMoney(Math.max(0, data.balanceCents ?? data.amountCents));
+  const url = escapeEmailHtml(data.viewUrl);
+  const header = data.logoUrl
+    ? '<img src="' + escapeEmailHtml(data.logoUrl) + '" alt="' + business + '" height="64" style="display:block;margin:0 auto;max-height:64px;max-width:240px;border-radius:8px;" />'
+    : '<p style="margin:0;font-size:22px;font-weight:bold;color:' + color + ';">' + business + '</p>';
+  const message = data.message?.trim()
+    ? '<p style="margin:0 0 24px 0;font-size:15px;line-height:1.5;color:#111827;white-space:pre-line;">' + escapeEmailHtml(data.message.trim()) + '</p>'
+    : '';
+  const address = data.businessAddress?.trim()
+    ? '<p style="margin:4px 0 0 0;font-size:14px;line-height:1.5;color:#111827;white-space:pre-line;">' + escapeEmailHtml(data.businessAddress.trim()) + '</p>'
+    : '';
+  const website = data.businessWebsite?.trim() || '';
+  const websiteHref = website && !/^https?:\/\//i.test(website) ? 'https://' + website : website;
+  const contacts = [
+    data.businessEmail?.trim() ? '<a href="mailto:' + escapeEmailHtml(data.businessEmail.trim()) + '" style="color:' + color + ';text-decoration:none;">' + escapeEmailHtml(data.businessEmail.trim()) + '</a>' : '',
+    data.businessPhone?.trim() ? '<a href="tel:' + escapeEmailHtml(data.businessPhone.replace(/[^\d+]/g, '')) + '" style="color:' + color + ';text-decoration:none;">' + escapeEmailHtml(data.businessPhone.trim()) + '</a>' : '',
+    website ? '<a href="' + escapeEmailHtml(websiteHref) + '" style="color:' + color + ';text-decoration:none;">' + escapeEmailHtml(website) + '</a>' : '',
+  ].filter(Boolean);
+  const footer = data.footerText?.trim()
+    ? '<p style="margin:16px 0 0 0;font-size:12px;line-height:1.5;color:#6b7280;white-space:pre-line;">' + escapeEmailHtml(data.footerText.trim()) + '</p>'
+    : '';
+  return [
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>',
+    '<body style="margin:0;padding:24px 0;font-family:Arial,Helvetica,sans-serif;background-color:#f3f4f6;">',
+    '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;">',
+    '<tr><td align="center" style="padding:24px 24px 20px 24px;">' + header + '</td></tr>',
+    '<tr><td align="center" style="background-color:' + tint + ';padding:28px 24px;">',
+    '<p style="margin:0 0 6px 0;font-size:22px;font-weight:bold;color:#111827;">Your invoice is ready!</p>',
+    '<p style="margin:0;font-size:14px;color:#111827;">Invoice #' + number + ' · Total ' + total + '</p>',
+    '<p style="margin:24px 0 4px 0;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#374151;">Balance due</p>',
+    '<p style="margin:0;font-size:34px;color:#111827;">' + balance + '</p>',
+    '</td></tr>',
+    '<tr><td align="center" style="padding:32px 24px 8px 24px;">',
+    message,
+    '<a href="' + url + '" style="display:inline-block;padding:14px 40px;background-color:' + color + ';color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;border-radius:8px;">View and pay</a>',
+    '</td></tr>',
+    '<tr><td align="center" style="padding:24px 24px 28px 24px;">',
+    '<table cellpadding="0" cellspacing="0" style="margin:0 auto 16px auto;"><tr><td style="width:160px;border-top:1px solid #d1d5db;font-size:0;line-height:0;">&nbsp;</td></tr></table>',
+    '<p style="margin:0;font-size:14px;font-weight:bold;color:#111827;">' + business + '</p>',
+    address,
+    contacts.length ? '<p style="margin:14px 0 0 0;font-size:14px;line-height:1.6;">' + contacts.join('<br>') + '</p>' : '',
+    footer,
+    '</td></tr></table>',
+    '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;">',
+    '<tr><td align="center" style="padding:16px 24px;font-size:11px;line-height:1.5;color:#6b7280;">',
+    'If an email about a payment looks wrong, check with ' + business + ' before paying.<br>',
+    'Button not working? Open: <a href="' + url + '" style="color:#2563eb;word-break:break-all;">' + url + '</a>',
+    '<p style="margin:12px 0 0 0;color:#9ca3af;">Sent with House Pros Hub</p>',
+    '</td></tr></table>',
+    '</body></html>',
+  ].join('\n');
 }
 
 function escapeEmailHtml(value: string): string {
@@ -1130,6 +1188,121 @@ function escapeEmailHtml(value: string): string {
 
 function emailMoney(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+}
+
+export interface InvoiceReminderEmailData {
+  businessName: string;
+  logoUrl?: string | null;
+  /** Brand color for the header bar and button. */
+  themeColor?: string | null;
+  businessPhone?: string | null;
+  businessEmail?: string | null;
+  businessAddress?: string | null;
+  businessWebsite?: string | null;
+  customerName?: string | null;
+  invoiceNumber: string;
+  balanceCents: number;
+  /** Already formatted, e.g. "Nov 21, 2026". */
+  dueDateLabel: string;
+  /** 0 when due today. */
+  daysOverdue: number;
+  viewUrl: string;
+  /** e.g. "Zelle: name@example.com". Line breaks kept. */
+  paymentInstructions?: string | null;
+  message?: string | null;
+  footerText?: string | null;
+}
+
+function safeEmailColor(value: string | null | undefined): string {
+  return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#000000';
+}
+
+/**
+ * Reminder email in the same layout as the invoice email (logo, panel, message, button, business
+ * details), in red: a red band, a red-tinted panel, the balance and the button in red.
+ */
+export function generateInvoiceReminderEmail(data: InvoiceReminderEmailData): string {
+  const red = '#dc2626';
+  const business = escapeEmailHtml(data.businessName);
+  const number = escapeEmailHtml(data.invoiceNumber);
+  const amount = emailMoney(data.balanceCents);
+  const late = data.daysOverdue > 0;
+  const url = escapeEmailHtml(data.viewUrl);
+  const headline = late ? 'Your invoice is past due' : 'Your invoice is due today';
+  const dueLine = late
+    ? 'Due ' + escapeEmailHtml(data.dueDateLabel) + ' · ' + data.daysOverdue + ' ' + (data.daysOverdue === 1 ? 'day' : 'days') + ' overdue'
+    : 'Due today';
+  const greeting = data.customerName?.trim() ? 'Hi ' + escapeEmailHtml(data.customerName.trim()) + ',' : 'Hello,';
+  const header = data.logoUrl
+    ? '<img src="' + escapeEmailHtml(data.logoUrl) + '" alt="' + business + '" height="64" style="display:block;margin:0 auto;max-height:64px;max-width:240px;border-radius:8px;" />'
+    : '<p style="margin:0;font-size:22px;font-weight:bold;color:' + red + ';">' + business + '</p>';
+  const message = data.message?.trim()
+    ? '<p style="margin:0 0 24px 0;font-size:15px;line-height:1.5;color:#111827;white-space:pre-line;">' + escapeEmailHtml(data.message.trim()) + '</p>'
+    : '';
+  const otherWays = data.paymentInstructions?.trim()
+    ? '<tr><td style="padding:8px 24px 0 24px;"><div style="border:2px solid ' + red + ';border-radius:8px;padding:14px 16px;text-align:left;">' +
+      '<p style="margin:0 0 6px 0;font-size:13px;font-weight:bold;color:' + red + ';">Other ways to pay</p>' +
+      '<p style="margin:0;font-size:14px;line-height:1.5;color:#111827;white-space:pre-line;">' + escapeEmailHtml(data.paymentInstructions.trim()) + '</p>' +
+      '<p style="margin:8px 0 0 0;font-size:12px;color:#6b7280;">Please include invoice #' + number + ' in the payment note.</p>' +
+      '</div></td></tr>'
+    : '';
+  const address = data.businessAddress?.trim()
+    ? '<p style="margin:4px 0 0 0;font-size:14px;line-height:1.5;color:#111827;white-space:pre-line;">' + escapeEmailHtml(data.businessAddress.trim()) + '</p>'
+    : '';
+  const website = data.businessWebsite?.trim() || '';
+  const websiteHref = website && !/^https?:\/\//i.test(website) ? 'https://' + website : website;
+  const link = (href: string, text: string) =>
+    '<a href="' + escapeEmailHtml(href) + '" style="color:' + red + ';text-decoration:none;">' + escapeEmailHtml(text) + '</a>';
+  const contacts = [
+    data.businessEmail?.trim() ? link('mailto:' + data.businessEmail.trim(), data.businessEmail.trim()) : '',
+    data.businessPhone?.trim() ? link('tel:' + data.businessPhone.replace(/[^\d+]/g, ''), data.businessPhone.trim()) : '',
+    website ? link(websiteHref, website) : '',
+  ].filter(Boolean);
+  const footer = data.footerText?.trim()
+    ? '<p style="margin:16px 0 0 0;font-size:12px;line-height:1.5;color:#6b7280;white-space:pre-line;">' + escapeEmailHtml(data.footerText.trim()) + '</p>'
+    : '';
+  return [
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>',
+    '<body style="margin:0;padding:24px 0;font-family:Arial,Helvetica,sans-serif;background-color:#f3f4f6;">',
+    '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;">',
+    '<tr><td style="background-color:' + red + ';height:6px;font-size:0;line-height:0;">&nbsp;</td></tr>',
+    '<tr><td align="center" style="padding:24px 24px 20px 24px;">' + header + '</td></tr>',
+    '<tr><td align="center" style="background-color:#fecaca;border-top:2px solid ' + red + ';border-bottom:2px solid ' + red + ';padding:28px 24px;">',
+    '<p style="margin:0 0 6px 0;font-size:22px;font-weight:bold;color:#7f1d1d;">' + headline + '</p>',
+    '<p style="margin:0;font-size:14px;color:#7f1d1d;">Invoice #' + number + ' · ' + dueLine + '</p>',
+    '<p style="margin:24px 0 4px 0;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#7f1d1d;">Balance due</p>',
+    '<p style="margin:0;font-size:34px;font-weight:bold;color:' + red + ';">' + amount + '</p>',
+    '</td></tr>',
+    '<tr><td align="center" style="padding:32px 24px 8px 24px;">',
+    '<p style="margin:0 0 12px 0;font-size:15px;line-height:1.5;color:#111827;">' + greeting + '</p>',
+    '<p style="margin:0 0 20px 0;font-size:15px;line-height:1.5;color:#374151;">This is a friendly reminder about invoice #' + number + ' from ' + business + '. If you already paid, thank you, and please disregard this email.</p>',
+    message,
+    '<a href="' + url + '" style="display:inline-block;padding:14px 40px;background-color:' + red + ';color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;border-radius:8px;">Pay now</a>',
+    '</td></tr>',
+    otherWays,
+    '<tr><td align="center" style="padding:24px 24px 28px 24px;">',
+    '<table cellpadding="0" cellspacing="0" style="margin:0 auto 16px auto;"><tr><td style="width:160px;border-top:1px solid #d1d5db;font-size:0;line-height:0;">&nbsp;</td></tr></table>',
+    '<p style="margin:0 0 8px 0;font-size:14px;color:#374151;">Thank you for your business!</p>',
+    '<p style="margin:0;font-size:14px;font-weight:bold;color:#111827;">' + business + '</p>',
+    address,
+    contacts.length ? '<p style="margin:14px 0 0 0;font-size:14px;line-height:1.6;">' + contacts.join('<br>') + '</p>' : '',
+    footer,
+    '</td></tr></table>',
+    '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;">',
+    '<tr><td align="center" style="padding:16px 24px;font-size:11px;line-height:1.5;color:#6b7280;">',
+    'If an email about a payment looks wrong, check with ' + business + ' before paying.<br>',
+    'Button not working? Open: <a href="' + url + '" style="color:#2563eb;word-break:break-all;">' + url + '</a>',
+    '<p style="margin:12px 0 0 0;color:#9ca3af;">Sent with House Pros Hub</p>',
+    '</td></tr></table>',
+    '</body></html>',
+  ].join('\n');
+}
+
+/** Subject line for a reminder. */
+export function invoiceReminderSubject(data: Pick<InvoiceReminderEmailData, 'invoiceNumber' | 'businessName' | 'daysOverdue'>): string {
+  return data.daysOverdue > 0
+    ? 'Reminder: invoice #' + data.invoiceNumber + ' from ' + data.businessName + ' is past due'
+    : 'Reminder: invoice #' + data.invoiceNumber + ' from ' + data.businessName + ' is due today';
 }
 
 export interface PaymentReceiptEmailData {

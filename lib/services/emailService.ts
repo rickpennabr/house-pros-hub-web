@@ -1,5 +1,5 @@
 import { getResendClient, getResendFromEmail } from '@/lib/utils/resend';
-import { generateEstimateConfirmationEmail, type EmailTranslations, type EstimateEmailData, generateWelcomeEmail, type WelcomeEmailTranslations, type WelcomeEmailData, generateSetPasswordEmail, type SetPasswordEmailTranslations, generatePasswordResetEmail, type PasswordResetEmailData, generatePasswordChangedEmail, generateIncomingEmailNotification, type IncomingEmailNotificationData, generateNewSignupAdminNotification, type NewSignupAdminNotificationData, generateProEstimateBookingEmail, type ProEstimateBookingEmailData, type ProEstimateBookingEmailTranslations, generateInvoiceEmail, type InvoiceEmailData, generatePaymentReceiptEmail, type PaymentReceiptEmailData, generateStatementEmail, type StatementEmailData, generateEstimateReviewEmail, type EstimateReviewEmailData, generateEstimateApprovedCustomerEmail, generateEstimateApprovedContractorEmail, generateEstimateApprovedAdminEmail, type EstimateApprovedEmailCommon } from '@/lib/utils/emailTemplates';
+import { generateEstimateConfirmationEmail, type EmailTranslations, type EstimateEmailData, generateWelcomeEmail, type WelcomeEmailTranslations, type WelcomeEmailData, generateSetPasswordEmail, type SetPasswordEmailTranslations, generatePasswordResetEmail, type PasswordResetEmailData, generatePasswordChangedEmail, generateIncomingEmailNotification, type IncomingEmailNotificationData, generateNewSignupAdminNotification, type NewSignupAdminNotificationData, generateProEstimateBookingEmail, type ProEstimateBookingEmailData, type ProEstimateBookingEmailTranslations, generateInvoiceEmail, type InvoiceEmailData, generateInvoiceReminderEmail, invoiceReminderSubject, type InvoiceReminderEmailData, generatePaymentReceiptEmail, type PaymentReceiptEmailData, generateStatementEmail, type StatementEmailData, generateEstimateReviewEmail, type EstimateReviewEmailData, generateEstimateApprovedCustomerEmail, generateEstimateApprovedContractorEmail, generateEstimateApprovedAdminEmail, type EstimateApprovedEmailCommon } from '@/lib/utils/emailTemplates';
 import { logger } from '@/lib/utils/logger';
 import { buildVisitIcs } from '@/lib/booking/visitIcs';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
@@ -615,6 +615,35 @@ export async function sendInvoiceEmail(
     return { success: true };
   } catch (err) {
     logger.error('Error sending invoice email', { toEmail }, err as Error);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+/**
+ * Branded payment reminder for an invoice that is due or past due.
+ */
+export async function sendInvoiceReminderEmail(
+  data: InvoiceReminderEmailData,
+  toEmail: string,
+  replyTo?: string | null
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const resend = getResendClient();
+    const fromEmail = getResendFromEmail();
+    const { error } = await resend.emails.send({
+      from: fromEmail,
+      to: toEmail,
+      ...(replyTo ? { replyTo } : {}),
+      subject: invoiceReminderSubject(data),
+      html: generateInvoiceReminderEmail(data),
+    });
+    if (error) {
+      logger.error('Failed to send invoice reminder', { toEmail, error: error.message }, error as Error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    logger.error('Error sending invoice reminder', { toEmail }, err as Error);
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }

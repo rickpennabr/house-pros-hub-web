@@ -137,6 +137,12 @@ export async function POST(request: NextRequest) {
       const { data: proj } = await supabase.from('pro_crm_projects').select('id').eq('id', projectId).eq('owner_id', user.id).single();
       if (!proj) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+    // A maintenance plan is the job when there is no project (migration 167).
+    const planId = projectId ? null : body.maintenancePlanId ?? body.maintenance_plan_id ?? null;
+    if (planId) {
+      const { data: plan } = await supabase.from('pro_crm_maintenance_plans').select('id').eq('id', planId).eq('owner_id', user.id).maybeSingle();
+      if (!plan) return NextResponse.json({ error: 'Maintenance plan not found' }, { status: 404 });
+    }
 
     const requestedSupplier = body.supplierId ?? body.supplier_id ?? null;
     const supplier = categoryNeedsSupplier(category)
@@ -163,6 +169,7 @@ export async function POST(request: NextRequest) {
       ordered_by: order.ordered_by,
       receipt_url: receiptUrl,
       vehicle_id: vehicle.id,
+      ...(planId ? ({ maintenance_plan_id: planId } as unknown as Record<string, never>) : {}),
     };
     let { data: row, error } = await supabase.from('pro_crm_expenses').insert(insertRow).select('id, created_at').single();
     const { vehicle_id: linkedVehicleId, ...withoutVehicle } = insertRow;

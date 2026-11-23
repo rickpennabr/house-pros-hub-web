@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/supabase';
 import { sendInvoiceEmail } from '@/lib/services/emailService';
 import { recordInvoiceReceived } from '@/lib/places/timeline';
+import { loadInvoiceEmailBranding } from '@/lib/invoices/reminder';
 
 type Client = SupabaseClient<Database>;
 
@@ -83,9 +84,11 @@ export async function deliverDepositInvoice(
 
   if (!toEmail) return { emailed: false, viewUrl };
 
+  const branding = await loadInvoiceEmailBranding(supabase, invoice.owner_id, invoice.business_id ?? null, null);
   const email = await sendInvoiceEmail(
     {
-      businessName,
+      ...branding,
+      businessName: invoice.business_id ? branding.businessName : businessName,
       invoiceNumber: invoice.invoice_number,
       amountCents: invoice.amount_cents,
       viewUrl,

@@ -29,6 +29,8 @@ export interface ToolFormValues {
   purchase: string;
   usefulLifeYears: string;
   salvage: string;
+  /** Dollars per day charged to the job it works on. */
+  dailyRate: string;
   status: ToolStatus;
   assignedCrewId: string;
   projectId: string;
@@ -52,6 +54,7 @@ export const EMPTY_TOOL: ToolFormValues = {
   purchase: '',
   usefulLifeYears: String(DEFAULT_LIFE_YEARS.tool),
   salvage: '',
+  dailyRate: '',
   status: 'available',
   assignedCrewId: '',
   projectId: '',
@@ -91,6 +94,7 @@ export function toolPayload(values: ToolFormValues) {
     purchaseCents: cents(values.purchase),
     usefulLifeYears: Number(values.usefulLifeYears) || DEFAULT_LIFE_YEARS[values.kind],
     salvageCents: cents(values.salvage),
+    dailyRateCents: values.dailyRate.trim() === '' ? undefined : cents(values.dailyRate),
     status: values.status,
     assignedCrewId: values.assignedCrewId || null,
     projectId: values.projectId || null,
@@ -343,6 +347,21 @@ export function ToolForm({ values, onChange, lists, businessId, disabled = false
               step="0.01"
               value={values.salvage}
               onChange={(e) => set('salvage', e.target.value)}
+              placeholder="0.00"
+              disabled={disabled}
+            />
+          </FormField>
+          <FormField
+            label="Daily rate charged to jobs ($)"
+            tip="What a day of this item costs a job: wear, fuel, upkeep. Days it is assigned to a project or house count on that job's financial report. Leave empty or 0 for none."
+          >
+            <Input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={values.dailyRate}
+              onChange={(e) => set('dailyRate', e.target.value)}
               placeholder="0.00"
               disabled={disabled}
             />

@@ -62,6 +62,31 @@ interface ProjectRow {
   /** Sum of expenses linked to this project. */
   project_cost_cents: number;
   customerAddress?: string | null;
+  display_id?: string | null;
+  invoiced_cents?: number;
+  collected_cents?: number;
+  balance_cents?: number;
+  labor_hours?: number;
+  project_manager?: string | null;
+  city?: string | null;
+}
+
+/** "5 days left", "3 days late", "Starts in 2 days", or done. */
+function scheduleText(row: ProjectRow): string {
+  if (row.status === 'completed') return 'Done';
+  if (row.status === 'cancelled') return '';
+  const today = new Date();
+  const dayMs = 86_400_000;
+  const startOfToday = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const days = (iso: string) => Math.round((Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) - startOfToday) / dayMs);
+  if (row.status === 'planned' && row.start_date && days(row.start_date) > 0) {
+    const n = days(row.start_date);
+    return `Starts in ${n} day${n === 1 ? '' : 's'}`;
+  }
+  if (!row.end_date) return '';
+  const left = days(row.end_date);
+  if (left === 0) return 'Due today';
+  return left > 0 ? `${left} day${left === 1 ? '' : 's'} left` : `${-left} day${left === -1 ? '' : 's'} late`;
 }
 
 function formatDate(iso: string | null) {
@@ -90,22 +115,51 @@ function formatPercent(value: number) {
 }
 
 const PROJECT_COLUMNS: AdminDataTableColumn<ProjectRow>[] = [
+  { id: 'display_id', label: 'No.', width: 100 },
   { id: 'name', label: 'Project', sortKey: 'name', width: 200 },
   { id: 'customer', label: 'Customer', width: 180 },
+  { id: 'city', label: 'City', width: 130 },
+  { id: 'project_manager', label: 'Project Manager', width: 160 },
   { id: 'status', label: 'Status', sortKey: 'status', width: 130 },
   { id: 'start_date', label: 'Start', sortKey: 'start_date', width: 130 },
   { id: 'end_date', label: 'End', sortKey: 'end_date', width: 130 },
+  { id: 'schedule', label: 'Schedule', width: 130 },
   { id: 'contract_amount', label: 'Contract Amount', width: 150 },
   { id: 'project_cost', label: 'Project Cost', width: 140 },
   { id: 'profit', label: 'Profit', width: 130 },
   { id: 'profit_percent', label: 'Profit %', width: 110 },
+  { id: 'invoiced', label: 'Invoiced', width: 130 },
+  { id: 'billed_percent', label: '% Billed', width: 100 },
+  { id: 'collected', label: 'Collected', width: 130 },
+  { id: 'balance', label: 'Balance Due', width: 130 },
+  { id: 'labor_hours', label: 'Labor Hours', width: 110 },
   { id: 'actions', label: 'Actions', resizable: false },
 ];
 
 function projectCellText(row: ProjectRow, columnId: string): string {
   switch (columnId) {
+    case 'display_id':
+      return row.display_id ?? '';
     case 'name':
       return row.name;
+    case 'city':
+      return row.city ?? '';
+    case 'project_manager':
+      return row.project_manager ?? '';
+    case 'schedule':
+      return scheduleText(row);
+    case 'invoiced':
+      return formatMoney(row.invoiced_cents ?? 0);
+    case 'billed_percent':
+      return row.contract_amount_cents && row.contract_amount_cents > 0
+        ? formatPercent(((row.invoiced_cents ?? 0) / row.contract_amount_cents) * 100)
+        : '';
+    case 'collected':
+      return formatMoney(row.collected_cents ?? 0);
+    case 'balance':
+      return formatMoney(row.balance_cents ?? 0);
+    case 'labor_hours':
+      return row.labor_hours ? `${row.labor_hours} h` : '';
     case 'customer':
       return listedCustomerName(row);
     case 'status':
@@ -449,9 +503,18 @@ export default function CRMProjectsPage() {
               if (columnId === 'profit' || columnId === 'profit_percent') {
                 const text = projectCellText(row, columnId);
                 if (!text) return '—';
+                // No costs recorded: a 100% profit would be misleading.
+                if (row.project_cost_cents === 0) return <span className="text-xs text-gray-500">No costs yet</span>;
                 return <span className={`tabular-nums font-medium ${profitTone(profitCents(row))}`}>{text}</span>;
               }
-              if (columnId === 'contract_amount' || columnId === 'project_cost') {
+              if (columnId === 'schedule') {
+                const text = scheduleText(row);
+                return text ? <span className={text.endsWith('late') ? 'font-medium text-red-600' : ''}>{text}</span> : '—';
+              }
+              if (columnId === 'balance' && (row.balance_cents ?? 0) > 0) {
+                return <span className="tabular-nums font-medium text-red-600">{projectCellText(row, columnId)}</span>;
+              }
+              if (['contract_amount', 'project_cost', 'invoiced', 'collected', 'balance'].includes(columnId)) {
                 const text = projectCellText(row, columnId);
                 return text ? <span className="tabular-nums">{text}</span> : '—';
               }
@@ -594,6 +657,7 @@ export default function CRMProjectsPage() {
       )}
 
       <CrmRowActionsPortal openId={rowActions.openId} position={rowActions.position} menuRef={rowActions.menuRef}>
+        <Link href={`/${locale}/crm/projects/${rowActions.openId}`} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer font-medium" onClick={rowActions.close}>Financial report</Link>
         <Link href={`/${locale}/crm/projects/${rowActions.openId}/photos`} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={rowActions.close}>Photos</Link>
         <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { setEditingId(rowActions.openId); setViewMode('edit'); rowActions.close(); }}><Pencil className="w-3.5 h-3.5" /> Edit</button>
         <button type="button" className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2 cursor-pointer" onClick={() => { if (rowActions.openId) setDeleteConfirm({ id: rowActions.openId }); rowActions.close(); }}><Trash2 className="w-3.5 h-3.5" /> Delete</button>

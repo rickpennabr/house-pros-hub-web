@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { resolvePublicSiteUrl } from '@/lib/utils/publicSiteUrl';
 import { sendInvoiceEmail } from '@/lib/services/emailService';
+import { loadInvoiceEmailBranding } from '@/lib/invoices/reminder';
 import { getNextInvoiceNumber } from '@/lib/crm/invoice-number';
 import { dueSoonThrough, nextRecurringDate, statusFromPayments, todayDateKey, type RecurringFrequency } from '@/lib/crm/invoice-books';
 
@@ -20,7 +22,8 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServiceRoleClient();
   const today = todayDateKey();
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()?.replace(/\/$/, '') ?? '';
+  // Never localhost or empty in emails: falls back to houseproshub.com on production.
+  const baseUrl = resolvePublicSiteUrl(null);
 
   const created = await runRecurring(supabase, today, baseUrl);
   const dueSoon = await runDueSoon(supabase, today, baseUrl);
@@ -226,15 +229,7 @@ async function emailInvoice(
   const toEmail = customer?.email;
   if (!toEmail) return false;
 
-  let businessName = 'Us';
-  if (input.businessId) {
-    const { data: business } = await supabase
-      .from('businesses')
-      .select('business_name')
-      .eq('id', input.businessId)
-      .single();
-    businessName = business?.business_name ?? 'Us';
-  }
+  const branding = await loadInvoiceEmailBranding(supabase, input.ownerId, input.businessId, null);
 
   const { data: tokenRow, error: tokenError } = await supabase
     .from('pro_invoice_view_tokens')
@@ -249,7 +244,7 @@ async function emailInvoice(
   const viewUrl = `${input.baseUrl}/en/invoices/view?token=${tokenRow.token}`;
   const emailResult = await sendInvoiceEmail(
     {
-      businessName,
+      ...branding,
       invoiceNumber: input.invoiceNumber,
       amountCents: input.amountCents,
       viewUrl,

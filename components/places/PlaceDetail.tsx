@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useActivityBadges } from '@/hooks/useActivityBadges';
+import { NotificationCount } from '@/components/ui/NotificationCount';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -17,6 +19,7 @@ import {
   Home,
   LayoutGrid,
   MoreVertical,
+  Share2,
   Pencil,
   Receipt,
   Wrench,
@@ -35,7 +38,7 @@ import { MAINTENANCE_FREQUENCY_LABELS, type MaintenanceFrequency } from '@/lib/c
 import { FileDropTarget } from '@/components/ui/FileDropTarget';
 import { PlacePros } from '@/components/places/PlacePros';
 import { TimelineSteps } from '@/components/timeline/TimelineSteps';
-import { placeEventStepKind } from '@/lib/timeline/steps';
+import { placeEventBy, placeEventStepKind, type TimelineStep } from '@/lib/timeline/steps';
 
 /** The header FIX camera (same animation), sized to the card tile. */
 function FixCamAnimatedIcon({ className }: { className?: string }) {
@@ -291,6 +294,20 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
     }
   }
 
+  // Badges: what pros did since the homeowner last opened each tab (all pros on this place).
+  const allSteps = useMemo<TimelineStep[]>(
+    () =>
+      (bundle?.timeline ?? []).map((event) => ({
+        id: event.id,
+        kind: placeEventStepKind(event.kind),
+        at: event.occurredAt,
+        title: event.title,
+        by: placeEventBy(event.kind),
+      })),
+    [bundle?.timeline]
+  );
+  const { counts: unread, newIds } = useActivityBadges(bundle ? `place:${placeId}:` : null, allSteps, 'customer', tab);
+
   if (error) return <div className="p-4 md:p-6 text-red-600">{error}</div>;
   if (!bundle) return <div className="p-4 md:p-6 text-gray-500">{t('loading')}</div>;
 
@@ -336,10 +353,11 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
   const localityLine = [bundle.place.city, bundle.place.state, bundle.place.zipCode].filter(Boolean).join(', ');
   const photoUrl = bundle.place.photoUrl;
 
-  // "Only their work" on a pro card filters every tab to that pro.
-  const filterPro = (bundle.pros ?? []).find((pro) => pro.ownerId === proFilter) ?? null;
+  // One pro is always picked (the first by default); the other pros sit beside it as the filter.
+  // Rows that belong to no pro (the customer's own) show under every pro.
+  const filterPro = (bundle.pros ?? []).find((pro) => pro.ownerId === proFilter) ?? bundle.pros?.[0] ?? null;
   const only = <T extends { ownerId: string | null }>(rows: T[]) =>
-    filterPro ? rows.filter((row) => row.ownerId === filterPro.ownerId) : rows;
+    filterPro ? rows.filter((row) => row.ownerId === null || row.ownerId === filterPro.ownerId) : rows;
   const view = {
     timeline: only(bundle.timeline),
     projects: only(bundle.projects),
@@ -510,6 +528,28 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
                   >
                     {t('delete')}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setSharePickerOpen(true);
+                    }}
+                    className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-gray-200 px-2 pt-2 pb-1.5 text-left text-sm font-medium hover:bg-gray-100"
+                  >
+                    <Share2 className="h-4 w-4 text-red-500" />
+                    {tPros('share')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setSharePickerOpen(true);
+                    }}
+                    className="mt-1 hidden w-full items-center gap-2 rounded-lg border-t border-gray-200 px-2 py-1.5 text-left text-sm font-medium hover:bg-gray-100 md:flex"
+                  >
+                    <Share2 className="h-4 w-4 text-red-500" />
+                    {tPros('share')}
+                  </button>
                   </>
                 )}
               </div>
@@ -535,14 +575,6 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
           router.push(`/${locale}/probot?contact=${encodeURIComponent(pro.slug || pro.id)}&sharePlace=${bundle.place.id}`);
         }}
       />
-      {filterPro ? (
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-red-600 px-3 py-2 text-sm">
-          <span className="font-medium">{tPros('showing', { pro: filterPro.businessName })}</span>
-          <button type="button" onClick={() => setProFilter(null)} className="text-sm font-medium text-red-600">
-            {tPros('showAll')}
-          </button>
-        </div>
-      ) : null}
 
       <div className="mt-2 flex items-start gap-2">
       <button
@@ -559,7 +591,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
         title={bundle.place.name}
         items={TABS.map((item) => ({
           id: item.id,
-          label: t(item.id),
+          label: (unread[item.id] ?? 0) > 0 ? `${t(item.id)} (${unread[item.id]})` : t(item.id),
           icon: item.icon,
           isActive: tab === item.id,
           onClick: () => setTab(item.id),
@@ -585,6 +617,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
               >
                 <Icon className="h-[1.125rem] w-[1.125rem] text-red-500" />
                 <span className="whitespace-nowrap">{t(item.id)}</span>
+                <NotificationCount count={unread[item.id] ?? 0} />
               </button>
             );
           })}
@@ -597,6 +630,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
           <p className="text-sm text-gray-600">{t('timelineIntro')}</p>
           <TimelineSteps
             emptyText={t('noTimeline')}
+            newIds={newIds}
             formatWhen={formatWhen}
             steps={view.timeline.map((event) => ({
               id: event.id,

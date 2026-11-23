@@ -66,13 +66,24 @@ export function DocumentBrandHeader({
 }: DocumentBrandHeaderProps) {
   const name = business?.business_name?.trim() || 'Business';
   const website = business?.website?.trim() || '';
+  const hasContact = Boolean(business?.email || business?.phone || website);
+  // The name already shows top-left under the title, so the default here is only the tagline.
+  const meta =
+    rightMeta ??
+    (business?.company_tagline ? (
+      <p className="mt-0.5 text-sm italic" style={{ color: themeColor }}>
+        {business.company_tagline}
+      </p>
+    ) : null);
 
   return (
     <header
       className={`grid grid-cols-1 gap-4 border-b-2 md:grid-cols-3 md:gap-6 ${className}`}
       style={{ borderColor: themeColor }}
     >
-      <div>
+      {/* Phone: logo on the right of the title and name. PC: it sits in the right column. */}
+      <div className="flex items-start justify-between gap-3 md:block">
+        <div className="min-w-0">
         <h1 className="text-2xl font-bold uppercase tracking-tight" style={{ color: themeColor }}>
           {title}
         </h1>
@@ -84,9 +95,13 @@ export function DocumentBrandHeader({
         {business?.address ? (
           <p className="mt-1 whitespace-pre-line text-sm text-gray-700">{business.address}</p>
         ) : null}
+        </div>
+        <div className="md:hidden">
+          <LogoMark name={name} logo={business?.business_logo} />
+        </div>
       </div>
 
-      <div className="flex flex-col justify-center text-sm text-gray-700 md:items-center">
+      <div className={`${hasContact ? 'flex' : 'hidden md:flex'} flex-col justify-center text-sm text-gray-700 md:items-center`}>
         <div className="text-left">
           {business?.email ? <span className="block">{business.email}</span> : null}
           {business?.phone ? <span className="block">{business.phone}</span> : null}
@@ -103,18 +118,11 @@ export function DocumentBrandHeader({
         </div>
       </div>
 
-      <div className="flex items-start justify-end gap-3">
-        <LogoMark name={name} logo={business?.business_logo} />
-        <div className="min-w-0 text-right">
-          {/* The name already shows top-left under the title, so the default here is only the tagline. */}
-          {rightMeta ?? (
-            business?.company_tagline ? (
-              <p className="mt-0.5 text-sm italic" style={{ color: themeColor }}>
-                {business.company_tagline}
-              </p>
-            ) : null
-          )}
+      <div className={`${meta ? 'flex' : 'hidden md:flex'} items-start justify-end gap-3`}>
+        <div className="hidden md:block">
+          <LogoMark name={name} logo={business?.business_logo} />
         </div>
+        <div className="min-w-0 text-right">{meta}</div>
       </div>
     </header>
   );

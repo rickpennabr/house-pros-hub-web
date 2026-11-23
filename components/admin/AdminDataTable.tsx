@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, type ReactNode } from 'react';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
@@ -64,6 +64,8 @@ export interface AdminDataTableBulkActions<T> {
   labelDelete?: string;
   labelCopyAsJson?: string;
   labelEdit?: string;
+  /** Extra buttons shown first in the bar (left of Copy); return null from label to hide. */
+  extra?: Array<{ id: string; label: (rows: T[]) => string | null; onClick: (rows: T[]) => void; icon?: ReactNode; className?: string }>;
 }
 
 export type HubColumnValueFilter = {
@@ -902,6 +904,23 @@ export function AdminDataTable<T>({
               : `${navigableColumns.find((column) => column.id === selectedColumnId)?.label ?? 'Column'} column`}
           </span>
           {copiedLabel ? <span className="text-xs font-medium text-gray-600">{copiedLabel}</span> : null}
+          {selectedRows.length > 0
+            ? bulkActions?.extra?.map((action) => {
+                const label = action.label(selectedRows);
+                if (!label) return null;
+                return (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={() => action.onClick(selectedRows)}
+                    className={`inline-flex items-center gap-1.5 text-sm font-medium cursor-pointer px-2 py-1 rounded-md border-2 ${action.className ?? "border-black text-black hover:bg-neutral-200"}`}
+                  >
+                    {action.icon}
+                    {label}
+                  </button>
+                );
+              })
+            : null}
           <button
             type="button"
             onClick={() => void copySelection()}

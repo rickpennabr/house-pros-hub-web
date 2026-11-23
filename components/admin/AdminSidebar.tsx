@@ -26,7 +26,8 @@ import {
   Blocks,
   GripVertical,
   Sprout,
-  LucideIcon 
+  type LucideIcon,
+  Presentation,
 } from 'lucide-react';
 import { useAdminSearch } from './AdminSearchContext';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
@@ -41,6 +42,7 @@ interface NavItem {
 
 export const navItems: NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/presentation', label: 'Hub presentation', icon: Presentation },
   { href: '/admin/qrcodes', label: 'QR code', icon: QrCode },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/estimates', label: 'Estimates', icon: ClipboardList },

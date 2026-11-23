@@ -132,6 +132,12 @@ export async function PATCH(request: NextRequest) {
     const defaultPaymentTerms = optionalText('defaultPaymentTerms', 60);
     const defaultNote = optionalText('defaultNote', 2000);
     const footerText = optionalText('footerText', 2000);
+    const paymentInstructions = optionalText('paymentInstructions', 1000);
+    const reminderMessage = optionalText('reminderMessage', 2000);
+    const companyAddress = optionalText('companyAddress', 500);
+    const companyEmail = optionalText('companyEmail', 200);
+    const companyPhone = optionalText('companyPhone', 50);
+    const companyWebsite = optionalText('companyWebsite', 300);
     // The logo is set by the logo upload route; here it can only be cleared (back to the business logo).
     const clearLogo = body.logoUrl === null;
 
@@ -177,7 +183,27 @@ export async function PATCH(request: NextRequest) {
     if (defaultPaymentTerms !== undefined) update.default_payment_terms = defaultPaymentTerms;
     if (defaultNote !== undefined) update.default_note = defaultNote;
     if (footerText !== undefined) update.footer_text = footerText;
+    if (paymentInstructions !== undefined) update.payment_instructions = paymentInstructions;
+    if (reminderMessage !== undefined) update.reminder_message = reminderMessage;
+    if (companyAddress !== undefined) update.company_address = companyAddress;
+    if (companyEmail !== undefined) update.company_email = companyEmail;
+    if (companyPhone !== undefined) update.company_phone = companyPhone;
+    if (companyWebsite !== undefined) update.company_website = companyWebsite;
     if (clearLogo) update.logo_url = null;
+    // Job costing (migration 167): overhead % on top of direct job cost, and the default crew cost per hour.
+    if ('overheadPercent' in body) {
+      const value = Number(body.overheadPercent);
+      if (!Number.isFinite(value) || value < 0 || value > 200) {
+        return NextResponse.json({ error: 'Overhead must be between 0 and 200%' }, { status: 400 });
+      }
+      update.overhead_percent = Math.round(value * 100) / 100;
+    }
+    if ('defaultLaborCostCentsPerHour' in body) {
+      const value = body.defaultLaborCostCentsPerHour;
+      if (value === null) update.default_labor_cost_cents_per_hour = null;
+      else if (Number.isInteger(value) && value >= 0 && value <= 10_000_000) update.default_labor_cost_cents_per_hour = value;
+      else return NextResponse.json({ error: 'Enter a valid crew cost per hour' }, { status: 400 });
+    }
 
     if (Object.keys(update).length === 0) {
       const { data: existing } = await supabase
@@ -196,7 +222,8 @@ export async function PATCH(request: NextRequest) {
         .single();
     let { data: updated, error } = await save(update);
     // Before migration 147 the logo, defaults and footer columns are missing: save the rest.
-    const newColumns = ['logo_url', 'default_payment_terms', 'default_note', 'footer_text'];
+    // Before migration 165 the reminder columns are missing too.
+    const newColumns = ['logo_url', 'default_payment_terms', 'default_note', 'footer_text', 'payment_instructions', 'reminder_message', 'company_address', 'company_email', 'company_phone', 'company_website', 'overhead_percent', 'default_labor_cost_cents_per_hour'];
     if (error && newColumns.some((column) => error?.message.includes(column))) {
       const older = Object.fromEntries(Object.entries(update).filter(([key]) => !newColumns.includes(key)));
       ({ data: updated, error } = await save(older));

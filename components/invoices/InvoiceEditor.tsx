@@ -18,6 +18,9 @@ import { AddProductServicePanel, type ProCrmItem } from '@/components/invoices/A
 import { ProductOrServiceCombobox } from '@/components/invoices/ProductOrServiceCombobox';
 import { UnitCombobox } from '@/components/invoices/UnitCombobox';
 import type { CompanyDisplayOverride } from '@/lib/invoices/companyDisplay';
+import { useLocale } from 'next-intl';
+import { InvoiceViewPreview, InvoiceViewTabs, type InvoiceView } from '@/components/invoices/InvoiceViews';
+import type { InvoiceTemplateCustomer, InvoiceTemplateInvoice } from '@/components/invoices/InvoiceTemplate';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
@@ -60,6 +63,13 @@ interface InvoiceEditorProps {
    * Inside the chat: no Back row (the window has its own title), Cancel closes the window, one
    * primary button, and the customer is fixed.
    */
+  /** The invoice was already sent (status and what is paid). Editing still works; the page says so. */
+  sent?: { status: string; paidCents: number } | null;
+  /**
+   * Shown inside the invoice page's "Edit invoice" tab: that page has the back link and the view
+   * tabs, so the editor drops its own; Cancel throws away the changes.
+   */
+  inline?: { onCancel: () => void };
   embedded?: {
     onCancel: () => void;
     submitLabel: string;
@@ -87,6 +97,8 @@ export function InvoiceEditor({
   saving,
   onSaveAndClose,
   onReviewAndSend,
+  sent = null,
+  inline,
   embedded,
 }: InvoiceEditorProps) {
   const router = useRouter();
@@ -137,6 +149,34 @@ export function InvoiceEditor({
   const discountAmountCents = discountCentsFor(subtotalCents, discountFromForm(discountKind, discountValue));
   const totalAmountCents = subtotalCents - discountAmountCents;
   const shownError = validationError || error;
+  const locale = useLocale();
+  const [view, setView] = useState<InvoiceView>('edit');
+
+  // The invoice as it is on screen, for the Email, Payor and PDF views.
+  const previewInvoice = useMemo<InvoiceTemplateInvoice>(
+    () => ({
+      invoice_number: invoiceNumber || 'New',
+      amount_cents: totalAmountCents,
+      payment_applied_cents: 0,
+      line_items: invoiceLineItemsPayload(lineItems),
+      status: 'draft',
+      invoice_date: invoiceDate,
+      due_date: dueDate || null,
+      payment_terms: paymentTerms || null,
+      note: note || null,
+    }),
+    [invoiceNumber, totalAmountCents, lineItems, invoiceDate, dueDate, paymentTerms, note]
+  );
+  const previewCustomer = useMemo<InvoiceTemplateCustomer>(() => {
+    const picked = customerOptions.find((customer) => customer.id === customerId);
+    return picked
+      ? { first_name: picked.first_name, last_name: picked.last_name, display_name: picked.display_name, company_name: picked.company_name }
+      : { first_name: '', last_name: '', billing_address: null };
+  }, [customerOptions, customerId]);
+  const previewBusiness = useMemo<InvoiceBusinessShape>(
+    () => (companyOverride ? { ...business, ...companyOverride } : business),
+    [business, companyOverride]
+  );
 
   const currentDraft = (): InvoiceEditorDraft => ({
     customerId,
@@ -205,8 +245,8 @@ export function InvoiceEditor({
   };
 
   return (
-    <div className={embedded ? 'w-full' : DOCUMENT_FORM_LAYOUT.pageContainer}>
-      {embedded ? null : (
+    <div className={embedded || inline ? 'w-full' : DOCUMENT_FORM_LAYOUT.pageContainer}>
+      {embedded || inline ? null : (
         <div className="py-2 md:py-0 md:mb-4 flex items-center justify-between gap-4">
           <Link href={backHref} className="flex items-center gap-2 text-gray-700 hover:text-black font-medium">
             <ArrowLeft className="w-5 h-5 shrink-0" />
@@ -216,9 +256,34 @@ export function InvoiceEditor({
         </div>
       )}
 
-      <div className={DOCUMENT_FORM_LAYOUT.shell}>
+      {embedded || inline ? null : <InvoiceViewTabs view={view} onChange={setView} />}
+      {!embedded && !inline && view !== 'edit' ? (
+        <InvoiceViewPreview
+          view={view}
+          invoice={previewInvoice}
+          customer={previewCustomer}
+          business={previewBusiness}
+          themeColor={themeColorHex}
+          locale={locale}
+        />
+      ) : null}
+
+      {/* Kept mounted while a view is open so nothing typed is lost. */}
+      <div className={`${DOCUMENT_FORM_LAYOUT.shell} ${!embedded && view !== 'edit' ? 'hidden' : ''}`}>
         <div className={DOCUMENT_FORM_LAYOUT.sheet} style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
           <form onSubmit={(e) => e.preventDefault()} className="flex flex-col">
+            {sent ? (
+              <div className="mx-4 mt-4 rounded-lg border-2 border-black bg-amber-50 p-3 text-sm text-gray-900">
+                <p className="font-semibold">This invoice was already sent ({sent.status}).</p>
+                <p className="mt-1 text-gray-700">
+                  Your changes show right away on the customer&apos;s invoice link and PDF. Use Send invoice afterwards if
+                  you want them to get a new email.
+                  {sent.paidCents > 0
+                    ? ` ${formatAmount(sent.paidCents)} is already paid, so the total can't go below that.`
+                    : ''}
+                </p>
+              </div>
+            ) : null}
             {shownError && (
               <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
                 {shownError}
@@ -361,7 +426,8 @@ export function InvoiceEditor({
                 <thead>
                   <tr className="border-b-2 border-black">
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-8">#</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Product or service</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-[17%] min-w-[120px]">Product or service</th>
+                    {/* Description takes the room the narrower product column gives up. */}
                     <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Description</th>
                     <th className={DOCUMENT_LINE_QTY_RATE.unitTh}>Unit</th>
                     <th className={DOCUMENT_LINE_QTY_RATE.qtyTh}>Qty</th>
@@ -573,7 +639,7 @@ export function InvoiceEditor({
               </div>
             </div>
 
-            <div className="mb-3 flex flex-wrap items-center gap-3">
+            <div className={`mb-3 flex flex-wrap items-center gap-3 ${sent && sent.paidCents > 0 ? 'hidden' : ''}`}>
               <label className="flex items-center gap-2 text-sm text-gray-800">
                 <input type="checkbox" checked={paidNow} onChange={(event) => setPaidNow(event.target.checked)} />
                 Collected on site (cash / check / card terminal)
@@ -593,7 +659,7 @@ export function InvoiceEditor({
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => (embedded ? embedded.onCancel() : router.push(backHref))}
+                onClick={() => (embedded ? embedded.onCancel() : inline ? inline.onCancel() : router.push(backHref))}
                 disabled={saving}
               >
                 Cancel
@@ -619,7 +685,7 @@ export function InvoiceEditor({
                   disabled={saving}
                   loading={saving}
                 >
-                  {embedded ? embedded.submitLabel : paidNow ? 'Save as paid' : 'Review and send'}
+                  {embedded ? embedded.submitLabel : paidNow ? 'Save as paid' : sent ? 'Save changes' : 'Review and send'}
                 </Button>
               </div>
             </div>

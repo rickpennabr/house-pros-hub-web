@@ -1,3 +1,4 @@
+import { logCrmActivity } from '@/lib/activity/log';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { docPlaceLabel } from '@/lib/places/contact-places';
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
       .eq('id', estimateId)
       .single();
     if (error || !row) return NextResponse.json({ error: 'Estimate not found' }, { status: 404 });
+    await logCrmActivity({ ownerId: row.owner_id, customerId: row.customer_id, kind: 'estimate_viewed', estimateId: row.id });
 
     const { data: customer } = await supabase
       .from('pro_crm_customers')

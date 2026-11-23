@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { linkInvoiceToJob } from '@/lib/crm/job-links';
 import { createClient } from '@/lib/supabase/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { sanitizeCompanyDisplay } from '@/lib/invoices/companyDisplay';
@@ -52,7 +53,13 @@ export async function GET(request: NextRequest) {
       .eq('owner_id', user.id)
       .order(orderColumn, { ascending: sortDir === 'asc' });
 
-    if (statusFilter && (PRO_INVOICE_STATUSES as readonly string[]).includes(statusFilter)) {
+    if (statusFilter === 'overdue') {
+      // Overdue also means sent or part-paid and past the due date (due on receipt: past the invoice date).
+      const today = new Date().toISOString().slice(0, 10);
+      query = query.or(
+        `status.eq.overdue,and(status.in.(sent,partial),due_date.lt.${today}),and(status.in.(sent,partial),due_date.is.null,invoice_date.lt.${today})`
+      );
+    } else if (statusFilter && (PRO_INVOICE_STATUSES as readonly string[]).includes(statusFilter)) {
       query = query.eq('status', statusFilter as ProInvoiceStatus);
     }
     if (customerIdFilter) {
@@ -284,6 +291,7 @@ export async function POST(request: NextRequest) {
             : error.message || 'Failed to create invoice';
         return NextResponse.json({ error: message }, { status: 500 });
       }
+      await linkInvoiceToJob(supabase, user.id, row.id, { projectId: body.projectId, maintenancePlanId: body.maintenancePlanId, estimateId });
       const finished = await finishNewInvoice(supabase, user.id, row.id, progress.lineItems, paidNow.paidNow ? paidNow.method : null, request);
       if (finished.error) return NextResponse.json({ error: finished.error }, { status: finished.status });
       return NextResponse.json({ id: row.id, display_id: row.display_id, invoice_number: row.invoice_number, created_at: row.created_at, receipt: finished.receipt ?? null }, { status: 201 });
@@ -364,6 +372,7 @@ export async function POST(request: NextRequest) {
       const message = isMissingDiscountColumn(error) ? DISCOUNT_MIGRATION_ERROR : error.message || 'Failed to create invoice';
       return NextResponse.json({ error: message }, { status: 500 });
     }
+    await linkInvoiceToJob(supabase, user.id, row.id, { projectId: body.projectId, maintenancePlanId: body.maintenancePlanId });
     const finished = await finishNewInvoice(supabase, user.id, row.id, lineItems, paidNow.paidNow ? paidNow.method : null, request);
     if (finished.error) return NextResponse.json({ error: finished.error }, { status: finished.status });
     return NextResponse.json({ id: row.id, display_id: row.display_id, invoice_number: row.invoice_number, created_at: row.created_at, receipt: finished.receipt ?? null }, { status: 201 });

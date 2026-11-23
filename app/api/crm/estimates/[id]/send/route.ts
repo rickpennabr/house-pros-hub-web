@@ -1,3 +1,4 @@
+import { logCrmActivity } from '@/lib/activity/log';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
@@ -125,6 +126,7 @@ export async function POST(
       ownerId: user.id,
     });
 
+    await logCrmActivity({ ownerId: user.id, customerId: row.customer_id, kind: 'estimate_sent', estimateId: row.id, detail: toEmail });
     console.log('[POST /api/crm/estimates/[id]/send] success', { estimateId: id, toEmail });
     return NextResponse.json({ ok: true, sentTo: toEmail });
   } catch (err) {

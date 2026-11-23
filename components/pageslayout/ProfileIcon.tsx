@@ -262,6 +262,15 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                 )}
                 {activeIsBusiness && !isAdmin && (
                   <button
+                    onClick={() => handleMenuItemClick('/crm/portal')}
+                    className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                  >
+                    <Home className="w-4 h-4 text-red-600" />
+                    <span>{t('customerPortal')}</span>
+                  </button>
+                )}
+                {activeIsBusiness && !isAdmin && (
+                  <button
                     onClick={() => handleMenuItemClick('/crm')}
                     className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
                   >

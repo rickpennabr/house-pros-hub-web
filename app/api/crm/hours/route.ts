@@ -7,6 +7,7 @@ import {
   DEFAULT_SLOT_MINUTES,
   DEFAULT_TIMEZONE,
   isSlotMinutes,
+  readBufferMinutes,
   parseWeekSchedule,
   scheduleIsValid,
   type WeekSchedule,
@@ -53,6 +54,18 @@ export async function GET() {
       return NextResponse.json({ error: result.error.message || 'Failed to load hours' }, { status: 500 });
     }
 
+    // Travel time lives in its own column (migration 164); read it separately so older databases still load.
+    const ids = (result.data ?? []).map((row) => row.id);
+    const buffers = new Map<string, number>();
+    if (ids.length > 0) {
+      const bufferResult = await supabase.from('businesses').select('id, appointment_buffer_minutes' as never).in('id', ids);
+      if (!bufferResult.error) {
+        for (const row of (bufferResult.data ?? []) as unknown as Array<{ id: string; appointment_buffer_minutes?: unknown }>) {
+          buffers.set(row.id, readBufferMinutes(row.appointment_buffer_minutes));
+        }
+      }
+    }
+
     const businesses = (result.data ?? []).map((row) => {
       const parsed = parseWeekSchedule(row.operating_hours);
       const slot = Number((row as { appointment_slot_minutes?: number }).appointment_slot_minutes);
@@ -62,6 +75,7 @@ export async function GET() {
         businessName: row.business_name,
         timezone: row.timezone || DEFAULT_TIMEZONE,
         slotMinutes: isSlotMinutes(slot) ? slot : DEFAULT_SLOT_MINUTES,
+        bufferMinutes: buffers.get(row.id) ?? 0,
         bookingEnabled: row.show_calendar_on_procard === true,
         schedule: parsed.schedule,
         hoursConfigured: parsed.configured,
@@ -88,6 +102,7 @@ export async function PUT(request: NextRequest) {
     const timezone = typeof body.timezone === 'string' ? body.timezone : '';
     const slotMinutes = Number(body.slotMinutes);
     const bookingEnabled = body.bookingEnabled === true;
+    const bufferMinutes = readBufferMinutes(body.bufferMinutes);
     const schedule = readSchedule(body.schedule);
 
     if (!businessId || !schedule) {
@@ -130,11 +145,17 @@ export async function PUT(request: NextRequest) {
       error = fallback.error;
     }
     if (error) return NextResponse.json({ error: error.message || 'Failed to save hours' }, { status: 500 });
+    const bufferSave = await service
+      .from('businesses')
+      .update({ appointment_buffer_minutes: bufferMinutes } as never)
+      .eq('id', businessId);
     return NextResponse.json({
       ok: true,
       warning: slotColumnMissing
         ? 'Hours saved. Apply migration 093_business_hours_booking.sql to store appointment length.'
-        : undefined,
+        : bufferSave.error
+          ? 'Hours saved. Apply migration 164_business_appointment_buffer.sql to store travel time.'
+          : undefined,
     });
   } catch (err) {
     console.error('PUT /api/crm/hours', err);

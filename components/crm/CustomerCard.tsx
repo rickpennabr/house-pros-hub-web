@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Building2, Mail, Phone, MapPin, Globe, MoreVertical, FileText, FileCheck, FolderOpen, PlusCircle, Pencil, Trash2 } from 'lucide-react';
+import { User, Building2, Mail, Phone, MapPin, Globe, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { contactActionsFor, type ContactActionId } from '@/lib/crm/contact-actions';
+import { ContactActionMenuItems } from '@/components/crm/ContactActionMenuItems';
 import type { Database } from '@/lib/types/supabase';
 import type { CrmContactRole } from '@/lib/crm/contact-role';
 import { formatAmount } from '@/lib/invoices/format';
@@ -12,22 +14,11 @@ type CRMCustomerRow = Database['public']['Tables']['pro_crm_customers']['Row'] &
   open_balance_cents?: number;
 };
 
-export interface CustomerCardMenuActions {
-  onCreateInvoice?: (customerId: string) => void;
-  onCreateEstimate?: (customerId: string) => void;
-  onCreateProject?: (customerId: string) => void;
-  onScheduleTask?: (customerId: string) => void;
-  onEdit: (customerId: string) => void;
-  onDelete?: (customerId: string) => void;
-}
-
 interface CustomerCardProps {
   customer: CRMCustomerRow;
   onEdit: (id: string) => void;
-  onCreateInvoice?: (customerId: string) => void;
-  onCreateEstimate?: (customerId: string) => void;
-  onCreateProject?: (customerId: string) => void;
-  onScheduleTask?: (customerId: string) => void;
+  /** Menu actions; the card only offers the ones that fit the contact's roles. */
+  onAction?: (action: ContactActionId, customerId: string) => void;
   onDelete?: (customerId: string) => void;
   /** List view: only the top part of the card (no contact action strip), like the directory list. */
   compact?: boolean;
@@ -82,10 +73,7 @@ function ContactAction({
 export default function CustomerCard({
   customer,
   onEdit,
-  onCreateInvoice,
-  onCreateEstimate,
-  onCreateProject,
-  onScheduleTask,
+  onAction,
   onDelete,
   compact = false,
 }: CustomerCardProps) {
@@ -130,7 +118,7 @@ export default function CustomerCard({
     const menuWidth = 180;
     const left = Math.min(button.right - menuWidth, window.innerWidth - menuWidth - 8);
     const spaceBelow = window.innerHeight - button.bottom - 8;
-    const above = spaceBelow < 200;
+    const above = spaceBelow < 280;
     const top = above ? button.top - 4 : button.bottom + 4;
     setMenuPosition({ top, left, above });
     setMenuOpen(true);
@@ -198,62 +186,15 @@ export default function CustomerCard({
                     transform: menuPosition.above ? 'translateY(-100%)' : undefined,
                   }}
                 >
-                  {onCreateInvoice && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCreateInvoice(customer.id);
-                      closeMenu();
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-                  >
-                    <FileText className="w-3.5 h-3.5 shrink-0" />
-                    Create invoice
-                  </button>
-                )}
-                {onCreateEstimate && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCreateEstimate(customer.id);
-                      closeMenu();
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-                  >
-                    <FileCheck className="w-3.5 h-3.5 shrink-0" />
-                    Create estimate
-                  </button>
-                )}
-                {onCreateProject && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCreateProject(customer.id);
-                      closeMenu();
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-                  >
-                    <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-                    Create project
-                  </button>
-                )}
-                {onScheduleTask && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onScheduleTask(customer.id);
-                      closeMenu();
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-                  >
-                    <PlusCircle className="w-3.5 h-3.5 shrink-0" />
-                    Schedule task
-                  </button>
-                )}
+                  {onAction ? (
+                    <ContactActionMenuItems
+                      actions={contactActionsFor(customer.roles)}
+                      onAction={(action) => {
+                        onAction(action, customer.id);
+                        closeMenu();
+                      }}
+                    />
+                  ) : null}
                 <button
                   type="button"
                   onClick={(e) => {

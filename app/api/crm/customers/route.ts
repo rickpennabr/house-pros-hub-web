@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { laborRateFromBody, saveContactLaborRate } from '@/lib/crm/job-links';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/types/supabase';
@@ -240,6 +241,8 @@ export async function POST(request: NextRequest) {
       await supabase.from('pro_crm_customers').delete().eq('id', row.id).eq('owner_id', user.id);
       return NextResponse.json({ error: roleResult.error }, { status: roleResult.status });
     }
+
+    await saveContactLaborRate(supabase, user.id, row.id, laborRateFromBody(body.labor_cost_cents_per_hour));
 
     if (insertPayload.email) {
       try {

@@ -1,6 +1,7 @@
 'use client';
 
 import { invoiceTermsLabel, resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
+import { invoiceDueState } from '@/lib/invoices/dueState';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { DocumentBrandHeader } from '@/components/documents/DocumentBrandHeader';
 import { shownDiscount } from '@/lib/crm/document-discount';
@@ -96,6 +97,8 @@ export function InvoiceTemplate({
 }: InvoiceTemplateProps) {
   const termsLabel = invoiceTermsLabel(invoice);
   const dueDateIso = resolveInvoiceDueDate(invoice.invoice_date, invoice.due_date, invoice.payment_terms);
+  const dueInfo = invoiceDueState(invoice);
+  const dueLate = dueInfo.kind === 'overdue';
   const paymentApplied = invoice.payment_applied_cents ?? 0;
   const balanceDue = Math.max(0, invoice.amount_cents - paymentApplied);
   const discountShown = shownDiscount(invoice.line_items, invoice.amount_cents);
@@ -125,26 +128,26 @@ export function InvoiceTemplate({
           ...business,
           address: businessAddress || business.address || null,
         }}
-        className="mb-8 pb-6"
+        className="mb-4 pb-4 md:mb-8 md:pb-6"
       />
 
       {/* Tinted block: Bill To + Invoice details */}
       <div
-        className="rounded-lg p-5 mb-8"
+        className="rounded-lg p-0 md:p-5 mb-8"
         style={{ backgroundColor: tintBg }}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-2 gap-3 md:gap-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">Bill to</p>
             <p className="font-semibold text-black">
               {contactDisplayName(customer)}
             </p>
             {customerAddress && (
-              <p className="text-sm text-gray-700 mt-1 whitespace-pre-line">{customerAddress}</p>
+              <p className="text-xs md:text-sm text-gray-700 mt-1 whitespace-pre-line break-words">{customerAddress}</p>
             )}
           </div>
-          <div className="border-t border-gray-300 md:border-t-0 md:border-l md:pl-6 pt-4 md:pt-0">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+          <div className="min-w-0 border-l border-gray-300 pl-3 md:pl-6">
+            <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-xs md:grid-cols-2 md:gap-x-4 md:text-sm">
               <span className="text-gray-600">Invoice no.</span>
               <span className="font-semibold">{invoice.invoice_number}</span>
               <span className="text-gray-600">Invoice date</span>
@@ -156,7 +159,10 @@ export function InvoiceTemplate({
                 </>
               )}
               <span className="text-gray-600">Due date</span>
-              <span>{formatDate(dueDateIso)}</span>
+              <span className={dueLate ? 'font-semibold text-red-600 md:whitespace-nowrap' : undefined}>
+                {formatDate(dueDateIso)}
+                {dueLate ? ` · ${dueInfo.daysOverdue} ${dueInfo.daysOverdue === 1 ? 'day' : 'days'} overdue` : ''}
+              </span>
             </div>
           </div>
         </div>

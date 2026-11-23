@@ -19,6 +19,7 @@ import { CustomerForm, emptyForm } from '@/components/crm/CustomerForm';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { categoryNeedsSupplier } from '@/lib/crm/expense-supplier';
 import { categoryUsesVehicle } from '@/lib/crm/mileage-cost';
+import { BUSINESS_COST_CATEGORIES, JOB_COST_CATEGORIES } from '@/lib/crm/job-financials';
 import { UNIT_OPTIONS } from '@/lib/constants/unitOptions';
 
 const SORT_OPTIONS = [
@@ -28,48 +29,6 @@ const SORT_OPTIONS = [
   { value: 'category', label: 'Category' },
 ] as const;
 type SortKey = (typeof SORT_OPTIONS)[number]['value'];
-
-/** Direct costs on a project. */
-const JOB_COST_CATEGORIES = [
-  'Materials',
-  'Delivery',
-  'Labor',
-  'Subcontractor',
-  'Equipment',
-  'Permits',
-  'Disposal',
-  'Fuel',
-  'Tools',
-] as const;
-
-/** Overhead for contractors, realtors, handymen, and other house pros. */
-const BUSINESS_COST_CATEGORIES = [
-  'Vehicle',
-  'Mileage',
-  'Insurance',
-  'Workers comp',
-  'Advertising',
-  'Marketing',
-  'Signs',
-  'Photography',
-  'Staging',
-  'Commissions',
-  'Office',
-  'Accounting',
-  'Software',
-  'Card fees',
-  'Phone',
-  'Rent',
-  'Utilities',
-  'Licenses',
-  'Supplies',
-  'Meals',
-  'Payroll',
-  'Taxes',
-  'Repairs',
-  'Training',
-  'Dues',
-] as const;
 
 function sameCategory(left: string, right: string): boolean {
   return left.trim().toLowerCase() === right.trim().toLowerCase();
@@ -358,6 +317,10 @@ export default function CRMExpensesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formProjectId, setFormProjectId] = useState('');
   const [projectName, setProjectName] = useState('');
+  /** Maintenance houses (plans): a job cost can go on one instead of a project. */
+  const [plans, setPlans] = useState<{ id: string; name: string }[]>([]);
+  /** The plan the expense had when it opened, so clearing it is saved. */
+  const [originalPlanId, setOriginalPlanId] = useState<string | null>(null);
   const [billableCustomers, setBillableCustomers] = useState<{ id: string; name: string }[]>([]);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
@@ -400,6 +363,11 @@ export default function CRMExpensesPage() {
   useEffect(() => {
     if (searchParams.get('new') === '1') setViewMode('add');
   }, [searchParams]);
+  // "Add expense" on a supplier contact: the new expense starts with that supplier picked.
+  const linkedSupplierId = searchParams.get('new') === '1' ? searchParams.get('supplierId') : null;
+  // "Add expense" on a job's financial report: the new expense starts on that job.
+  const linkedProjectId = searchParams.get('new') === '1' ? searchParams.get('projectId') : null;
+  const linkedPlanId = searchParams.get('new') === '1' ? searchParams.get('maintenancePlanId') : null;
 
   useEffect(() => {
     if (viewMode !== 'add') return;
@@ -409,7 +377,33 @@ export default function CRMExpensesPage() {
     setFormProjectId('');
     setProjectName('');
     setFormVehicleId('');
-  }, [viewMode]);
+    setOriginalPlanId(null);
+    if (linkedSupplierId) {
+      setExpenseKind(kindForCategory('Materials'));
+      setFormCategory('Materials');
+      setFormSupplierId(linkedSupplierId);
+    }
+    if (linkedProjectId || linkedPlanId) {
+      setExpenseKind('job');
+      if (linkedProjectId) setFormProjectId(linkedProjectId);
+    }
+  }, [viewMode, linkedSupplierId, linkedProjectId, linkedPlanId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/crm/maintenance/houses?pageSize=100', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d: { houses?: Array<{ id: string; customerName: string; planName?: string }> }) => {
+        if (cancelled) return;
+        const list = (d.houses ?? []).map((house) => ({ id: house.id, name: `Maintenance · ${house.customerName}` }));
+        setPlans(list);
+        // Opened from a house's financial report: start on that house.
+        const linked = linkedPlanId ? list.find((item) => item.id === linkedPlanId) : null;
+        if (linked) setProjectName(linked.name);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [linkedPlanId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -497,6 +491,11 @@ export default function CRMExpensesPage() {
       .then((data) => {
         if (cancelled) return;
         setFormProjectId(data.projectId ?? '');
+        setOriginalPlanId(data.maintenancePlanId ?? null);
+        if (!data.projectId && data.maintenancePlanId) {
+          const plan = plans.find((item) => item.id === data.maintenancePlanId);
+          setProjectName(plan?.name ?? 'Maintenance house');
+        }
         setFormAmountDollars(data.amountCents != null ? (data.amountCents / 100).toFixed(2) : '');
         setFormCategory(data.category ?? '');
         setExpenseKind(kindForCategory(data.category ?? ''));
@@ -575,6 +574,16 @@ export default function CRMExpensesPage() {
 
   const matchedProject = projects.find((item) => item.id === formProjectId)
     ?? projects.find((item) => item.name.trim().toLowerCase() === projectName.trim().toLowerCase());
+  const matchedPlan = matchedProject
+    ? undefined
+    : plans.find((item) => item.name.trim().toLowerCase() === projectName.trim().toLowerCase())
+      ?? (projectName === 'Maintenance house' && originalPlanId ? { id: originalPlanId, name: projectName } : undefined);
+  /** Sent only when a plan is picked or was there before, so saving works before migration 167. */
+  const planIdForSave = (): string | null | undefined => {
+    const id = expenseKind === 'job' && matchedPlan ? matchedPlan.id : null;
+    if (id) return id;
+    return originalPlanId ? null : undefined;
+  };
 
   useEffect(() => {
     if (!formProjectId) return;
@@ -601,6 +610,7 @@ export default function CRMExpensesPage() {
   const projectIdForSave = (): string | null | false => {
     if (expenseKind !== 'job') return null;
     if (matchedProject) return matchedProject.id;
+    if (matchedPlan) return null;
     if (projectName.trim()) openNewProject();
     else setFormError('Select or add a project.');
     return false;
@@ -662,6 +672,7 @@ export default function CRMExpensesPage() {
         credentials: 'include',
         body: JSON.stringify({
           projectId,
+          maintenancePlanId: planIdForSave(),
           amountCents,
           category,
           expenseDate: formDate || new Date().toISOString().slice(0, 10),
@@ -708,6 +719,7 @@ export default function CRMExpensesPage() {
         credentials: 'include',
         body: JSON.stringify({
           projectId,
+          maintenancePlanId: planIdForSave(),
           amountCents,
           category,
           expenseDate: formDate || null,
@@ -915,7 +927,7 @@ export default function CRMExpensesPage() {
             </div>
             {expenseKind === 'job' && (
               <>
-                <FormField label="Project" required>
+                <FormField label="Project or maintenance house" required>
                   <DescriptionField
                     value={projectName}
                     onChange={(next) => {
@@ -923,7 +935,7 @@ export default function CRMExpensesPage() {
                       const match = projects.find((item) => item.name.trim().toLowerCase() === next.trim().toLowerCase());
                       setFormProjectId(match?.id ?? '');
                     }}
-                    suggestions={projects.map((item) => item.name)}
+                    suggestions={[...projects.map((item) => item.name), ...plans.map((item) => item.name)]}
                     placeholder="Select or add project"
                     maxVisible={40}
                     showMenu

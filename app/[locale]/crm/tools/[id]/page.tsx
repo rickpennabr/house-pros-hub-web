@@ -18,6 +18,7 @@ import type { ToolListItem } from '@/lib/crm/pro-tools-db';
 type ToolDetail = ToolListItem & {
   usefulLifeYears: number;
   salvageCents: number;
+  dailyRateCents: number | null;
   yearlyDepreciationCents: number;
   upkeepCents: number;
   note: string | null;
@@ -47,6 +48,7 @@ function toValues(tool: ToolDetail): ToolFormValues {
     purchase: tool.purchaseCents ? (tool.purchaseCents / 100).toFixed(2) : '',
     usefulLifeYears: String(tool.usefulLifeYears),
     salvage: tool.salvageCents ? (tool.salvageCents / 100).toFixed(2) : '',
+    dailyRate: tool.dailyRateCents ? (tool.dailyRateCents / 100).toFixed(2) : '',
     status: tool.status,
     assignedCrewId: tool.assignedCrewId ?? '',
     projectId: tool.projectId ?? '',

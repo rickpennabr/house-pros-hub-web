@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { Building2, Home, Building, ClipboardList, MoreVertical, Share2 } from 'lucide-react';
+import { NotificationCount } from '@/components/ui/NotificationCount';
 import { BookProPicker } from '@/components/booking/BookProPicker';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -125,6 +126,8 @@ export function PlacesHome() {
     startDelay: 400,
   });
 
+  const [unreadByPlace, setUnreadByPlace] = useState<Record<string, number>>({});
+
   useEffect(() => {
     if (!isAuthenticated) {
       setLoading(false);
@@ -137,6 +140,11 @@ export function PlacesHome() {
         setPlaces(data.places ?? []);
         setPendingPros(data.pendingPros ?? []);
         setEmailConfirmed(data.emailConfirmed !== false);
+        // New things from pros on each place (badge on the card).
+        void fetch('/api/activity/unread', { credentials: 'include' })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((unread) => setUnreadByPlace(unread?.places ?? {}))
+          .catch(() => undefined);
       })
       .catch(() => setError(t('loadFailed')))
       .finally(() => setLoading(false));
@@ -247,7 +255,10 @@ export function PlacesHome() {
                 )}
               </span>
               <span className="min-w-0">
-                <span className="block font-medium">{place.name}</span>
+                <span className="flex items-center gap-1.5 font-medium">
+                  {place.name}
+                  <NotificationCount count={unreadByPlace[place.id] ?? 0} />
+                </span>
                 <span className="block text-xs text-gray-600">
                   {t(`kind.${place.kind}`)}
                   {place.city ? ` · ${place.city}` : ''}

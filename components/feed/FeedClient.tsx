@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { FeedHeader } from '@/components/feed/FeedHeader';
+import { FeedActivityBanner } from '@/components/feed/FeedActivityBanner';
 import { FeedBottomBar } from '@/components/feed/FeedBottomBar';
 import { FeedPost, feedItemSearchText } from '@/components/feed/FeedPost';
 import { isHubPro, ProAddModal } from '@/components/pageslayout/ProAddChooser';
@@ -185,6 +186,7 @@ export default function FeedClient({ initialPage, localCity }: { initialPage: Fe
       />
 
       <div className="flex-1 px-1.5 pb-2 pt-3 md:px-3">
+        <FeedActivityBanner />
         {reloading ? (
           <FeedSkeleton />
         ) : (

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { resolvePublicSiteUrl } from '@/lib/utils/publicSiteUrl';
 import { safeTimeZone, shouldSendDayOfReminder } from '@/lib/booking/dayOfReminder';
 import { appointmentManageUrl } from '@/lib/booking/appointmentPolicy';
 import { reminderEmailCopy } from '@/lib/booking/bookingEmailCopy';
@@ -124,7 +125,7 @@ export async function GET(request: NextRequest) {
       slotStartAt: booking.slot_start_at,
       slotEndAt: booking.slot_end_at,
       serviceName: booking.service_name,
-      manageUrl: appointmentManageUrl(process.env.NEXT_PUBLIC_APP_URL ?? '', booking.customer_locale, booking.manage_token),
+      manageUrl: appointmentManageUrl(resolvePublicSiteUrl(null),booking.customer_locale, booking.manage_token),
       locationAddress: formatVisitAddress({
         street: booking.visit_street,
         city: booking.visit_city,

@@ -20,6 +20,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({
       id: row.id,
       projectId: row.project_id,
+      maintenancePlanId: (row as { maintenance_plan_id?: string | null }).maintenance_plan_id ?? null,
       amountCents: row.amount_cents,
       category: row.category,
       expenseDate: row.expense_date,
@@ -75,6 +76,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         const { data: p } = await supabase.from('pro_crm_projects').select('id').eq('id', body.projectId).eq('owner_id', user.id).single();
         if (p) updates.project_id = body.projectId;
       } else updates.project_id = null;
+    }
+    if (body.maintenancePlanId !== undefined) {
+      if (body.maintenancePlanId) {
+        const { data: plan } = await supabase.from('pro_crm_maintenance_plans').select('id').eq('id', body.maintenancePlanId).eq('owner_id', user.id).maybeSingle();
+        if (plan) {
+          updates.maintenance_plan_id = body.maintenancePlanId;
+          updates.project_id = null;
+        }
+      } else updates.maintenance_plan_id = null;
     }
     if (body.vehicleId !== undefined || body.vehicle_id !== undefined || updates.category !== undefined) {
       let category = typeof updates.category === 'string' ? updates.category : '';

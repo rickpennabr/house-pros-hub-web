@@ -104,6 +104,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         ...toListItem(tool, names, today, upkeepCents, photoUrl),
         usefulLifeYears: Number(tool.useful_life_years),
         salvageCents: tool.salvage_cents,
+        dailyRateCents: tool.daily_rate_cents ?? null,
         yearlyDepreciationCents: toolYearlyDepreciationCents(tool),
         upkeepCents,
         note: tool.note,

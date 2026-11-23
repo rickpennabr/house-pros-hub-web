@@ -1,3 +1,4 @@
+import { logCrmActivity } from '@/lib/activity/log';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { docPlaceLabel } from '@/lib/places/contact-places';
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
     if (error || !row) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
 
     const ownerId = row.owner_id;
+    await logCrmActivity({ ownerId, customerId: row.customer_id, kind: 'invoice_viewed', invoiceId: row.id });
     const { data: customer } = await supabase
       .from('pro_crm_customers')
       .select('first_name, last_name, display_name, company_name, billing_address_street_1, billing_address_street_2, billing_address_city, billing_address_state, billing_address_zip_code, billing_address_country, street_address, city, state, zip_code')

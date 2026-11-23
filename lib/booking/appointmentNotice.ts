@@ -7,6 +7,7 @@ import { safeTimeZone } from '@/lib/booking/dayOfReminder';
 import { sendProEstimateBookingCustomerEmail, sendProEstimateBookingProEmail } from '@/lib/services/emailService';
 import type { ProEstimateBookingEmailData } from '@/lib/utils/emailTemplates';
 import { logger } from '@/lib/utils/logger';
+import { resolvePublicSiteUrl } from '@/lib/utils/publicSiteUrl';
 
 type ServiceClient = SupabaseClient<Database>;
 
@@ -142,5 +143,5 @@ function joinName(first: string | null | undefined, last: string | null | undefi
 }
 
 export function originFromRequest(request: { nextUrl: { origin: string } }): string {
-  return (process.env.NEXT_PUBLIC_APP_URL?.trim() || request.nextUrl.origin).replace(/\/$/, '');
+  return resolvePublicSiteUrl(request.nextUrl.origin);
 }

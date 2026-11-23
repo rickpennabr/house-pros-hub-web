@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { laborRateFromBody, saveContactLaborRate } from '@/lib/crm/job-links';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
 import { parseRoleIds, replaceContactRoles, rolesByContactId } from '@/lib/crm/contact-role';
@@ -122,6 +123,7 @@ export async function PUT(
       .eq('id', id)
       .eq('owner_id', user.id);
 
+    if (!updateError) await saveContactLaborRate(supabase, user.id, id, laborRateFromBody(body.labor_cost_cents_per_hour));
     if (updateError) {
       const taken = updateError.code === '23505';
       return NextResponse.json(

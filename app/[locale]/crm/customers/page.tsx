@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, MapPin, FileText, FileCheck, FolderOpen, PlusCircle, Mail, Globe, Filter, LayoutGrid, User, Truck, HardHat, Briefcase, Tag, type LucideIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, MoreVertical, ArrowLeft, AlertTriangle, MapPin, Mail, Globe, Filter, LayoutGrid, User, Truck, HardHat, Briefcase, Tag, type LucideIcon } from 'lucide-react';
 import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import Pagination from '@/components/ui/Pagination';
@@ -21,6 +21,9 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useScrollPosition } from '@/hooks/useScrollPosition';
 import { useWindowDimensions } from '@/hooks/useWindowDimensions';
 import CustomerCard from '@/components/crm/CustomerCard';
+import { ContactActionMenuItems } from '@/components/crm/ContactActionMenuItems';
+import { AddToJobModal } from '@/components/crm/AddToJobModal';
+import { contactActionsFor, crewRoleOf, type ContactActionId } from '@/lib/crm/contact-actions';
 import AddTaskModal from '@/components/crm/AddTaskModal';
 import CustomerQuickActionsBar from '@/components/crm/CustomerQuickActionsBar';
 import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
@@ -224,6 +227,8 @@ export default function CRMCustomersPage() {
   const [deleting, setDeleting] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [taskCustomerContext, setTaskCustomerContext] = useState<{ id: string; name: string } | null>(null);
+  const [jobContact, setJobContact] = useState<{ id: string; name: string; roleId: string; roleName: string } | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
   /** The contact just added: asks what to do next (estimate, invoice, payment link…). */
   const [newContact, setNewContact] = useState<NewContactSummary | null>(null);
 
@@ -356,6 +361,7 @@ export default function CRMCustomersPage() {
           paymentTerms: empty(data.payment_terms),
           invoiceLanguage: data.invoice_language === 'es' ? 'es' : 'en',
           openingBalance: num(data.opening_balance),
+          laborCost: typeof data.labor_cost_cents_per_hour === 'number' ? (data.labor_cost_cents_per_hour / 100).toFixed(2) : '',
           roleIds: Array.isArray(data.roles) ? data.roles.map((role: { id: string }) => role.id) : [],
         });
       })
@@ -474,6 +480,45 @@ export default function CRMCustomersPage() {
     </button>
   ) : null;
 
+
+  // Roles of the contact open in the edit view: from the list row, or from the loaded form.
+  const editingRoles =
+    customers.find((row) => row.id === editingId)?.roles ??
+    roleCatalog.filter((role) => editingInitial?.roleIds?.includes(role.id));
+
+  /** One handler for the contact menus (card, list and table). Only role-fitting actions are offered. */
+  const runContactAction = (action: ContactActionId, id: string) => {
+    const row = customers.find((customerRow) => customerRow.id === id);
+    const name = row ? customerDisplayName(row) : id === editingId ? editingCustomerName : 'Contact';
+    const roles = row?.roles ?? (id === editingId ? editingRoles : []);
+    switch (action) {
+      case 'portal':
+        router.push(`/${locale}/crm/portal?customerId=${id}`);
+        return;
+      case 'estimate':
+        router.push(`/${locale}/crm/estimates?customerId=${id}`);
+        return;
+      case 'invoice':
+        router.push(`/${locale}/crm/invoices/new?customerId=${id}`);
+        return;
+      case 'project':
+        router.push(`/${locale}/crm/projects?customerId=${id}`);
+        return;
+      case 'expense':
+        router.push(`/${locale}/crm/expenses?new=1&supplierId=${id}`);
+        return;
+      case 'addToJob': {
+        const role = crewRoleOf(roles);
+        if (role) setJobContact({ id, name, roleId: role.id, roleName: role.name });
+        return;
+      }
+      case 'task':
+        setTaskCustomerContext({ id, name });
+        setShowAddTaskModal(true);
+        return;
+    }
+  };
+
   return (
     <div className={`w-full ${bottomPadding}`}>
       {viewMode === 'table' && (
@@ -504,11 +549,11 @@ export default function CRMCustomersPage() {
               customerDisplayId={editingDisplayId}
               phoneHref={editingPhoneHref}
               onBack={() => { setViewMode('table'); setEditingId(null); setEditingInitial(null); }}
-              onAddEstimate={() => router.push(`/${locale}/crm/estimates?customerId=${editingId}`)}
-              onAddInvoice={() => router.push(`/${locale}/crm/invoices/new?customerId=${editingId}`)}
-              onAddProject={() => router.push(`/${locale}/crm/projects?customerId=${editingId}`)}
-              onScheduleTask={() => setShowAddTaskModal(true)}
-              onStatement={() => setStatementCustomerId(editingId)}
+              actions={contactActionsFor(editingRoles)}
+              onAction={(action) => {
+                if (editingId) runContactAction(action, editingId);
+              }}
+              onStatement={contactActionsFor(editingRoles).includes('invoice') ? () => setStatementCustomerId(editingId) : undefined}
             />
           )}
           {viewMode === 'edit' && editingId && (
@@ -647,16 +692,7 @@ export default function CRMCustomersPage() {
                         customer={row}
                         compact={listView === 'list'}
                         onEdit={(id) => { setEditingId(id); setViewMode('edit'); }}
-                        onCreateInvoice={(id) => router.push(`/${locale}/crm/invoices/new?customerId=${id}`)}
-                        onCreateEstimate={(id) => router.push(`/${locale}/crm/estimates?customerId=${id}`)}
-                        onCreateProject={(id) => router.push(`/${locale}/crm/projects?customerId=${id}`)}
-                        onScheduleTask={(id) => {
-                          const customer = customers.find((customerRow) => customerRow.id === id);
-                          if (customer) {
-                            setTaskCustomerContext({ id: customer.id, name: customerDisplayName(customer) });
-                            setShowAddTaskModal(true);
-                          }
-                        }}
+                        onAction={runContactAction}
                         onDelete={(id) => {
                           const c = customers.find((x) => x.id === id);
                           if (c) setDeleteConfirm({ id: c.id, firstName: c.first_name, lastName: c.last_name });
@@ -847,62 +883,15 @@ export default function CRMCustomersPage() {
               transform: menuPosition.above ? 'translateY(-100%)' : undefined,
             }}
           >
-            <button
-              type="button"
-              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
+            <ContactActionMenuItems
+              actions={contactActionsFor(customers.find((c) => c.id === openActionsId)?.roles)}
+              onAction={(action) => {
+                const id = openActionsId;
                 setOpenActionsId(null);
                 setMenuPosition(null);
-                if (openActionsId) router.push(`/${locale}/crm/invoices/new?customerId=${openActionsId}`);
+                runContactAction(action, id);
               }}
-            >
-              <FileText className="w-3.5 h-3.5 shrink-0" />
-              Create invoice
-            </button>
-            <button
-              type="button"
-              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpenActionsId(null);
-                setMenuPosition(null);
-                if (openActionsId) router.push(`/${locale}/crm/estimates?customerId=${openActionsId}`);
-              }}
-            >
-              <FileCheck className="w-3.5 h-3.5 shrink-0" />
-              Create estimate
-            </button>
-            <button
-              type="button"
-              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpenActionsId(null);
-                setMenuPosition(null);
-                if (openActionsId) router.push(`/${locale}/crm/projects?customerId=${openActionsId}`);
-              }}
-            >
-              <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-              Create project
-            </button>
-            <button
-              type="button"
-              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                const row = customers.find((c) => c.id === openActionsId);
-                if (row) {
-                  setTaskCustomerContext({ id: row.id, name: customerDisplayName(row) });
-                  setShowAddTaskModal(true);
-                }
-                setOpenActionsId(null);
-                setMenuPosition(null);
-              }}
-            >
-              <PlusCircle className="w-3.5 h-3.5 shrink-0" />
-              Schedule task
-            </button>
+            />
             {(() => {
               const row = customers.find((c) => c.id === openActionsId);
               if (!row) return null;
@@ -1016,6 +1005,26 @@ export default function CRMCustomersPage() {
           setNewContact(null);
         }}
       />
+
+      <AddToJobModal
+        contact={jobContact}
+        onClose={() => setJobContact(null)}
+        onAdded={(projectName) => {
+          const who = jobContact?.name ?? 'Contact';
+          setActionNotice(projectName ? `${who} was added to ${projectName}.` : `${who} was added to the job.`);
+        }}
+      />
+      {actionNotice ? (
+        <div
+          role="status"
+          className="fixed bottom-24 left-1/2 z-[110] flex -translate-x-1/2 items-center gap-3 rounded-lg bg-black px-4 py-2 text-sm text-white shadow-lg"
+        >
+          {actionNotice}
+          <button type="button" onClick={() => setActionNotice(null)} className="font-medium text-red-400">
+            OK
+          </button>
+        </div>
+      ) : null}
 
       <AddTaskModal
         isOpen={showAddTaskModal}

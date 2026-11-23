@@ -4,6 +4,7 @@ import { adminSessionVerified } from '@/lib/auth/admin-mfa';
 import { PRO_DRIVE_BUCKET, PRO_DRIVE_SIGNED_URL_SECONDS } from '@/lib/drive/constants';
 import type { Database } from '@/lib/types/supabase';
 import { getPublicBusiness } from '@/lib/data/businessDirectory';
+import { isHubMemberRow } from '@/lib/feed/members';
 import type { ProCardData } from '@/components/proscard/ProCard';
 import {
   FEED_FILTER_KINDS,
@@ -94,9 +95,11 @@ export async function loadFeedPage(options: {
     throw new Error(error.message);
   }
   const rows = (data ?? []) as FeedRow[];
-  const pageRows = rows.slice(0, FEED_PAGE_SIZE);
-  const last = pageRows[pageRows.length - 1];
+  const fetchedPage = rows.slice(0, FEED_PAGE_SIZE);
+  const last = fetchedPage[fetchedPage.length - 1];
   const nextCursor = rows.length > FEED_PAGE_SIZE && last ? `${last.occurred_at}|${last.id}` : null;
+  // Hub members only (the database enforces this too, migration 162).
+  const pageRows = fetchedPage.filter(isHubMemberRow);
 
   // Business slugs for "Book this pro" / "View pro".
   const businessIds = [...new Set(pageRows.map((r) => r.business_id).filter((v): v is string => !!v))];

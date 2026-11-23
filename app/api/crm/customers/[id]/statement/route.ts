@@ -1,3 +1,4 @@
+import { logCrmActivity } from '@/lib/activity/log';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { contactDisplayName } from '@/lib/crm/contact-name';
@@ -111,6 +112,7 @@ export async function POST(
       statement.email
     );
     if (!result.success) return NextResponse.json({ error: result.error || 'Could not send the statement' }, { status: 500 });
+    await logCrmActivity({ ownerId: user.id, customerId: id, kind: 'statement_sent', detail: statement.email });
     return NextResponse.json({ ok: true, sentTo: statement.email });
   } catch (err) {
     console.error('POST /api/crm/customers/[id]/statement', err);

@@ -4,14 +4,18 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import Link from 'next/link';
-import { ArrowLeft, Pencil, Printer, Download, Send, FileText, Image, Loader2, Link2, Tablet, Building2 } from 'lucide-react';
+import { ArrowLeft, Printer, Download, Send, FileText, Image, Loader2, Link2, Tablet, BellRing } from 'lucide-react';
 import { BsGrid3X3Gap } from 'react-icons/bs';
 import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
 import { invoiceTakesPayLink, payLinkQrDataUrl } from '@/lib/invoices/payLink';
+import { invoiceDueState } from '@/lib/invoices/dueState';
+import { InvoiceReminderDialog } from '@/components/crm/InvoiceReminderDialog';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { InvoiceTemplate } from '@/components/invoices/InvoiceTemplate';
+import { InvoiceViewPreview, InvoiceViewTabs, type InvoiceView } from '@/components/invoices/InvoiceViews';
+import { InvoiceEditPanel } from '@/components/invoices/InvoiceEditPanel';
 import { InvoiceCompanyEditor } from '@/components/invoices/InvoiceCompanyEditor';
 import { InvoiceLedger, type LedgerEvent, type LedgerPayment } from '@/components/crm/InvoiceLedger';
 import type { ProInvoiceStatus } from '@/lib/crm/invoice-books';
@@ -33,6 +37,7 @@ export default function CRMInvoiceDetailPage() {
   const [linking, setLinking] = useState(false);
   const [presenting, setPresenting] = useState(false);
   const [actionsGridOpen, setActionsGridOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
   const [payLink, setPayLink] = useState<{ url: string; qr: string | null } | null>(null);
   /** Came from "Send payment link" on a new contact: show the payment link panel first. */
   const searchParams = useSearchParams();
@@ -40,6 +45,8 @@ export default function CRMInvoiceDetailPage() {
   const payPanel = searchParams.get('pay') === '1' && !payDismissed;
   const [companyEditorOpen, setCompanyEditorOpen] = useState(false);
   const [companySaving, setCompanySaving] = useState(false);
+  /** Invoice (this page), or what the customer gets: the email, the pay page, the PDF. */
+  const [view, setView] = useState<InvoiceView>('edit');
   const [data, setData] = useState<{
     invoice: InvoiceTemplateInvoice;
     customer: InvoiceTemplateCustomer | null;
@@ -139,6 +146,16 @@ export default function CRMInvoiceDetailPage() {
   }, [id, wantsPayLink]);
 
   const handlePrint = () => {
+    // Print always prints the invoice itself: leave a preview tab first.
+    if (view !== 'edit') {
+      setView('edit');
+      window.setTimeout(printNow, 50);
+      return;
+    }
+    printNow();
+  };
+
+  const printNow = () => {
     // The tab title becomes the "Save as PDF" file name.
     const previousTitle = document.title;
     const number = data?.invoice.invoice_number;
@@ -274,6 +291,7 @@ export default function CRMInvoiceDetailPage() {
   }
 
   const { invoice, customer, business, themeColorHex, attachments, customerEmail, payments, events } = data;
+  const dueState = invoiceDueState(invoice);
   const displayCustomer: InvoiceTemplateCustomer = customer ?? {
     first_name: '',
     last_name: '',
@@ -299,6 +317,8 @@ export default function CRMInvoiceDetailPage() {
   }
 
   const balanceDue = invoice.status !== 'cancelled' && invoice.amount_cents - (invoice.payment_applied_cents ?? 0) > 0;
+  /** The "Edit invoice" tab edits right here; a cancelled invoice is read-only. */
+  const editing = view === 'edit' && invoice.status !== 'cancelled';
 
   return (
     <div className="w-full">
@@ -320,7 +340,7 @@ export default function CRMInvoiceDetailPage() {
           {linkNote ? <p className="mt-2 text-sm text-gray-700">{linkNote}</p> : null}
         </div>
       ) : null}
-      <div className="flex flex-wrap items-center justify-between gap-4 py-2 mb-6 no-print">
+      <div className="flex flex-wrap items-center justify-between gap-4 py-2 mb-2 md:mb-6 no-print">
         <Link
           href={`/${locale}/crm/invoices`}
           className="flex items-center gap-2 text-gray-700 hover:text-black font-medium"
@@ -341,18 +361,16 @@ export default function CRMInvoiceDetailPage() {
               Send invoice
             </Button>
           )}
-          {invoice.status === 'draft' && (
-            <>
-              <Link href={`/${locale}/crm/invoices/${id}/edit`}>
-                <Button variant="secondary" size="sm" className="flex items-center gap-2">
-                  <Pencil className="w-4 h-4" />
-                  Edit invoice
-                </Button>
-              </Link>
-              <Button variant="secondary" size="sm" onClick={() => setCompanyEditorOpen(true)} className="flex items-center gap-2">
-                Edit company information
-              </Button>
-            </>
+          {dueState.canRemind && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setReminderOpen(true)}
+              className="flex items-center gap-2 border-red-600 text-red-700"
+            >
+              <BellRing className="w-4 h-4" />
+              Send reminder
+            </Button>
           )}
           {invoice.status !== 'cancelled' && invoice.amount_cents - (invoice.payment_applied_cents ?? 0) > 0 && (
             <>
@@ -402,6 +420,16 @@ export default function CRMInvoiceDetailPage() {
         {linkNote ? <p className="mt-2 text-sm text-gray-700">{linkNote}</p> : null}
       </div>
 
+      <InvoiceReminderDialog
+        invoiceId={reminderOpen && id ? id : null}
+        invoiceNumber={invoice.invoice_number}
+        onClose={() => setReminderOpen(false)}
+        onSent={(to) => {
+          setLinkNote(`Reminder sent to ${to}.`);
+          void refetchInvoice().catch(() => undefined);
+        }}
+      />
+
       <MobileGridActionsModal
         isOpen={actionsGridOpen}
         onClose={() => setActionsGridOpen(false)}
@@ -410,10 +438,11 @@ export default function CRMInvoiceDetailPage() {
           ...(invoice.status !== 'cancelled'
             ? [{ id: 'send', label: 'Send invoice', icon: Send, onClick: () => { setActionsGridOpen(false); openSendDialog(); } }]
             : []),
-          ...(invoice.status === 'draft'
+          ...(dueState.canRemind
+            ? [{ id: 'remind', label: 'Send reminder', icon: BellRing, onClick: () => { setActionsGridOpen(false); setReminderOpen(true); } }]
+            : []),
+          ...(invoice.status !== 'cancelled'
             ? [
-                { id: 'edit', label: 'Edit invoice', icon: Pencil, href: `/${locale}/crm/invoices/${id}/edit` },
-                { id: 'company', label: 'Edit company info', icon: Building2, onClick: () => { setActionsGridOpen(false); setCompanyEditorOpen(true); } },
               ]
             : []),
           ...(invoice.status !== 'cancelled' && invoice.amount_cents - (invoice.payment_applied_cents ?? 0) > 0
@@ -541,16 +570,43 @@ export default function CRMInvoiceDetailPage() {
         </div>
       </Modal>
 
-      <div ref={printRef} className="max-w-4xl mx-auto">
-        <InvoiceTemplate
-          invoice={invoice}
-          customer={displayCustomer}
-          business={displayBusiness}
-          themeColor={themeColorHex}
-          forPrint={false}
-          payUrl={wantsPayLink ? payLink?.url : null}
-          payQrDataUrl={wantsPayLink ? payLink?.qr : null}
+      <div className="w-full">
+        <InvoiceViewTabs
+          view={view}
+          onChange={setView}
         />
+        {view !== 'edit' ? (
+          <InvoiceViewPreview
+            view={view}
+            invoice={invoice}
+            customer={displayCustomer}
+            business={displayBusiness}
+            themeColor={themeColorHex}
+            locale={locale}
+          />
+        ) : null}
+      </div>
+
+      {/* The "Edit invoice" tab is the editor itself (like QuickBooks). A cancelled invoice only shows. */}
+      {editing ? (
+        <div className="w-full no-print">
+          <InvoiceEditPanel id={id} onSaved={() => void refetchInvoice().catch(() => undefined)} />
+        </div>
+      ) : null}
+
+      <div ref={printRef} className={`w-full ${view !== 'edit' ? 'hidden' : ''}`}>
+        {/* While editing, the finished invoice stays in the page (hidden) so Print still prints it. */}
+        <div className={editing ? 'hidden' : ''}>
+          <InvoiceTemplate
+            invoice={invoice}
+            customer={displayCustomer}
+            business={displayBusiness}
+            themeColor={themeColorHex}
+            forPrint={false}
+            payUrl={wantsPayLink ? payLink?.url : null}
+            payQrDataUrl={wantsPayLink ? payLink?.qr : null}
+          />
+        </div>
         <InvoiceLedger
           invoiceId={id}
           status={invoice.status}
@@ -559,7 +615,7 @@ export default function CRMInvoiceDetailPage() {
           events={events}
           onChanged={refetchInvoice}
         />
-        {attachments.length > 0 && (
+        {attachments.length > 0 && !editing && (
           <div className="mt-8 pt-6 border-t border-gray-200 no-print">
             <p className="text-xs font-semibold uppercase text-gray-600 mb-2">Attachments</p>
             <ul className="space-y-2">
@@ -588,7 +644,7 @@ export default function CRMInvoiceDetailPage() {
         )}
       </div>
 
-      {invoice.status === 'draft' && (
+      {invoice.status !== 'cancelled' && (
         <InvoiceCompanyEditor
           isOpen={companyEditorOpen}
           onClose={() => setCompanyEditorOpen(false)}

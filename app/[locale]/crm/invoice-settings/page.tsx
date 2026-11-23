@@ -24,6 +24,12 @@ interface InvoiceSettings {
   default_payment_terms?: string | null;
   default_note?: string | null;
   footer_text?: string | null;
+  payment_instructions?: string | null;
+  reminder_message?: string | null;
+  company_address?: string | null;
+  company_email?: string | null;
+  company_phone?: string | null;
+  company_website?: string | null;
 }
 
 interface BusinessOption {
@@ -54,6 +60,14 @@ export default function CRMInvoiceSettingsPage() {
   const [defaultPaymentTerms, setDefaultPaymentTerms] = useState('Due on receipt');
   const [defaultNote, setDefaultNote] = useState('');
   const [footerText, setFooterText] = useState('');
+  const [paymentInstructions, setPaymentInstructions] = useState('');
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
+  const [previewTab, setPreviewTab] = useState<'reminder' | 'invoice'>('reminder');
+  const [previewKey, setPreviewKey] = useState(0);
   /** Uploaded invoice logo; null uses the business logo. */
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [businessLogo, setBusinessLogo] = useState<{ url: string; businessName: string } | null>(null);
@@ -87,6 +101,12 @@ export default function CRMInvoiceSettingsPage() {
       setDefaultPaymentTerms(s.default_payment_terms || 'Due on receipt');
       setDefaultNote(s.default_note ?? '');
       setFooterText(s.footer_text ?? '');
+      setPaymentInstructions(s.payment_instructions ?? '');
+      setReminderMessage(s.reminder_message ?? '');
+      setCompanyAddress(s.company_address ?? '');
+      setCompanyEmail(s.company_email ?? '');
+      setCompanyPhone(s.company_phone ?? '');
+      setCompanyWebsite(s.company_website ?? '');
       setLogoUrl(s.logo_url ?? null);
     }
     setBusinessLogo(settingsRes.businessLogo ?? null);
@@ -123,12 +143,19 @@ export default function CRMInvoiceSettingsPage() {
           defaultPaymentTerms: defaultPaymentTerms.trim() || null,
           defaultNote: defaultNote.trim() || null,
           footerText: footerText.trim() || null,
+          paymentInstructions: paymentInstructions.trim() || null,
+          reminderMessage: reminderMessage.trim() || null,
+          companyAddress: companyAddress.trim() || null,
+          companyEmail: companyEmail.trim() || null,
+          companyPhone: companyPhone.trim() || null,
+          companyWebsite: companyWebsite.trim() || null,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to save');
       if (data.settings) setSettings(data.settings);
       setSaved(true);
+      setPreviewKey((k) => k + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
@@ -378,6 +405,32 @@ export default function CRMInvoiceSettingsPage() {
           />
         </FormField>
 
+        <h2 className="text-base font-semibold text-gray-900 pt-4">Company information</h2>
+        <p className="text-xs text-gray-500 -mt-2">
+          Printed at the top of every invoice. Leave a field blank to use what is on your business profile.
+        </p>
+        <FormField label="Address">
+          <textarea
+            value={companyAddress}
+            onChange={(e) => setCompanyAddress(e.target.value)}
+            rows={2}
+            maxLength={500}
+            placeholder="Street, city, state, ZIP"
+            className="w-full rounded-lg border-2 border-black px-3 py-2 text-sm focus:outline-none"
+          />
+        </FormField>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Email">
+            <Input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} placeholder="billing@company.com" />
+          </FormField>
+          <FormField label="Phone">
+            <Input type="tel" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} placeholder="(555) 123-4567" />
+          </FormField>
+        </div>
+        <FormField label="Website">
+          <Input value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} placeholder="https://example.com" />
+        </FormField>
+
         <h2 className="text-base font-semibold text-gray-900 pt-4">Numbering</h2>
         <FormField label="Invoice number prefix">
           <Input
@@ -443,6 +496,68 @@ export default function CRMInvoiceSettingsPage() {
             Printed at the bottom of every invoice, on screen and in the PDF: payment instructions, license number, terms and conditions.
           </p>
         </FormField>
+
+        <h2 className="text-base font-semibold text-gray-900 pt-4">Payment reminders</h2>
+        <FormField label="Other ways to pay (optional)">
+          <textarea
+            value={paymentInstructions}
+            onChange={(e) => setPaymentInstructions(e.target.value)}
+            rows={3}
+            maxLength={1000}
+            placeholder={'e.g. Zelle: billing@example.com\nChecks payable to The Paver Pro'}
+            className="w-full rounded-lg border-2 border-black px-3 py-2 text-sm focus:outline-none"
+          />
+          <p className="text-xs text-gray-500 mt-1">Shown on reminder emails under the card pay button.</p>
+        </FormField>
+        <FormField label="Default reminder message (optional)">
+          <textarea
+            value={reminderMessage}
+            onChange={(e) => setReminderMessage(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder="e.g. Just a friendly nudge. Let me know if you have any questions about the work."
+            className="w-full rounded-lg border-2 border-black px-3 py-2 text-sm focus:outline-none"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Filled in when you send a reminder from an invoice&apos;s menu (Send reminder appears once an invoice is due).
+          </p>
+        </FormField>
+
+        <h2 className="text-base font-semibold text-gray-900 pt-4">Previews</h2>
+        <p className="text-xs text-gray-500">Sample data with your saved branding. Save to refresh.</p>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {([
+            ['reminder', 'Reminder email'],
+            ['invoice', 'Invoice email'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setPreviewTab(key)}
+              className={`shrink-0 rounded-lg border-2 border-black px-3 py-1.5 text-sm font-medium ${previewTab === key ? 'bg-black text-white' : 'bg-white'}`}
+            >
+              {label}
+            </button>
+          ))}
+          <Link
+            href={`/${locale}/crm/invoices`}
+            className="shrink-0 rounded-lg border-2 border-black bg-white px-3 py-1.5 text-sm font-medium"
+          >
+            Invoice, PDF &amp; payer views →
+          </Link>
+        </div>
+        <div className="overflow-hidden rounded-lg border-2 border-gray-200">
+          <iframe
+            key={`${previewTab}-${previewKey}`}
+            title="Email preview"
+            src={`/api/crm/invoice-settings/preview?kind=${previewTab}`}
+            className="h-[520px] w-full bg-gray-100"
+            sandbox=""
+          />
+        </div>
+        <p className="text-xs text-gray-500">
+          Open any invoice to see the invoice view, Download PDF, Copy payment link (what the payer sees) and Edit.
+        </p>
 
         <div className="flex items-center gap-3 pt-2 pb-12">
           <Button type="submit" variant="primary" size="sm" disabled={saving}>

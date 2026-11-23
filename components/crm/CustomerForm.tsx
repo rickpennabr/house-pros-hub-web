@@ -18,6 +18,12 @@ import { CONTACT_ADDRESS_NAME } from '@/lib/places/contact-address';
 import { autoNickname, nextNickname } from '@/lib/places/auto-nickname';
 import { combinedPersonName } from '@/lib/crm/contact-name';
 
+/** Labor cost field to cents: empty clears it. */
+function laborCostCents(value: string | undefined): number | null {
+  const dollars = Number(value ?? '');
+  return !value || value.trim() === '' || !Number.isFinite(dollars) || dollars < 0 ? null : Math.round(dollars * 100);
+}
+
 export type CRMCustomerFormData = {
   displayId: string;
   firstName: string;
@@ -54,6 +60,8 @@ export type CRMCustomerFormData = {
   paymentTerms: string;
   invoiceLanguage: 'en' | 'es';
   openingBalance: string;
+  /** Dollars per hour this person costs you (employees, subs). Feeds job labor cost. */
+  laborCost?: string;
   roleIds?: string[];
 };
 
@@ -93,6 +101,7 @@ export const emptyForm: CRMCustomerFormData = {
   paymentTerms: 'Due on receipt',
   invoiceLanguage: 'en',
   openingBalance: '',
+  laborCost: '',
 };
 
 const CRM_ACCORDION_KEYS = ['nameAndContact', 'addresses', 'notesAndAttachments', 'payments'] as const;
@@ -309,6 +318,7 @@ export function CustomerForm({
             payment_terms: trim(form.paymentTerms) || null,
             invoice_language: form.invoiceLanguage,
             opening_balance: form.openingBalance === '' ? null : parseFloat(form.openingBalance) || 0,
+            labor_cost_cents_per_hour: laborCostCents(form.laborCost),
             role_ids: roleIds,
           }
         : {
@@ -345,6 +355,7 @@ export function CustomerForm({
             payment_terms: trim(form.paymentTerms) || null,
             invoice_language: form.invoiceLanguage,
             opening_balance: form.openingBalance === '' ? null : parseFloat(form.openingBalance) || 0,
+            labor_cost_cents_per_hour: laborCostCents(form.laborCost),
             role_ids: roleIds,
           };
       const res = await fetch(url, {
@@ -657,6 +668,20 @@ export function CustomerForm({
               <option value="en">English</option>
               <option value="es">Spanish</option>
             </select>
+          </FormField>
+          <FormField
+            label="Labor cost per hour ($)"
+            tip="What this person costs you per hour (pay plus taxes). Hours you log for them on a project count as labor on that job's financial report. For employees and subcontractors."
+          >
+            <Input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={form.laborCost ?? ''}
+              onChange={(e) => update('laborCost', e.target.value)}
+              placeholder="0.00"
+            />
           </FormField>
           <FormField label="Opening balance">
             <Input type="number" step="0.01" value={form.openingBalance} onChange={(e) => update('openingBalance', e.target.value)} placeholder="0.00" />

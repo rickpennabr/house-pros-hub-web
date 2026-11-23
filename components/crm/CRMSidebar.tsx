@@ -103,13 +103,8 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
   const realtorCalendarOnly = (roles as string[]).includes('realtor') && !roles.includes('contractor');
   const navItems: NavItem[] = (
   [
-    { href: base, labelKey: 'crmDashboard', icon: LayoutDashboard },
-    { href: `${base}/customers`, labelKey: 'crmCustomers', icon: Users },
-    { href: `${base}/estimates`, labelKey: 'crmEstimates', icon: FileText },
-    { href: `${base}/invoices`, labelKey: 'crmInvoices', icon: FileCheck },
-    { href: `${base}/projects`, labelKey: 'crmProjects', icon: FolderKanban },
-    { href: `${base}/portal`, labelKey: 'crmPortal', icon: Home },
-    { href: `${base}/jobsite`, labelKey: 'crmJobsite', icon: Camera },
+    // Default order for a first visit; the pro can drag to reorder.
+    { href: `${base}/protrades`, labelKey: 'crmProTrades', icon: ProTradesNavIcon },
     // ProTrades tools show only while their trade is on.
     ...(tradeOn('landscape')
       ? [
@@ -126,14 +121,20 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
         ]
       : []),
     ...(tradeOn('hardscape') ? [{ href: `${base}/protrades/hardscape`, labelKey: 'crmHardscape', icon: HardscapeIcon, iconClass: TRADES.hardscape.color.text }] : []),
-    { href: `${base}/protrades`, labelKey: 'crmProTrades', icon: ProTradesNavIcon },
+    { href: base, labelKey: 'crmDashboard', icon: LayoutDashboard },
+    { href: `${base}/portal`, labelKey: 'crmPortal', icon: Home },
+    { href: `${base}/customers`, labelKey: 'crmCustomers', icon: Users },
+    { href: `${base}/estimates`, labelKey: 'crmEstimates', icon: FileText },
+    { href: `${base}/invoices`, labelKey: 'crmInvoices', icon: FileCheck },
+    { href: `${base}/projects`, labelKey: 'crmProjects', icon: FolderKanban },
+    { href: `${base}/jobsite`, labelKey: 'crmJobsite', icon: Camera },
+    { href: `${base}/calendar`, labelKey: 'crmCalendar', icon: Calendar },
     { href: `${base}/expenses`, labelKey: 'crmExpenses', icon: Receipt },
     { href: `${base}/mileage`, labelKey: 'crmMileage', icon: Car },
     { href: `${base}/tools`, labelKey: 'crmTools', icon: Hammer },
     { href: `${base}/reports`, labelKey: 'crmReports', icon: BarChart3 },
     { href: `${base}/services`, labelKey: 'crmServices', icon: Shovel },
     { href: `${base}/products`, labelKey: 'crmProducts', icon: Package },
-    { href: `${base}/calendar`, labelKey: 'crmCalendar', icon: Calendar },
     { href: `${base}/qrcode`, labelKey: 'crmQrcode', icon: QrCode },
   ] as NavItem[]
   ).filter((item) => !realtorCalendarOnly || item.href.endsWith('/calendar') || item.href.endsWith('/qrcode'));
@@ -150,7 +151,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     }
   }, []);
 
-  // A trade tool turned on after the pro saved an order goes right above ProTrades, not to the bottom.
+  // A trade tool turned on after the pro saved an order goes right under ProTrades, not to the bottom.
   const proTradesHref = `${base}/protrades`;
   const isTradeTool = (href: string) => href.startsWith('group:') || (href.startsWith(`${proTradesHref}/`));
   const orderedNavItems = [...navItems].sort((a, b) => {
@@ -296,7 +297,14 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
           <GripVertical className="h-4 w-4 shrink-0 text-gray-500" />
         </span>
         <Icon className={`mr-3 w-5 h-5 ${item.iconClass ?? 'text-red-600'} transition-transform duration-300 group-hover:scale-110`} />
-        {t(item.labelKey)}
+        {item.href === `${base}/protrades` && !nested ? (
+          <span className="flex flex-col leading-tight">
+            {t(item.labelKey)}
+            <span className="text-[11px] font-normal text-gray-500">CRM on Asteroids</span>
+          </span>
+        ) : (
+          t(item.labelKey)
+        )}
         {leadBadge(item.href)}
       </Link>
     );

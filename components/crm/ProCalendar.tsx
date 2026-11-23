@@ -10,11 +10,15 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import Modal from '@/components/ui/Modal';
 import AddTaskModal from '@/components/crm/AddTaskModal';
+import Accordion from '@/components/ui/Accordion';
+import { RecurringBusyTimes, useRecurringBlocks } from '@/components/crm/RecurringBusyTimes';
+import { recurringOccurrences } from '@/lib/booking/recurringBlocks';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import {
   BUSINESS_TIMEZONES,
   DAY_KEYS,
   SLOT_MINUTE_OPTIONS,
+  BUFFER_MINUTE_OPTIONS,
   addDaysToDateKey,
   cloneSchedule,
   dateKeyInZone,
@@ -35,6 +39,7 @@ interface HoursBusiness {
   businessName: string;
   timezone: string;
   slotMinutes: SlotMinutes;
+  bufferMinutes?: number;
   bookingEnabled: boolean;
   schedule: WeekSchedule;
   hoursConfigured: boolean;
@@ -47,6 +52,9 @@ interface Block {
   end_at: string;
   note: string | null;
 }
+
+/** Calendar ids of repeating busy times: "recurring:<blockId>:<n>". */
+const RECURRING_PREFIX = 'recurring:';
 
 interface TaskItem {
   id: string;
@@ -149,12 +157,14 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
   const [schedule, setSchedule] = useState<WeekSchedule | null>(null);
   const [timezone, setTimezone] = useState('America/Los_Angeles');
   const [slotMinutes, setSlotMinutes] = useState<SlotMinutes>(90);
+  const [bufferMinutes, setBufferMinutes] = useState(0);
   const [bookingEnabled, setBookingEnabled] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(true);
   const [savingHours, setSavingHours] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [storedBlocks, setBlocks] = useState<Block[]>([]);
+  const { blocks: recurringBlocks, reload: reloadRecurring } = useRecurringBlocks();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,6 +205,7 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
     setSchedule(cloneSchedule(current.schedule));
     setTimezone(current.timezone);
     setSlotMinutes(current.slotMinutes);
+    setBufferMinutes(current.bufferMinutes ?? 0);
     setBookingEnabled(current.bookingEnabled);
   }, [businessId, businesses]);
 
@@ -211,6 +222,20 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
       return localKey(day);
     });
   }, [cursor, view]);
+
+  /** One-off blocks plus every repeating busy time in view, shown and treated as time off. */
+  const blocks = useMemo<Block[]>(() => {
+    const fromDay = visibleDays[0] ?? cursor;
+    const toDay = visibleDays[visibleDays.length - 1] ?? cursor;
+    const repeats = recurringOccurrences(recurringBlocks, fromDay, toDay, timezone).map((item, index) => ({
+      id: `${RECURRING_PREFIX}${item.block.id}:${index}`,
+      type: 'unavailable' as const,
+      start_at: item.start,
+      end_at: item.end,
+      note: item.block.note ? `${t('repeatLabel')} · ${item.block.note}` : t('repeatLabel'),
+    }));
+    return [...storedBlocks, ...repeats];
+  }, [storedBlocks, recurringBlocks, visibleDays, cursor, timezone, t]);
 
   const loadCalendar = useCallback(async () => {
     const from = fromKey(visibleDays[0] ?? cursor);
@@ -247,6 +272,8 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
     void loadCalendar();
   }, [loadCalendar]);
 
+  const [timezoneOpen, setTimezoneOpen] = useState(true);
+  const [hoursOpen, setHoursOpen] = useState(true);
   const saveHours = async (enabled = bookingEnabled) => {
     if (!businessId || !schedule) return;
     setSavingHours(true);
@@ -261,6 +288,7 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
           businessId,
           timezone,
           slotMinutes,
+          bufferMinutes,
           bookingEnabled: enabled,
           schedule,
         }),
@@ -271,7 +299,7 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
       setBusinesses((current) =>
         current.map((item) =>
           item.id === businessId
-            ? { ...item, timezone, slotMinutes, bookingEnabled: enabled, schedule: cloneSchedule(schedule), hoursConfigured: true }
+            ? { ...item, timezone, slotMinutes, bufferMinutes, bookingEnabled: enabled, schedule: cloneSchedule(schedule), hoursConfigured: true }
             : item
         )
       );
@@ -530,15 +558,22 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
   );
 
   return (
-    <div className="space-y-3 pb-8">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="w-full min-w-0 max-w-full space-y-3 overflow-x-hidden pb-8">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <h1 className="text-2xl font-bold text-black">{t('title')}</h1>
-        <div className="flex shrink-0 gap-2">
-          <Button type="button" size="sm" variant="secondary" onClick={() => setShowAddBlock(true)} className="inline-flex shrink-0 items-center whitespace-nowrap">
+        {/* Phone: one row that scrolls sideways, Add task and Add block first. PC: Copy link, Add block, Add task. */}
+        <div className="-mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:shrink-0 md:overflow-visible md:px-0 md:pb-0">
+          {bookingEnabled && business && (
+            <Button type="button" size="sm" variant="secondary" onClick={() => void copyLink()} className="order-3 inline-flex shrink-0 items-center whitespace-nowrap md:order-1">
+              <Copy className="mr-1 h-4 w-4 shrink-0" />
+              {linkCopied ? t('linkCopied') : t('copyLink')}
+            </Button>
+          )}
+          <Button type="button" size="sm" variant="secondary" onClick={() => setShowAddBlock(true)} className="order-2 inline-flex shrink-0 items-center whitespace-nowrap md:order-2">
             <Plus className="mr-1 h-4 w-4 shrink-0" />
             {t('addBlock')}
           </Button>
-          <Button type="button" size="sm" variant="primary" onClick={() => setShowAddTask(true)} className="inline-flex shrink-0 items-center whitespace-nowrap">
+          <Button type="button" size="sm" variant="primary" onClick={() => setShowAddTask(true)} className="order-1 inline-flex shrink-0 items-center whitespace-nowrap md:order-3">
             <Plus className="mr-1 h-4 w-4 shrink-0" />
             {t('addTask')}
           </Button>
@@ -580,7 +615,14 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
                   {t('acceptAppointments')}
                 </label>
                 <p className="text-xs text-gray-500">{t('freeEstimate')}</p>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <Accordion
+                  title={t('timezoneSection')}
+                  subtitle={`${timezone.replace(/_/g, ' ').replace(/^[A-Za-z]+\//, '')} · ${t('minutes', { count: slotMinutes })}`}
+                  isOpen={timezoneOpen}
+                  onToggle={() => setTimezoneOpen((open) => !open)}
+                >
+                <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-3">
                   <FormField label={t('timezone')}>
                     <Select value={timezone} onChange={(event) => setTimezone(event.target.value)}>
                       {BUSINESS_TIMEZONES.map((zone) => (
@@ -602,12 +644,36 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
                       ))}
                     </Select>
                   </FormField>
+                  <FormField label={t('bufferLength')}>
+                    <Select value={String(bufferMinutes)} onChange={(event) => setBufferMinutes(Number(event.target.value))}>
+                      {BUFFER_MINUTE_OPTIONS.map((minutes) => (
+                        <option key={minutes} value={minutes}>
+                          {minutes === 0 ? t('bufferNone') : t('minutes', { count: minutes })}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
                 </div>
+                <p className="text-xs text-gray-500">{t('bufferHelp')}</p>
+                <div className="flex justify-end">
+                  <Button type="button" size="sm" variant="primary" disabled={savingHours} onClick={() => void saveHours()}>
+                    {savingHours ? t('saving') : t('saveSettings')}
+                  </Button>
+                </div>
+                </div>
+                </Accordion>
+                <Accordion
+                  title={t('hoursSection')}
+                  subtitle={schedule ? t('daysOpen', { count: DAY_KEYS.filter((day) => schedule[day].open).length }) : undefined}
+                  isOpen={hoursOpen}
+                  onToggle={() => setHoursOpen((open) => !open)}
+                >
+                <div className="space-y-3">
                 <p className="text-sm text-gray-600">{t('hoursHint')}</p>
                 {schedule && (
                   <div className="space-y-2">
                     {DAY_KEYS.map((day) => (
-                      <div key={day} className="grid grid-cols-[1.2fr_auto_1fr_1fr] items-center gap-2">
+                      <div key={day} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 md:grid-cols-[1.2fr_auto_1fr_1fr] [&>*:nth-child(n+3)]:col-span-1 max-md:[&>input]:min-w-0">
                         <span className="text-sm font-medium">{weekdayLabel(day, locale)}</span>
                         <label className="flex items-center gap-1 text-xs">
                           <input
@@ -645,17 +711,14 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
                     ))}
                   </div>
                 )}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
                   <Button type="button" size="sm" variant="primary" disabled={savingHours} onClick={() => void saveHours()}>
                     {savingHours ? t('saving') : t('saveHours')}
                   </Button>
-                  {bookingEnabled && business && (
-                    <Button type="button" size="sm" variant="secondary" onClick={() => void copyLink()}>
-                      <Copy className="mr-1 h-4 w-4" />
-                      {linkCopied ? t('linkCopied') : t('copyLink')}
-                    </Button>
-                  )}
                 </div>
+                <RecurringBusyTimes blocks={recurringBlocks} onChanged={() => void reloadRecurring()} />
+                </div>
+                </Accordion>
               </>
             )}
           </div>
@@ -974,18 +1037,23 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
               size="sm"
               variant="secondary"
               onClick={() => {
-                void fetch(`/api/crm/availability/${selectedBlock.id}`, { method: 'DELETE', credentials: 'include' }).then(async (res) => {
+                const recurringId = selectedBlock.id.startsWith(RECURRING_PREFIX)
+                  ? selectedBlock.id.slice(RECURRING_PREFIX.length).split(':')[0]
+                  : null;
+                const url = recurringId ? `/api/crm/recurring-blocks/${recurringId}` : `/api/crm/availability/${selectedBlock.id}`;
+                void fetch(url, { method: 'DELETE', credentials: 'include' }).then(async (res) => {
                   if (!res.ok) {
                     const data = await res.json().catch(() => ({}));
                     setError(data.error || t('saveFailed'));
                     return;
                   }
                   setSelectedBlock(null);
+                  if (recurringId) await reloadRecurring();
                   await loadCalendar();
                 });
               }}
             >
-              {t('deleteBlock')}
+              {selectedBlock.id.startsWith(RECURRING_PREFIX) ? t('repeatStop') : t('deleteBlock')}
             </Button>
           </div>
         )}

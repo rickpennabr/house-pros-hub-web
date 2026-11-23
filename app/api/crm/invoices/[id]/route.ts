@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { linkInvoiceToJob } from '@/lib/crm/job-links';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
 import { applyCompanyDisplay, sanitizeCompanyDisplay } from '@/lib/invoices/companyDisplay';
@@ -6,6 +7,7 @@ import { applyInvoiceBrand } from '@/lib/invoices/invoice-brand';
 import { getDefaultCompanyForInvoice } from '@/lib/invoices/defaultCompany';
 import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
 import { syncBilledExpenses } from '@/lib/crm/job-costs';
+import { statusFromPayments } from '@/lib/crm/invoice-books';
 import { parsePaidNow, settleInvoicePaidInFull } from '@/lib/crm/invoice-payments';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import { dropDocEventsOffPlace, pickDocPlaceId } from '@/lib/places/contact-places';
@@ -163,6 +165,8 @@ export async function GET(
       customerId: row.customer_id,
       placeId: row.place_id ?? null,
       estimateId: row.estimate_id,
+      projectId: (row as { project_id?: string | null }).project_id ?? null,
+      maintenancePlanId: (row as { maintenance_plan_id?: string | null }).maintenance_plan_id ?? null,
       businessId: row.business_id,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -271,6 +275,30 @@ export async function PATCH(
       updates.amount_cents = discountedTotalCents(subtotal, discountFromRow(current));
       Object.assign(updates, discountColumns(subtotal, discountFromRow(current)));
     }
+    // Editing after it was sent (like QuickBooks): allowed, but a cancelled invoice stays as it is, the
+    // total can't drop below what was already paid, and the status follows the new total and due date.
+    if (current.status !== 'draft' && Object.keys(updates).length > 0) {
+      if (current.status === 'cancelled') {
+        return NextResponse.json({ error: 'A cancelled invoice cannot be edited' }, { status: 400 });
+      }
+      const paidCents = current.payment_applied_cents ?? 0;
+      const nextTotal = typeof updates.amount_cents === 'number' ? updates.amount_cents : current.amount_cents;
+      if (nextTotal < paidCents) {
+        const paid = (paidCents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+        return NextResponse.json(
+          { error: `The total can't be less than the ${paid} already paid. Void a payment first.` },
+          { status: 400 }
+        );
+      }
+      if (updates.status === undefined) {
+        updates.status = statusFromPayments({
+          storedStatus: current.status,
+          dueDate: 'due_date' in updates ? (updates.due_date as string | null) : current.due_date,
+          totalCents: nextTotal,
+          paidCents,
+        });
+      }
+    }
     const nextCustomerId = typeof updates.customer_id === 'string' ? updates.customer_id : current.customer_id;
     if ('placeId' in body || nextCustomerId !== current.customer_id) {
       const docPlace = await pickDocPlaceId(nextCustomerId, 'placeId' in body ? body.placeId : null);
@@ -287,6 +315,9 @@ export async function PATCH(
     if (error) {
       const message = isMissingDiscountColumn(error) ? DISCOUNT_MIGRATION_ERROR : error.message || 'Failed to update invoice';
       return NextResponse.json({ error: message }, { status: 500 });
+    }
+    if ('projectId' in body || 'maintenancePlanId' in body) {
+      await linkInvoiceToJob(supabase, user.id, id, { projectId: body.projectId ?? null, maintenancePlanId: body.maintenancePlanId ?? null });
     }
     if ('place_id' in updates && updates.place_id !== current.place_id) {
       await dropDocEventsOffPlace({ kind: 'invoice', id });

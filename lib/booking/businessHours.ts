@@ -19,6 +19,24 @@ export const SLOT_MINUTE_OPTIONS = [30, 45, 60, 90, 120] as const;
 export type SlotMinutes = (typeof SLOT_MINUTE_OPTIONS)[number];
 
 export const DEFAULT_SLOT_MINUTES: SlotMinutes = 90;
+
+/** Travel time kept free before and after each booked appointment. */
+export const BUFFER_MINUTE_OPTIONS = [0, 15, 30, 45, 60, 90, 120] as const;
+
+export function readBufferMinutes(value: unknown): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 && n <= 240 ? n : 0;
+}
+
+/** Widen booked appointments by the travel time on both sides, so no slot is offered inside that gap. */
+export function padBusy(ranges: BusyRange[], minutes: number): BusyRange[] {
+  if (!minutes) return ranges;
+  const pad = minutes * 60 * 1000;
+  return ranges.map((range) => ({
+    start: new Date(new Date(range.start).getTime() - pad).toISOString(),
+    end: new Date(new Date(range.end).getTime() + pad).toISOString(),
+  }));
+}
 export const DEFAULT_TIMEZONE = 'America/Los_Angeles';
 
 export const BUSINESS_TIMEZONES = [

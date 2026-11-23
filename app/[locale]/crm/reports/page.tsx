@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { todayDateKey } from '@/lib/crm/invoice-books';
+import { ProfitAndLossReport } from '@/components/crm/ProfitAndLossReport';
+
+type ReportTab = 'overview' | 'pl';
 
 interface Aging {
   current: number;
@@ -53,6 +57,11 @@ export default function CRMReportsPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  // Links like "set it" on a job report open the profit and loss tab.
+  const [tab, setTab] = useState<ReportTab>(searchParams.get('tab') === 'pl' ? 'pl' : 'overview');
+  /** Range the profit and loss shows; changes when Apply is pressed. */
+  const [applied, setApplied] = useState({ from: `${today.slice(0, 4)}-01-01`, to: today });
 
   const load = async (fromDate: string, toDate: string) => {
     setLoading(true);
@@ -88,6 +97,7 @@ export default function CRMReportsPage() {
           onSubmit={(event) => {
             event.preventDefault();
             load(from, to);
+            setApplied({ from, to });
           }}
         >
           <label className="text-sm text-gray-700">
@@ -102,8 +112,28 @@ export default function CRMReportsPage() {
         </form>
       </div>
 
-      {error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>}
-      {loading && !report ? (
+      <div className="flex gap-2" role="tablist">
+        {([
+          { id: 'overview', label: 'Overview' },
+          { id: 'pl', label: 'Profit and loss' },
+        ] as const).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            onClick={() => setTab(item.id)}
+            className={`rounded-lg border-2 border-black px-4 py-2 text-sm font-medium ${tab === item.id ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'pl' ? <ProfitAndLossReport from={applied.from} to={applied.to} /> : null}
+
+      {tab === 'overview' && error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>}
+      {tab !== 'overview' ? null : loading && !report ? (
         <div className="p-12 text-center text-gray-500 text-sm">Loading reports…</div>
       ) : report && (
         <>

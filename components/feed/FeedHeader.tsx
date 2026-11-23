@@ -11,18 +11,100 @@ import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { useAuth } from '@/contexts/AuthContext';
 
 const SLIDE_MS = 4500;
+/** Wait before a line that does not fit starts moving left, so the start can be read. */
+const SCROLL_DELAY_MS = 2000;
+/** Reading speed for the moving text. */
+const SCROLL_PX_PER_SEC = 40;
+/** Pause on the end of the line before sliding to the next one. */
+const END_PAUSE_MS = 1500;
+
+/**
+ * One tagline line. When it is wider than the bar (phones), it sits left-aligned and,
+ * 2 seconds after it shows, moves left until its end is visible.
+ * Reports how long it needs so the bar waits for it before sliding on.
+ */
+function TaglineLine({
+  active,
+  className,
+  children,
+  onNeed,
+}: {
+  active: boolean;
+  className: string;
+  children: React.ReactNode;
+  onNeed: (ms: number) => void;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [overflow, setOverflow] = useState(0);
+  const [moving, setMoving] = useState(false);
+
+  useEffect(() => {
+    const measure = () => {
+      const box = boxRef.current;
+      const text = textRef.current;
+      if (!box || !text) return;
+      const extra = Math.max(0, Math.ceil(text.scrollWidth - box.clientWidth));
+      setOverflow(extra);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (boxRef.current) observer.observe(boxRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const scrollMs = Math.round((overflow / SCROLL_PX_PER_SEC) * 1000);
+
+  useEffect(() => {
+    onNeed(overflow > 0 ? SCROLL_DELAY_MS + scrollMs + END_PAUSE_MS : 0);
+  }, [overflow, scrollMs, onNeed]);
+
+  useEffect(() => {
+    if (!active || overflow === 0) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const start = window.setTimeout(() => setMoving(true), SCROLL_DELAY_MS);
+    return () => {
+      window.clearTimeout(start);
+      setMoving(false);
+    };
+  }, [active, overflow]);
+
+  return (
+    <div
+      ref={boxRef}
+      aria-hidden={!active}
+      className={`flex h-full w-full min-w-full shrink-0 items-center overflow-hidden px-2 font-semibold text-white ${
+        overflow > 0 ? 'justify-start' : 'justify-center'
+      } ${className}`}
+    >
+      <span
+        ref={textRef}
+        className="whitespace-nowrap"
+        style={{
+          transform: moving ? `translateX(-${overflow}px)` : 'translateX(0)',
+          transition: moving ? `transform ${scrollMs}ms linear` : 'none',
+        }}
+      >
+        {children}
+      </span>
+    </div>
+  );
+}
 
 /** Black tagline bar that slides through three short lines, like BrazaFeed's header pill. */
 function FeedTagline() {
   const t = useTranslations('feed');
   const lines = t.raw('tagline') as string[];
   const [index, setIndex] = useState(0);
+  const needs = useRef<number[]>([]);
 
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    const id = window.setInterval(() => setIndex((i) => (i + 1) % lines.length), SLIDE_MS);
-    return () => window.clearInterval(id);
-  }, [lines.length]);
+    // Stay on a long line until its text has finished moving.
+    const wait = Math.max(SLIDE_MS, needs.current[index] ?? 0);
+    const id = window.setTimeout(() => setIndex((i) => (i + 1) % lines.length), wait);
+    return () => window.clearTimeout(id);
+  }, [index, lines.length]);
 
   return (
     <div className="flex h-10 w-full min-w-0 overflow-hidden rounded-lg border-2 border-black bg-black" aria-live="polite">
@@ -31,12 +113,13 @@ function FeedTagline() {
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
         {lines.map((line, i) => (
-          <p
+          <TaglineLine
             key={i}
-            aria-hidden={i !== index}
-            className={`flex h-full w-full min-w-full shrink-0 items-center justify-center truncate px-2 text-center font-semibold text-white ${
-              i === 0 ? 'text-base md:text-lg' : 'text-xs md:text-sm'
-            }`}
+            active={i === index}
+            className={i === 0 ? 'text-base md:text-lg' : 'text-xs md:text-sm'}
+            onNeed={(ms) => {
+              needs.current[i] = ms;
+            }}
           >
             {i === 0 ? (
               <>
@@ -46,7 +129,7 @@ function FeedTagline() {
             ) : (
               line
             )}
-          </p>
+          </TaglineLine>
         ))}
       </div>
     </div>

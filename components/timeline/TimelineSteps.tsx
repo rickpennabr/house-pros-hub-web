@@ -19,6 +19,7 @@ import {
   Wrench,
   XCircle,
   type LucideIcon,
+  BellRing,
 } from 'lucide-react';
 import type { TimelineStep, TimelineStepKind } from '@/lib/timeline/steps';
 
@@ -27,6 +28,8 @@ const STEP_ICON: Record<TimelineStepKind, LucideIcon> = {
   approved: CheckCircle2,
   declined: XCircle,
   invoice: Receipt,
+  reminder: BellRing,
+  viewed: Eye,
   payment: Banknote,
   paid: BadgeCheck,
   project: Hammer,
@@ -63,13 +66,15 @@ interface TimelineStepsProps {
   showAudience?: boolean;
   /** Line before the pro name ("with"), homeowner side. */
   formatWhen?: (value: string) => string;
+  /** Steps the viewer has not seen yet get a red New tag. */
+  newIds?: ReadonlySet<string>;
 }
 
 /**
  * A property's timeline as connected steps, newest first. Used on the homeowner's My Places page
  * and the pro's Customer portal so both read the job the same way.
  */
-export function TimelineSteps({ steps, emptyText, showAudience = false, formatWhen = when }: TimelineStepsProps) {
+export function TimelineSteps({ steps, emptyText, showAudience = false, formatWhen = when, newIds }: TimelineStepsProps) {
   if (steps.length === 0) return <p className="text-sm text-gray-600">{emptyText}</p>;
   return (
     <ol className="relative">
@@ -79,7 +84,12 @@ export function TimelineSteps({ steps, emptyText, showAudience = false, formatWh
         const body = (
           <div className="min-w-0 flex-1 pb-4">
             <div className="flex items-start justify-between gap-3">
-              <p className="font-medium text-sm text-gray-900">{step.title}</p>
+              <p className="font-medium text-sm text-gray-900">
+                {newIds?.has(step.id) ? (
+                  <span className="mr-1.5 inline-block rounded-md bg-red-600 px-1.5 align-middle text-[10px] font-bold uppercase text-white">New</span>
+                ) : null}
+                {step.title}
+              </p>
               <time className="shrink-0 whitespace-nowrap text-xs text-gray-500" dateTime={step.at}>
                 {formatWhen(step.at)}
               </time>

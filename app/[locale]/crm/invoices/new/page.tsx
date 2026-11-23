@@ -109,6 +109,9 @@ export default function CRMNewInvoicePage() {
         companyDisplay: form.companyOverride ?? undefined,
         paidNow: form.paidNow,
         paidNowMethod: form.paidNowMethod,
+        // Opened from a job's financial report: the invoice counts on that job.
+        projectId: searchParams.get('projectId') || undefined,
+        maintenancePlanId: searchParams.get('maintenancePlanId') || undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));
