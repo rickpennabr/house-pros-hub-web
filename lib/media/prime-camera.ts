@@ -17,9 +17,17 @@ export function desktopWideCamera(): boolean {
 }
 
 export function liveCameraConstraints(facing: 'environment' | 'user'): MediaStreamConstraints {
-  // Phones reject size and aspect limits. A facing mode alone is what opens the camera.
+  // Phones: Safari adds 640x480 when no size is given, which looks blurry next to the native camera.
+  // Ask for the 4:3 photo frame as an ideal only, so no phone can reject it.
   if (!desktopWideCamera()) {
-    return { audio: false, video: { facingMode: facing } };
+    return {
+      audio: false,
+      video: {
+        facingMode: facing,
+        width: { ideal: 1920 },
+        height: { ideal: 1440 },
+      },
+    };
   }
   return {
     audio: false,
@@ -30,6 +38,33 @@ export function liveCameraConstraints(facing: 'environment' | 'user'): MediaStre
       height: { ideal: 1080 },
     },
   };
+}
+
+/** Open the camera sharp, falling back to a facing mode alone on phones that still refuse sizes. */
+export async function openLiveCamera(facing: 'environment' | 'user'): Promise<MediaStream> {
+  try {
+    return await navigator.mediaDevices.getUserMedia(liveCameraConstraints(facing));
+  } catch (error) {
+    if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) throw error;
+    return navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: facing } });
+  }
+}
+
+/** Keep focus, exposure and white balance on auto where the browser allows it (Chrome on Android). */
+export async function autoFocusTrack(track: MediaStreamTrack | undefined) {
+  if (!track?.getCapabilities) return;
+  const caps = track.getCapabilities() as Record<string, unknown>;
+  const advanced: Record<string, string>[] = [];
+  for (const key of ['focusMode', 'exposureMode', 'whiteBalanceMode']) {
+    const modes = caps[key];
+    if (Array.isArray(modes) && modes.includes('continuous')) advanced.push({ [key]: 'continuous' });
+  }
+  if (advanced.length === 0) return;
+  try {
+    await track.applyConstraints({ advanced } as MediaTrackConstraints);
+  } catch {
+    // Auto is already the default.
+  }
 }
 
 /** Ask the open track for its widest 16:9 mode so the preview is not a center crop. */
@@ -57,7 +92,7 @@ export async function widenDesktopTrack(track: MediaStreamTrack | undefined) {
  */
 export function primeLiveCamera(facing: 'environment' | 'user' = 'environment') {
   if (!canUseLiveCamera() || pending) return;
-  const request = navigator.mediaDevices.getUserMedia(liveCameraConstraints(facing));
+  const request = openLiveCamera(facing);
   pending = {
     facing,
     stream: request.then((stream) => {

@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { ProDrivePicker } from '@/components/drive/ProDrivePicker';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import type { DriveFile } from '@/lib/drive/types';
-import { canUseLiveCamera, clearPrimedCamera, liveCameraConstraints, readPrimedCamera, releasePrimedCamera, widenDesktopTrack } from '@/lib/media/prime-camera';
+import { autoFocusTrack, canUseLiveCamera, clearPrimedCamera, openLiveCamera, readPrimedCamera, releasePrimedCamera, widenDesktopTrack } from '@/lib/media/prime-camera';
 import { playCameraShutter, primeCameraShutter } from '@/lib/media/camera-shutter';
 import { revealVideoDuration, webmWithDuration } from '@/lib/media/webm-duration';
 
@@ -207,6 +207,8 @@ export function JobCameraSession({
   const shotsRef = useRef<Shot[]>([]);
   const draftRef = useRef<Shot | null>(null);
   const [live, setLive] = useState(false);
+  /** Width over height of the live picture. The frame takes this shape so nothing is cropped, like the phone camera. */
+  const [ratio, setRatio] = useState<number | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
   const [draft, setDraft] = useState<Shot | null>(null);
   const [caption, setCaption] = useState('');
@@ -263,7 +265,7 @@ export function JobCameraSession({
       try {
         stream = primed
           ? await primed
-          : await navigator.mediaDevices.getUserMedia(liveCameraConstraints(facing));
+          : await openLiveCamera(facing);
       } catch {
         stream = null;
       }
@@ -286,6 +288,7 @@ export function JobCameraSession({
       }
       clearPrimedCamera();
       await widenDesktopTrack(stream.getVideoTracks()[0]);
+      await autoFocusTrack(stream.getVideoTracks()[0]);
       if (requestId !== liveRequest.current || generation !== sessionRef.current) {
         stream.getTracks().forEach((track) => track.stop());
         return false;
@@ -654,13 +657,31 @@ export function JobCameraSession({
         )}
       </div>
 
-      <div className="relative mx-2 my-2 min-h-0 flex-1 overflow-hidden rounded-2xl border-4 border-white bg-black md:mx-auto md:w-[80%] md:rounded-[2rem] phland:col-start-1 phland:row-start-2 phland:mx-2 phland:mt-0 phland:w-auto phland:rounded-2xl">
+      <div
+        className="relative mx-2 my-2 flex min-h-0 flex-1 items-center justify-center md:mx-auto md:w-[80%] phland:col-start-1 phland:row-start-2 phland:mx-2 phland:mt-0 phland:w-auto"
+        style={{ containerType: 'size' }}
+      >
+      <div
+        className="relative overflow-hidden rounded-2xl border-4 border-white bg-black md:rounded-[2rem] phland:rounded-2xl"
+        style={live && ratio && !draft ? {
+          width: `min(100cqw, calc(100cqh * ${ratio}))`,
+          height: `min(100cqh, calc(100cqw / ${ratio}))`,
+        } : { width: '100%', height: '100%' }}
+      >
         <video
           ref={videoRef}
           className={!live || draft ? 'hidden' : 'absolute inset-0 h-full w-full object-cover'}
           playsInline
           muted
           autoPlay
+          onLoadedMetadata={(event) => {
+            const node = event.currentTarget;
+            if (node.videoWidth && node.videoHeight) setRatio(node.videoWidth / node.videoHeight);
+          }}
+          onResize={(event) => {
+            const node = event.currentTarget;
+            if (node.videoWidth && node.videoHeight) setRatio(node.videoWidth / node.videoHeight);
+          }}
         />
         {draft ? (
           draft.video ? (
@@ -681,6 +702,7 @@ export function JobCameraSession({
           </p>
         ) : null}
         {error ? <p className="absolute inset-x-4 top-14 rounded-lg bg-red-600 px-3 py-2 text-sm">{error}</p> : null}
+      </div>
       </div>
 
       {saved ? (
