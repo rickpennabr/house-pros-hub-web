@@ -29,12 +29,10 @@ export function PlacePros({
   pros,
   selected,
   onSelect,
-  onShare,
 }: {
   pros: PlacePro[];
   selected: string | null;
   onSelect: (ownerId: string | null) => void;
-  onShare: () => void;
 }) {
   const t = useTranslations('places.prosSection');
   const locale = useLocale();
@@ -91,17 +89,6 @@ export function PlacePros({
         )}
       </div>
 
-      {/* PC: this lives at the bottom of the place's 3-dot menu instead. */}
-      <div className="flex justify-end md:hidden">
-        <button
-          type="button"
-          onClick={onShare}
-          className="inline-flex items-center gap-2 rounded-lg bg-black px-3 py-2 text-sm font-medium text-white cursor-pointer hover:bg-gray-800"
-        >
-          <Share2 className="h-4 w-4 text-red-500" />
-          {t('share')}
-        </button>
-      </div>
       {/* Same share window as the pro's page: booking link, business page or feedback. */}
       <ShareBusinessModal
         isOpen={Boolean(sharing)}

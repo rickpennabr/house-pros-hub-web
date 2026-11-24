@@ -555,7 +555,6 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
         pros={bundle.pros ?? []}
         selected={filterPro?.ownerId ?? null}
         onSelect={setProFilter}
-        onShare={() => setSharePickerOpen(true)}
       />
       <BookProPicker
         open={sharePickerOpen}
