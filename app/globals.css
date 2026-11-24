@@ -3,6 +3,7 @@
 /* Hub is light-only. Never follow system/incognito dark mode — dark: utilities
    only apply under an explicit .dark ancestor, which we do not set. */
 @custom-variant dark (&:where(.dark, .dark *));
+@custom-variant phland (@media (orientation: landscape) and (max-height: 520px));
 
 :root {
   color-scheme: light only;

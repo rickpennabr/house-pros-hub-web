@@ -606,8 +606,8 @@ export function JobCameraSession({
   if (!open || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex flex-col overflow-hidden bg-black text-white">
-      <div className="relative flex items-center justify-between gap-3 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <div className="fixed inset-0 z-[120] flex flex-col overflow-hidden bg-black text-white phland:grid phland:grid-cols-[minmax(0,1fr)_auto] phland:grid-rows-[auto_minmax(0,1fr)]">
+      <div className="relative flex items-center justify-between gap-3 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))] phland:col-start-1 phland:row-start-1 phland:py-1">
         <button
           type="button"
           onClick={() => {
@@ -654,7 +654,7 @@ export function JobCameraSession({
         )}
       </div>
 
-      <div className="relative mx-2 my-2 min-h-0 flex-1 overflow-hidden rounded-2xl border-4 border-white bg-black md:mx-auto md:w-[80%] md:rounded-[2rem]">
+      <div className="relative mx-2 my-2 min-h-0 flex-1 overflow-hidden rounded-2xl border-4 border-white bg-black md:mx-auto md:w-[80%] md:rounded-[2rem] phland:col-start-1 phland:row-start-2 phland:mx-2 phland:mt-0 phland:w-auto phland:rounded-2xl">
         <video
           ref={videoRef}
           className={!live || draft ? 'hidden' : 'absolute inset-0 h-full w-full object-cover'}
@@ -684,7 +684,7 @@ export function JobCameraSession({
       </div>
 
       {saved ? (
-        <div className="rounded-t-3xl bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 text-black">
+        <div className="rounded-t-3xl bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 text-black phland:col-start-2 phland:row-span-2 phland:row-start-1 phland:w-72 phland:overflow-y-auto phland:rounded-none">
           <p className="text-center text-sm text-gray-600">{t('savedCount', { count: shots.length })}</p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {shots.map((shot) => shot.video ? (
@@ -703,7 +703,7 @@ export function JobCameraSession({
           </button>
         </div>
       ) : draft ? (
-        <div className="bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 text-black">
+        <div className="bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 text-black phland:col-start-2 phland:row-span-2 phland:row-start-1 phland:w-72 phland:overflow-y-auto">
           {isFix ? null : (
             <textarea
               ref={captionRef}
@@ -724,7 +724,7 @@ export function JobCameraSession({
           </button>
         </div>
       ) : (
-        <div className="shrink-0 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3">
+        <div className="shrink-0 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 phland:col-start-2 phland:row-span-2 phland:row-start-1 phland:flex phland:flex-col phland:justify-center phland:px-3 phland:py-3 phland:pr-[max(0.75rem,env(safe-area-inset-right))]">
           {shots.length > 0 ? (
             <div className="mb-2 flex items-center justify-center gap-3 text-[11px] font-bold uppercase tracking-wide">
               <button
@@ -745,8 +745,8 @@ export function JobCameraSession({
               </button>
             </div>
           ) : null}
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <div className="relative justify-self-start" style={{ width: 48, height: 48 }}>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 phland:grid-cols-1 phland:justify-items-center phland:gap-5">
+          <div className="relative justify-self-start phland:justify-self-center" style={{ width: 48, height: 48 }}>
           <button
             type="button"
             onClick={() => {
@@ -818,7 +818,7 @@ export function JobCameraSession({
               }}
             />
           </button>
-          <div className="flex shrink-0 flex-col items-end gap-2 justify-self-end">
+          <div className="flex shrink-0 flex-col items-end gap-2 justify-self-end phland:items-center phland:justify-self-center">
             {shots.length > 0 ? null : (
             <button
               type="button"
