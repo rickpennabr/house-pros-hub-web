@@ -10,6 +10,7 @@ import { useBackgroundMode } from '@/contexts/BackgroundModeContext';
 import { DAY_CYCLE_SKY_ENABLED } from '@/lib/constants/probot';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
+import { HomeShortcutButton } from '@/components/pageslayout/HomeShortcutButton';
 
 export type ViewType = 'card' | 'list' | 'table' | 'map' | 'chart';
 
@@ -203,6 +204,8 @@ export default function ViewToggle({
           )}
         </button>
       )}
+      {/* House last: Customer portal or My Places, following the active profile. */}
+      {showAccount && <HomeShortcutButton withLabel={!embedded} />}
     </div>
   );
 

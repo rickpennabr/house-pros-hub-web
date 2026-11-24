@@ -5,12 +5,12 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
-import { Home, Phone, Plus, Settings } from 'lucide-react';
+import { Phone, Plus, Settings } from 'lucide-react';
 import ViewToggle, { ViewType } from '@/components/pageslayout/ViewToggle';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import { useProBotTransition } from '@/contexts/ProBotTransitionContext';
 import { HUB_WHATSAPP_URL } from '@/lib/constants/company';
-import { NotificationCount } from '@/components/ui/NotificationCount';
+import { HomeShortcutButton } from '@/components/pageslayout/HomeShortcutButton';
 
 const PHONE_NUMBER = '702-232-0411';
 const PROBOT_BLACKOUT_MS = 500;
@@ -56,37 +56,6 @@ export default function BusinessListMobileBottomBar({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // Pros: what customers did since the pro last looked, on the Customer portal button.
-  // Homeowners: new updates on their places, on the My Places button.
-  const [customerActivity, setCustomerActivity] = useState(0);
-  const [placesActivity, setPlacesActivity] = useState(0);
-  useEffect(() => {
-    if (!signedIn && !showProAdd) return;
-    let cancelled = false;
-    const load = () =>
-      void fetch('/api/activity/unread', { credentials: 'include', cache: 'no-store' })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data: { crmTotal?: number; placesTotal?: number } | null) => {
-          if (cancelled || !data) return;
-          setCustomerActivity(data.crmTotal ?? 0);
-          setPlacesActivity(data.placesTotal ?? 0);
-        })
-        .catch(() => undefined);
-    load();
-    // Keep the house badge current: when the app comes back to the front, and every minute.
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') load();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('focus', onVisible);
-    const timer = window.setInterval(onVisible, 60_000);
-    return () => {
-      cancelled = true;
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', onVisible);
-      window.clearInterval(timer);
-    };
-  }, [showProAdd, signedIn]);
 
   const handleProBotClick = useCallback(() => {
     setTransitioningToProbot(true);
@@ -188,18 +157,7 @@ export default function BusinessListMobileBottomBar({
           >
             <Plus className={`h-5 w-5 transition-transform duration-200 ${addOpen ? 'rotate-45' : ''}`} />
           </button>
-          <div className="relative flex shrink-0 items-center justify-center">
-          <button
-            type="button"
-            onClick={() => router.push(`/${locale}/crm/portal`)}
-            className="flex h-10 w-10 min-h-10 min-w-10 p-0 shrink-0 items-center justify-center rounded-lg border-2 border-white bg-white text-red-600 transition-all hover:bg-gray-100 active:scale-95"
-            aria-label={tAccount('customerPortal')}
-            title={tAccount('customerPortal')}
-          >
-            <Home className="h-5 w-5" />
-          </button>
-            <NotificationCount count={customerActivity} className="pointer-events-none absolute -right-2 -top-2 z-10" />
-          </div>
+          <HomeShortcutButton />
         </>
       ) : (
       <>
@@ -226,20 +184,7 @@ export default function BusinessListMobileBottomBar({
             <Phone className="h-5 w-5" />
           </button>
         {settingsButton}
-        {signedIn ? (
-          <div className="relative flex shrink-0 items-center justify-center">
-            <button
-              type="button"
-              onClick={() => router.push(`/${locale}/myplaces`)}
-              className="flex h-10 w-10 min-h-10 min-w-10 p-0 shrink-0 items-center justify-center rounded-lg border-2 border-white bg-white text-red-600 transition-all hover:bg-gray-100 active:scale-95"
-              aria-label={tAccount('myPlaces')}
-              title={tAccount('myPlaces')}
-            >
-              <Home className="h-5 w-5" />
-            </button>
-            <NotificationCount count={placesActivity} className="pointer-events-none absolute -right-2 -top-2 z-10" />
-          </div>
-        ) : null}
+        {signedIn ? <HomeShortcutButton /> : null}
       </>
       )}
     </div>
