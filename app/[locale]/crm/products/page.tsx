@@ -13,6 +13,7 @@ import type { CrmCatalogTerm, CrmProduct } from '@/lib/crm/catalog-types';
 import { useTranslations } from 'next-intl';
 import { TRADES, isTradeSlug } from '@/lib/protrades/trades';
 import { useProTrades } from '@/hooks/useProTrades';
+import { TitleCount } from '@/components/crm/TitleCount';
 
 const ACTIONS_MENU_HEIGHT = 132;
 
@@ -212,7 +213,10 @@ export default function CRMProductsPage() {
     <div className="w-full">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 md:text-2xl">Products</h1>
+          <h1 className="text-xl font-semibold text-gray-900 md:text-2xl inline-flex items-center gap-2">
+                Products
+                <TitleCount count={products.length} />
+              </h1>
           <p className="mt-0.5 text-sm text-gray-500">Materials you sell or quote. Turn on &quot;On details&quot; to show a product on your public Products tab.</p>
         </div>
         <Button

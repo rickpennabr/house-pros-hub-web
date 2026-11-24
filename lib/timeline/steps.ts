@@ -40,6 +40,19 @@ export interface TimelineStep {
   by?: 'pro' | 'customer';
   /** The tab it belongs to besides the timeline; null for timeline-only steps. */
   tab?: StepTab | null;
+  /** An email went to the customer (invoice, reminder, estimate, statement): listed on the Emails tab. */
+  emailed?: boolean;
+}
+
+/** Emails sent to the customer, newest first as given. */
+export function emailedSteps(steps: TimelineStep[]): TimelineStep[] {
+  return steps.filter((step) => step.emailed);
+}
+
+/** Homeowner place events that arrive as an email from the pro. */
+const EMAILED_PLACE_EVENTS = new Set(['invoice_received', 'invoice_reminder', 'estimate_received']);
+export function placeEventEmailed(kind: string): boolean {
+  return EMAILED_PLACE_EVENTS.has(kind);
 }
 
 export type StepTab = 'projects' | 'maintenance' | 'appointments' | 'documents' | 'invoices' | 'estimates';
@@ -261,6 +274,7 @@ export function buildProPropertyTimeline(data: ProHistory, crmBase: string): Tim
       amountCents: row.amount_cents,
       href,
       customerSees: !draft,
+      emailed: !draft && sends.length > 0,
     });
   }
 
@@ -270,12 +284,12 @@ export function buildProPropertyTimeline(data: ProHistory, crmBase: string): Tim
     const payload = (event.payload && typeof event.payload === 'object' ? event.payload : {}) as Record<string, unknown>;
     const base = { id: `event-${event.id}`, at: event.created_at, href };
     if (event.action === 'sent' && sentEvents.get(event.invoice_id)?.[0] !== event.created_at) {
-      steps.push({ ...base, kind: 'invoice', title: 'Invoice sent again', detail: number, amountCents: amountOf.get(event.invoice_id), customerSees: true });
+      steps.push({ ...base, kind: 'invoice', title: 'Invoice sent again', detail: number, amountCents: amountOf.get(event.invoice_id), customerSees: true, emailed: true });
     } else if (event.action === 'reminded') {
       const auto = payload.kind === 'due_soon' ? 'Due soon reminder sent' : payload.kind === 'manual' ? 'Payment reminder sent' : 'Overdue reminder sent';
       const to = typeof payload.to === 'string' ? ` · to ${payload.to}` : '';
       const late = typeof payload.days_overdue === 'number' && payload.days_overdue > 0 ? ` · ${payload.days_overdue} days late` : '';
-      steps.push({ ...base, kind: 'reminder', title: auto, detail: `${number}${late}${to}`, customerSees: true });
+      steps.push({ ...base, kind: 'reminder', title: auto, detail: `${number}${late}${to}`, customerSees: true, emailed: true });
     } else if (event.action === 'cancelled') {
       steps.push({ ...base, kind: 'invoice', title: 'Invoice cancelled', detail: number, customerSees: true });
     } else if (event.action === 'payment_voided') {
@@ -383,13 +397,13 @@ export function buildProPropertyTimeline(data: ProHistory, crmBase: string): Tim
   for (const row of data.activity ?? []) {
     const base = { id: `activity-${row.id}`, at: row.occurred_at };
     if (row.kind === 'estimate_sent' && row.estimate_id) {
-      steps.push({ ...base, kind: 'estimate', title: 'Estimate emailed', detail: [`#${estimateNumber.get(row.estimate_id) ?? ''}`, row.detail ? `to ${row.detail}` : null].filter(Boolean).join(' · '), href: `${crmBase}/estimates?id=${row.estimate_id}`, customerSees: true });
+      steps.push({ ...base, kind: 'estimate', title: 'Estimate emailed', detail: [`#${estimateNumber.get(row.estimate_id) ?? ''}`, row.detail ? `to ${row.detail}` : null].filter(Boolean).join(' · '), href: `${crmBase}/estimates?id=${row.estimate_id}`, customerSees: true, emailed: true });
     } else if (row.kind === 'estimate_viewed' && row.estimate_id) {
       steps.push({ ...base, kind: 'viewed', title: 'Customer opened the estimate', detail: `#${estimateNumber.get(row.estimate_id) ?? ''}`, href: `${crmBase}/estimates?id=${row.estimate_id}`, customerSees: true, by: 'customer', tab: 'estimates' });
     } else if (row.kind === 'invoice_viewed' && row.invoice_id) {
       steps.push({ ...base, kind: 'viewed', title: 'Customer opened the invoice', detail: invoiceNumber.get(row.invoice_id) ?? '', href: `${crmBase}/invoices/${row.invoice_id}`, customerSees: true, by: 'customer', tab: 'invoices' });
     } else if (row.kind === 'statement_sent') {
-      steps.push({ ...base, kind: 'invoice', title: 'Statement emailed', detail: row.detail ? `to ${row.detail}` : null, customerSees: true });
+      steps.push({ ...base, kind: 'invoice', title: 'Statement emailed', detail: row.detail ? `to ${row.detail}` : null, customerSees: true, emailed: true });
     }
   }
 

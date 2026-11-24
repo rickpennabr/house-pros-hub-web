@@ -24,6 +24,7 @@ import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 import { ChartLoading, InvoiceListChart } from '@/components/crm/ListCharts';
 import { isInvoiceChart } from '@/lib/crm/list-charts';
 import { InvoiceCard } from '@/components/crm/InvoiceCard';
+import { TitleCount } from '@/components/crm/TitleCount';
 
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Created' },
@@ -234,7 +235,10 @@ export default function CRMInvoicesPage() {
     <div className="w-full">
       <div className="hidden md:flex md:flex-row md:items-center md:justify-between md:gap-4 md:pt-0 md:pb-0">
         <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Invoices</h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-gray-900 inline-flex items-center gap-2">
+                Invoices
+                <TitleCount count={total} />
+              </h1>
           <p className="text-sm text-gray-500 mt-0.5">Create and manage invoices. Convert estimates to invoices.</p>
         </div>
         {invoiceActions}

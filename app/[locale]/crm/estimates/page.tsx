@@ -25,9 +25,11 @@ import {
   type DocumentDiscount,
 } from '@/lib/crm/document-discount';
 import { CustomerEstimatePreview, type CustomerEstimatePreviewData } from '@/components/estimates/CustomerEstimatePreview';
+import { EstimateViewTabs, type EstimateView } from '@/components/estimates/EstimateViews';
+import { ProjectFromEstimateDialog } from '@/components/crm/ProjectFromEstimateDialog';
+import { BsGrid3X3Gap } from 'react-icons/bs';
 import { AddProductServicePanel, type ProCrmItem } from '@/components/invoices/AddProductServicePanel';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
-import { DOCUMENT_FORM_LAYOUT } from '@/lib/constants/documentFormLayout';
 import { contactDisplayName, listedCustomerName } from '@/lib/crm/contact-name';
 import { emptyEstimateStatusSummary, type EstimateStatusSummary } from '@/lib/crm/estimate-books';
 import { EstimateStatusCards } from '@/components/crm/EstimateStatusCards';
@@ -47,6 +49,7 @@ import {
   syncEstimateLinesToReusableItems as syncEstimateLinesToCatalog,
 } from '@/lib/crm/estimate-form';
 import { chatReturnWithDoc, safeChatReturnTo } from '@/lib/chat/crm-doc-share';
+import { TitleCount } from '@/components/crm/TitleCount';
 
 const PAGE_SIZE = 25;
 type SortKey = 'created_at' | 'updated_at' | 'status' | 'due_date' | 'amount_cents';
@@ -140,7 +143,6 @@ export default function CRMEstimatesPage() {
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [statusSummary, setStatusSummary] = useState<EstimateStatusSummary>(emptyEstimateStatusSummary());
   const [chart, setChart] = useState<EstimateChartData | null>(null);
-  const [convertingId, setConvertingId] = useState<string | null>(null);
   const [progressEstimateId, setProgressEstimateId] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -388,26 +390,12 @@ export default function CRMEstimatesPage() {
     setProgressEstimateId(estimateId);
   };
 
-  const handleConvertToProject = async (estimateId: string) => {
-    setConvertingId(estimateId);
+  /** Opens the project dialog (name, dates, status, project manager, notes) for an approved estimate. */
+  const handleConvertToProject = (estimateId: string) => {
     setOpenActionsId(null);
     setMenuPosition(null);
     setError(null);
-    try {
-      const res = await fetch('/api/crm/projects/convert-from-estimate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ estimateId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to create project');
-      router.push(`/${locale}/crm/projects`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to convert to project');
-    } finally {
-      setConvertingId(null);
-    }
+    setProjectEstimateId(estimateId);
   };
 
   const handleDuplicateEstimate = async (estimateId: string) => {
@@ -503,6 +491,43 @@ export default function CRMEstimatesPage() {
       setDeleting(false);
     }
   };
+
+  /** The open estimate's view: the editor or what the customer sees (like the invoice tabs). */
+  const [projectEstimateId, setProjectEstimateId] = useState<string | null>(null);
+  const [editorView, setEditorView] = useState<EstimateView>('edit');
+  const [editorActionsOpen, setEditorActionsOpen] = useState(false);
+  const [editorPreview, setEditorPreview] = useState<CustomerEstimatePreviewData | null>(null);
+  const [editorPreviewLoading, setEditorPreviewLoading] = useState(false);
+  const [editorPreviewError, setEditorPreviewError] = useState<string | null>(null);
+  /** The estimate the customer view was opened for; any other estimate opens on the editor. */
+  const [editorViewFor, setEditorViewFor] = useState<string | null>(null);
+
+  const loadEditorPreview = (estimateId: string) => {
+    setEditorViewFor(estimateId);
+    setEditorPreviewLoading(true);
+    setEditorPreviewError(null);
+    fetch(`/api/crm/estimates/${estimateId}/customer-preview`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) throw new Error(typeof d.error === 'string' ? d.error : 'Failed to load preview');
+        setEditorPreview(d as CustomerEstimatePreviewData);
+      })
+      .catch((err) => {
+        setEditorPreview(null);
+        setEditorPreviewError(err instanceof Error ? err.message : 'Could not load the customer view.');
+      })
+      .finally(() => setEditorPreviewLoading(false));
+  };
+
+  const closeEstimateEditor = () => {
+    setViewMode('table');
+    setEditingId(null);
+    setEditingData(null);
+    setEditorView('edit');
+    setEditorPreview(null);
+  };
+
+  const activeEditorView: EstimateView = editorView === 'customer' && editorViewFor === editingId ? 'customer' : 'edit';
 
   const openSendDialog = (estimateId: string) => {
     setSendDialogEstimateId(estimateId);
@@ -878,7 +903,10 @@ export default function CRMEstimatesPage() {
         <>
           <div className="hidden md:flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
             <div className="min-w-0">
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Estimates</h1>
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900 inline-flex items-center gap-2">
+                Estimates
+                <TitleCount count={total} />
+              </h1>
               <p className="hidden md:block text-sm text-gray-500 mt-0.5">Create and track quotes for customers.</p>
             </div>
             <Button variant="primary" size="sm" className="hidden md:flex items-center gap-2 shrink-0" onClick={() => setViewMode('add')}>
@@ -1048,23 +1076,59 @@ export default function CRMEstimatesPage() {
       )}
 
       {(viewMode === 'add' || viewMode === 'edit') && (
-        <div className={DOCUMENT_FORM_LAYOUT.pageContainer}>
-          <div className="py-2 md:mb-6 flex items-center gap-4">
+        <div className="w-full">
+          {/* Same top as the invoice page: back on the left, the estimate's actions on the right. */}
+          <div className="flex flex-wrap items-center justify-between gap-4 py-2 mb-2 md:mb-4 no-print">
             <button
               type="button"
-              onClick={() => { setViewMode('table'); setEditingId(null); setEditingData(null); }}
+              onClick={closeEstimateEditor}
               className="flex items-center gap-2 text-gray-700 hover:text-black font-medium cursor-pointer shrink-0"
             >
               <ArrowLeft className="w-5 h-5 shrink-0" />
-              Back
+              Back to Estimates
             </button>
-            <span className="flex-1 text-center text-lg font-semibold text-gray-900">
-              {viewMode === 'add' ? 'New Estimate' : 'Edit Estimate'}
-            </span>
-            <div className="shrink-0 min-w-[7.5rem] flex justify-end">
-              {viewMode === 'edit' && editingId ? (
+            {viewMode === 'edit' && editingId ? (
+              <div className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 overflow-x-auto px-2 pb-1 md:mx-0 md:w-auto md:overflow-visible md:px-0 md:pb-0 [&_button]:shrink-0 [&_button]:whitespace-nowrap [&_svg]:shrink-0">
                 <Button
-                  type="button"
+                  variant="primary"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={() => openSendDialog(editingId)}
+                  disabled={sendingEstimateId === editingId}
+                >
+                  <Send className="w-4 h-4" />
+                  Review &amp; Send
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={() => void presentEstimateOnDevice(editingId)}
+                  disabled={presentLoadingId === editingId}
+                >
+                  <Tablet className="w-4 h-4" />
+                  {presentLoadingId === editingId ? 'Opening…' : 'Present on device'}
+                </Button>
+                {editingData && editingData.status !== 'declined' ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="flex items-center gap-2"
+                    onClick={() => void handleConvertToInvoice()}
+                    disabled={convertingToInvoice}
+                    title={editingData.status === 'accepted' ? undefined : 'Saves this estimate as approved, then creates the invoice'}
+                  >
+                    <FileCheck className="w-4 h-4" />
+                    {convertingToInvoice ? 'Converting…' : 'Convert to invoice'}
+                  </Button>
+                ) : null}
+                {editingData?.status === 'accepted' ? (
+                  <Button variant="secondary" size="sm" className="flex items-center gap-2" onClick={() => handleConvertToProject(editingId)}>
+                    <FolderPlus className="w-4 h-4" />
+                    Convert to project
+                  </Button>
+                ) : null}
+                <Button
                   variant="secondary"
                   size="sm"
                   className="flex items-center gap-2"
@@ -1078,10 +1142,71 @@ export default function CRMEstimatesPage() {
                   )}
                   Duplicate
                 </Button>
+                {/* Nine-dot menu: pinned to the right end so it stays reachable while the row scrolls. */}
+                <div className="sticky right-0 ml-auto shrink-0 md:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setEditorActionsOpen(true)}
+                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-black border-2 border-black text-white cursor-pointer hover:bg-gray-800 transition-all"
+                    aria-label="Estimate actions menu"
+                    title="Estimate actions menu"
+                  >
+                    <BsGrid3X3Gap className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <span className="text-lg font-semibold text-gray-900">New estimate</span>
+            )}
+          </div>
+          {viewMode === 'edit' && editingId ? (
+            <MobileGridActionsModal
+              isOpen={editorActionsOpen}
+              onClose={() => setEditorActionsOpen(false)}
+              title="Estimate actions"
+              items={[
+                { id: 'send', label: 'Review & Send', icon: Send, onClick: () => { setEditorActionsOpen(false); openSendDialog(editingId); } },
+                { id: 'present', label: 'Present on device', icon: Tablet, onClick: () => { setEditorActionsOpen(false); void presentEstimateOnDevice(editingId); } },
+                ...(editingData && editingData.status !== 'declined'
+                  ? [{ id: 'convert', label: 'Convert to invoice', icon: FileCheck, onClick: () => { setEditorActionsOpen(false); void handleConvertToInvoice(); } }]
+                  : []),
+                ...(editingData?.status === 'accepted'
+                  ? [{ id: 'project', label: 'Convert to project', icon: FolderPlus, onClick: () => { setEditorActionsOpen(false); handleConvertToProject(editingId); } }]
+                  : []),
+                { id: 'duplicate', label: 'Duplicate', icon: Copy, onClick: () => { setEditorActionsOpen(false); void handleDuplicateEstimate(editingId); } },
+                { id: 'back', label: 'All estimates', icon: FileText, onClick: () => { setEditorActionsOpen(false); closeEstimateEditor(); } },
+              ]}
+            />
+          ) : null}
+          {viewMode === 'edit' && editingId ? (
+            <EstimateViewTabs
+              view={activeEditorView}
+              onChange={(next) => {
+                setEditorView(next);
+                if (next === 'customer') loadEditorPreview(editingId);
+              }}
+            />
+          ) : null}
+          {viewMode === 'edit' && activeEditorView === 'customer' ? (
+            <div className="mb-6">
+              {editorPreviewLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-600">
+                  <Loader2 className="w-10 h-10 animate-spin text-gray-900" aria-hidden />
+                  <p className="text-sm">Loading customer view…</p>
+                </div>
+              ) : editorPreviewError ? (
+                <p className="text-sm text-red-600">{editorPreviewError}</p>
+              ) : editorPreview ? (
+                <>
+                  <p className="mb-2 text-sm text-gray-600">What your customer sees on the estimate link (saved version; save first to include new changes).</p>
+                  <div className="border-2 border-black rounded-lg overflow-hidden bg-gray-50">
+                    <CustomerEstimatePreview data={editorPreview} variant="preview" />
+                  </div>
+                </>
               ) : null}
             </div>
-          </div>
-          {(viewMode === 'add' || editingData !== null) && (
+          ) : null}
+          {(viewMode === 'add' || editingData !== null) && activeEditorView === 'edit' && (
             <EstimateDocumentForm
               mode={viewMode === 'add' ? 'create' : 'edit'}
               estimateNumber={viewMode === 'edit' ? (editingData?.estimateNumber ?? '') : ''}
@@ -1113,22 +1238,12 @@ export default function CRMEstimatesPage() {
               saving={saving}
               error={formError}
               onSubmit={viewMode === 'add' ? handleSubmitAdd : handleSubmitEdit}
-              onCancel={() => { setViewMode('table'); setEditingId(null); setEditingData(null); }}
+              onCancel={closeEstimateEditor}
               submitLabel={viewMode === 'add' ? 'Create Estimate' : 'Save changes'}
               reusableItems={reusableItems}
-              onReviewAndSend={
-                viewMode === 'edit' && editingId
-                  ? () => openSendDialog(editingId)
-                  : viewMode === 'add'
-                    ? handleReviewAndSendCreate
-                    : undefined
-              }
+              onReviewAndSend={viewMode === 'add' ? handleReviewAndSendCreate : undefined}
               reviewSending={Boolean(editingId && sendingEstimateId === editingId)}
-              onPresentOnDevice={
-                viewMode === 'edit' && editingId
-                  ? () => void presentEstimateOnDevice(editingId)
-                  : undefined
-              }
+              onPresentOnDevice={undefined}
               presentLoading={Boolean(editingId && presentLoadingId === editingId)}
               discountKind={formDiscountKind}
               discountValue={formDiscountValue}
@@ -1136,11 +1251,7 @@ export default function CRMEstimatesPage() {
                 setFormDiscountKind(kind);
                 setFormDiscountValue(value);
               }}
-              onConvertToInvoice={
-                viewMode === 'edit' && editingId && editingData && editingData.status !== 'declined'
-                  ? () => void handleConvertToInvoice()
-                  : undefined
-              }
+              onConvertToInvoice={undefined}
               convertLoading={convertingToInvoice}
               onOpenAddReusableItem={(rowIndex) => {
                 setAddItemPanelRowIndex(typeof rowIndex === 'number' ? rowIndex : null);
@@ -1148,7 +1259,7 @@ export default function CRMEstimatesPage() {
               }}
             />
           )}
-          {viewMode === 'edit' && editingData === null && <div className="p-12 text-center text-gray-500 text-sm">Loading…</div>}
+          {viewMode === 'edit' && editingData === null && activeEditorView === 'edit' && <div className="p-12 text-center text-gray-500 text-sm">Loading…</div>}
         </div>
       )}
 
@@ -1242,7 +1353,7 @@ export default function CRMEstimatesPage() {
                 <button
                   type="button"
                   className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={convertingId === openActionsId || estimates.find((row) => row.id === openActionsId)?.status !== 'accepted'}
+                  disabled={estimates.find((row) => row.id === openActionsId)?.status !== 'accepted'}
                   title={estimates.find((row) => row.id === openActionsId)?.status === 'accepted' ? undefined : 'Approve the estimate before creating a project'}
                   onClick={() => handleConvertToProject(openActionsId)}
                 >
@@ -1255,6 +1366,19 @@ export default function CRMEstimatesPage() {
           ))(),
           document.body
         )}
+
+      <ProjectFromEstimateDialog
+        estimateId={projectEstimateId}
+        customerName={(() => {
+          const row = estimates.find((item) => item.id === projectEstimateId);
+          return row ? listedCustomerName(row) : null;
+        })()}
+        onClose={() => setProjectEstimateId(null)}
+        onCreated={(projectId) => {
+          setProjectEstimateId(null);
+          router.push(`/${locale}/crm/projects/${projectId}`);
+        }}
+      />
 
       <ProgressInvoiceDialog
         estimateId={progressEstimateId}

@@ -9,6 +9,8 @@ import {
   normalizeEstimateAmountCents,
 } from '@/lib/schemas/crmEstimate';
 import { issueAcceptanceDeposit } from '@/lib/crm/estimate-deposit';
+import { rememberLineDescriptions } from '@/lib/crm/line-descriptions';
+import type { CrmDb } from '@/lib/crm/crm-scope';
 import { finishProApproval } from '@/lib/crm/accept-estimate';
 import {
   DISCOUNT_MIGRATION_ERROR,
@@ -120,7 +122,10 @@ export async function PUT(
     }
 
     const updates: Record<string, unknown> = {};
-    if (body.lineItems !== undefined) updates.line_items = body.lineItems;
+    if (body.lineItems !== undefined) {
+      updates.line_items = body.lineItems;
+      await rememberLineDescriptions(supabase as unknown as CrmDb, user.id, body.lineItems).catch(() => undefined);
+    }
     // amount_cents is the line subtotal minus the discount.
     const hasDiscountColumns = 'discount_kind' in currentEstimate;
     const nextDiscount = body.discount !== undefined ? body.discount : discountFromRow(currentEstimate);

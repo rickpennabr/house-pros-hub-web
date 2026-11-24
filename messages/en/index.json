@@ -3244,7 +3244,10 @@
     "pendingProAdding": "Adding…",
     "pendingProNotNow": "Not now",
     "pendingProAdded": "{pro} was added to {place}.",
-    "pendingProFailed": "Could not add this professional. Try again."
+    "pendingProFailed": "Could not add this professional. Try again.",
+    "emails": "Emails",
+    "emailsIntro": "Emails your pros sent you about this place: invoices, payment reminders and estimates.",
+    "noEmails": "No emails about this place yet."
   },
   "businessFeedback": {
     "title": "Feedback",

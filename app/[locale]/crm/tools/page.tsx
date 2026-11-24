@@ -11,6 +11,7 @@ import Pagination from '@/components/ui/Pagination';
 import { formatCents } from '@/lib/crm/catalog-options';
 import { TOOL_STATUS_LABELS, type ToolKind, type ToolStatus } from '@/lib/crm/pro-tools';
 import type { ToolListItem, ToolsSummary } from '@/lib/crm/pro-tools-db';
+import { TitleCount } from '@/components/crm/TitleCount';
 
 const FILTERS: { id: '' | ToolStatus | 'service_due'; label: string }[] = [
   { id: '', label: 'All' },
@@ -142,7 +143,10 @@ export default function ProToolsPage() {
     <div className="w-full space-y-4 pb-24">
       <div className="flex flex-row items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-semibold text-gray-900">ProTools</h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-gray-900 inline-flex items-center gap-2">
+                ProTools
+                <TitleCount count={data?.total} />
+              </h1>
           <p className="mt-0.5 text-sm text-gray-500">
             Your tools and equipment: what you own, who has it, where it is working, and what it is worth.
           </p>

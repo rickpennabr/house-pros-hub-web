@@ -2995,7 +2995,10 @@
     "pendingProAdding": "Agregando…",
     "pendingProNotNow": "Ahora no",
     "pendingProAdded": "{pro} se agregó a {place}.",
-    "pendingProFailed": "No se pudo agregar a este profesional. Inténtalo de nuevo."
+    "pendingProFailed": "No se pudo agregar a este profesional. Inténtalo de nuevo.",
+    "emails": "Correos",
+    "emailsIntro": "Correos que tus profesionales te enviaron sobre este lugar: facturas, recordatorios de pago y presupuestos.",
+    "noEmails": "Aún no hay correos sobre este lugar."
   },
   "businessFeedback": {
     "title": "Comentarios",

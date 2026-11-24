@@ -1125,7 +1125,10 @@ export function generateInvoiceEmail(data: InvoiceEmailData): string {
   const business = escapeEmailHtml(data.businessName);
   const number = escapeEmailHtml(data.invoiceNumber);
   const total = emailMoney(data.amountCents);
-  const balance = emailMoney(Math.max(0, data.balanceCents ?? data.amountCents));
+  const balanceCents = Math.max(0, data.balanceCents ?? data.amountCents);
+  const balance = emailMoney(balanceCents);
+  // A paid invoice sent again (a copy or a correction) says so instead of asking to pay.
+  const paid = balanceCents === 0 && data.amountCents > 0;
   const url = escapeEmailHtml(data.viewUrl);
   const header = data.logoUrl
     ? '<img src="' + escapeEmailHtml(data.logoUrl) + '" alt="' + business + '" height="64" style="display:block;margin:0 auto;max-height:64px;max-width:240px;border-radius:8px;" />'
@@ -1152,14 +1155,14 @@ export function generateInvoiceEmail(data: InvoiceEmailData): string {
     '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;">',
     '<tr><td align="center" style="padding:24px 24px 20px 24px;">' + header + '</td></tr>',
     '<tr><td align="center" style="background-color:' + tint + ';padding:28px 24px;">',
-    '<p style="margin:0 0 6px 0;font-size:22px;font-weight:bold;color:#111827;">Your invoice is ready!</p>',
+    '<p style="margin:0 0 6px 0;font-size:22px;font-weight:bold;color:#111827;">' + (paid ? 'Paid in full. Thank you!' : 'Your invoice is ready!') + '</p>',
     '<p style="margin:0;font-size:14px;color:#111827;">Invoice #' + number + ' · Total ' + total + '</p>',
     '<p style="margin:24px 0 4px 0;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#374151;">Balance due</p>',
-    '<p style="margin:0;font-size:34px;color:#111827;">' + balance + '</p>',
+    '<p style="margin:0;font-size:34px;color:' + (paid ? '#15803d' : '#111827') + ';">' + balance + (paid ? ' · Paid' : '') + '</p>',
     '</td></tr>',
     '<tr><td align="center" style="padding:32px 24px 8px 24px;">',
     message,
-    '<a href="' + url + '" style="display:inline-block;padding:14px 40px;background-color:' + color + ';color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;border-radius:8px;">View and pay</a>',
+    '<a href="' + url + '" style="display:inline-block;padding:14px 40px;background-color:' + color + ';color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;border-radius:8px;">' + (paid ? 'View invoice' : 'View and pay') + '</a>',
     '</td></tr>',
     '<tr><td align="center" style="padding:24px 24px 28px 24px;">',
     '<table cellpadding="0" cellspacing="0" style="margin:0 auto 16px auto;"><tr><td style="width:160px;border-top:1px solid #d1d5db;font-size:0;line-height:0;">&nbsp;</td></tr></table>',
@@ -1346,6 +1349,8 @@ export interface StatementEmailLine {
   invoiceNumber: string;
   dueDate: string | null;
   balanceCents: number;
+  /** Link to open and pay this invoice. */
+  viewUrl?: string | null;
 }
 
 export interface StatementEmailData {
@@ -1353,48 +1358,116 @@ export interface StatementEmailData {
   customerName: string;
   lines: StatementEmailLine[];
   totalCents: number;
+  logoUrl?: string | null;
+  themeColor?: string | null;
+  businessAddress?: string | null;
+  businessEmail?: string | null;
+  businessPhone?: string | null;
+  businessWebsite?: string | null;
+  footerText?: string | null;
+  /** YYYY-MM-DD, to mark late invoices. */
+  today?: string;
 }
 
-/** Open invoices for one customer. */
+function statementDate(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return value;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+/**
+ * Branded statement of a customer's open invoices: same layout as the invoice email, a tinted
+ * panel with the total due, one row per invoice with its own Pay link, then the business details.
+ */
 export function generateStatementEmail(data: StatementEmailData): string {
+  const color = safeEmailColor(data.themeColor);
+  const tint = color === '#000000' ? '#f3f4f6' : emailTint(color);
+  const business = escapeEmailHtml(data.businessName);
+  const today = data.today ?? new Date().toISOString().slice(0, 10);
+  const isLate = (line: StatementEmailLine) => Boolean(line.dueDate && line.dueDate.slice(0, 10) < today);
+  const lateCount = data.lines.filter(isLate).length;
+  const header = data.logoUrl
+    ? '<img src="' + escapeEmailHtml(data.logoUrl) + '" alt="' + business + '" height="64" style="display:block;margin:0 auto;max-height:64px;max-width:240px;border-radius:8px;" />'
+    : '<p style="margin:0;font-size:22px;font-weight:bold;color:' + color + ';">' + business + '</p>';
   const rows = data.lines
-    .map(
-      (line) =>
-        `<tr>
-          <td style="padding: 8px 0; font-size: 14px; color: #111827;">${escapeEmailHtml(line.invoiceNumber)}</td>
-          <td style="padding: 8px 0; font-size: 14px; color: #374151;">${line.dueDate ? escapeEmailHtml(line.dueDate) : '—'}</td>
-          <td style="padding: 8px 0; font-size: 14px; color: #111827; text-align: right;">${emailMoney(line.balanceCents)}</td>
-        </tr>`
-    )
-    .join('');
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-    <tr>
-      <td style="padding: 32px 24px;">
-        <h1 style="margin: 0 0 8px 0; font-size: 20px; color: #111827;">Statement from ${escapeEmailHtml(data.businessName)}</h1>
-        <p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">${escapeEmailHtml(data.customerName)}, here is what is still open.</p>
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <th align="left" style="padding: 8px 0; font-size: 12px; color: #6b7280;">Invoice</th>
-            <th align="left" style="padding: 8px 0; font-size: 12px; color: #6b7280;">Due</th>
-            <th align="right" style="padding: 8px 0; font-size: 12px; color: #6b7280;">Balance</th>
-          </tr>
-          ${rows}
-          <tr>
-            <td colspan="2" style="padding: 12px 0 0 0; font-size: 14px; font-weight: bold; color: #111827; border-top: 2px solid #111827;">Total due</td>
-            <td style="padding: 12px 0 0 0; font-size: 14px; font-weight: bold; color: #111827; text-align: right; border-top: 2px solid #111827;">${emailMoney(data.totalCents)}</td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim();
+    .map((line) => {
+      const late = isLate(line);
+      const due = line.dueDate ? escapeEmailHtml(statementDate(line.dueDate)) + (late ? ' · Late' : '') : '—';
+      const url = line.viewUrl ? escapeEmailHtml(line.viewUrl) : '';
+      const number = url
+        ? '<a href="' + url + '" style="color:' + color + ';font-weight:bold;text-decoration:none;">#' + escapeEmailHtml(line.invoiceNumber) + '</a>'
+        : '#' + escapeEmailHtml(line.invoiceNumber);
+      const pay = url
+        ? '<a href="' + url + '" style="display:inline-block;padding:6px 14px;background-color:' + color + ';color:#ffffff;font-size:13px;font-weight:bold;text-decoration:none;border-radius:6px;">Pay</a>'
+        : '';
+      return [
+        '<tr>',
+        '<td style="padding:12px 0;border-bottom:1px solid #e5e7eb;font-size:14px;color:#111827;">' + number + '</td>',
+        '<td style="padding:12px 8px;border-bottom:1px solid #e5e7eb;font-size:14px;color:' + (late ? '#dc2626' : '#374151') + ';">' + due + '</td>',
+        '<td align="right" style="padding:12px 8px;border-bottom:1px solid #e5e7eb;font-size:14px;font-weight:bold;color:#111827;white-space:nowrap;">' + emailMoney(line.balanceCents) + '</td>',
+        '<td align="right" style="padding:12px 0;border-bottom:1px solid #e5e7eb;">' + pay + '</td>',
+        '</tr>',
+      ].join('');
+    })
+    .join('\n');
+  const address = data.businessAddress?.trim()
+    ? '<p style="margin:4px 0 0 0;font-size:14px;line-height:1.5;color:#111827;white-space:pre-line;">' + escapeEmailHtml(data.businessAddress.trim()) + '</p>'
+    : '';
+  const website = data.businessWebsite?.trim() || '';
+  const websiteHref = website && !/^https?:\/\//i.test(website) ? 'https://' + website : website;
+  const contacts = [
+    data.businessEmail?.trim() ? '<a href="mailto:' + escapeEmailHtml(data.businessEmail.trim()) + '" style="color:' + color + ';text-decoration:none;">' + escapeEmailHtml(data.businessEmail.trim()) + '</a>' : '',
+    data.businessPhone?.trim() ? '<a href="tel:' + escapeEmailHtml(data.businessPhone.replace(/[^\d+]/g, '')) + '" style="color:' + color + ';text-decoration:none;">' + escapeEmailHtml(data.businessPhone.trim()) + '</a>' : '',
+    website ? '<a href="' + escapeEmailHtml(websiteHref) + '" style="color:' + color + ';text-decoration:none;">' + escapeEmailHtml(website) + '</a>' : '',
+  ].filter(Boolean);
+  const footer = data.footerText?.trim()
+    ? '<p style="margin:16px 0 0 0;font-size:12px;line-height:1.5;color:#6b7280;white-space:pre-line;">' + escapeEmailHtml(data.footerText.trim()) + '</p>'
+    : '';
+  const count = data.lines.length;
+  const th = 'font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#374151;border-bottom:2px solid #111827;';
+  return [
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>',
+    '<body style="margin:0;padding:24px 0;font-family:Arial,Helvetica,sans-serif;background-color:#f3f4f6;">',
+    '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;">',
+    '<tr><td align="center" style="padding:24px 24px 20px 24px;">' + header + '</td></tr>',
+    '<tr><td align="center" style="background-color:' + tint + ';padding:28px 24px;">',
+    '<p style="margin:0 0 6px 0;font-size:22px;font-weight:bold;color:#111827;">Your statement</p>',
+    '<p style="margin:0;font-size:14px;color:#111827;">' + escapeEmailHtml(data.customerName) + ' · ' + count + ' open invoice' + (count === 1 ? '' : 's') + (lateCount ? ' · ' + lateCount + ' late' : '') + '</p>',
+    '<p style="margin:24px 0 4px 0;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#374151;">Total due</p>',
+    '<p style="margin:0;font-size:34px;color:' + (lateCount ? '#dc2626' : '#111827') + ';">' + emailMoney(data.totalCents) + '</p>',
+    '</td></tr>',
+    '<tr><td style="padding:24px 24px 8px 24px;">',
+    '<table width="100%" cellpadding="0" cellspacing="0">',
+    '<tr>',
+    '<th align="left" style="padding:0 0 8px 0;' + th + '">Invoice</th>',
+    '<th align="left" style="padding:0 8px 8px 8px;' + th + '">Due</th>',
+    '<th align="right" style="padding:0 8px 8px 8px;' + th + '">Balance</th>',
+    '<th style="padding:0 0 8px 0;border-bottom:2px solid #111827;"></th>',
+    '</tr>',
+    rows,
+    '<tr>',
+    '<td colspan="2" style="padding:14px 0 0 0;font-size:15px;font-weight:bold;color:#111827;">Total due</td>',
+    '<td align="right" style="padding:14px 8px 0 8px;font-size:15px;font-weight:bold;color:#111827;white-space:nowrap;">' + emailMoney(data.totalCents) + '</td>',
+    '<td></td>',
+    '</tr>',
+    '</table>',
+    '<p style="margin:20px 0 0 0;font-size:13px;line-height:1.5;color:#374151;">Tap Pay next to an invoice to open it and pay by card. Already paid? Thank you, and please disregard it.</p>',
+    '</td></tr>',
+    '<tr><td align="center" style="padding:24px 24px 28px 24px;">',
+    '<table cellpadding="0" cellspacing="0" style="margin:0 auto 16px auto;"><tr><td style="width:160px;border-top:1px solid #d1d5db;font-size:0;line-height:0;">&nbsp;</td></tr></table>',
+    '<p style="margin:0;font-size:14px;font-weight:bold;color:#111827;">' + business + '</p>',
+    address,
+    contacts.length ? '<p style="margin:14px 0 0 0;font-size:14px;line-height:1.6;">' + contacts.join('<br>') + '</p>' : '',
+    footer,
+    '</td></tr></table>',
+    '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;">',
+    '<tr><td align="center" style="padding:16px 24px;font-size:11px;line-height:1.5;color:#6b7280;">',
+    'If an email about a payment looks wrong, check with ' + business + ' before paying.',
+    '<p style="margin:12px 0 0 0;color:#9ca3af;">Sent with House Pros Hub</p>',
+    '</td></tr></table>',
+    '</body></html>',
+  ].join('\n');
 }
 
 export interface EstimateReviewEmailData {

@@ -23,6 +23,7 @@ import {
   Pencil,
   Receipt,
   Wrench,
+  Mail,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
@@ -38,7 +39,7 @@ import { MAINTENANCE_FREQUENCY_LABELS, type MaintenanceFrequency } from '@/lib/c
 import { FileDropTarget } from '@/components/ui/FileDropTarget';
 import { PlacePros } from '@/components/places/PlacePros';
 import { TimelineSteps } from '@/components/timeline/TimelineSteps';
-import { placeEventBy, placeEventStepKind, type TimelineStep } from '@/lib/timeline/steps';
+import { placeEventBy, placeEventEmailed, placeEventStepKind, type TimelineStep } from '@/lib/timeline/steps';
 
 /** The header FIX camera (same animation), sized to the card tile. */
 function FixCamAnimatedIcon({ className }: { className?: string }) {
@@ -57,6 +58,7 @@ const TABS = [
   { id: 'documents', icon: FileText },
   { id: 'invoices', icon: Receipt },
   { id: 'estimates', icon: FileCheck },
+  { id: 'emails', icon: Mail },
 ] as const;
 type PlaceTab = (typeof TABS)[number]['id'];
 
@@ -632,6 +634,29 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
                   .join(' · ') || null,
               amountCents: typeof event.amountCents === 'number' ? event.amountCents : null,
             }))}
+          />
+        </section>
+      ) : null}
+
+      {tab === 'emails' ? (
+        <section className="border-2 border-black rounded-lg p-4 space-y-3" role="tabpanel">
+          <p className="text-sm text-gray-600">{t('emailsIntro')}</p>
+          <TimelineSteps
+            emptyText={t('noEmails')}
+            formatWhen={formatWhen}
+            steps={view.timeline
+              .filter((event) => placeEventEmailed(event.kind))
+              .map((event) => ({
+                id: event.id,
+                kind: placeEventStepKind(event.kind),
+                at: event.occurredAt,
+                title: event.title,
+                detail:
+                  [event.proName ? `${t('with')} ${event.proName}` : null, event.detail, event.jobArea]
+                    .filter(Boolean)
+                    .join(' · ') || null,
+                amountCents: typeof event.amountCents === 'number' ? event.amountCents : null,
+              }))}
           />
         </section>
       ) : null}

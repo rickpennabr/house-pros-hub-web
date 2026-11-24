@@ -84,10 +84,10 @@ export default function CustomerPortalPage() {
     properties.find((row) => row.id === placeId) ?? properties.find((row) => row.isDefault) ?? properties[0] ?? null;
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl space-y-4">
-      <div>
+    <div className="p-0 md:p-6 max-w-4xl space-y-4">
+      <div className="!mb-2 md:!mb-4">
         <h1 className="text-2xl font-semibold">Customer portal</h1>
-        <p className="text-sm text-gray-700 mt-1">
+        <p className="mt-1 hidden text-sm text-gray-700 md:block">
           Everything done for a customer, one property at a time: charges, invoices, estimates, maintenance, projects
           and files.
         </p>

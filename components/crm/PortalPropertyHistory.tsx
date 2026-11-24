@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
-import { FileCheck, FileText, FolderKanban, History, Receipt, Wrench } from 'lucide-react';
+import { FileCheck, FileText, FolderKanban, History, Mail, Receipt, Wrench } from 'lucide-react';
 import { BsGrid3X3Gap } from 'react-icons/bs';
 import type { ContactProperty } from '@/lib/places/contact-places';
 import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
 import { TimelineSteps } from '@/components/timeline/TimelineSteps';
-import { buildProPropertyTimeline } from '@/lib/timeline/steps';
+import { buildProPropertyTimeline, emailedSteps } from '@/lib/timeline/steps';
 import { useActivityBadges } from '@/hooks/useActivityBadges';
 import { NotificationCount } from '@/components/ui/NotificationCount';
 
@@ -87,6 +87,7 @@ const TABS = [
   { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'invoices', label: 'Invoices', icon: Receipt },
   { id: 'estimates', label: 'Estimates', icon: FileCheck },
+  { id: 'emails', label: 'Emails', icon: Mail },
 ] as const;
 type PortalTab = (typeof TABS)[number]['id'];
 
@@ -176,6 +177,7 @@ export function PortalPropertyHistory({ data, locale, customerId }: { data: Prop
   const planName = new Map(data.plans.map((row) => [row.id, row.name]));
   const crm = `/${locale}/crm`;
   const timeline = useMemo(() => buildProPropertyTimeline(data, crm), [data, crm]);
+  const emails = useMemo(() => emailedSteps(timeline), [timeline]);
   // What the customer did since the pro last opened each tab.
   const { counts: unread, newIds } = useActivityBadges(
     customerId ? `crm:${customerId}:${data.property?.id || 'home'}:` : null,
@@ -190,6 +192,7 @@ export function PortalPropertyHistory({ data, locale, customerId }: { data: Prop
     documents: data.documents.length,
     invoices: data.invoices.length + data.payments.length,
     estimates: data.estimates.length,
+    emails: emails.length,
   };
 
   return (
@@ -265,12 +268,22 @@ export function PortalPropertyHistory({ data, locale, customerId }: { data: Prop
       </div>
 
       {tab === 'timeline' ? (
-        <section className="space-y-3 rounded-lg border-2 border-black p-4" role="tabpanel">
-          <p className="text-sm text-gray-600">
+        <section className="space-y-3 md:rounded-lg md:border-2 md:border-black md:p-4" role="tabpanel">
+          <p className="hidden text-sm text-gray-600 md:block">
             Everything that happened on this property: estimates, approvals, invoices, payments, visits and files. Each step
             says whether the customer sees it.
           </p>
           <TimelineSteps newIds={newIds} steps={timeline} emptyText="Nothing on this property yet." showAudience formatWhen={formatWhen} />
+        </section>
+      ) : null}
+
+      {tab === 'emails' ? (
+        <section className="space-y-3 md:rounded-lg md:border-2 md:border-black md:p-4" role="tabpanel">
+          <p className="hidden text-sm text-gray-600 md:block">
+            Every email sent to this customer about this property: invoices, re-sends, payment reminders, estimates and
+            statements, with when and where it went.
+          </p>
+          <TimelineSteps steps={emails} emptyText="No emails sent about this property yet." formatWhen={formatWhen} />
         </section>
       ) : null}
 

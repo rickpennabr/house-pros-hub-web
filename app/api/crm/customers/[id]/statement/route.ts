@@ -5,6 +5,10 @@ import { contactDisplayName } from '@/lib/crm/contact-name';
 import { sendStatementEmail } from '@/lib/services/emailService';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/supabase';
+import { createServiceRoleClient } from '@/lib/supabase/server';
+import { loadInvoiceEmailBranding } from '@/lib/invoices/reminder';
+import { getOrCreateInvoicePayLink } from '@/lib/invoices/payLink';
+import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 
 type Client = SupabaseClient<Database>;
 
@@ -85,7 +89,7 @@ export async function GET(
  * Emails the open balances to the customer.
  */
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -98,15 +102,26 @@ export async function POST(
     if (!statement.email) return NextResponse.json({ error: 'This contact has no email address' }, { status: 400 });
     if (statement.invoices.length === 0) return NextResponse.json({ error: 'This contact has no open invoices' }, { status: 400 });
 
+    // Same branding as the invoice emails, and a pay link for each open invoice.
+    const branding = await loadInvoiceEmailBranding(supabase as never, user.id, null, null).catch(() => null);
+    const service = createServiceRoleClient();
+    const baseUrl = getPublicSiteUrlForEmail(request);
+    const locale = request.headers.get('x-next-intl-locale') || 'en';
+    const links = await Promise.all(
+      statement.invoices.map((invoice) => getOrCreateInvoicePayLink(service as never, invoice.id, baseUrl, locale).catch(() => null))
+    );
+
     const result = await sendStatementEmail(
       {
-        businessName: statement.businessName,
+        ...(branding ?? {}),
+        businessName: branding?.businessName || statement.businessName,
         customerName: statement.customerName,
         totalCents: statement.totalCents,
-        lines: statement.invoices.map((invoice) => ({
+        lines: statement.invoices.map((invoice, index) => ({
           invoiceNumber: invoice.invoiceNumber,
           dueDate: invoice.dueDate,
           balanceCents: invoice.balanceCents,
+          viewUrl: links[index]?.url ?? null,
         })),
       },
       statement.email

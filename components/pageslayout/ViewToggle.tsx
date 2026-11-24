@@ -85,7 +85,7 @@ export default function ViewToggle({
   const isHidden = false;
   /** Same box for every control. Labels only widen the desktop buttons. */
   const controlSize = embedded
-    ? 'h-11 w-11 min-h-[2.75rem] min-w-[2.75rem]'
+    ? 'h-10 w-10 min-h-10 min-w-10'
     : 'h-9 w-9 min-h-9 min-w-9 p-0 md:h-10 md:min-h-10';
   const iconSize = embedded ? 'h-5 w-5' : 'h-4 w-4 md:h-5 md:w-5';
 

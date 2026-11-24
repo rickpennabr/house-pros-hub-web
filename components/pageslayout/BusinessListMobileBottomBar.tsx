@@ -5,11 +5,12 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
-import { Phone, Plus, Settings } from 'lucide-react';
+import { Home, Phone, Plus, Settings } from 'lucide-react';
 import ViewToggle, { ViewType } from '@/components/pageslayout/ViewToggle';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import { useProBotTransition } from '@/contexts/ProBotTransitionContext';
 import { HUB_WHATSAPP_URL } from '@/lib/constants/company';
+import { NotificationCount } from '@/components/ui/NotificationCount';
 
 const PHONE_NUMBER = '702-232-0411';
 const PROBOT_BLACKOUT_MS = 500;
@@ -17,7 +18,7 @@ const PROBOT_BLACKOUT_MS = 500;
 interface BusinessListMobileBottomBarProps {
   currentView: ViewType;
   onViewChange: (view: ViewType) => void;
-  /** Signed-in contractor, realtor, or installer: ProBot, job camera, then Add. */
+  /** Signed-in contractor, realtor, or installer: ProBot, settings, job camera, Add, then Customer portal. */
   showProAdd?: boolean;
   /** Signed-in users get a settings button that opens Account Management. */
   signedIn?: boolean;
@@ -32,7 +33,8 @@ interface BusinessListMobileBottomBarProps {
  * Mobile-only bottom bar on the business list (HousePros) page.
  * Guests: two view buttons, then ProBot, WhatsApp, and Phone.
  * Signed-in users also get a settings button that opens Account Management.
- * Signed-in pros: two view buttons, then ProBot, camera, Add, and settings.
+ * Signed-in pros: two view buttons, then ProBot, settings (center), camera, Add, and Customer portal last (ProBot is
+ * also in the account menu, under ProDrive).
  * Call the hub lives in the account menu, under Help.
  */
 export default function BusinessListMobileBottomBar({
@@ -53,6 +55,22 @@ export default function BusinessListMobileBottomBar({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // Pros: what customers did since the pro last looked, on the Customer portal button.
+  const [customerActivity, setCustomerActivity] = useState(0);
+  useEffect(() => {
+    if (!showProAdd) return;
+    let cancelled = false;
+    void fetch('/api/activity/unread', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { crmTotal?: number } | null) => {
+        if (!cancelled && data) setCustomerActivity(data.crmTotal ?? 0);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [showProAdd]);
+
   const handleProBotClick = useCallback(() => {
     setTransitioningToProbot(true);
     setTimeout(() => {
@@ -68,7 +86,7 @@ export default function BusinessListMobileBottomBar({
     <button
       type="button"
       onClick={() => router.push(`/${locale}/account-management`)}
-      className="flex h-11 w-11 min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-black transition-colors hover:bg-gray-50"
+      className={`flex h-10 w-10 min-h-10 min-w-10 p-0 shrink-0 items-center justify-center rounded-lg border-2 border-white bg-white text-black transition-colors hover:bg-gray-50`}
       aria-label={tAccount('accountManagement')}
     >
       <Settings className="h-5 w-5" />
@@ -79,7 +97,7 @@ export default function BusinessListMobileBottomBar({
   const probotButton = (
     <div className="relative flex shrink-0 items-center justify-center">
       <span
-        className="beta-badge-dynamic absolute -top-[10px] -right-2 z-10 rounded border border-black px-0.5 text-[9px] font-bold text-black shadow"
+        className="beta-badge-dynamic absolute -top-[10px] left-0 z-10 rounded border border-black px-0.5 text-[9px] font-bold text-black shadow"
         aria-hidden
       >
         Beta
@@ -87,7 +105,7 @@ export default function BusinessListMobileBottomBar({
       <button
         type="button"
         onClick={handleProBotClick}
-        className="flex h-11 w-11 min-h-[2.75rem] min-w-[2.75rem] items-center justify-center overflow-hidden rounded-lg border-2 border-white bg-black transition-all hover:opacity-90 active:scale-95"
+        className={`flex h-10 w-10 min-h-10 min-w-10 p-0 items-center justify-center overflow-hidden rounded-lg border-2 border-white bg-black transition-all hover:opacity-90 active:scale-95`}
         aria-label="Open ProBot (online)"
       >
         <Image
@@ -99,7 +117,7 @@ export default function BusinessListMobileBottomBar({
         />
       </button>
       <span
-        className="pointer-events-none absolute bottom-[-5px] right-[-5px] z-10 h-3 w-3 shrink-0 rounded-full border-2 border-white bg-green-500"
+        className="pointer-events-none absolute bottom-0.5 right-0.5 z-10 h-3 w-3 shrink-0 rounded-full border-2 border-white bg-green-500"
         title="Online"
         aria-hidden
       />
@@ -108,7 +126,7 @@ export default function BusinessListMobileBottomBar({
 
   const barEl = (
     <div
-      className="fixed bottom-0 left-2 right-2 z-[100] flex items-center justify-between gap-1 py-2 px-3 min-h-[60px] bg-black border-t-2 border-black rounded-t-lg rounded-b-lg shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
+      className={`fixed bottom-0 left-2 right-2 z-[100] flex items-center justify-between ${showProAdd ? 'gap-0.5 px-2' : 'gap-1 px-3'} py-2 min-h-[60px] bg-black border-t-2 border-black rounded-t-lg rounded-b-lg shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]`}
       role="toolbar"
       aria-label="View, ProBot, contact"
       style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))' }}
@@ -117,15 +135,18 @@ export default function BusinessListMobileBottomBar({
       <ViewToggle currentView={currentView} onViewChange={onViewChange} embedded flatten />
 
       {/* Center white vertical divider */}
-      <div className="h-11 w-px flex-shrink-0 bg-white opacity-90" aria-hidden />
+      <div className="h-10 w-px flex-shrink-0 bg-white opacity-90" aria-hidden />
 
       {probotButton}
+
+      {/* Pros: settings sits in the middle of the bar. */}
+      {showProAdd ? settingsButton : null}
 
       {showProAdd ? (
         <>
           <div className="relative flex shrink-0 items-center justify-center">
             <span
-              className="beta-badge-dynamic absolute -top-[10px] -right-2 z-10 rounded border border-black px-0.5 text-[9px] font-bold text-black shadow"
+              className="beta-badge-dynamic absolute -top-[10px] left-0 z-10 rounded border border-black px-0.5 text-[9px] font-bold text-black shadow"
               aria-hidden
             >
               Beta
@@ -133,24 +154,35 @@ export default function BusinessListMobileBottomBar({
             <button
               type="button"
               onClick={onJobCamera}
-              className="flex h-11 w-[3.25rem] shrink-0 items-center justify-center rounded-lg bg-white text-black"
+              className="flex h-10 w-10 min-h-10 min-w-10 p-0 shrink-0 items-center justify-center rounded-lg bg-transparent text-white"
               aria-label={jobCameraLabel}
             >
-              <span className="relative block h-8 w-[2.6rem] overflow-hidden">
-                <RepairCameraMark label="JOB" />
+              <span className="relative block h-8 w-10 overflow-hidden">
+                <RepairCameraMark label="JOB" line="white" />
               </span>
             </button>
           </div>
           <button
             type="button"
             onClick={onAdd}
-            className="flex h-11 w-11 min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border-2 border-white bg-white text-black transition-all hover:bg-gray-100 active:scale-95"
+            className="flex h-10 w-10 min-h-10 min-w-10 p-0 shrink-0 items-center justify-center rounded-lg border-2 border-white bg-white text-black transition-all hover:bg-gray-100 active:scale-95"
             aria-label={addLabel}
             aria-expanded={addOpen}
           >
             <Plus className={`h-5 w-5 transition-transform duration-200 ${addOpen ? 'rotate-45' : ''}`} />
           </button>
-          {settingsButton}
+          <div className="relative flex shrink-0 items-center justify-center">
+          <button
+            type="button"
+            onClick={() => router.push(`/${locale}/crm/portal`)}
+            className="flex h-10 w-10 min-h-10 min-w-10 p-0 shrink-0 items-center justify-center rounded-lg border-2 border-white bg-white text-red-600 transition-all hover:bg-gray-100 active:scale-95"
+            aria-label={tAccount('customerPortal')}
+            title={tAccount('customerPortal')}
+          >
+            <Home className="h-5 w-5" />
+          </button>
+            <NotificationCount count={customerActivity} className="pointer-events-none absolute -right-2 -top-2 z-10" />
+          </div>
         </>
       ) : (
       <>
@@ -159,7 +191,7 @@ export default function BusinessListMobileBottomBar({
             href={HUB_WHATSAPP_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex h-11 w-11 min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border-2 border-white bg-[#25D366] text-white transition-colors hover:bg-[#20bd5a]"
+            className="flex h-10 w-10 min-h-10 min-w-10 p-0 shrink-0 items-center justify-center rounded-lg border-2 border-white bg-[#25D366] text-white transition-colors hover:bg-[#20bd5a]"
             aria-label="WhatsApp"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -171,7 +203,7 @@ export default function BusinessListMobileBottomBar({
         <button
           type="button"
           onClick={handlePhoneClick}
-          className="flex h-11 w-11 min-h-[2.75rem] min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white text-black transition-colors hover:bg-gray-50"
+          className="flex h-10 w-10 min-h-10 min-w-10 p-0 shrink-0 items-center justify-center rounded-lg border-2 border-white bg-white text-black transition-colors hover:bg-gray-50"
           aria-label={`Call ${PHONE_NUMBER}`}
         >
             <Phone className="h-5 w-5" />

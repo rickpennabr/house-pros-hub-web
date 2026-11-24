@@ -13,6 +13,7 @@ interface CRMLayoutProps {
 
 function CRMLayoutFrame({ children, locale }: CRMLayoutProps) {
   const pathname = usePathname();
+  const portalPage = (pathname ?? '').replace(/\/$/, '').endsWith('/crm/portal');
   const chrome = useCRMChrome();
   const searchOpen = chrome?.searchOpen ?? false;
   const setSearchOpen = chrome?.setSearchOpen;
@@ -33,7 +34,8 @@ function CRMLayoutFrame({ children, locale }: CRMLayoutProps) {
         <CRMSidebar locale={locale} mobileCollapsed={searchOpen} />
         <main className="flex-1 min-w-0 bg-white flex flex-col md:overflow-y-auto pt-0 md:pt-0">
           {/* pb-10: every CRM page ends with breathing room under its last buttons (at least 30px). */}
-          <div className="px-2 md:px-[100px] md:pt-3 pb-10 flex-1">{children}</div>
+          {/* Customer portal on phones: an even 8px all around. */}
+          <div className={`${portalPage ? 'px-2 py-2 md:pb-10' : 'px-2 pb-10'} md:px-[100px] md:pt-3 flex-1`}>{children}</div>
         </main>
       </div>
     </div>

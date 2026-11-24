@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHoverMenu } from '@/hooks/useHoverMenu';
@@ -285,6 +286,15 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                   >
                     <HardDrive className="w-4 h-4 text-red-600" />
                     <span>ProDrive</span>
+                  </button>
+                )}
+                {isPro && (
+                  <button
+                    onClick={() => handleMenuItemClick('/probot')}
+                    className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+                  >
+                    <Image src="/hph-pro-bot.jpg" alt="" width={20} height={20} className="h-5 w-5 rounded-md bg-black object-contain" />
+                    <span>{t('probot')}</span>
                   </button>
                 )}
                 <button

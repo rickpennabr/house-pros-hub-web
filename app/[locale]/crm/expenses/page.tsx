@@ -21,6 +21,7 @@ import { categoryNeedsSupplier } from '@/lib/crm/expense-supplier';
 import { categoryUsesVehicle } from '@/lib/crm/mileage-cost';
 import { BUSINESS_COST_CATEGORIES, JOB_COST_CATEGORIES } from '@/lib/crm/job-financials';
 import { UNIT_OPTIONS } from '@/lib/constants/unitOptions';
+import { TitleCount } from '@/components/crm/TitleCount';
 
 const SORT_OPTIONS = [
   { value: 'expense_date', label: 'Date' },
@@ -817,7 +818,10 @@ export default function CRMExpensesPage() {
           <div className="no-print">
           <div className="hidden md:flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
             <div className="min-w-0">
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Expenses</h1>
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900 inline-flex items-center gap-2">
+                Expenses
+                <TitleCount count={total} />
+              </h1>
               <p className="text-sm text-gray-500 mt-0.5">Track expenses and optionally link to projects.</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">

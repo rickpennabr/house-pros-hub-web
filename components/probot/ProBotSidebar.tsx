@@ -292,7 +292,7 @@ export default function ProBotSidebar({
             <MessageCircle className="w-5 h-5" aria-hidden />
             {collapsedMessageBadgeCount > 0 && (
               <span
-                className="absolute -top-0.5 -right-0.5 min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center rounded-md bg-red-500 text-white text-[10px] font-semibold shadow-sm ring-2 ring-white z-10"
+                className="absolute -top-0.5 -right-0.5 min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold shadow-sm ring-2 ring-white z-10"
                 aria-label={collapsedMessageBadgeCount === 1 ? '1 unread message' : `${collapsedMessageBadgeCount} unread messages`}
               >
                 {collapsedMessageBadgeCount > 99 ? '99+' : collapsedMessageBadgeCount}

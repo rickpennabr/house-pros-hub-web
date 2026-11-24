@@ -13,6 +13,8 @@ import { contactDisplayName } from '@/lib/crm/contact-name';
 import { summarizeEstimateStatuses } from '@/lib/crm/estimate-books';
 import { buildEstimateChart, safeTimeZone, type EstimateChart } from '@/lib/crm/estimate-chart';
 import { pickDocPlaceId } from '@/lib/places/contact-places';
+import { rememberLineDescriptions } from '@/lib/crm/line-descriptions';
+import type { CrmDb } from '@/lib/crm/crm-scope';
 
 const VALID_SORT = ['created_at', 'updated_at', 'status', 'due_date', 'amount_cents'] as const;
 
@@ -270,6 +272,7 @@ export async function POST(request: NextRequest) {
       .select('id, display_id, created_at')
       .single();
 
+    if (!error) await rememberLineDescriptions(supabase as unknown as CrmDb, user.id, lineItems).catch(() => undefined);
     if (error) {
       const message = isMissingDiscountColumn(error) ? DISCOUNT_MIGRATION_ERROR : error.message || 'Failed to create estimate';
       return NextResponse.json({ error: message }, { status: 500 });

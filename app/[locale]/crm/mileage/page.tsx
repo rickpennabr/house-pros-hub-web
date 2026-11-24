@@ -19,6 +19,7 @@ import {
   type VehicleCostBreakdown,
   type VehicleCostInput,
 } from '@/lib/crm/mileage-cost';
+import { TitleCount } from '@/components/crm/TitleCount';
 
 interface VehicleView {
   id: string;
@@ -495,7 +496,10 @@ export default function CRMMileagePage() {
     <div className="w-full space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 md:text-2xl">Mileage</h1>
+          <h1 className="text-xl font-semibold text-gray-900 md:text-2xl inline-flex items-center gap-2">
+                Mileage
+                <TitleCount count={trips.length} />
+              </h1>
           <p className="mt-0.5 text-sm text-gray-500">
             Enter the vehicle, gas, and yearly costs. An average trip and each logged drive are priced from those numbers.
           </p>

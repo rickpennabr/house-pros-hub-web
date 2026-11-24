@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { projectDurationText } from '@/lib/crm/project-duration';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
@@ -22,6 +23,7 @@ import Modal from '@/components/ui/Modal';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 import { ChartLoading, ProjectListChart } from '@/components/crm/ListCharts';
 import { isProjectChart } from '@/lib/crm/list-charts';
+import { TitleCount } from '@/components/crm/TitleCount';
 
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Created' },
@@ -123,6 +125,7 @@ const PROJECT_COLUMNS: AdminDataTableColumn<ProjectRow>[] = [
   { id: 'status', label: 'Status', sortKey: 'status', width: 130 },
   { id: 'start_date', label: 'Start', sortKey: 'start_date', width: 130 },
   { id: 'end_date', label: 'End', sortKey: 'end_date', width: 130 },
+  { id: 'duration', label: 'Duration', width: 120 },
   { id: 'schedule', label: 'Schedule', width: 130 },
   { id: 'contract_amount', label: 'Contract Amount', width: 150 },
   { id: 'project_cost', label: 'Project Cost', width: 140 },
@@ -148,6 +151,8 @@ function projectCellText(row: ProjectRow, columnId: string): string {
       return row.project_manager ?? '';
     case 'schedule':
       return scheduleText(row);
+    case 'duration':
+      return projectDurationText(row.start_date, row.end_date);
     case 'invoiced':
       return formatMoney(row.invoiced_cents ?? 0);
     case 'billed_percent':
@@ -421,7 +426,10 @@ export default function CRMProjectsPage() {
         <>
           <div className="hidden md:flex flex-row items-center justify-between gap-4 pt-2 pb-2 md:pt-0 md:pb-0">
             <div className="min-w-0">
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Projects</h1>
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900 inline-flex items-center gap-2">
+                Projects
+                <TitleCount count={total} />
+              </h1>
               <p className="text-sm text-gray-500 mt-0.5">Track jobs and link them to customers and estimates.</p>
             </div>
             <Button variant="primary" size="sm" className="flex items-center gap-2 shrink-0" onClick={() => setViewMode('add')}>
@@ -615,7 +623,10 @@ export default function CRMProjectsPage() {
               <Input type="date" value={formStartDate} onChange={(e) => setFormStartDate(e.target.value)} />
             </FormField>
             <FormField label="End date">
-              <Input type="date" value={formEndDate} onChange={(e) => setFormEndDate(e.target.value)} />
+              <Input type="date" value={formEndDate} min={formStartDate || undefined} onChange={(e) => setFormEndDate(e.target.value)} />
+              {projectDurationText(formStartDate, formEndDate) ? (
+                <p className="mt-1 text-sm text-gray-700">Duration: <strong>{projectDurationText(formStartDate, formEndDate)}</strong></p>
+              ) : null}
             </FormField>
             <FormField label="Note">
               <Input value={formNote} onChange={(e) => setFormNote(e.target.value)} placeholder="Optional note" />

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { ProductOrServiceCombobox } from '@/components/invoices/ProductOrServiceCombobox';
+import { LineDescriptionInput } from '@/components/invoices/LineDescriptionInput';
 import type { ProCrmItem } from '@/components/invoices/AddProductServicePanel';
 import { DEFAULT_UNIT } from '@/lib/constants/unitOptions';
 import { DOCUMENT_FORM_LAYOUT, DOCUMENT_LINE_QTY_RATE } from '@/lib/constants/documentFormLayout';
@@ -437,7 +438,7 @@ export function EstimateDocumentForm({
               <thead>
                 <tr className="border-b-2 border-black">
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-8">#</th>
-                  <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Product or service</th>
+                  <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 w-[17%] min-w-[120px]">Product or service</th>
                   <th className="text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600">Description</th>
                   <th className={DOCUMENT_LINE_QTY_RATE.unitTh}>Unit</th>
                   <th className={DOCUMENT_LINE_QTY_RATE.qtyTh}>Qty</th>
@@ -464,7 +465,9 @@ export function EstimateDocumentForm({
                           next[index] = {
                             ...next[index],
                             product_or_service: item.name,
-                            description: item.description ?? '',
+                            // Same as invoices: a service's own description is for the pro page, so the
+                            // line starts empty and offers the descriptions saved for it. Products keep theirs.
+                            description: item.item_type === 'service' ? '' : item.description ?? '',
                             unit: item.unit || DEFAULT_UNIT,
                             rate_cents: item.price_cents,
                             amount_cents: Math.round((next[index].qty || 1) * item.price_cents),
@@ -478,12 +481,12 @@ export function EstimateDocumentForm({
                       />
                     </td>
                     <td className="py-1 px-2 align-top">
-                      <Input
-                        placeholder="Description"
+                      <LineDescriptionInput
+                        itemName={line.product_or_service ?? ''}
                         value={line.description ?? ''}
-                        onChange={(e) => {
+                        onChange={(text) => {
                           const next = [...lineItems];
-                          next[index] = { ...next[index], description: e.target.value };
+                          next[index] = { ...next[index], description: text };
                           onLineItemsChange(next);
                         }}
                         className={`text-sm py-1.5 border-gray-300 min-w-[120px] ${

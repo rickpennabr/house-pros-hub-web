@@ -15,6 +15,10 @@ export interface MobileGridActionItem {
   external?: boolean;
   /** Icon color when not active (trade tools use their trade color). */
   iconClass?: string;
+  /** Border color class instead of black (trade tools use their trade color). */
+  borderClass?: string;
+  /** Border colors to cycle through, one per second (ProTrades). */
+  borderColors?: readonly string[];
 }
 
 interface MobileGridActionsModalProps {
@@ -32,6 +36,7 @@ interface MobileGridActionsModalProps {
 }
 
 const DRAG_SLOP_PX = 8;
+const BORDER_CYCLE_MS = 1000;
 const DEFAULT_DRAG_HINT = 'Drag a tile to change the order';
 
 export function MobileGridActionsModal({
@@ -52,6 +57,15 @@ export function MobileGridActionsModal({
   useEffect(() => {
     if (!isOpen) cleanupRef.current?.();
   }, [isOpen]);
+
+  // Tiles with borderColors change border color every second while the menu is open.
+  const [borderTick, setBorderTick] = useState(0);
+  const cycles = items.some((item) => item.borderColors && item.borderColors.length > 1);
+  useEffect(() => {
+    if (!isOpen || !cycles) return;
+    const timer = setInterval(() => setBorderTick((tick) => tick + 1), BORDER_CYCLE_MS);
+    return () => clearInterval(timer);
+  }, [isOpen, cycles]);
 
   const beginDrag = (event: React.PointerEvent, id: string) => {
     if (!onReorder || event.button !== 0) return;
@@ -125,8 +139,10 @@ export function MobileGridActionsModal({
       <div className={`grid grid-cols-3 gap-3 p-2 md:p-4 ${draggingId ? 'touch-none' : ''}`}>
         {items.map((item) => {
           const Icon = item.icon;
+          const cycle = item.borderColors && item.borderColors.length > 0 ? item.borderColors : null;
+          const style = cycle ? { borderColor: cycle[borderTick % cycle.length], transition: 'border-color 300ms' } : undefined;
           const className = `
-            flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 border-black font-medium hover:scale-[1.02]
+            flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 ${cycle ? '' : item.borderClass ?? 'border-black'} font-medium hover:scale-[1.02]
             ${reorderEnabled ? 'cursor-grab touch-none select-none active:cursor-grabbing' : 'cursor-pointer transition-all'}
             ${draggingId === item.id ? 'opacity-40' : ''}
             ${dragOverId === item.id ? 'outline outline-2 outline-offset-2 outline-black' : ''}
@@ -154,6 +170,7 @@ export function MobileGridActionsModal({
                     onClose();
                   }}
                   className={className}
+                  style={style}
                   {...dragProps}
                 >
                   <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
@@ -171,6 +188,7 @@ export function MobileGridActionsModal({
                   onClose();
                 }}
                 className={className}
+                style={style}
                 {...dragProps}
               >
                 <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
@@ -189,6 +207,7 @@ export function MobileGridActionsModal({
                 item.onClick?.();
               }}
               className={className}
+              style={style}
               {...dragProps}
             >
               <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />

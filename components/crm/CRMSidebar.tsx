@@ -240,6 +240,15 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
   /** Phones show group children as plain items. */
   const flatNavItems = orderedNavItems.flatMap((item) => item.children ?? [item]);
   const mobileNavItems = flatNavItems;
+  // The open item's name goes to the desktop header (longest match, so a trade page beats ProTrades).
+  const activeNavItem = flatNavItems
+    .filter((item) => isActiveRoute(item.href))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  const activeTitle = activeNavItem ? t(activeNavItem.labelKey) : null;
+  const setPageTitle = crmChrome?.setPageTitle;
+  useEffect(() => {
+    setPageTitle?.(activeTitle);
+  }, [activeTitle, setPageTitle]);
   const activeCount = (href: string): number | null => {
     if (href.endsWith('/customers')) return crmChrome?.customerCount ?? null;
     if (href.endsWith('/estimates')) return sectionCounts.estimates ?? null;
@@ -248,12 +257,17 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     if (href.endsWith('/expenses')) return sectionCounts.expenses ?? null;
     return null;
   };
+  // Mobile menu: trade tools get their trade's border; ProTrades cycles through all trade colors.
+  const tradeBorder = (iconClass?: string) =>
+    iconClass ? TRADE_SLUGS.map((slug) => TRADES[slug].color).find((color) => color.text === iconClass)?.border : undefined;
   const mobileMenuItems: MobileGridActionItem[] = flatNavItems.map((item) => ({
     id: item.href,
     href: item.href,
     label: t(item.labelKey),
     icon: item.icon,
     iconClass: item.iconClass,
+    borderClass: tradeBorder(item.iconClass),
+    borderColors: item.href === `${base}/protrades` ? PROTRADES_TILE_COLORS : undefined,
     isActive: isActiveRoute(item.href),
   }));
 

@@ -10,6 +10,7 @@ import { CatalogDeleteDialog } from '@/components/crm/catalog/catalog-delete-dia
 import { ServiceEditor } from '@/components/crm/catalog/service-editor';
 import { formatServicePrice, priceTypeLabel } from '@/lib/crm/catalog-options';
 import type { CrmCatalogTerm, CrmService } from '@/lib/crm/catalog-types';
+import { TitleCount } from '@/components/crm/TitleCount';
 
 const ACTIONS_MENU_HEIGHT = 220;
 
@@ -190,7 +191,10 @@ export default function CRMServicesPage() {
     <div className="w-full">
       <div className="hidden md:flex flex-wrap items-center justify-between gap-3 pb-2">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 md:text-2xl">Services</h1>
+          <h1 className="text-xl font-semibold text-gray-900 md:text-2xl inline-flex items-center gap-2">
+                Services
+                <TitleCount count={services.length} />
+              </h1>
           <p className="mt-0.5 text-sm text-gray-500">Labor and other services you put on estimates.</p>
         </div>
         <Button variant="primary" size="sm" className="flex shrink-0 items-center gap-2" onClick={openNew}>

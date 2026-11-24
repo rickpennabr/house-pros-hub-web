@@ -34,7 +34,7 @@ export function PendingLeadsPanel({ onAccepted }: { onAccepted?: () => void }) {
     <section className="mb-3 overflow-hidden rounded-lg border-2 border-red-600 bg-white">
       <header className="flex items-center gap-2 border-b-2 border-red-600 bg-red-50 px-4 py-2.5">
         <h2 className="font-semibold text-black">{t('leadPendingTitle')}</h2>
-        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-red-600 px-1 text-xs font-bold text-white">
+        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold text-white">
           {leads.length}
         </span>
         <p className="ml-2 hidden min-w-0 truncate text-xs text-gray-600 md:block">{t('leadPendingHint')}</p>

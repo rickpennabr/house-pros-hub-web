@@ -70,7 +70,8 @@ export async function POST(
         ...branding,
         invoiceNumber: row.invoice_number,
         amountCents: row.amount_cents,
-        balanceCents: row.amount_cents - (row.payment_applied_cents ?? 0),
+        // Marked paid counts as paid even when no payment amount was recorded.
+        balanceCents: row.status === 'paid' ? 0 : Math.max(0, row.amount_cents - (row.payment_applied_cents ?? 0)),
         viewUrl,
         message,
       },
