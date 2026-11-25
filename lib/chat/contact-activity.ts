@@ -12,25 +12,76 @@ export async function loadContactActivity(
   userId: string,
   businessId: string | null
 ): Promise<Record<string, string>> {
+  return (await loadContactActivityWithPreviews(db, userId, businessId)).latest;
+}
+
+/** Last message shown under a contact's name (WhatsApp-style chat list). */
+export interface ContactPreview {
+  body: string;
+  at: string;
+  /** Sent by the person viewing the list (shows ticks). */
+  fromMe: boolean;
+  /** For fromMe messages: the other side has read it (blue ticks). */
+  read: boolean;
+  /** Number of attachments, for "Photo" when the text is empty. */
+  attachments: number;
+  /** The message is a voice note. */
+  voice: boolean;
+}
+
+type PreviewRow = {
+  created_at: string;
+  body: string | null;
+  sender: string;
+  read_at: string | null;
+  attachments: unknown;
+};
+
+function previewOf(row: PreviewRow, fromMe: boolean): ContactPreview {
+  return {
+    body: (row.body ?? '').replace(/\s+/g, ' ').trim().slice(0, 140),
+    at: row.created_at,
+    fromMe,
+    read: Boolean(row.read_at),
+    attachments: Array.isArray(row.attachments) ? row.attachments.length : 0,
+    voice:
+      Array.isArray(row.attachments) &&
+      row.attachments.some((att) => {
+        const a = att as { name?: string; contentType?: string } | null;
+        return Boolean(a && (a.name?.startsWith('voice-note') || a.contentType?.startsWith('audio/')));
+      }),
+  };
+}
+
+/** Latest time and last message per contact, with the same keys as the unread badges. */
+export async function loadContactActivityWithPreviews(
+  db: SupabaseClient<Database>,
+  userId: string,
+  businessId: string | null
+): Promise<{ latest: Record<string, string>; previews: Record<string, ContactPreview> }> {
   const latest: Record<string, string> = {};
-  const keep = (key: string, at: string) => {
+  const previews: Record<string, ContactPreview> = {};
+  const keep = (key: string, at: string, preview?: ContactPreview) => {
     const current = latest[key];
-    if (!current || Date.parse(at) > Date.parse(current)) latest[key] = at;
+    if (!current || Date.parse(at) > Date.parse(current)) {
+      latest[key] = at;
+      if (preview) previews[key] = preview;
+    }
   };
 
   const [businessSide, mine] = await Promise.all([
     businessId
       ? db
           .from('probot_messages')
-          .select('conversation_id, created_at')
+          .select('conversation_id, created_at, body, sender, read_at, attachments')
           .eq('business_id', businessId)
           .order('created_at', { ascending: false })
           .limit(1000)
-      : Promise.resolve({ data: [] as Array<{ conversation_id: string; created_at: string }> }),
+      : Promise.resolve({ data: [] as Array<PreviewRow & { conversation_id: string }> }),
     db.from('probot_conversations').select('id').eq('user_id', userId),
   ]);
 
-  const businessRows = (businessSide.data ?? []) as Array<{ conversation_id: string; created_at: string }>;
+  const businessRows = (businessSide.data ?? []) as Array<PreviewRow & { conversation_id: string }>;
   if (businessRows.length) {
     const convIds = [...new Set(businessRows.map((row) => row.conversation_id))];
     const { data: convs } = await db
@@ -39,10 +90,12 @@ export async function loadContactActivity(
       .in('id', convIds);
     const owner = new Map((convs ?? []).map((conv) => [conv.id, conv]));
     for (const row of businessRows) {
-      keep(`conv:${row.conversation_id}`, row.created_at);
+      // The business answers as "admin"; customers write as "visitor".
+      const preview = previewOf(row, row.sender === 'admin');
+      keep(`conv:${row.conversation_id}`, row.created_at, preview);
       const conv = owner.get(row.conversation_id);
-      if (conv?.user_id) keep(`customer-${conv.user_id}`, row.created_at);
-      else if (conv?.visitor_id) keep(`visitor-${conv.visitor_id}`, row.created_at);
+      if (conv?.user_id) keep(`customer-${conv.user_id}`, row.created_at, preview);
+      else if (conv?.visitor_id) keep(`visitor-${conv.visitor_id}`, row.created_at, preview);
     }
   }
 
@@ -50,7 +103,7 @@ export async function loadContactActivity(
   if (myConvIds.length) {
     const { data: rows } = await db
       .from('probot_messages')
-      .select('business_id, created_at')
+      .select('business_id, created_at, body, sender, read_at, attachments')
       .in('conversation_id', myConvIds)
       .not('business_id', 'is', null)
       .order('created_at', { ascending: false })
@@ -58,11 +111,12 @@ export async function loadContactActivity(
     for (const row of rows ?? []) {
       // Chats with the user's own business are business-side activity, not personal chats.
       if (!row.business_id || (businessId && row.business_id === businessId)) continue;
-      keep(`business:${row.business_id}`, row.created_at);
+      // In the user's own chats they write as "visitor".
+      keep(`business:${row.business_id}`, row.created_at, previewOf(row as PreviewRow, row.sender === 'visitor'));
     }
   }
 
-  return latest;
+  return { latest, previews };
 }
 
 /** Newest activity for a contact across every key it can be known by. */

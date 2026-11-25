@@ -7,6 +7,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { Building, Building2, Home, User } from 'lucide-react';
 import { contactDisplayName } from '@/lib/crm/contact-name';
+import { PortalNewActivity } from '@/components/crm/PortalNewActivity';
 import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
 
 interface CustomerRow {
@@ -92,6 +93,7 @@ export default function CustomerPortalPage() {
           and files.
         </p>
       </div>
+      <PortalNewActivity />
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <FormField

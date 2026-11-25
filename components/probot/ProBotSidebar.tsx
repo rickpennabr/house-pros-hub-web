@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { ChevronLeft, ChevronRight, MessageCircle, Users, Building2, User, X, MoreVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageCircle, Users, Building2, User, X, MoreVertical, Check, CheckCheck, Camera, Paperclip, Mic } from 'lucide-react';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
-import { sortContactsByActivity } from '@/lib/chat/contact-activity';
+import { sortContactsByActivity, type ContactPreview } from '@/lib/chat/contact-activity';
 
 export interface ProBotContact {
   id: string;
@@ -68,7 +68,11 @@ export interface ProBotRecentConversation {
 }
 
 const COLLAPSED_WIDTH = 52;
-const EXPANDED_WIDTH = 256;
+const EXPANDED_WIDTH = 320;
+/** Phones: the chat list fills the screen under the ProBot header, like WhatsApp. */
+const MOBILE_WIDTH = '100vw';
+/** Layout top padding (clock area) + the 60px ProBot header and its border. */
+const MOBILE_TOP = 'calc(max(0.5rem, env(safe-area-inset-top, 0px)) + 62px)';
 
 /** Format ISO date as WhatsApp-style time (e.g. "6:43 PM") or relative day for older. */
 function formatMessageTime(iso: string): string {
@@ -140,6 +144,8 @@ export default function ProBotSidebar({
 }: ProBotSidebarProps) {
   const [unreadByContact, setUnreadByContact] = useState<Record<string, number>>({});
   const [latestByContact, setLatestByContact] = useState<Record<string, string>>({});
+  const [previewByContact, setPreviewByContact] = useState<Record<string, ContactPreview>>({});
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [contactMenuId, setContactMenuId] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -150,6 +156,7 @@ export default function ProBotSidebar({
           if (cancelled) return;
           setUnreadByContact(data.counts ?? {});
           setLatestByContact(data.latest ?? {});
+          setPreviewByContact(data.previews ?? {});
         })
         .catch(() => {});
     void load();
@@ -160,6 +167,7 @@ export default function ProBotSidebar({
     };
   }, [selectedContactId]);
   const t = useTranslations('probot');
+  const tList = useTranslations('probot.chatList');
   // Start collapsed so mobile loads with sidebar closed; desktop expands after mount (see effect).
   const [internalSidebarOpen, setInternalSidebarOpen] = useState(false);
   const isControlled = controlledSidebarOpen !== undefined && onSidebarOpenChange !== undefined;
@@ -188,12 +196,48 @@ export default function ProBotSidebar({
     if (isDesktop) setSidebarOpen(true);
   }, []);
 
+  const unreadFor = (contact: ProBotContact): number =>
+    contact.isProBot
+      ? unreadByContact.probot ?? 0
+      : (contact.businessId && unreadByContact[`business:${contact.businessId}`]) ||
+        unreadByContact[contact.id] ||
+        (contact.conversationId ? unreadByContact[`conv:${contact.conversationId}`] ?? 0 : 0);
+  /** Last message for a contact, under any key it is known by. */
+  const previewFor = (contact: ProBotContact): ContactPreview | undefined => {
+    if (contact.isProBot) {
+      return visitorProBotConversation?.preview
+        ? {
+            body: visitorProBotConversation.preview,
+            at: visitorProBotConversation.lastMessageTime ?? '',
+            fromMe: false,
+            read: true,
+            attachments: 0,
+            voice: false,
+          }
+        : undefined;
+    }
+    const keys = [
+      contact.businessId ? `business:${contact.businessId}` : '',
+      contact.id,
+      contact.conversationId ? `conv:${contact.conversationId}` : '',
+    ].filter(Boolean);
+    let best: ContactPreview | undefined;
+    for (const key of keys) {
+      const p = previewByContact[key];
+      if (p && (!best || Date.parse(p.at) > Date.parse(best.at))) best = p;
+    }
+    return best;
+  };
+
   const qContacts = sidebarSearchQuery.trim().toLowerCase();
   const filteredContacts = useMemo(() => {
     const ordered = sortContactsByActivity(contacts, latestByContact);
-    if (!qContacts) return ordered;
-    return ordered.filter((c) => c.name.toLowerCase().includes(qContacts));
-  }, [contacts, latestByContact, qContacts]);
+    const searched = qContacts ? ordered.filter((c) => c.name.toLowerCase().includes(qContacts)) : ordered;
+    return filter === 'unread' ? searched.filter((c) => unreadFor(c) > 0) : searched;
+    // unreadFor reads unreadByContact
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contacts, latestByContact, qContacts, filter, unreadByContact]);
+  const unreadChats = contacts.filter((c) => unreadFor(c) > 0).length;
 
   // Only expand on hover on desktop (md+). On mobile, no hover—expand only via chevron tap.
   const handlePointerEnter = (e: React.PointerEvent) => {
@@ -229,7 +273,8 @@ export default function ProBotSidebar({
       {/* Mobile: backdrop when sidebar is open; tap to close (full height when sidebar is full height) */}
       {isMobile && sidebarOpen && (
         <div
-          className="fixed left-[256px] right-0 top-0 bottom-0 z-40 md:hidden bg-black/40"
+          className="fixed right-0 top-0 bottom-0 z-40 md:hidden bg-black/40"
+          style={{ left: MOBILE_WIDTH }}
           onClick={() => setSidebarOpen(false)}
           onKeyDown={(e) => e.key === 'Escape' && setSidebarOpen(false)}
           aria-hidden
@@ -241,13 +286,13 @@ export default function ProBotSidebar({
         } ${
           isMobile && !sidebarOpen ? 'w-0 min-w-0 overflow-hidden' : ''
         } ${
-          isMobile && sidebarOpen ? 'fixed left-0 top-0 bottom-0 z-50 w-[256px] shadow-xl border-r-2 border-t-2 border-b-2' : ''
+          isMobile && sidebarOpen ? 'fixed left-0 bottom-0 z-50 border-t-2' : ''
         }`}
         style={
           !isMobile
             ? { width: sidebarOpen ? EXPANDED_WIDTH : COLLAPSED_WIDTH }
             : isMobile && sidebarOpen
-              ? undefined
+              ? { width: MOBILE_WIDTH, top: MOBILE_TOP }
               : { width: 0 }
         }
         onPointerEnter={handlePointerEnter}
@@ -318,90 +363,121 @@ export default function ProBotSidebar({
             />
           </div>
 
+          {/* WhatsApp-style filters */}
+          <div className="flex shrink-0 gap-2 border-b border-gray-200 px-3 py-2">
+            {(['all', 'unread'] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key)}
+                aria-pressed={filter === key}
+                className={`rounded-lg px-3 py-1 text-sm font-medium transition-colors ${
+                  filter === key ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {tList(key)}
+                {key === 'unread' && unreadChats > 0 ? <span className="ml-1">{unreadChats}</span> : null}
+              </button>
+            ))}
+          </div>
+
           {/* Contacts list; on mobile search bar at top filters contacts */}
           <div className="flex flex-col flex-1 min-h-0 flex overflow-hidden">
             {(contactsOpen || isMobile) && (
-              <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
+              <div className="flex flex-1 flex-col overflow-y-auto">
+                {filteredContacts.length === 0 && filter === 'unread' ? (
+                  <p className="px-4 py-8 text-center text-sm text-gray-500">{tList('noUnread')}</p>
+                ) : null}
                 {filteredContacts.map((contact) => {
                   const isSelected = selectedContactId === contact.id;
-                  const unreadForContact = isSelected
-                    ? 0
-                    : contact.isProBot
-                      ? unreadByContact.probot ?? 0
-                      : (contact.businessId && unreadByContact[`business:${contact.businessId}`]) ||
-                        unreadByContact[contact.id] ||
-                        (contact.conversationId ? unreadByContact[`conv:${contact.conversationId}`] ?? 0 : 0);
+                  const unreadForContact = isSelected ? 0 : unreadFor(contact);
+                  const preview = previewFor(contact);
                   // Business contacts: logo only (never pro personal photo). Customer contacts: profile picture or logo.
                   const logoSrc = contact.isProBot ? PROBOT_ASSETS.avatar : (contact.businessId ? contact.logo : (contact.logo ?? contact.profile_user_picture ?? undefined));
                   const isCustomerContact = contact.conversationId != null;
                   const isOnline = contact.isProBot || Boolean(contact.online);
                   const actions = getContactActions?.(contact) ?? [];
                   const menuOpen = contactMenuId === contact.id;
+                  const previewText = preview
+                    ? preview.voice && !preview.body
+                      ? tList('voice')
+                      : preview.body || (preview.attachments > 0 ? tList('photo') : tList('attachment'))
+                    : tList('tapToChat');
                   return (
                     <div key={contact.id} className="relative">
                     <button
                       type="button"
                       onClick={() => onSelectContact(contact)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 ${actions.length ? 'pr-10' : ''} text-left rounded-lg border-2 border-black transition-colors cursor-pointer ${
-                        isSelected ? 'bg-gray-900 text-white' : 'bg-white md:hover:bg-gray-100 text-gray-800'
+                      className={`flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 ${actions.length ? 'pr-9' : ''} text-left transition-colors ${
+                        isSelected ? 'bg-gray-100' : 'bg-white md:hover:bg-gray-50'
                       }`}
                     >
                       <span className="relative shrink-0">
-                      <div className="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center overflow-hidden bg-white">
-                        {logoSrc ? (
-                          contact.isProBot ? (
-                            <Image
-                              src={logoSrc}
-                              alt=""
-                              width={32}
-                              height={32}
-                              className="w-full h-full object-contain"
-                            />
+                        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white">
+                          {logoSrc ? (
+                            contact.isProBot ? (
+                              <Image src={logoSrc} alt="" width={48} height={48} className="h-full w-full object-contain" />
+                            ) : (
+                              <img src={logoSrc} alt="" width={48} height={48} className="h-full w-full object-cover" />
+                            )
+                          ) : isCustomerContact ? (
+                            <User className="h-6 w-6 text-gray-400" aria-hidden />
                           ) : (
-                            <img
-                              src={logoSrc}
-                              alt=""
-                              width={32}
-                              height={32}
-                              className="w-full h-full object-cover"
-                            />
-                          )
-                        ) : (
-                          isCustomerContact ? (
-                            <User className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-gray-500'}`} aria-hidden />
-                          ) : (
-                            <Building2
-                              className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-gray-500'}`}
-                            />
-                          )
-                        )}
-                      </div>
-                        <span
-                          className={`absolute bottom-[-5px] right-[-5px] z-10 h-3 w-3 rounded-full border-2 ${isSelected ? 'border-gray-900' : 'border-white'} ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}
-                          title={isOnline ? t('online') : t('offline')}
-                          aria-label={isOnline ? t('online') : t('offline')}
-                        />
-                      </span>
-                      <span className="text-sm font-medium truncate flex-1">
-                        {contact.name}
-                      </span>
-                      {unreadForContact > 0 ? (
-                        <span
-                          className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-green-500 px-1.5 text-[11px] font-bold leading-none text-white"
-                          aria-label={t('unreadMessages', { count: unreadForContact })}
-                        >
-                          {unreadForContact > 99 ? '99+' : unreadForContact}
+                            <Building2 className="h-6 w-6 text-gray-400" aria-hidden />
+                          )}
                         </span>
-                      ) : null}
+                        {isOnline ? (
+                          <span
+                            className="absolute -bottom-0.5 -right-0.5 z-10 h-3.5 w-3.5 rounded-full border-2 border-white bg-green-500"
+                            title={t('online')}
+                            aria-label={t('online')}
+                          />
+                        ) : null}
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5 border-b border-gray-100 pb-2.5 pt-0.5">
+                        <span className="flex items-baseline gap-2">
+                          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-gray-900">{contact.name}</span>
+                          {preview?.at ? (
+                            <span className={`shrink-0 text-xs ${unreadForContact > 0 ? 'font-semibold text-green-600' : 'text-gray-500'}`}>
+                              {formatMessageTime(preview.at)}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          {preview?.fromMe ? (
+                            preview.read ? (
+                              <CheckCheck className="h-4 w-4 shrink-0 text-sky-500" aria-label="Read" />
+                            ) : (
+                              <Check className="h-4 w-4 shrink-0 text-gray-400" aria-label="Sent" />
+                            )
+                          ) : null}
+                          {preview?.voice && !preview.body ? (
+                            <Mic className="h-4 w-4 shrink-0 text-sky-500" aria-hidden />
+                          ) : preview && !preview.body && preview.attachments > 0 ? (
+                            <Camera className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+                          ) : preview && !preview.body ? (
+                            <Paperclip className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+                          ) : null}
+                          <span className={`min-w-0 flex-1 truncate text-sm ${unreadForContact > 0 ? 'font-medium text-gray-900' : 'text-gray-500'}`}>
+                            {previewText}
+                          </span>
+                          {unreadForContact > 0 ? (
+                            <span
+                              className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-green-500 px-1.5 text-[11px] font-bold leading-none text-white"
+                              aria-label={t('unreadMessages', { count: unreadForContact })}
+                            >
+                              {unreadForContact > 99 ? '99+' : unreadForContact}
+                            </span>
+                          ) : null}
+                        </span>
+                      </span>
                     </button>
                     {actions.length > 0 ? (
                       <>
                         <button
                           type="button"
                           onClick={() => setContactMenuId(menuOpen ? null : contact.id)}
-                          className={`absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg ${
-                            isSelected ? 'text-white hover:bg-white/10' : 'text-gray-600 hover:bg-gray-100'
-                          }`}
+                          className="absolute right-1 top-3 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
                           aria-label={t('contactActions')}
                           aria-haspopup="menu"
                           aria-expanded={menuOpen}
@@ -453,7 +529,8 @@ export default function ProBotSidebar({
         <button
           type="button"
           onClick={() => setSidebarOpen(false)}
-          className="fixed left-[256px] top-[60px] z-[60] w-7 h-[64px] min-h-[64px] rounded-r-md bg-white border-2 border-black border-l-0 flex items-center justify-center text-black shadow-md touch-manipulation md:hidden"
+          className="fixed top-[60px] z-[60] w-7 h-[64px] min-h-[64px] rounded-r-md bg-white border-2 border-black border-l-0 flex items-center justify-center text-black shadow-md touch-manipulation md:hidden"
+          style={{ left: MOBILE_WIDTH }}
           aria-label={t('collapseSidebar')}
           title={t('collapseSidebar')}
         >

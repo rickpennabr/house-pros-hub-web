@@ -1,5 +1,11 @@
 {
   "common": {
+    "notifications": {
+      "title": "Notifications",
+      "messageSound": "Message sounds",
+      "messageSoundHint": "Play a sound when a new message arrives on this device.",
+      "testSound": "Test sound"
+    },
     "button": {
       "submit": "Submit",
       "cancel": "Cancel",
@@ -91,6 +97,16 @@
     }
   },
   "probot": {
+    "chatList": {
+      "voice": "Voice message",
+      "all": "All",
+      "unread": "Unread",
+      "photo": "Photo",
+      "attachment": "Attachment",
+      "tapToChat": "Tap to chat",
+      "you": "You",
+      "noUnread": "No unread chats"
+    },
     "sidebar": "Chat",
     "historyChat": "History Chat",
     "contacts": "Contacts",
@@ -149,7 +165,17 @@
     "camera": "Camera",
     "voiceNote": "Voice note",
     "stopVoice": "Stop",
-    "voiceDenied": "Allow the microphone to record a voice note.",
+    "voiceDenied": "Microphone is blocked. Click the icon at the left of the address bar, allow Microphone, then try again.",
+    "cancelVoice": "Delete recording",
+    "recordingVoice": "Recording",
+    "voiceEmpty": "The recording came out empty. Please try again.",
+    "pauseVoice": "Pause",
+    "resumeVoice": "Keep recording",
+    "playVoice": "Listen",
+    "sendVoice": "Send voice note",
+    "voiceNoMic": "No microphone found. Plug one in, or turn it on in your computer or phone sound settings, then try again.",
+    "voiceBusy": "Your microphone is being used by another app. Close it, then try again.",
+    "voiceUnsupported": "This browser cannot record voice notes. Try Chrome, Safari or Edge.",
     "crmSendEstimate": "Send estimate",
     "crmSendInvoice": "Send invoice",
     "crmSendPaymentLink": "Send deposit / payment link",

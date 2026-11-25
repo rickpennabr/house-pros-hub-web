@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto'
 import { AGENT_RULE, PROAGENT_MAX_STEPS, PROAGENT_POLICY, siteOrigin } from '@/lib/agent/constants'
 import { prosFromToolData, proAgentOpenAiTools, runDirectoryTool } from '@/lib/agent/tools'
 import { isPlaceTool, placeOpenAiTools, runPlaceTool } from '@/lib/agent/place-tools'
+import { DEFAULT_PRO_TIME_ZONE, isProTool, proOpenAiTools, runProTool, todayIn } from '@/lib/agent/pro-tools'
+import { userOwnsCrm } from '@/lib/crm/require-contractor'
 import { estimateSchema } from '@/lib/schemas/estimate'
 import {
   directoryToolInput,
@@ -47,6 +49,11 @@ const TOOL_STATUS: Record<string, string> = {
   get_place_timeline: 'reading_places',
   search_my_places: 'searching_places',
   approve_estimate: 'opening_estimate',
+  get_open_invoices: 'reading_books',
+  get_estimates_waiting: 'reading_books',
+  get_projects: 'reading_books',
+  get_maintenance_on: 'reading_schedule',
+  get_day_schedule: 'reading_schedule',
 }
 
 export interface ProAgentTurnResult {
@@ -64,6 +71,16 @@ const CONFIRM_COPY: Record<string, string> = {
   en: 'Here is the estimate request. Tap Confirm to send it. Nothing is filed until you do.',
   es: 'Esta es la solicitud de estimado. Pulsa Confirmar para enviarla. No se envía nada hasta que lo hagas.',
   pt: 'Este é o pedido de orçamento. Toque em Confirmar para enviar. Nada é enviado até você confirmar.',
+}
+
+function validTimeZone(value: string | undefined): string | null {
+  if (!value) return null
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value })
+    return value
+  } catch {
+    return null
+  }
 }
 
 function localeOf(locale: string | undefined): 'en' | 'es' | 'pt' {
@@ -85,7 +102,19 @@ function issueFields(issues: { path: PropertyKey[] }[]): string[] {
   return issues.map((issue) => issue.path.map(String).filter(Boolean).join('.')).filter(Boolean).slice(0, 12)
 }
 
-function agentPrompt(locale: string | undefined, playbook: string, portalBrief: string, signedIn: boolean): string {
+function proPrompt(today: string, timeZone: string): string {
+  const dayName = new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+  return `
+
+This person is a pro and owns a CRM on House Pros Hub. Today is ${dayName} (${today}, ${timeZone}).
+- For their business (open invoices, who owes money, estimates waiting, projects and when they finish, maintenance, their day): call get_open_invoices, get_estimates_waiting, get_projects, get_maintenance_on, or get_day_schedule. Answer only from what these tools return.
+- For a day, pass the words the pro used ("the 26th", "tomorrow", "monday") as day. Do not work out the date yourself. Say the day back from the tool result, e.g. "tomorrow, Thursday the 26th".
+- You may repeat amounts, dates and names from tool results. Never add amounts up yourself; use totalOwed. If a tool says several customers match, ask which one.
+- These tools only read. If they ask you to send, mark paid or change something, tell them where to do it in the CRM.
+- Talk like a helpful office manager: short, warm, the most important fact first. For a voice-style question, write the way you would say it out loud.`
+}
+
+function agentPrompt(locale: string | undefined, playbook: string, portalBrief: string, signedIn: boolean, pro: string = ''): string {
   const language = locale === 'pt' ? 'Portuguese' : locale === 'es' ? 'Spanish' : 'English'
   const notes = playbook
     ? `\n\nThe visitor is asking about a job. Use the playbook for hardscape and landscape in Las Vegas. Follow its rules. Do not invent anything it does not say.\n\n${playbook}`
@@ -111,7 +140,7 @@ How to work:
 - create_estimate only when every required field came from the homeowner in this chat. If a field is missing, ask for it. Do not invent contact details, an address, a budget, or a timeline.
 ${moneyRule}
 - Reply in ${language} unless the user clearly wrote in another language.
-- Keep it short. A simple answer is 2 to 5 sentences. When the answer has several facts, steps, or options (a plant, its care, how to do something, things to check), write one lead sentence, then short "- " bullets that start with a **bold** label, e.g. "- **Water:** Deep, infrequent watering." Use **bold** for key names and *italic* for scientific names. No markdown headings, no tables.${placeTools}${notes}${places}`
+- Keep it short. A simple answer is 2 to 5 sentences. When the answer has several facts, steps, or options (a plant, its care, how to do something, things to check), write one lead sentence, then short "- " bullets that start with a **bold** label, e.g. "- **Water:** Deep, infrequent watering." Use **bold** for key names and *italic* for scientific names. No markdown headings, no tables.${placeTools}${pro}${notes}${places}`
 }
 
 function rememberPros(found: ProAgentProCard[], data: unknown, locale: string): ProAgentProCard[] {
@@ -174,6 +203,8 @@ export async function runProAgentTurn(input: {
   portalBrief?: string
   /** Session user id. Turns on the My Places tools. Never take this from the request body. */
   userId?: string
+  /** The pro's IANA time zone, for "today" and "the 26th". Defaults to Las Vegas. */
+  timeZone?: string
   onProgress?: (event: ProAgentProgress) => void
 }): Promise<ProAgentTurnResult> {
   const scripted = probotAutoReply(input.body, input.locale)
@@ -218,10 +249,20 @@ export async function runProAgentTurn(input: {
   }))
   const playbook = jobPlaybookFor(safeBody, safeHistory)
   const signedIn = Boolean(input.userId)
-  const tools = signedIn ? [...proAgentOpenAiTools(), ...placeOpenAiTools()] : proAgentOpenAiTools()
+  // CRM tools only for the CRM owner. Crew members do not see the books.
+  const isPro = input.userId ? await userOwnsCrm(input.userId).catch(() => false) : false
+  const timeZone = validTimeZone(input.timeZone) ?? DEFAULT_PRO_TIME_ZONE
+  const tools = [
+    ...proAgentOpenAiTools(),
+    ...(signedIn ? placeOpenAiTools() : []),
+    ...(isPro ? proOpenAiTools() : []),
+  ]
   const origin = siteOrigin()
   const messages: ChatCompletionMessage[] = [
-    { role: 'system', content: agentPrompt(input.locale, playbook, input.portalBrief?.trim() ?? '', signedIn) },
+    {
+      role: 'system',
+      content: agentPrompt(input.locale, playbook, input.portalBrief?.trim() ?? '', signedIn, isPro ? proPrompt(todayIn(timeZone), timeZone) : ''),
+    },
     ...safeHistory
       .map((turn) => ({
         role: turn.sender === 'admin' ? 'assistant' : 'user',
@@ -339,6 +380,27 @@ export async function runProAgentTurn(input: {
             locale,
             fallback,
           })
+        }
+
+        if (isProTool(call.name)) {
+          const result = isPro && input.userId
+            ? await runProTool(call.name, args, { userId: input.userId, timeZone })
+            : { data: { error: 'Only the CRM owner can read this.' }, isError: true }
+          const output = JSON.stringify(result.data).slice(0, 6000)
+          // Amounts in the result are allowed in the reply (price guard).
+          if (!result.isError) grounding += `
+${output}`
+          steps.push({
+            id: randomUUID(),
+            toolName: call.name,
+            status: result.isError ? 'failed' : 'ok',
+            latencyMs: Date.now() - stepStarted,
+            // Business data is private; the step log keeps only arguments and outcome.
+            input: args,
+            output: { ok: !result.isError },
+          })
+          messages.push({ role: 'tool', tool_call_id: call.id, content: output })
+          continue
         }
 
         if (isPlaceTool(call.name)) {

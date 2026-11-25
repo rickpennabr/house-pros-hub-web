@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Shield, Globe, ChevronDown } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Globe, ChevronDown, Bell } from 'lucide-react';
+import { messageSoundOn, playMessageSound, setMessageSoundOn, unlockMessageSound } from '@/lib/notifications/message-sound';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -19,7 +20,7 @@ import {
   setJobLocationAllowed,
 } from '@/lib/media/job-camera-prefs';
 
-type AccordionSection = 'language' | 'privacy';
+type AccordionSection = 'language' | 'notifications' | 'privacy';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -43,6 +44,8 @@ export default function SettingsModal({
     setOpenSections((prev) => (prev.includes(section) ? prev.filter((item) => item !== section) : [...prev, section]));
   const [cameraAllowed, setCameraAllowed] = useState(false);
   const [locationAllowed, setLocationAllowed] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
+  const tNotify = useTranslations('common.notifications');
   const tJob = useTranslations('jobsite');
 
   // Reset selected locale and accordion when modal opens or current locale changes
@@ -52,6 +55,7 @@ export default function SettingsModal({
       setOpenSections([]);
       setCameraAllowed(jobCameraAllowed());
       setLocationAllowed(jobLocationAllowed());
+      setSoundOn(messageSoundOn());
     }
   }, [isOpen, currentLocale]);
 
@@ -255,6 +259,67 @@ export default function SettingsModal({
               </button>
             </div>
             </>
+            )}
+          </div>
+
+          {/* Notifications */}
+          <div className="border-2 border-black rounded-lg bg-white">
+            <button
+              type="button"
+              onClick={() => toggleSection('notifications')}
+              className="w-full p-4 flex items-center justify-between gap-2 hover:bg-gray-50/50 transition-colors text-left rounded-t-lg"
+              aria-expanded={openSections.includes('notifications')}
+            >
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-black shrink-0" />
+                <h3 className="text-base font-bold text-black">{tNotify('title')}</h3>
+              </div>
+              <ChevronDown
+                className={`w-5 h-5 text-black shrink-0 transition-transform ${openSections.includes('notifications') ? 'rotate-180' : ''}`}
+                aria-hidden
+              />
+            </button>
+            {openSections.includes('notifications') && (
+              <div className="space-y-1 border-t-2 border-black p-2">
+                <div className="flex items-center justify-between gap-3 rounded-lg px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="font-medium text-black">{tNotify('messageSound')}</p>
+                    <p className="text-xs text-gray-600">{tNotify('messageSoundHint')}</p>
+                  </div>
+                  {/* Phone-style switch */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={soundOn}
+                    aria-label={tNotify('messageSound')}
+                    onClick={() => {
+                      const next = !soundOn;
+                      setSoundOn(next);
+                      setMessageSoundOn(next);
+                      if (next) {
+                        unlockMessageSound();
+                        playMessageSound(true);
+                      }
+                    }}
+                    className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${soundOn ? 'bg-green-500' : 'bg-gray-300'}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${soundOn ? 'left-[22px]' : 'left-0.5'}`}
+                      aria-hidden
+                    />
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    unlockMessageSound();
+                    playMessageSound(true);
+                  }}
+                  className="ml-4 rounded-lg border-2 border-black px-3 py-1.5 text-sm font-medium text-black hover:bg-gray-50"
+                >
+                  {tNotify('testSound')}
+                </button>
+              </div>
             )}
           </div>
 

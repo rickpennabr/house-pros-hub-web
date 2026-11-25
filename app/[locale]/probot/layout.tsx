@@ -180,7 +180,7 @@ function ProBotLayoutContent({
     <>
       {/* White for now. Day/night sky + mountains return when DAY_CYCLE_SKY_ENABLED is true. */}
       <div
-        className={`fixed inset-0 min-h-screen h-screen min-h-[100dvh] h-[100dvh] w-full overflow-hidden flex flex-col pt-[max(0.5rem,env(safe-area-inset-top))] box-border relative ${
+        className={`fixed inset-0 min-h-screen h-screen min-h-[100dvh] h-[100dvh] w-full overflow-hidden flex flex-col pt-[max(0.5rem,env(safe-area-inset-top))] box-border ${
           DAY_CYCLE_SKY_ENABLED ? 'probot-sky-bg' : 'bg-white'
         }`}
         style={viewportH != null ? { height: `${viewportH}px` } : { height: '100svh' }}

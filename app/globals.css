@@ -23,6 +23,34 @@
     padding-top: env(safe-area-inset-top, 0px);
     background-color: #fff;
   }
+
+  /* A white strip behind the clock and battery, so a page scrolled up never shows under them. */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 0px);
+    background-color: #fff;
+    /* Above page headers and bars, below pop-ups and camera screens (they pad themselves). */
+    z-index: 105;
+    pointer-events: none;
+  }
+
+  /* Full-screen layers (search, Add menu, pop-ups, side drawers, banners) start at the very top of the
+     screen, outside the body's padding: push their content below the clock and battery too. */
+  .fixed.inset-0,
+  .fixed.top-0,
+  .fixed.inset-y-0 {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Headers that stick to the top while scrolling stop below the clock and battery. */
+  header.sticky.top-0,
+  #main-menu.sticky {
+    top: env(safe-area-inset-top, 0px);
+  }
 }
 
 /* stylelint-disable-next-line */

@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { ChartColumn, List, Map, Plus, Settings, Table2 } from 'lucide-react';
+import { ChartColumn, List, Map, Plus, Table2 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { LuIdCard } from 'react-icons/lu';
 import { useBackgroundMode } from '@/contexts/BackgroundModeContext';
 import { DAY_CYCLE_SKY_ENABLED } from '@/lib/constants/probot';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
+import { HouseMark } from '@/components/icons/HouseMark';
 import { HomeShortcutButton } from '@/components/pageslayout/HomeShortcutButton';
 
 export type ViewType = 'card' | 'list' | 'table' | 'map' | 'chart';
@@ -39,6 +40,8 @@ interface ViewToggleProps {
   jobCameraLabel?: string;
   /** Signed-in users: Account Management sits to the right of Add. */
   showAccount?: boolean;
+  /** Pros on a business profile: a CRM button next to Add. */
+  showCrm?: boolean;
 }
 
 interface ViewOption {
@@ -70,6 +73,7 @@ export default function ViewToggle({
   onJobCamera,
   jobCameraLabel = 'JOB',
   showAccount = false,
+  showCrm = false,
 }: ViewToggleProps) {
   const router = useRouter();
   const locale = useLocale();
@@ -184,6 +188,22 @@ export default function ViewToggle({
           )}
         </button>
       )}
+      {showCrm && (
+        <button
+          type="button"
+          onClick={() => router.push(`/${locale}/crm`)}
+          className={`
+            flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 shrink-0
+            rounded-lg border-2 border-white box-border text-white hover:bg-gray-800
+            ${controlSize}
+            ${!embedded ? 'md:w-auto md:min-w-10 md:px-3' : ''}
+          `}
+          aria-label="CRM"
+        >
+          <HouseMark variant="business" tone="light" className="h-7 w-7 shrink-0" />
+          {!embedded && <span className="hidden md:inline whitespace-nowrap tracking-wider">CRM</span>}
+        </button>
+      )}
       {showAccount && (
         <button
           type="button"
@@ -196,7 +216,8 @@ export default function ViewToggle({
           `}
           aria-label={t('account.manageAccounts')}
         >
-          <Settings className={iconSize} />
+          {/* PC: house with a gear, same size as the CRM and Customer portal houses */}
+          <HouseMark variant="gear" tone="light" className="h-7 w-7 shrink-0" />
           {!embedded && (
             <span className="hidden md:inline whitespace-nowrap tracking-wider">
               {t('account.manageAccounts')}

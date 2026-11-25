@@ -11,7 +11,7 @@ export function HouseMark({
   className = 'h-8 w-8',
   tone = 'dark',
 }: {
-  variant?: 'plain' | 'plus' | 'crm' | 'business';
+  variant?: 'plain' | 'plus' | 'crm' | 'business' | 'gear';
   className?: string;
   /** dark: charcoal walls and letters (on white). light: white walls and letters (on black). */
   tone?: 'dark' | 'light';
@@ -33,6 +33,14 @@ export function HouseMark({
         </g>
       ) : null}
       {variant === 'plus' ? <path d="M24 26.5V40.5M17 33.5H31" stroke={INK} strokeWidth="3.8" /> : null}
+      {variant === 'gear' ? (
+        <g fill="none" stroke={INK} strokeLinecap="round">
+          {/* Settings gear (Manage accounts) */}
+          <path d="M29.60 33.50L32.20 33.50M27.96 37.46L29.80 39.30M24.00 39.10L24.00 41.70M20.04 37.46L18.20 39.30M18.40 33.50L15.80 33.50M20.04 29.54L18.20 27.70M24.00 27.90L24.00 25.30M27.96 29.54L29.80 27.70" strokeWidth="3" />
+          <circle cx="24" cy="33.5" r="5.4" strokeWidth="2.6" />
+          <circle cx="24" cy="33.5" r="1.6" fill={INK} stroke="none" />
+        </g>
+      ) : null}
       {variant === 'business' ? (
         <g fill="none" stroke={INK} strokeWidth="2.6" strokeLinejoin="round">
           <path d="M20.5 29.5V26.8H27.5V29.5" />

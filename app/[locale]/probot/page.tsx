@@ -565,12 +565,34 @@ function ProBotPageContent() {
 
   // Wire layout header: on mobile when in chat show back chevron that goes to ProBot welcome page.
   const onBackToWelcome = useCallback(() => {
+    // Phones: back from a chat goes to the chat list, like WhatsApp.
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+      setSidebarOpen(true);
+      return;
+    }
     setSelectedContact(PROBOT_CONTACT);
     rememberContact('probot');
     router.replace(pathname, { scroll: false });
     setSidebarOpen(false);
     setForceWelcomeView(true);
   }, [router, pathname, rememberContact]);
+
+  // Phones open on the chat list (WhatsApp style). The very first visit goes straight to ProBot instead.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const VISITED_KEY = 'hph-probot-visited';
+    let visited = false;
+    try {
+      visited = window.localStorage.getItem(VISITED_KEY) === '1';
+      window.localStorage.setItem(VISITED_KEY, '1');
+    } catch {
+      visited = true;
+    }
+    const linked = searchParams.get('contact') || searchParams.get('conversation');
+    if (visited && !linked && window.matchMedia('(max-width: 767px)').matches) setSidebarOpen(true);
+    // Only on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     setProBotHeader({ inChat: inChatView, onBackToWelcome });

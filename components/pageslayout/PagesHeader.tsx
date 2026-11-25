@@ -14,6 +14,7 @@ import PhoneButton from './PhoneButton';
 import { HeaderNotificationBell } from '@/components/pageslayout/HeaderNotificationBell';
 import { Phone } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { isHubPro } from '@/components/pageslayout/ProAddChooser';
 import { HUB_WHATSAPP_URL } from '@/lib/constants/company';
 import { sendAnalyticsIngest } from '@/lib/utils/analyticsIngest';
 
@@ -76,6 +77,7 @@ export default function PageHeader({ children }: PageHeaderProps) {
   const isHomePage = pathname?.includes('/businesslist') || pathname === `/${locale}` || pathname === `/${locale}/`;
   const isSuppliersPage = pathname?.includes('/prosuppliers');
   const isContractor = roles.includes('contractor');
+  const isPro = isAuthenticated && isHubPro(roles as readonly string[]);
   const showFreeEstimate = (isHomePage || isSuppliersPage) && !isAdmin && !isContractor;
   /** One logo on every screen. Dark mode does not swap it. */
   const mobileLogoSrc = '/hph-logo-with-pro-bot-mobile.png';
@@ -165,7 +167,8 @@ export default function PageHeader({ children }: PageHeaderProps) {
           {showFreeEstimate && <span className="flex items-center h-10 shrink-0"><FreeEstimateButton /></span>}
           {!isLegalPage && !isAdmin && (
             <>
-              <span className="hidden md:flex items-center h-10 shrink-0"><PhoneButton /></span>
+              {/* Pros don't need the hub phone number in the header. */}
+              {!isPro ? <span className="hidden md:flex items-center h-10 shrink-0"><PhoneButton /></span> : null}
               <span className="hidden md:flex items-center h-10 shrink-0"><WhatsAppButton /></span>
             </>
           )}

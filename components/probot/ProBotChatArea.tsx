@@ -619,7 +619,7 @@ export default function ProBotChatArea({
   }, [showWelcome, hiTypedLength, hiText.length, whereStartTypedLength, howDoYouWantToStartText.length]);
 
   const sendMessage = useCallback(
-    async (body: string, extra?: { placeShareId?: string }) => {
+    async (body: string, extra?: { placeShareId?: string; attachments?: ChatAttachment[] }) => {
       if (!visitorId || sending) return;
       setSending(true);
       setError(null);
@@ -640,7 +640,7 @@ export default function ProBotChatArea({
             ...(extra?.placeShareId ? { placeShareId: extra.placeShareId } : {}),
             ...(displayName ? { displayName } : {}),
             ...(isAuthenticated && user?.id ? { userId: user.id } : {}),
-            ...(pendingAttachments.length > 0 ? { attachments: pendingAttachments } : {}),
+            ...((extra?.attachments ?? pendingAttachments).length > 0 ? { attachments: extra?.attachments ?? pendingAttachments } : {}),
             ...(replyTarget ? { replyToId: replyTarget.id } : {}),
             ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
             ...(useHubStream ? { stream: true } : {}),
@@ -1093,6 +1093,49 @@ export default function ProBotChatArea({
     [conversationId, visitorId, pendingAttachments.length, t, setConversationId]
   );
 
+  /** Voice note: upload it, then send it at once as its own message (WhatsApp-style). */
+  const handleSendVoice = useCallback(
+    async (file: File) => {
+      if (!visitorId) {
+        setError(t('sendUnavailable'));
+        return;
+      }
+      setUploadingAttach(true);
+      setError(null);
+      try {
+        let cid = conversationId;
+        if (!cid) {
+          const { conversationId: newCid } = await createConversation(visitorId);
+          setConversationId(newCid);
+          cid = newCid;
+        }
+        const formData = new FormData();
+        formData.set('conversationId', cid);
+        formData.set('visitorId', visitorId);
+        formData.append('file', file);
+        const res = await fetch('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(typeof data.error === 'string' ? data.error : 'Upload failed');
+          return;
+        }
+        const list = (data.attachments ?? []) as ChatAttachment[];
+        if (!list.length) {
+          setError('Upload failed');
+          return;
+        }
+        fileByUrl.current.set(list[0].url, file);
+        if (isAdminView) await sendAdminReply(' ', list);
+        else await sendMessage(' ', { attachments: list });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Upload failed');
+      } finally {
+        setUploadingAttach(false);
+      }
+    },
+    [visitorId, conversationId, isAdminView, sendAdminReply, sendMessage, setConversationId, t]
+  );
+
   const removePendingAttachment = useCallback((index: number) => {
     setPendingAttachments((prev) => prev.filter((_, i) => i !== index));
   }, []);
@@ -1222,6 +1265,16 @@ export default function ProBotChatArea({
     voiceNote: t('voiceNote'),
     stopVoice: t('stopVoice'),
     voiceDenied: t('voiceDenied'),
+    voiceNoMic: t('voiceNoMic'),
+    cancelVoice: t('cancelVoice'),
+    recordingVoice: t('recordingVoice'),
+    voiceEmpty: t('voiceEmpty'),
+    pauseVoice: t('pauseVoice'),
+    resumeVoice: t('resumeVoice'),
+    playVoice: t('playVoice'),
+    sendVoice: t('sendVoice'),
+    voiceBusy: t('voiceBusy'),
+    voiceUnsupported: t('voiceUnsupported'),
     replyingTo: t('replyingTo'),
     cancelReply: t('cancelReply'),
     send: t('send'),
@@ -1684,6 +1737,7 @@ export default function ProBotChatArea({
                             replyPreview={replyPreview}
                             onCancelReply={() => setReplyTarget(null)}
                             onRecorderError={setError}
+                            onSendVoice={handleSendVoice}
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             placeholder={isAdminView ? t('replyToCustomer') : t('messagePlaceholder')}
@@ -1903,6 +1957,7 @@ export default function ProBotChatArea({
                           replyPreview={replyPreview}
                             onCancelReply={() => setReplyTarget(null)}
                             onRecorderError={setError}
+                            onSendVoice={handleSendVoice}
                             value={inputValue}
                           onChange={(e) => setInputValue(e.target.value)}
                           placeholder={isAdminView ? t('replyToCustomer') : t('messagePlaceholder')}
@@ -2193,6 +2248,7 @@ export default function ProBotChatArea({
                         replyPreview={replyPreview}
                             onCancelReply={() => setReplyTarget(null)}
                             onRecorderError={setError}
+                            onSendVoice={handleSendVoice}
                             value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder={t('messagePlaceholder')}
@@ -2215,9 +2271,7 @@ export default function ProBotChatArea({
               </div>
             ) : (
               <>
-                {error && (
-                  <p className="text-sm text-red-600 px-4 pt-4">{error}</p>
-                )}
+                {/* The error shows once, in the bar above the input (with Dismiss). */}
                 <ProBotMessageList
                   messages={filteredMessages}
                   // Shown inside ProBot's draft bubble, next to its animated avatar.
@@ -2239,6 +2293,10 @@ export default function ProBotChatArea({
                                     ? 'Searching your places…'
                                     : agentStatus === 'opening_estimate'
                                       ? 'Opening the estimate…'
+                                      : agentStatus === 'reading_books'
+                                        ? 'Checking your books…'
+                                        : agentStatus === 'reading_schedule'
+                                          ? 'Checking your schedule…'
                                       : agentStatus === 'writing'
                                         ? 'Writing…'
                                         : 'Thinking…'
@@ -2413,7 +2471,7 @@ export default function ProBotChatArea({
               )}
               <form
                 onSubmit={handleSubmit}
-                className="probot-chat-footer shrink-0 w-full px-2 md:px-4 py-3 pb-[10px] md:pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 bg-white md:bg-transparent border-t border-gray-200/90 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] md:shadow-none"
+                className="probot-chat-footer shrink-0 w-full px-2 md:px-4 py-3 pb-[max(10px,env(safe-area-inset-bottom))] md:pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 bg-white md:bg-transparent border-t border-gray-200/90 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] md:shadow-none"
               >
               {/* Same centered column as the messages (ProBotMessageList). */}
               <ChatCamFrame className="w-full md:mx-auto md:max-w-3xl">
@@ -2424,6 +2482,7 @@ export default function ProBotChatArea({
                   replyPreview={replyPreview}
                             onCancelReply={() => setReplyTarget(null)}
                             onRecorderError={setError}
+                            onSendVoice={handleSendVoice}
                             value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder={isAdminView ? t('replyToCustomer') : t('messagePlaceholder')}

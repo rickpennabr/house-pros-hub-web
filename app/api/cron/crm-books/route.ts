@@ -10,8 +10,11 @@ const REMINDER_GAP_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * GET /api/cron/crm-books
- * Creates due recurring invoices and emails a reminder for open past-due balances.
- * Authorize with CRON_SECRET.
+ * Creates due recurring invoices. Authorize with CRON_SECRET.
+ *
+ * Payment reminders no longer go out on their own: ProBot's morning cards
+ * (lib/probot/morning.ts) ask the pro, and the pro taps Send. Set
+ * CRM_AUTO_REMINDERS=1 to turn the old automatic "due soon" and past-due emails back on.
  */
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -26,8 +29,9 @@ export async function GET(request: NextRequest) {
   const baseUrl = resolvePublicSiteUrl(null);
 
   const created = await runRecurring(supabase, today, baseUrl);
-  const dueSoon = await runDueSoon(supabase, today, baseUrl);
-  const reminded = await runReminders(supabase, today, baseUrl);
+  const automatic = process.env.CRM_AUTO_REMINDERS === '1';
+  const dueSoon = automatic ? await runDueSoon(supabase, today, baseUrl) : 0;
+  const reminded = automatic ? await runReminders(supabase, today, baseUrl) : 0;
 
   return NextResponse.json({ created, dueSoon, reminded });
 }

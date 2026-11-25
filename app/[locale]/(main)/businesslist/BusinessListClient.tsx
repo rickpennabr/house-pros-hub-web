@@ -169,6 +169,7 @@ export default function BusinessListClient({
           onJobCamera={isPro ? () => setJobCamOpen(true) : undefined}
           jobCameraLabel={tJob('title')}
           showAccount={isAuthenticated}
+          showCrm={isPro && businessActive}
         />
       )}
       {isPro && businessActive && <ProAddModal isOpen={addOpen} onClose={() => setAddOpen(false)} />}

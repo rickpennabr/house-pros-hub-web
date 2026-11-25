@@ -130,6 +130,29 @@ export interface ProAgentPayload {
   crmInvoice?: ChatCrmInvoiceShare;
   /** ProBot's answer came from a plant photo: what the identifier said, so an admin can correct it. */
   plantId?: ChatPlantId;
+  /** Morning follow-up for a pro: an unpaid invoice or an unanswered estimate, with action buttons. */
+  followup?: ChatProbotFollowup;
+}
+
+export interface ChatProbotFollowup {
+  followupId: string;
+  kind: 'invoice_unpaid' | 'estimate_waiting';
+  /** Invoice or estimate id. */
+  documentId: string;
+  documentNumber: string;
+  customerName: string;
+  customerPhone: string | null;
+  /** "3200.00 USD" style, as stored. */
+  amountCents: number;
+  /** Days since it was sent (or since the last reminder). */
+  waitingDays: number;
+  /** Invoices only. */
+  daysLate?: number;
+  /** True when ProBot already sent one reminder/follow-up for it. */
+  followedUpBefore: boolean;
+  status: 'open' | 'snoozed' | 'sent' | 'done';
+  snoozedUntil?: string;
+  actedAt?: string;
 }
 
 export interface ChatPlantId {

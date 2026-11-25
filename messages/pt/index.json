@@ -1,5 +1,11 @@
 {
   "common": {
+    "notifications": {
+      "title": "Notificações",
+      "messageSound": "Som de mensagens",
+      "messageSoundHint": "Toca um som quando chega uma mensagem nova neste aparelho.",
+      "testSound": "Testar som"
+    },
     "button": {
       "submit": "Enviar",
       "cancel": "Cancelar",
@@ -91,6 +97,16 @@
     }
   },
   "probot": {
+    "chatList": {
+      "voice": "Mensagem de voz",
+      "all": "Todas",
+      "unread": "Não lidas",
+      "photo": "Foto",
+      "attachment": "Anexo",
+      "tapToChat": "Toque para conversar",
+      "you": "Você",
+      "noUnread": "Nenhuma conversa não lida"
+    },
     "sidebar": "Chat",
     "historyChat": "Histórico de chat",
     "contacts": "Contatos",
@@ -149,7 +165,17 @@
     "camera": "Câmera",
     "voiceNote": "Nota de voz",
     "stopVoice": "Parar",
-    "voiceDenied": "Permita o microfone para gravar uma nota de voz.",
+    "voiceDenied": "O microfone está bloqueado. Toque no ícone à esquerda da barra de endereço, permita Microfone e tente de novo.",
+    "cancelVoice": "Apagar gravação",
+    "recordingVoice": "Gravando",
+    "voiceEmpty": "A gravação ficou vazia. Tente de novo.",
+    "pauseVoice": "Pausar",
+    "resumeVoice": "Continuar gravando",
+    "playVoice": "Ouvir",
+    "sendVoice": "Enviar nota de voz",
+    "voiceNoMic": "Nenhum microfone encontrado. Conecte um ou ative-o nas configurações de som do computador ou celular e tente de novo.",
+    "voiceBusy": "Outro aplicativo está usando o microfone. Feche-o e tente de novo.",
+    "voiceUnsupported": "Este navegador não grava notas de voz. Tente Chrome, Safari ou Edge.",
     "crmSendEstimate": "Enviar orçamento",
     "crmSendInvoice": "Enviar fatura",
     "crmSendPaymentLink": "Enviar depósito / link de pagamento",

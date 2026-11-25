@@ -12,6 +12,8 @@ import { HUB_WHATSAPP_URL } from '@/lib/constants/company';
 import { useHomeShortcut } from '@/components/pageslayout/HomeShortcutButton';
 import { HouseMark } from '@/components/icons/HouseMark';
 import { NotificationCount } from '@/components/ui/NotificationCount';
+import { useChatOptional } from '@/contexts/ChatContext';
+import { createSignUpUrl } from '@/lib/redirect';
 
 const PHONE_NUMBER = '702-232-0411';
 const PROBOT_BLACKOUT_MS = 500;
@@ -54,6 +56,7 @@ export default function BusinessListMobileBottomBar({
   const tBot = useTranslations('bot');
   const { setTransitioningToProbot } = useProBotTransition();
   const home = useHomeShortcut();
+  const probotUnread = useChatOptional()?.chatUnreadCount ?? 0;
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -67,7 +70,7 @@ export default function BusinessListMobileBottomBar({
   const go = (path: string) => router.push(`/${locale}${path}`);
 
   const item =
-    'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-[10px] font-semibold leading-none text-white active:scale-95 transition-transform';
+    'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-semibold leading-none text-white active:scale-95 transition-transform';
   const beta = (
     <span className="beta-badge-dynamic absolute -top-1 left-1/2 z-10 ml-1 rounded border border-black px-0.5 text-[8px] font-bold text-black" aria-hidden>
       Beta
@@ -75,14 +78,14 @@ export default function BusinessListMobileBottomBar({
   );
   /** The thin white square the side icons sit in (the center house has the thick one). */
   const box = (children: ReactNode, extra = '') => (
-    <span className={`flex h-8 w-8 items-center justify-center rounded-lg border-2 border-white ${extra}`}>{children}</span>
+    <span className={`flex h-9 w-9 items-center justify-center rounded-lg border-2 border-white ${extra}`}>{children}</span>
   );
 
   // Spot 1: pros get the job camera; everyone else gets Help (WhatsApp, or a call when it is not set).
   const first = showProAdd ? (
     <button type="button" onClick={onJobCamera} className={item} aria-label={jobCameraLabel}>
       {beta}
-      <span className="relative block h-8 w-10 overflow-hidden">
+      <span className="relative block h-9 w-11 overflow-hidden">
         <RepairCameraMark label="JOB" line="white" />
       </span>
       <span>Job cam</span>
@@ -104,11 +107,12 @@ export default function BusinessListMobileBottomBar({
   );
 
   const probot = (
-    <button type="button" onClick={handleProBotClick} className={item} aria-label="Open ProBot (online)">
+    <button type="button" onClick={handleProBotClick} className={item} aria-label={probotUnread > 0 ? `Open ProBot, ${probotUnread} new messages` : 'Open ProBot (online)'}>
       {beta}
-      <span className="relative block h-8 w-8">
-        <Image src="/hph-pro-bot.jpg" alt="" width={32} height={32} className="h-8 w-8 rounded-md bg-black object-contain" />
+      <span className="relative block h-9 w-9">
+        <Image src="/hph-pro-bot.jpg" alt="" width={36} height={36} className="h-9 w-9 rounded-md bg-black object-contain" />
         <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-black bg-green-500" aria-hidden />
+        <NotificationCount count={probotUnread} className="pointer-events-none absolute -left-2 -top-2 z-10" />
       </span>
       <span>ProBot</span>
     </button>
@@ -122,8 +126,8 @@ export default function BusinessListMobileBottomBar({
   const center = (
     <button type="button" onClick={() => go(homeTarget)} className={item.replace('relative ', '')} aria-label={homeLabel}>
       {/* Raised above the other icons' line. */}
-      <span className="relative z-10 -mt-[26px] flex h-12 w-12 items-center justify-center rounded-lg border-[5px] border-white bg-black">
-        <HouseMark variant="plain" tone="light" className="h-9 w-9" />
+      <span className="relative z-10 -mt-[28px] flex h-[53px] w-[53px] items-center justify-center rounded-lg border-[5px] border-white bg-black">
+        <HouseMark variant="plain" tone="light" className="h-10 w-10" />
         {signedIn ? <NotificationCount count={home.count} className="pointer-events-none absolute -right-3 -top-3 z-10" /> : null}
       </span>
       <span className="max-w-full truncate">{homeLabel}</span>
@@ -133,17 +137,17 @@ export default function BusinessListMobileBottomBar({
   // Spot 4: CRM on a business profile, Account management when signed in otherwise, Sign in for guests.
   const fourth = !signedIn ? (
     <button type="button" onClick={() => go('/signin')} className={item} aria-label={tAccount('signIn')}>
-      {box(<LogIn className="h-5 w-5 text-white" />)}
+      {box(<LogIn className="h-[22px] w-[22px] text-white" />)}
       <span className="max-w-full truncate">{tAccount('signIn')}</span>
     </button>
   ) : showProAdd && home.business ? (
     <button type="button" onClick={() => go('/crm')} className={item} aria-label="CRM">
-      {box(<HouseMark variant="business" tone="light" className="h-6 w-6" />)}
+      {box(<HouseMark variant="business" tone="light" className="h-[26px] w-[26px]" />)}
       <span>CRM</span>
     </button>
   ) : (
     <button type="button" onClick={() => go('/account-management')} className={item} aria-label={tAccount('manageAccounts')}>
-      {box(<UserCog className="h-5 w-5 text-white" />)}
+      {box(<UserCog className="h-[22px] w-[22px] text-white" />)}
       <span className="max-w-full truncate">{tAccount('accountsShort')}</span>
     </button>
   );
@@ -155,15 +159,19 @@ export default function BusinessListMobileBottomBar({
       <span>{addLabel}</span>
     </button>
   ) : (
-    <button type="button" onClick={() => go('/estimate')} className={item} aria-label={tBot('proAdd.requestEstimate')}>
-      {box(<FileText className="h-5 w-5 text-white" />)}
+    <button
+      type="button"
+      // Same link as the header's Estimate button: customer sign-up, then the estimate form.
+      onClick={() => router.push(`${createSignUpUrl(locale as 'en' | 'es', 'estimate')}&role=customer`)}
+      className={item} aria-label={tBot('proAdd.requestEstimate')}>
+      {box(<FileText className="h-[22px] w-[22px] text-white" />)}
       <span className="max-w-full truncate">{tAccount('estimateShort')}</span>
     </button>
   );
 
   const bar = (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[100] flex items-end bg-black px-1 pt-1 shadow-[0_-4px_10px_rgba(0,0,0,0.15)]"
+      className="fixed bottom-0 left-0 right-0 z-[100] flex items-end bg-black px-1 pt-1.5 shadow-[0_-4px_10px_rgba(0,0,0,0.15)]"
       aria-label="Main menu"
       style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom, 0px))' }}
     >

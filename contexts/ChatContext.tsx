@@ -5,6 +5,7 @@ import '@/components/security/CsrfFetchPatch';
 import { useAuth } from '@/contexts/AuthContext';
 import { runWhileVisible } from '@/lib/utils/runWhileVisible';
 import { LEADS_CHANGED_EVENT } from '@/lib/leads/events';
+import { playMessageSound, unlockMessageSound } from '@/lib/notifications/message-sound';
 
 const VISITOR_ID_KEY = 'probot_visitor_id';
 
@@ -142,6 +143,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
   }, [isAdmin, isContractor, visitorId, isOpen]);
 
+  // New message: play the chime when the unread count goes up (not on the first load).
+  const lastUnreadRef = useRef<number | null>(null);
+  useEffect(() => {
+    const previous = lastUnreadRef.current;
+    lastUnreadRef.current = chatUnreadCount;
+    if (previous !== null && chatUnreadCount > previous) playMessageSound();
+  }, [chatUnreadCount]);
+
+  // Browsers allow sound only after a tap; unlock audio on the first one.
+  useEffect(() => {
+    const unlock = () => unlockMessageSound();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
   // Sync app icon badge (e.g. iPhone home screen) with unread count. Supported in iOS 16.4+ PWA.
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) return;
@@ -216,6 +236,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       {children}
     </ChatContext.Provider>
   );
+}
+
+/** Same as useChat, but returns undefined outside a ChatProvider (shared bars and menus). */
+export function useChatOptional() {
+  return useContext(ChatContext);
 }
 
 export function useChat() {

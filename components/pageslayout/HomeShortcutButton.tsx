@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Home } from 'lucide-react';
+import { HouseMark } from '@/components/icons/HouseMark';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
 import { NotificationCount } from '@/components/ui/NotificationCount';
@@ -80,7 +80,8 @@ export function HomeShortcutButton({ withLabel = false }: { withLabel?: boolean 
         aria-label={label}
         title={label}
       >
-        <Home className="h-5 w-5" />
+        {/* Same house as the mobile bar (person inside), dark walls on the white button */}
+        <HouseMark variant="plain" className="h-7 w-7 shrink-0" />
         {withLabel ? (
           <span className="hidden whitespace-nowrap text-sm font-bold tracking-wider text-black md:inline">{label}</span>
         ) : null}

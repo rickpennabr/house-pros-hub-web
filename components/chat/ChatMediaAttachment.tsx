@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ImageIcon, Paperclip } from 'lucide-react';
+import { VoiceNotePlayer } from '@/components/chat/VoiceNotePlayer';
 import type { ChatAttachment } from '@/lib/types/chat';
 
 function isVoice(att: ChatAttachment): boolean {
@@ -31,7 +32,7 @@ function ChatImage({ url, name }: { url: string; name: string }) {
 /** Photo, video, voice note, or file inside a chat bubble. */
 export function ChatMediaAttachment({ att }: { att: ChatAttachment }) {
   if (isVoice(att)) {
-    return <audio src={att.url} controls preload="none" className="mt-1 w-full max-w-[260px]" />;
+    return <VoiceNotePlayer url={att.url} />;
   }
   // Browsers cannot play AVI inline; it falls through to the download link.
   if (att.contentType.startsWith('video/') && att.contentType !== 'video/vnd.avi') {
