@@ -94,6 +94,7 @@ export function bucketForCategory(category: string | null | undefined): CostBuck
     case 'subcontractors':
       return 'subcontractors';
     case 'equipment':
+    case 'equipment rental':
     case 'tools':
     case 'repairs':
       return 'equipment';
@@ -155,6 +156,8 @@ export interface FinMileage {
   miles?: number | string | null;
   /** Trips that already became an expense are counted through the expense. */
   expense_id?: string | null;
+  /** 'estimate' trips are a cost of selling: company cost, never a project cost. */
+  purpose?: string | null;
 }
 
 export interface FinToolDays {

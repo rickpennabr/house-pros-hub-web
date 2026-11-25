@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Hammer, Truck, X } from 'lucide-react';
+import Accordion from '@/components/ui/Accordion';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { FileDropTarget } from '@/components/ui/FileDropTarget';
@@ -17,7 +18,8 @@ import {
 } from '@/lib/crm/pro-tools';
 
 export interface ToolFormValues {
-  kind: ToolKind;
+  /** Empty until the user picks Tool or Equipment. */
+  kind: ToolKind | '';
   name: string;
   category: string;
   brand: string;
@@ -43,7 +45,7 @@ export interface ToolFormValues {
 }
 
 export const EMPTY_TOOL: ToolFormValues = {
-  kind: 'tool',
+  kind: '',
   name: '',
   category: '',
   brand: '',
@@ -52,7 +54,7 @@ export const EMPTY_TOOL: ToolFormValues = {
   quantity: '1',
   purchaseDate: '',
   purchase: '',
-  usefulLifeYears: String(DEFAULT_LIFE_YEARS.tool),
+  usefulLifeYears: '',
   salvage: '',
   dailyRate: '',
   status: 'available',
@@ -72,6 +74,7 @@ const cents = (dollars: string) => {
 };
 
 export function toolFormError(values: ToolFormValues): string | null {
+  if (!values.kind) return 'Pick Tool or Equipment.';
   if (!values.name.trim()) return 'Name the item.';
   const quantity = Number(values.quantity);
   if (!Number.isInteger(quantity) || quantity < 1) return 'Quantity must be 1 or more.';
@@ -83,7 +86,7 @@ export function toolFormError(values: ToolFormValues): string | null {
 /** Request body for POST/PATCH /api/crm/tools. */
 export function toolPayload(values: ToolFormValues) {
   return {
-    kind: values.kind,
+    kind: (values.kind || 'tool') as ToolKind,
     name: values.name.trim(),
     category: values.category.trim() || null,
     brand: values.brand.trim() || null,
@@ -92,7 +95,7 @@ export function toolPayload(values: ToolFormValues) {
     quantity: Number(values.quantity) || 1,
     purchaseDate: values.purchaseDate || null,
     purchaseCents: cents(values.purchase),
-    usefulLifeYears: Number(values.usefulLifeYears) || DEFAULT_LIFE_YEARS[values.kind],
+    usefulLifeYears: Number(values.usefulLifeYears) || DEFAULT_LIFE_YEARS[values.kind || 'tool'],
     salvageCents: cents(values.salvage),
     dailyRateCents: values.dailyRate.trim() === '' ? undefined : cents(values.dailyRate),
     status: values.status,
@@ -163,9 +166,13 @@ export function ToolForm({ values, onChange, lists, businessId, disabled = false
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [costOpen, setCostOpen] = useState(true);
+  const [whereOpen, setWhereOpen] = useState(true);
 
   const pickKind = (kind: ToolKind) => {
-    const lifeUntouched = values.usefulLifeYears === String(DEFAULT_LIFE_YEARS[values.kind]);
+    const lifeUntouched = values.usefulLifeYears === ''
+      || (values.kind !== '' && values.usefulLifeYears === String(DEFAULT_LIFE_YEARS[values.kind]));
     onChange({ ...values, kind, usefulLifeYears: lifeUntouched ? String(DEFAULT_LIFE_YEARS[kind]) : values.usefulLifeYears });
   };
 
@@ -186,7 +193,13 @@ export function ToolForm({ values, onChange, lists, businessId, disabled = false
 
   return (
     <div className="space-y-4">
-      <section className="space-y-4 rounded-lg border-2 border-black bg-white p-4">
+      <Accordion
+        title="What it is"
+        subtitle={detailsOpen ? undefined : [values.kind === 'equipment' ? 'Equipment' : values.kind === 'tool' ? 'Tool' : '', values.name.trim()].filter(Boolean).join(' · ')}
+        isOpen={detailsOpen}
+        onToggle={() => setDetailsOpen((open) => !open)}
+        flush
+      >
         <div className="grid grid-cols-2 gap-2">
           {(
             [
@@ -296,10 +309,15 @@ export function ToolForm({ values, onChange, lists, businessId, disabled = false
             <Input value={values.serialNumber} onChange={(e) => set('serialNumber', e.target.value)} maxLength={80} disabled={disabled} />
           </FormField>
         </div>
-      </section>
+      </Accordion>
 
-      <section className="space-y-4 rounded-lg border-2 border-black bg-white p-4">
-        <h2 className="text-base font-semibold text-gray-900">Cost and value</h2>
+      <Accordion
+        title="Cost and value"
+        subtitle={costOpen || !values.purchase ? undefined : `$${values.purchase} paid`}
+        isOpen={costOpen}
+        onToggle={() => setCostOpen((open) => !open)}
+        flush
+      >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <FormField label="Total paid ($)">
             <Input
@@ -375,10 +393,14 @@ export function ToolForm({ values, onChange, lists, businessId, disabled = false
             />
           </FormField>
         </div>
-      </section>
+      </Accordion>
 
-      <section className="space-y-4 rounded-lg border-2 border-black bg-white p-4">
-        <h2 className="text-base font-semibold text-gray-900">Where it is</h2>
+      <Accordion
+        title="Where it is"
+        isOpen={whereOpen}
+        onToggle={() => setWhereOpen((open) => !open)}
+        flush
+      >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField label="Status">
             <Select value={values.status} onChange={(e) => set('status', e.target.value as ToolStatus)} disabled={disabled}>
@@ -439,7 +461,7 @@ export function ToolForm({ values, onChange, lists, businessId, disabled = false
             disabled={disabled}
           />
         </FormField>
-      </section>
+      </Accordion>
     </div>
   );
 }

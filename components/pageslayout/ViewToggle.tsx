@@ -142,7 +142,7 @@ export default function ViewToggle({
           title={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
         />
       )}
-      {onJobCamera && (
+      {onJobCamera && views.length > 0 && (
         <div className="mx-0.5 hidden h-10 w-px shrink-0 bg-white opacity-90 md:block" aria-hidden />
       )}
       {onJobCamera && (

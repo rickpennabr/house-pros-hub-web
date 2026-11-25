@@ -120,7 +120,20 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
           },
         ]
       : []),
-    ...(tradeOn('hardscape') ? [{ href: `${base}/protrades/hardscape`, labelKey: 'crmHardscape', icon: HardscapeIcon, iconClass: TRADES.hardscape.color.text }] : []),
+    ...(tradeOn('hardscape')
+      ? [
+          {
+            href: 'group:hardscape',
+            labelKey: 'crmHardscape',
+            icon: HardscapeIcon,
+            iconClass: TRADES.hardscape.color.text,
+            children: [
+              { href: `${base}/protrades/hardscape`, labelKey: 'crmHardscapeProducts', icon: HardscapeIcon, iconClass: TRADES.hardscape.color.text },
+              { href: `${base}/protrades/hardscape/quote`, labelKey: 'crmProQuote', icon: FileText, iconClass: TRADES.hardscape.color.text },
+            ],
+          },
+        ]
+      : []),
     { href: base, labelKey: 'crmDashboard', icon: LayoutDashboard },
     { href: `${base}/portal`, labelKey: 'crmPortal', icon: Home },
     { href: `${base}/customers`, labelKey: 'crmCustomers', icon: Users },
@@ -235,7 +248,9 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     if (!mounted) return false;
     if (pathname === itemHref) return true;
     if (itemHref === base) return false;
-    return pathname.startsWith(itemHref + '/') || pathname === itemHref;
+    if (!pathname.startsWith(itemHref + '/')) return false;
+    // A deeper link in the menu (Hardscape › ProQuote) wins over its parent page (Hardscape › Products).
+    return !flatNavItems.some((other) => other.href.length > itemHref.length && other.href.startsWith(itemHref + '/') && (pathname === other.href || pathname.startsWith(other.href + '/')));
   };
   /** Phones show group children as plain items. */
   const flatNavItems = orderedNavItems.flatMap((item) => item.children ?? [item]);

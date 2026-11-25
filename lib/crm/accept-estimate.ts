@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { loadInvoiceEmailBranding } from '@/lib/invoices/reminder';
+import { resolvePublicSiteUrl } from '@/lib/utils/publicSiteUrl';
 import type { Database } from '@/lib/types/supabase';
 import { customerCanAcceptEstimate } from '@/lib/schemas/crmEstimate';
 import { issueAcceptanceDeposit } from '@/lib/crm/estimate-deposit';
@@ -104,8 +106,12 @@ export async function acceptSentEstimate(
   if (!ownerErr && ownerUser?.user?.email) contractorEmail = ownerUser.user.email.trim();
   if (!contractorEmail && typeof biz?.email === 'string' && biz.email.trim()) contractorEmail = biz.email.trim();
 
+  // The customer's copy carries the pro's logo and colors, like their invoices.
+  const brand = await loadInvoiceEmailBranding(supabase as never, estimate.owner_id, null, null).catch(() => null);
   void sendEstimateApprovalNotificationEmails({
-    businessName,
+    businessName: brand?.businessName || businessName,
+    brand,
+    crmUrl: `${resolvePublicSiteUrl()}/en/crm/estimates`,
     estimateNumber,
     amountCents: estimate.amount_cents ?? 0,
     customerName,

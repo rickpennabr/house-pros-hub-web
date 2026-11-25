@@ -128,6 +128,11 @@ export function PlacesHome() {
 
   const [unreadByPlace, setUnreadByPlace] = useState<Record<string, number>>({});
 
+  // "Add a place" from the bottom bar opens the form.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('add') === '1') setAdding(true);
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
       setLoading(false);

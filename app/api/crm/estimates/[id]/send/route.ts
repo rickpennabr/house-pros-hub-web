@@ -4,6 +4,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { getPublicSiteUrlForEmail } from '@/lib/utils/publicSiteUrl';
 import { sendEstimateReviewEmail } from '@/lib/services/emailService';
+import { loadInvoiceEmailBranding } from '@/lib/invoices/reminder';
 import { recordEstimateReceived } from '@/lib/places/timeline';
 
 /**
@@ -93,9 +94,12 @@ export async function POST(
 
     console.log('[POST /api/crm/estimates/[id]/send] sending email', { estimateId: id, toEmail });
 
+    // Same logo, color and contact details as the pro's invoice emails.
+    const brand = await loadInvoiceEmailBranding(supabase as never, user.id, null, null).catch(() => null);
     const emailResult = await sendEstimateReviewEmail(
       {
-        businessName,
+        businessName: brand?.businessName || businessName,
+        brand,
         estimateNumber,
         amountCents: row.amount_cents ?? 0,
         validUntilDate: row.due_date,

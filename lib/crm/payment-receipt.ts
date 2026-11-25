@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { sendPaymentReceiptEmail } from '@/lib/services/emailService';
+import { loadInvoiceEmailBranding } from '@/lib/invoices/reminder';
 
 export type ReceiptResult = 'sent' | 'skipped' | 'failed';
 
@@ -8,7 +9,12 @@ export type ReceiptResult = 'sent' | 'skipped' | 'failed';
  */
 export async function emailPaymentReceipt(input: {
   customerId: string;
+  /** The pro, for their logo, color and contact details. */
+  ownerId: string;
   businessId: string | null;
+  companyDisplay?: unknown;
+  totalCents?: number | null;
+  paymentDate?: string | null;
   invoiceId: string;
   invoiceNumber: string;
   paidCents: number;
@@ -28,15 +34,8 @@ export async function emailPaymentReceipt(input: {
     const toEmail = customer?.email?.trim();
     if (!toEmail) return 'skipped';
 
-    let businessName = 'Us';
-    if (input.businessId) {
-      const { data: business } = await supabase
-        .from('businesses')
-        .select('business_name')
-        .eq('id', input.businessId)
-        .single();
-      businessName = business?.business_name ?? 'Us';
-    }
+    // Same logo, color, contact details and footer as the invoice email.
+    const branding = await loadInvoiceEmailBranding(supabase as never, input.ownerId, input.businessId, input.companyDisplay ?? null);
 
     let viewUrl: string | null = null;
     const { data: tokenRow } = await supabase
@@ -54,14 +53,17 @@ export async function emailPaymentReceipt(input: {
 
     const result = await sendPaymentReceiptEmail(
       {
-        businessName,
+        ...branding,
         invoiceNumber: input.invoiceNumber,
+        totalCents: input.totalCents ?? null,
+        paymentDate: input.paymentDate ?? null,
         paidCents: input.paidCents,
         balanceCents: input.balanceCents,
         method: input.method,
         viewUrl,
       },
-      toEmail
+      toEmail,
+      branding.businessEmail
     );
     return result.success ? 'sent' : 'failed';
   } catch {

@@ -625,7 +625,7 @@ export function EstimateDocumentForm({
                 />
               </div>
             </div>
-            <div className="w-full md:w-56 shrink-0">
+            <div className="w-full md:w-72 shrink-0">
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal</span>

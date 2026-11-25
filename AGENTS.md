@@ -19,3 +19,7 @@ Every upload area takes drag and drop. A plain upload box uses `FileDropZone` (`
 ## Shapes
 
 No pills and no circles. Buttons, chips, badges, inputs, selects, icon buttons, step numbers and remove (X) badges are squares or rectangles with rounded corners: `rounded-lg`, or `rounded-md` for small ones (about 24px and under, `text-xs` chips). Never `rounded-full` on them. `rounded-full` is only for things that must be round: spinners, tiny status dots, toggle-switch tracks and knobs, progress-bar ends, notification counters.
+
+## Mobile bottom bar
+
+The mobile bottom menu is `BusinessListMobileBottomBar` (`components/pageslayout/BusinessListMobileBottomBar.tsx`): black, five even spots with labels, the raised house in the center, house icons from `HouseMark`. Its spots change for pros (business or personal profile), signed-in customers and guests. Never build another bottom bar. Full rule: `.cursor/rules/component-styling/bottom-bar.md`.

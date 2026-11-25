@@ -12,6 +12,7 @@
  * It is stored in profiles.verified_email (protected by a trigger: only the service role can set it).
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { brandedEmail, hubEmailBrand } from '@/lib/email/branded-layout';
 import type { User } from '@supabase/supabase-js';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getResendClient, getResendFromEmail } from '@/lib/utils/resend';
@@ -127,13 +128,17 @@ export async function secureAfterGoogleSignIn(user: User, accessToken: string | 
 }
 
 function verifyEmailHtml(link: string, firstName: string): string {
-  const name = firstName.replace(/[<>&"']/g, '');
-  return `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
-  <h2 style="margin:0 0 12px">Confirm your email</h2>
-  <p>Hi${name ? ` ${name}` : ''}, tap the button to confirm this is your email. After that, work your pros saved for you (houses, estimates, invoices and documents) shows up in <b>My Places</b>.</p>
-  <p style="margin:24px 0"><a href="${link}" style="background:#111;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Confirm my email</a></p>
-  <p style="font-size:12px;color:#555">The link works for 3 days. If you did not create a House Pros Hub account, ignore this email: nothing will be shared.</p>
-</div>`;
+  const name = firstName.replace(/[<>&"']/g, '').trim();
+  return brandedEmail({
+    brand: hubEmailBrand(),
+    heading: 'Confirm your email',
+    paragraphs: [
+      'Hi' + (name ? ' ' + name : '') + ',',
+      'Tap the button to confirm this is your email. After that, work your pros saved for you (houses, estimates, invoices and documents) shows up in My Places.',
+    ],
+    button: { label: 'Confirm my email', url: link },
+    finePrint: 'The link works for 3 days. If you did not create a House Pros Hub account, ignore this email: nothing will be shared.',
+  });
 }
 
 /** Email the verification link. Returns false when it could not be sent. */

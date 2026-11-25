@@ -6,6 +6,7 @@ import {
 } from '@/lib/booking/calendarLinks';
 import { COMPANY_INFO, COMPANY_WHATSAPP_URL } from '@/lib/constants/company';
 import { EstimateSchema } from '@/lib/schemas/estimate';
+import { brandedEmail, emailMoneyText, hubEmailBrand, type EmailBrand } from '@/lib/email/branded-layout';
 
 /**
  * Footer CTA block: phone, WhatsApp, and email contact buttons for customer-facing emails.
@@ -182,7 +183,7 @@ export function generateNewSignupAdminNotification(data: NewSignupAdminNotificat
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
           <tr>
             <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">${title}</h1>
+              <img src="https://houseproshub.com/hph-logo-2.3.png" alt="House Pros Hub" height="48" style="display:block;margin:0 auto 12px auto;max-height:48px;max-width:200px;" /><h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">${title}</h1>
             </td>
           </tr>
           <tr>
@@ -369,7 +370,7 @@ export function generateEstimateConfirmationEmail(
           <!-- Header -->
           <tr>
             <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
+              <img src="https://houseproshub.com/hph-logo-2.3.png" alt="House Pros Hub" height="56" style="display:block;margin:0 auto;max-height:56px;max-width:240px;" />
             </td>
           </tr>
           
@@ -533,7 +534,7 @@ export function generateWelcomeEmail(
           <!-- Header -->
           <tr>
             <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
+              <img src="https://houseproshub.com/hph-logo-2.3.png" alt="House Pros Hub" height="56" style="display:block;margin:0 auto;max-height:56px;max-width:240px;" />
             </td>
           </tr>
           
@@ -611,7 +612,7 @@ export function generateSetPasswordEmail(
           <!-- Header -->
           <tr>
             <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
+              <img src="https://houseproshub.com/hph-logo-2.3.png" alt="House Pros Hub" height="56" style="display:block;margin:0 auto;max-height:56px;max-width:240px;" />
             </td>
           </tr>
           <!-- Content -->
@@ -715,7 +716,7 @@ export function generatePasswordResetEmail(data: PasswordResetEmailData): string
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
           <tr>
             <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
+              <img src="https://houseproshub.com/hph-logo-2.3.png" alt="House Pros Hub" height="56" style="display:block;margin:0 auto;max-height:56px;max-width:240px;" />
             </td>
           </tr>
           <tr>
@@ -815,7 +816,7 @@ export function generatePasswordChangedEmail(data: PasswordChangedEmailData): st
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
           <tr>
             <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
+              <img src="https://houseproshub.com/hph-logo-2.3.png" alt="House Pros Hub" height="56" style="display:block;margin:0 auto;max-height:56px;max-width:240px;" />
             </td>
           </tr>
           <tr>
@@ -878,7 +879,7 @@ export function generateIncomingEmailNotification(
         <table width="700" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
           <tr>
             <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">New Email Received</h1>
+              <img src="https://houseproshub.com/hph-logo-2.3.png" alt="House Pros Hub" height="48" style="display:block;margin:0 auto 12px auto;max-height:48px;max-width:200px;" /><h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">New Email Received</h1>
             </td>
           </tr>
           <tr>
@@ -1015,7 +1016,7 @@ export function generateProEstimateBookingEmail(
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 2px solid #000000; border-radius: 8px; overflow: hidden;">
           <tr>
             <td style="padding: 20px; background-color: #ffffff; border-bottom: 2px solid #000000; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">House Pros Hub</h1>
+              <img src="https://houseproshub.com/hph-logo-2.3.png" alt="House Pros Hub" height="56" style="display:block;margin:0 auto;max-height:56px;max-width:240px;" />
             </td>
           </tr>
           <tr>
@@ -1315,34 +1316,107 @@ export interface PaymentReceiptEmailData {
   balanceCents: number;
   method: string;
   viewUrl?: string | null;
+  /** Invoice total, shown in the details. */
+  totalCents?: number | null;
+  /** YYYY-MM-DD payment date. */
+  paymentDate?: string | null;
+  logoUrl?: string | null;
+  themeColor?: string | null;
+  businessAddress?: string | null;
+  businessEmail?: string | null;
+  businessPhone?: string | null;
+  businessWebsite?: string | null;
+  footerText?: string | null;
 }
 
-/** Customer receipt after a payment is recorded. */
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: 'Cash',
+  check: 'Check',
+  card: 'Card',
+  credit_card: 'Card',
+  stripe: 'Card',
+  zelle: 'Zelle',
+  venmo: 'Venmo',
+  ach: 'Bank transfer',
+  bank_transfer: 'Bank transfer',
+  other: 'Other',
+};
+
+function paymentMethodLabel(method: string): string {
+  const key = (method || '').toLowerCase();
+  if (PAYMENT_METHOD_LABELS[key]) return PAYMENT_METHOD_LABELS[key];
+  return method ? method.charAt(0).toUpperCase() + method.slice(1) : 'Payment';
+}
+
+/** Customer receipt after a payment is recorded, in the same branded layout as the invoice email. */
 export function generatePaymentReceiptEmail(data: PaymentReceiptEmailData): string {
+  const color = safeEmailColor(data.themeColor);
+  const tint = color === '#000000' ? '#f3f4f6' : emailTint(color);
   const business = escapeEmailHtml(data.businessName);
   const number = escapeEmailHtml(data.invoiceNumber);
-  const method = escapeEmailHtml(data.method);
-  const link = data.viewUrl
-    ? `<p style="margin: 0 0 24px 0;"><a href="${escapeEmailHtml(data.viewUrl)}" style="display: inline-block; padding: 12px 24px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">View invoice</a></p>`
+  const method = escapeEmailHtml(paymentMethodLabel(data.method));
+  const balanceCents = Math.max(0, data.balanceCents);
+  const paidInFull = balanceCents === 0;
+  const url = data.viewUrl ? escapeEmailHtml(data.viewUrl) : '';
+  const header = data.logoUrl
+    ? '<img src="' + escapeEmailHtml(data.logoUrl) + '" alt="' + business + '" height="64" style="display:block;margin:0 auto;max-height:64px;max-width:240px;border-radius:8px;" />'
+    : '<p style="margin:0;font-size:22px;font-weight:bold;color:' + color + ';">' + business + '</p>';
+  const address = data.businessAddress?.trim()
+    ? '<p style="margin:4px 0 0 0;font-size:14px;line-height:1.5;color:#111827;white-space:pre-line;">' + escapeEmailHtml(data.businessAddress.trim()) + '</p>'
     : '';
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-    <tr>
-      <td style="padding: 32px 24px;">
-        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">Payment received</h1>
-        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">${business} received <strong>${emailMoney(data.paidCents)}</strong> by ${method} for invoice #${number}.</p>
-        <p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">Balance remaining: <strong>${emailMoney(data.balanceCents)}</strong></p>
-        ${link}
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim();
+  const website = data.businessWebsite?.trim() || '';
+  const websiteHref = website && !/^https?:\/\//i.test(website) ? 'https://' + website : website;
+  const contacts = [
+    data.businessEmail?.trim() ? '<a href="mailto:' + escapeEmailHtml(data.businessEmail.trim()) + '" style="color:' + color + ';text-decoration:none;">' + escapeEmailHtml(data.businessEmail.trim()) + '</a>' : '',
+    data.businessPhone?.trim() ? '<a href="tel:' + escapeEmailHtml(data.businessPhone.replace(/[^\d+]/g, '')) + '" style="color:' + color + ';text-decoration:none;">' + escapeEmailHtml(data.businessPhone.trim()) + '</a>' : '',
+    website ? '<a href="' + escapeEmailHtml(websiteHref) + '" style="color:' + color + ';text-decoration:none;">' + escapeEmailHtml(website) + '</a>' : '',
+  ].filter(Boolean);
+  const footer = data.footerText?.trim()
+    ? '<p style="margin:16px 0 0 0;font-size:12px;line-height:1.5;color:#6b7280;white-space:pre-line;">' + escapeEmailHtml(data.footerText.trim()) + '</p>'
+    : '';
+  const row = (label: string, value: string, strong = false, valueColor = '#111827') =>
+    '<tr><td style="padding:10px 0;border-bottom:1px solid #e5e7eb;font-size:14px;color:#374151;">' + label + '</td>' +
+    '<td align="right" style="padding:10px 0;border-bottom:1px solid #e5e7eb;font-size:14px;color:' + valueColor + ';' + (strong ? 'font-weight:bold;' : '') + 'white-space:nowrap;">' + value + '</td></tr>';
+  const details = [
+    row('Invoice', '#' + number),
+    data.paymentDate ? row('Payment date', escapeEmailHtml(statementDate(data.paymentDate))) : '',
+    row('Paid by', method),
+    row('Amount paid', emailMoney(data.paidCents), true),
+    data.totalCents != null ? row('Invoice total', emailMoney(data.totalCents)) : '',
+    row('Balance remaining', emailMoney(balanceCents), true, paidInFull ? '#15803d' : '#111827'),
+  ].join('');
+  return [
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>',
+    '<body style="margin:0;padding:24px 0;font-family:Arial,Helvetica,sans-serif;background-color:#f3f4f6;">',
+    '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;">',
+    '<tr><td align="center" style="padding:24px 24px 20px 24px;">' + header + '</td></tr>',
+    '<tr><td align="center" style="background-color:' + tint + ';padding:28px 24px;">',
+    '<p style="margin:0 0 6px 0;font-size:22px;font-weight:bold;color:#111827;">' + (paidInFull ? 'Paid in full. Thank you!' : 'Payment received. Thank you!') + '</p>',
+    '<p style="margin:0;font-size:14px;color:#111827;">Invoice #' + number + ' · ' + method + '</p>',
+    '<p style="margin:24px 0 4px 0;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#374151;">Amount paid</p>',
+    '<p style="margin:0;font-size:34px;color:#15803d;">' + emailMoney(data.paidCents) + '</p>',
+    '</td></tr>',
+    '<tr><td style="padding:24px 24px 8px 24px;">',
+    '<table width="100%" cellpadding="0" cellspacing="0">' + details + '</table>',
+    '</td></tr>',
+    url
+      ? '<tr><td align="center" style="padding:24px 24px 8px 24px;"><a href="' + url + '" style="display:inline-block;padding:14px 40px;background-color:' + color + ';color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;border-radius:8px;">' + (paidInFull ? 'View invoice' : 'View and pay the balance') + '</a></td></tr>'
+      : '',
+    '<tr><td align="center" style="padding:24px 24px 28px 24px;">',
+    '<table cellpadding="0" cellspacing="0" style="margin:0 auto 16px auto;"><tr><td style="width:160px;border-top:1px solid #d1d5db;font-size:0;line-height:0;">&nbsp;</td></tr></table>',
+    '<p style="margin:0;font-size:14px;font-weight:bold;color:#111827;">' + business + '</p>',
+    address,
+    contacts.length ? '<p style="margin:14px 0 0 0;font-size:14px;line-height:1.6;">' + contacts.join('<br>') + '</p>' : '',
+    footer,
+    '</td></tr></table>',
+    '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;">',
+    '<tr><td align="center" style="padding:16px 24px;font-size:11px;line-height:1.5;color:#6b7280;">',
+    'Keep this email as your receipt. If it looks wrong, contact ' + business + '.',
+    url ? '<br>Button not working? Open: <a href="' + url + '" style="color:#2563eb;word-break:break-all;">' + url + '</a>' : '',
+    '<p style="margin:12px 0 0 0;color:#9ca3af;">Sent with House Pros Hub</p>',
+    '</td></tr></table>',
+    '</body></html>',
+  ].join('\n');
 }
 
 export interface StatementEmailLine {
@@ -1477,38 +1551,27 @@ export interface EstimateReviewEmailData {
   validUntilDate?: string | null;
   reviewUrl: string;
   message?: string;
+  /** The pro's logo, color and contact details (same as their invoice emails). */
+  brand?: EmailBrand | null;
 }
 
 /**
  * Generate HTML for "Review and approve estimate" email (customer).
  */
 export function generateEstimateReviewEmail(data: EstimateReviewEmailData): string {
-  const amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(data.amountCents / 100);
   const validUntil = data.validUntilDate
-    ? new Date(data.validUntilDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    ? new Date(data.validUntilDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
     : null;
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-    <tr>
-      <td style="padding: 32px 24px;">
-        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">Review your estimate from ${data.businessName}</h1>
-        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Estimate #${data.estimateNumber}</p>
-        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
-        ${validUntil ? `<p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">Valid until: <strong>${validUntil}</strong></p>` : '<p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;"></p>'}
-        ${data.message ? `<p style="margin: 0 0 16px 0; font-size: 14px; color: #374151;">${data.message}</p>` : ''}
-        <p style="margin: 0 0 24px 0;"><a href="${data.reviewUrl}" style="display: inline-block; padding: 12px 24px; background-color: #000000; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 6px;">Review & approve estimate</a></p>
-        <p style="margin: 0; font-size: 12px; color: #6b7280;">If the button doesn't work, copy and paste this link into your browser:</p>
-        <p style="margin: 4px 0 0 0; font-size: 12px; word-break: break-all;"><a href="${data.reviewUrl}" style="color: #2563eb;">${data.reviewUrl}</a></p>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim();
+  return brandedEmail({
+    brand: data.brand ?? { businessName: data.businessName },
+    heading: 'Your estimate is ready!',
+    subheading: 'Estimate #' + data.estimateNumber + (validUntil ? ' · Valid until ' + validUntil : ''),
+    highlight: { label: 'Estimate total', value: emailMoneyText(data.amountCents) },
+    paragraphs: [data.message],
+    button: { label: 'Review and approve', url: data.reviewUrl },
+    finePrint: 'Questions about this estimate? Reply to this email to reach ' + data.businessName + '.',
+    preheader: 'Estimate #' + data.estimateNumber + ' from ' + data.businessName + ': ' + emailMoneyText(data.amountCents),
+  });
 }
 
 function escapeHtml(unsafe: string): string {
@@ -1524,63 +1587,46 @@ export interface EstimateApprovedEmailCommon {
   estimateNumber: string;
   amountCents: number;
   customerName: string;
+  /** The pro's brand, for the customer's copy. */
+  brand?: EmailBrand | null;
+  /** Link for the pro to open the estimate in ProsCRM. */
+  crmUrl?: string | null;
 }
 
 /**
  * Customer confirmation after they approve an estimate online.
  */
 export function generateEstimateApprovedCustomerEmail(data: EstimateApprovedEmailCommon): string {
-  const amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(data.amountCents / 100);
-  const biz = escapeHtml(data.businessName);
-  const num = escapeHtml(data.estimateNumber);
-  const name = escapeHtml(data.customerName);
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-    <tr>
-      <td style="padding: 32px 24px;">
-        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">Estimate approved</h1>
-        <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">Hi ${name},</p>
-        <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;">Thank you. Your approval of <strong>estimate #${num}</strong> from <strong>${biz}</strong> is confirmed.</p>
-        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
-        <p style="margin: 16px 0 0 0; font-size: 14px; color: #374151;">${COMPANY_INFO.name} will share this confirmation with your contractor.</p>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim();
+  return brandedEmail({
+    brand: data.brand ?? { businessName: data.businessName },
+    heading: 'Estimate approved. Thank you!',
+    subheading: 'Estimate #' + data.estimateNumber,
+    highlight: { label: 'Approved total', value: emailMoneyText(data.amountCents), color: '#15803d' },
+    paragraphs: [
+      'Hi ' + data.customerName + ',',
+      'Your approval is confirmed. ' + data.businessName + ' has been notified and will be in touch about the next steps and scheduling.',
+    ],
+    finePrint: 'Keep this email for your records.',
+  });
 }
 
 /**
  * Contractor / business owner: customer approved the estimate.
  */
 export function generateEstimateApprovedContractorEmail(data: EstimateApprovedEmailCommon): string {
-  const amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(data.amountCents / 100);
-  const biz = escapeHtml(data.businessName);
-  const num = escapeHtml(data.estimateNumber);
-  const cust = escapeHtml(data.customerName);
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-    <tr>
-      <td style="padding: 32px 24px;">
-        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">Estimate approved by customer</h1>
-        <p style="margin: 0 0 12px 0; font-size: 14px; color: #374151;"><strong>${cust}</strong> approved <strong>estimate #${num}</strong> for <strong>${biz}</strong>.</p>
-        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
-        <p style="margin: 16px 0 0 0; font-size: 14px; color: #374151;">Open ProsCRM to view the estimate and next steps (e.g. convert to invoice).</p>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim();
+  return brandedEmail({
+    brand: hubEmailBrand(),
+    heading: 'Estimate approved',
+    subheading: data.customerName + ' approved estimate #' + data.estimateNumber,
+    highlight: { label: 'Approved total', value: emailMoneyText(data.amountCents), color: '#15803d' },
+    paragraphs: ['Next steps: turn it into a project to schedule the work, or into an invoice to bill a deposit.'],
+    details: [
+      { label: 'Customer', value: data.customerName },
+      { label: 'Estimate', value: '#' + data.estimateNumber },
+      { label: 'Business', value: data.businessName },
+    ],
+    button: data.crmUrl ? { label: 'Open in ProsCRM', url: data.crmUrl } : null,
+  });
 }
 
 export interface EstimateApprovedAdminEmailData extends EstimateApprovedEmailCommon {
@@ -1591,28 +1637,16 @@ export interface EstimateApprovedAdminEmailData extends EstimateApprovedEmailCom
  * Platform admin notification when an estimate is accepted online.
  */
 export function generateEstimateApprovedAdminEmail(data: EstimateApprovedAdminEmailData): string {
-  const amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(data.amountCents / 100);
-  const biz = escapeHtml(data.businessName);
-  const num = escapeHtml(data.estimateNumber);
-  const cust = escapeHtml(data.customerName);
-  const ce = escapeHtml(data.customerEmail);
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-    <tr>
-      <td style="padding: 32px 24px;">
-        <h1 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">Estimate accepted (public approval)</h1>
-        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Estimate <strong>#${num}</strong> · ${biz}</p>
-        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Customer: <strong>${cust}</strong> (${ce})</p>
-        <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">Amount: <strong>${amount}</strong></p>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim();
+  return brandedEmail({
+    brand: hubEmailBrand(),
+    heading: 'Estimate accepted',
+    subheading: 'Estimate #' + data.estimateNumber + ' · ' + data.businessName,
+    highlight: { label: 'Amount', value: emailMoneyText(data.amountCents) },
+    details: [
+      { label: 'Customer', value: data.customerName },
+      { label: 'Customer email', value: data.customerEmail },
+      { label: 'Business', value: data.businessName },
+    ],
+  });
 }
 

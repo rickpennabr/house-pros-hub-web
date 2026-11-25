@@ -6,7 +6,8 @@ import { useTranslations } from 'next-intl';
 import ProCardGrid from '@/components/proscard/ProCardGrid';
 import ViewToggle, { ViewType } from '@/components/pageslayout/ViewToggle';
 import BusinessListMobileBottomBar from '@/components/pageslayout/BusinessListMobileBottomBar';
-import { isHubPro, ProAddModal } from '@/components/pageslayout/ProAddChooser';
+import { CustomerAddModal, isHubPro, ProAddModal } from '@/components/pageslayout/ProAddChooser';
+import { useBusinessProfileActive } from '@/components/pageslayout/HomeShortcutButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCategory } from '@/contexts/CategoryContext';
 import BotFloatingButton from '@/components/pageslayout/BotFloatingButton';
@@ -42,13 +43,16 @@ export default function BusinessListClient({
   const { isAuthenticated, roles } = useAuth();
   const isPro = isAuthenticated && isHubPro(roles as readonly string[]);
   const [addOpen, setAddOpen] = useState(false);
+  // Add follows the active profile: CRM creates on the business profile, places and requests on the personal one.
+  const businessActive = useBusinessProfileActive();
   const [jobCamOpen, setJobCamOpen] = useState(false);
   const searchParams = useSearchParams();
   const category = sanitizeDirectoryCategory(searchParams.get('category')) || initialCategory || 'All';
   const city = sanitizeDirectoryCity(searchParams.get('city')) || initialCity;
   const { searchQuery, setActiveCategory } = useCategory();
   const [savedView, setSavedView] = useLocalStorage<string>('businessListView', 'card');
-  const view = (savedView === 'card' || savedView === 'list') ? (savedView as ViewType) : 'card';
+  // Pros see cards only (no Card/List toggle on phone or PC).
+  const view = isPro ? 'card' : (savedView === 'card' || savedView === 'list') ? (savedView as ViewType) : 'card';
   const setView = (newView: ViewType) => setSavedView(newView);
   const filterKey = `${category}|${city}|${searchQuery ?? ''}|${view}`;
   const [pagination, setPagination] = useState<{ key: string; page: number }>(() => ({
@@ -121,7 +125,7 @@ export default function BusinessListClient({
           </div>
         ) : (
           <>
-            <ProCardGrid cards={pageCards} view={view} />
+            <ProCardGrid cards={pageCards} view={isMobileSafe ? 'card' : view} />
             {shouldShowPagination && (
               <div
                 className={`w-full flex justify-center mt-6 ${
@@ -144,8 +148,6 @@ export default function BusinessListClient({
       </div>
       {pageCards.length > 0 && isMobileSafe && (
         <BusinessListMobileBottomBar
-          currentView={view}
-          onViewChange={setView}
           showProAdd={isPro}
           signedIn={isAuthenticated}
           addOpen={addOpen}
@@ -159,6 +161,7 @@ export default function BusinessListClient({
         <ViewToggle
           currentView={view}
           onViewChange={setView}
+          views={isPro ? [] : undefined}
           onAdd={isPro ? () => setAddOpen(true) : undefined}
           addLabel={tCommon('view.add')}
           addOpen={addOpen}
@@ -168,7 +171,10 @@ export default function BusinessListClient({
           showAccount={isAuthenticated}
         />
       )}
-      {isPro && <ProAddModal isOpen={addOpen} onClose={() => setAddOpen(false)} />}
+      {isPro && businessActive && <ProAddModal isOpen={addOpen} onClose={() => setAddOpen(false)} />}
+      {isAuthenticated && !(isPro && businessActive) && (
+        <CustomerAddModal isOpen={addOpen} onClose={() => setAddOpen(false)} />
+      )}
       {isPro && <JobSiteCamera open={jobCamOpen} onClose={() => setJobCamOpen(false)} />}
       {pageCards.length > 0 && <BotFloatingButton />}
     </>

@@ -9,13 +9,11 @@ import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
 import { NotificationCount } from '@/components/ui/NotificationCount';
 
 /**
- * The house on the bottom bars. It follows the active profile (the account switcher in the profile menu):
- * a business profile opens the Customer portal with new customer activity on the counter; the personal
- * profile opens My Places with new updates from pros. Counts refresh when the app comes back and every minute.
+ * Where the house goes, following the active profile (the account switcher in the profile menu):
+ * a business profile opens the Customer portal with new customer activity; the personal profile
+ * opens My Places with new updates from pros. Counts refresh when the app comes back and every minute.
  */
-export function HomeShortcutButton({ withLabel = false }: { withLabel?: boolean }) {
-  const router = useRouter();
-  const locale = useLocale();
+export function useHomeShortcut(): { signedIn: boolean; business: boolean; label: string; href: string; count: number } {
   const t = useTranslations('common.account');
   const { user, isAdmin } = useAuth();
   const { activeAccount, activeAccountId } = useAccountSwitch();
@@ -48,10 +46,28 @@ export function HomeShortcutButton({ withLabel = false }: { withLabel?: boolean 
     };
   }, [user?.id]);
 
-  if (!user?.id) return null;
-  const label = business ? t('customerPortal') : t('myPlaces');
-  const href = business ? '/crm/portal' : '/myplaces';
-  const count = business ? counts.crm : counts.places;
+  return {
+    signedIn: Boolean(user?.id),
+    business,
+    label: business ? t('customerPortal') : t('myPlaces'),
+    href: business ? '/crm/portal' : '/myplaces',
+    count: business ? counts.crm : counts.places,
+  };
+}
+
+/** True when the active profile is a business (pro) profile, false on the personal (customer) profile. */
+export function useBusinessProfileActive(): boolean {
+  const { user, isAdmin } = useAuth();
+  const { activeAccount, activeAccountId } = useAccountSwitch();
+  return !isAdmin && (activeAccount?.type === 'business' || (!!user?.id && !!activeAccountId && activeAccountId !== user.id));
+}
+
+/** The house on the bottom bars (white square, red house icon). */
+export function HomeShortcutButton({ withLabel = false }: { withLabel?: boolean }) {
+  const router = useRouter();
+  const locale = useLocale();
+  const { signedIn, label, href, count } = useHomeShortcut();
+  if (!signedIn) return null;
 
   return (
     <div className="relative flex shrink-0 items-center justify-center">

@@ -1,4 +1,5 @@
 import { getResendClient, getResendFromEmail } from '@/lib/utils/resend';
+import { brandedEmail, hubEmailBrand } from '@/lib/email/branded-layout';
 import { generateEstimateConfirmationEmail, type EmailTranslations, type EstimateEmailData, generateWelcomeEmail, type WelcomeEmailTranslations, type WelcomeEmailData, generateSetPasswordEmail, type SetPasswordEmailTranslations, generatePasswordResetEmail, type PasswordResetEmailData, generatePasswordChangedEmail, generateIncomingEmailNotification, type IncomingEmailNotificationData, generateNewSignupAdminNotification, type NewSignupAdminNotificationData, generateProEstimateBookingEmail, type ProEstimateBookingEmailData, type ProEstimateBookingEmailTranslations, generateInvoiceEmail, type InvoiceEmailData, generateInvoiceReminderEmail, invoiceReminderSubject, type InvoiceReminderEmailData, generatePaymentReceiptEmail, type PaymentReceiptEmailData, generateStatementEmail, type StatementEmailData, generateEstimateReviewEmail, type EstimateReviewEmailData, generateEstimateApprovedCustomerEmail, generateEstimateApprovedContractorEmail, generateEstimateApprovedAdminEmail, type EstimateApprovedEmailCommon } from '@/lib/utils/emailTemplates';
 import { logger } from '@/lib/utils/logger';
 import { buildVisitIcs } from '@/lib/booking/visitIcs';
@@ -653,7 +654,8 @@ export async function sendInvoiceReminderEmail(
  */
 export async function sendPaymentReceiptEmail(
   data: PaymentReceiptEmailData,
-  toEmail: string
+  toEmail: string,
+  replyTo?: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const resend = getResendClient();
@@ -661,7 +663,8 @@ export async function sendPaymentReceiptEmail(
     const { error } = await resend.emails.send({
       from: fromEmail,
       to: toEmail,
-      subject: `Payment received for invoice #${data.invoiceNumber}`,
+      ...(replyTo ? { replyTo } : {}),
+      subject: `Payment received for invoice #${data.invoiceNumber} from ${data.businessName}`,
       html: generatePaymentReceiptEmail(data),
     });
     if (error) {
@@ -749,6 +752,8 @@ export async function sendEstimateApprovalNotificationEmails(
     estimateNumber: payload.estimateNumber,
     amountCents: payload.amountCents,
     customerName: payload.customerName,
+    brand: payload.brand ?? null,
+    crmUrl: payload.crmUrl ?? null,
   };
 
   const results = { customer: false, contractor: false, admin: false };
@@ -762,7 +767,7 @@ export async function sendEstimateApprovalNotificationEmails(
       const { error } = await resend.emails.send({
         from: fromEmail,
         to: payload.customerEmail,
-        subject: `Estimate #${payload.estimateNumber} approved — thank you`,
+        subject: `Estimate #${payload.estimateNumber} from ${payload.businessName} approved. Thank you!`,
         html,
       });
       if (error) {
@@ -819,14 +824,18 @@ export async function sendEstimateApprovalNotificationEmails(
 export async function sendMaintenanceStoppedEmail(
   to: string,
   subject: string,
-  paragraphs: string[]
+  paragraphs: string[],
+  button?: { label: string; url: string }
 ): Promise<void> {
   try {
     const resend = getResendClient();
     const fromEmail = getResendFromEmail();
-    const html = paragraphs
-      .map((line) => `<p style="font-family:sans-serif;font-size:15px;color:#111">${line}</p>`)
-      .join('');
+    const html = brandedEmail({
+      brand: hubEmailBrand(),
+      heading: subject,
+      paragraphs,
+      button: button ?? null,
+    });
     const { error } = await resend.emails.send({ from: fromEmail, to, subject, html });
     if (error) logger.error('Maintenance stop email failed', { to, error: error.message }, error as Error);
   } catch (err) {

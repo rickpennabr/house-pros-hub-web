@@ -1,4 +1,5 @@
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { brandedEmail, hubEmailBrand } from '@/lib/email/branded-layout';
 import type { Database } from '@/lib/types/supabase';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import {
@@ -169,6 +170,12 @@ async function noteDriveWarnings(
       to: email,
       subject,
       text: body,
+      html: brandedEmail({
+        brand: hubEmailBrand(),
+        heading: subject,
+        highlight: { label: 'Storage used', value: usage.isAtLimit ? 'Full' : 'Over 90%', color: usage.isAtLimit ? '#dc2626' : '#111827' },
+        paragraphs: [body],
+      }),
     });
   } catch (error) {
     logger.warn('ProDrive quota email skipped', { userId, error: error instanceof Error ? error.message : 'unknown' });

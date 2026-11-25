@@ -58,7 +58,7 @@ export async function recordInvoicePayment(
 ) {
   const { data: invoice, error } = await supabase
     .from('pro_crm_invoices')
-    .select('id, status, amount_cents, due_date, customer_id, business_id, invoice_number')
+    .select('id, status, amount_cents, due_date, customer_id, business_id, invoice_number, company_display')
     .eq('id', invoiceId)
     .eq('owner_id', ownerId)
     .single();
@@ -109,7 +109,11 @@ export async function recordInvoicePayment(
   const balanceCents = Math.max(0, invoice.amount_cents - nextPaid);
   const receipt: ReceiptResult = await emailPaymentReceipt({
     customerId: invoice.customer_id,
+    ownerId,
     businessId: invoice.business_id,
+    companyDisplay: (invoice as { company_display?: unknown }).company_display ?? null,
+    totalCents: invoice.amount_cents,
+    paymentDate: payment.payment_date ?? null,
     invoiceId,
     invoiceNumber: invoice.invoice_number,
     paidCents: input.amountCents,

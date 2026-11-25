@@ -10,6 +10,7 @@
  * customer's (from their profile when they have an account, else English).
  */
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { brandedEmail, hubEmailBrand } from '@/lib/email/branded-layout';
 import { getResendClient, getResendFromEmail } from '@/lib/utils/resend';
 import { escapeHtml } from '@/lib/utils/sanitize';
 import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
@@ -338,15 +339,7 @@ export function siteOrigin(fallback: string): string {
 }
 
 function emailFrame(title: string, body: string, locale: LeadLocale): string {
-  return `<div lang="${locale}" style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">
-  <div style="border:2px solid #000;border-radius:8px;overflow:hidden">
-    <div style="background:#000;color:#fff;padding:14px 18px;font-weight:bold;font-size:16px">House Pros Hub</div>
-    <div style="padding:18px">
-      <h2 style="margin:0 0 12px;font-size:20px">${title}</h2>
-      ${body}
-    </div>
-  </div>
-</div>`;
+  return brandedEmail({ brand: hubEmailBrand(), heading: title, bodyHtml: '<div lang="' + locale + '" style="font-size:15px;line-height:1.55;color:#111827;">' + body + '</div>' });
 }
 
 async function send(to: string, subject: string, html: string): Promise<void> {

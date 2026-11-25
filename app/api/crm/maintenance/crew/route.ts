@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { loadInvoiceEmailBranding } from '@/lib/invoices/reminder';
+import { brandedEmail, hubEmailBrand } from '@/lib/email/branded-layout';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
 import { requireCrmScope } from '@/lib/crm/crm-scope';
@@ -129,22 +131,25 @@ export async function POST(request: NextRequest) {
     try {
       const resend = getResendClient();
       const fromEmail = getResendFromEmail();
-      const { data: business } = await scope.supabase
-        .from('businesses')
-        .select('business_name')
-        .eq('id', scope.businessId)
-        .maybeSingle();
+      const brand = await loadInvoiceEmailBranding(scope.supabase as never, scope.ownerId, scope.businessId ?? null, null).catch(() => null);
+      const businessName = brand?.businessName || 'House Pros Hub';
 
       await resend.emails.send({
         from: fromEmail,
         to: email,
-        subject: `${business?.business_name ?? 'House Pros Hub'} invited you to the crew`,
-        html: `
-          <p>Hi ${parsed.data.displayName},</p>
-          <p>You were invited to join the maintenance crew on House Pros Hub.</p>
-          <p><a href="${acceptUrl}">Accept invitation</a></p>
-          <p>After you accept, you can sign in and run maintenance visits.</p>
-        `,
+        subject: `${businessName} invited you to the crew`,
+        ...(brand?.businessEmail ? { replyTo: brand.businessEmail } : {}),
+        html: brandedEmail({
+          brand: brand ?? hubEmailBrand(),
+          heading: 'You are invited to the crew',
+          subheading: businessName,
+          paragraphs: [
+            `Hi ${parsed.data.displayName},`,
+            `${businessName} invited you to join their maintenance crew on House Pros Hub.`,
+            'After you accept, sign in to see your visits, check in on site and add photos.',
+          ],
+          button: { label: 'Accept invitation', url: acceptUrl },
+        }),
       });
     } catch (emailError) {
       console.error('crew invite email', emailError);

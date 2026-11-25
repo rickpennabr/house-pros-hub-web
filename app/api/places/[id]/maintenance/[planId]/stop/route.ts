@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolvePublicSiteUrl } from '@/lib/utils/publicSiteUrl';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { deny, requirePortalUser } from '@/lib/places/session';
 import { recordAdminBellEvent } from '@/lib/services/adminNotifications';
@@ -77,7 +78,12 @@ export async function POST(
       `Property: ${where}.`,
       'The service is no longer active. Past visits and files stay in your records.',
     ];
-    await Promise.all(recipients.map((to) => sendMaintenanceStoppedEmail(to, proSubject, proBody)));
+    await Promise.all(recipients.map((to) =>
+        sendMaintenanceStoppedEmail(to, proSubject, proBody, {
+          label: 'Open Customer portal',
+          url: `${resolvePublicSiteUrl(_request.nextUrl.origin)}/en/crm/portal`,
+        })
+      ));
     if (business?.id) {
       await sendBusinessPushNotification(
         business.id,

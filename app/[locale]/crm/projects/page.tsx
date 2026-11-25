@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { projectDurationText } from '@/lib/crm/project-duration';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
 import { Plus, Pencil, Trash2, ArrowLeft, AlertTriangle, Filter, LayoutGrid, Calendar, Play, Pause, CircleCheck, Ban } from 'lucide-react';
@@ -200,6 +200,7 @@ type ViewMode = 'table' | 'add' | 'edit';
 export default function CRMProjectsPage() {
   const searchParams = useSearchParams();
   const locale = useLocale();
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [savedListView, setSavedListView] = useLocalStorage<string>('crmProjectsView', 'table');
@@ -254,11 +255,25 @@ export default function CRMProjectsPage() {
   const [deleting, setDeleting] = useState(false);
   const prefillsAppliedRef = useRef(false);
 
+  // Came from a project's page: edit it, then go back there.
+  const editParam = searchParams.get('edit');
   useEffect(() => {
     if (searchParams.get('customerId') || searchParams.get('new') === '1') {
       setViewMode('add');
     }
-  }, [searchParams]);
+    if (editParam) {
+      setEditingId(editParam);
+      setViewMode('edit');
+    }
+  }, [searchParams, editParam]);
+  const closeForm = () => {
+    if (editParam) {
+      router.push(`/${locale}/crm/projects/${editParam}`);
+      return;
+    }
+    setViewMode('table');
+    setEditingId(null);
+  };
 
   useEffect(() => {
     if (viewMode === 'add' || viewMode === 'edit') {
@@ -391,6 +406,10 @@ export default function CRMProjectsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to update project');
+      if (editParam) {
+        router.push(`/${locale}/crm/projects/${editParam}`);
+        return;
+      }
       setViewMode('table');
       setEditingId(null);
       fetchProjects();
@@ -528,7 +547,7 @@ export default function CRMProjectsPage() {
               }
               return projectCellText(row, columnId) || '—';
             }}
-            onRowClick={(row) => { setEditingId(row.id); setViewMode('edit'); }}
+            onRowClick={(row) => router.push(`/${locale}/crm/projects/${row.id}`)}
             renderActions={(row) => (
               <CrmRowActionsButton rowId={row.id} openId={rowActions.openId} onToggle={rowActions.toggle} />
             )}
@@ -561,7 +580,7 @@ export default function CRMProjectsPage() {
                 detail: `${listedCustomerName(row) || 'Project'} · ${statusLabel(row.status)}`,
                 address: row.customerAddress || '',
               }))}
-              onOpen={(id) => { setEditingId(id); setViewMode('edit'); }}
+              onOpen={(id) => router.push(`/${locale}/crm/projects/${id}`)}
             />
           )}
           {listView === 'map' && !isLoading && total > 0 && (
@@ -592,7 +611,7 @@ export default function CRMProjectsPage() {
       {(viewMode === 'add' || viewMode === 'edit') && (
         <div className="w-full md:max-w-xl md:mx-auto">
           <div className="py-2 md:mb-6 flex items-center justify-between gap-4">
-            <button type="button" onClick={() => { setViewMode('table'); setEditingId(null); }} className="flex items-center gap-2 text-gray-700 hover:text-black font-medium cursor-pointer">
+            <button type="button" onClick={closeForm} className="flex items-center gap-2 text-gray-700 hover:text-black font-medium cursor-pointer">
               <ArrowLeft className="w-5 h-5 shrink-0" /> Back
             </button>
             <span className="text-lg font-semibold text-gray-900">{viewMode === 'add' ? 'New Project' : 'Edit Project'}</span>
@@ -632,7 +651,7 @@ export default function CRMProjectsPage() {
               <Input value={formNote} onChange={(e) => setFormNote(e.target.value)} placeholder="Optional note" />
             </FormField>
             <div className="flex gap-2 pt-2">
-              <Button type="button" variant="secondary" size="sm" onClick={() => { setViewMode('table'); setEditingId(null); }} disabled={saving}>Cancel</Button>
+              <Button type="button" variant="secondary" size="sm" onClick={closeForm} disabled={saving}>Cancel</Button>
               <Button type="submit" variant="primary" size="sm" disabled={saving}>{saving ? 'Saving…' : viewMode === 'add' ? 'Create Project' : 'Save changes'}</Button>
             </div>
           </form>

@@ -14,6 +14,8 @@ import {
   Users,
   Shovel,
   Wrench,
+  Home,
+  Search,
 } from 'lucide-react';
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
 
@@ -57,4 +59,21 @@ export function ProAddModal({ isOpen, onClose }: ProAddModalProps) {
       items={items}
     />
   );
+}
+
+/** Add on the personal (customer) profile: a place, an estimate request, or finding a pro. */
+export function CustomerAddModal({ isOpen, onClose }: ProAddModalProps) {
+  const locale = useLocale();
+  const t = useTranslations('bot');
+
+  const items = useMemo(
+    (): MobileGridActionItem[] => [
+      { id: 'place', href: `/${locale}/myplaces?add=1`, label: t('proAdd.addPlace'), icon: Home },
+      { id: 'estimate', href: `/${locale}/estimate`, label: t('proAdd.requestEstimate'), icon: FileText },
+      { id: 'pro', href: `/${locale}/businesslist`, label: t('proAdd.findPro'), icon: Search },
+    ],
+    [locale, t]
+  );
+
+  return <MobileGridActionsModal isOpen={isOpen} onClose={onClose} title={t('proAdd.title')} items={items} />;
 }

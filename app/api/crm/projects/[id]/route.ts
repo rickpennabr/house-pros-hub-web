@@ -1,7 +1,7 @@
 import { recordCustomerPlaceEvent } from '@/lib/places/timeline';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireContractor } from '@/lib/crm/require-contractor';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 
 async function validateEstimateLink(
@@ -35,8 +35,34 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const { data: row, error } = await supabase.from('pro_crm_projects').select('*').eq('id', id).eq('owner_id', user.id).single();
     if (error || !row) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
-    const { data: customer } = await supabase.from('pro_crm_customers').select('id, first_name, last_name, display_name, company_name').eq('id', row.customer_id).single();
+    const { data: customer } = await supabase.from('pro_crm_customers').select('id, first_name, last_name, display_name, company_name, email, phone').eq('id', row.customer_id).single();
+    // Header of the project page: where the job is and what it was sold for.
+    const placeId = (row as { place_id?: string | null }).place_id ?? null;
+    const [{ data: place }, { data: estimate }] = await Promise.all([
+      placeId
+        ? createServiceRoleClient().from('customer_places').select('name, street, city, state, zip_code').eq('id', placeId).maybeSingle()
+        : Promise.resolve({ data: null }),
+      row.estimate_id
+        ? supabase.from('pro_crm_estimates').select('display_id, amount_cents, status').eq('id', row.estimate_id).eq('owner_id', user.id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    const placeRow = place as { name?: string | null; street?: string | null; city?: string | null; state?: string | null; zip_code?: string | null } | null;
     return NextResponse.json({
+      displayId: (row as { display_id?: string | null }).display_id ?? null,
+      customerEmail: customer?.email ?? null,
+      customerPhone: customer?.phone ?? null,
+      customerCompany: customer?.company_name ?? null,
+      place: placeRow
+        ? {
+            name: placeRow.name ?? null,
+            address: [placeRow.street, [placeRow.city, [placeRow.state, placeRow.zip_code].filter(Boolean).join(' ')].filter(Boolean).join(', ')]
+              .filter(Boolean)
+              .join(', '),
+          }
+        : null,
+      estimate: estimate
+        ? { displayId: (estimate as { display_id?: string | null }).display_id ?? null, amountCents: (estimate as { amount_cents?: number | null }).amount_cents ?? null, status: (estimate as { status?: string }).status ?? null }
+        : null,
       id: row.id,
       customerId: row.customer_id,
       customerFirstName: customer?.first_name ?? null,

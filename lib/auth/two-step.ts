@@ -8,6 +8,7 @@
  * edited by whoever holds the cookie, so the answer comes from Supabase's admin API, cached briefly.
  */
 import { createClient } from '@supabase/supabase-js';
+import { brandedEmail, hubEmailBrand } from '@/lib/email/branded-layout';
 import { getResendClient, getResendFromEmail } from '@/lib/utils/resend';
 
 const CACHE_MS = 60_000;
@@ -53,15 +54,18 @@ export function forgetTwoStep(userId: string): void {
 
 /** Security notice to the account email when two-step was turned on or off. */
 export async function sendTwoStepNotice(email: string, enabled: boolean): Promise<void> {
-  const html = enabled
-    ? `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
-  <h2 style="margin:0 0 12px">Two-step sign-in is on</h2>
-  <p>Your House Pros Hub account now asks for a code from your authenticator app after the password.</p>
-  <p style="font-size:12px;color:#555">If you did not do this, reset your password right away and contact support.</p></div>`
-    : `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
-  <h2 style="margin:0 0 12px">Two-step sign-in was turned off</h2>
-  <p>Your House Pros Hub account no longer asks for an authenticator code.</p>
-  <p style="font-size:12px;color:#555">If you did not do this, reset your password right away and turn two-step sign-in back on in Account management &gt; Settings.</p></div>`;
+  const html = brandedEmail({
+    brand: hubEmailBrand(),
+    heading: enabled ? 'Two-step sign-in is on' : 'Two-step sign-in was turned off',
+    paragraphs: [
+      enabled
+        ? 'Your House Pros Hub account now asks for a code from your authenticator app after the password.'
+        : 'Your House Pros Hub account no longer asks for an authenticator code.',
+      enabled
+        ? 'If you did not do this, reset your password right away and contact support.'
+        : 'If you did not do this, reset your password right away and turn two-step sign-in back on in Account management > Settings.',
+    ],
+  });
   try {
     await getResendClient().emails.send({
       from: getResendFromEmail(),

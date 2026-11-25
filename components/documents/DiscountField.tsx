@@ -18,9 +18,9 @@ interface DiscountFieldProps {
  */
 export function DiscountField({ kind, value, onChange, discountCents, formatAmount, disabled = false }: DiscountFieldProps) {
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
       <span className="text-gray-600">Discount</span>
-      <span className="flex items-center gap-1">
+      <span className="flex min-w-0 items-center gap-1">
         <span className="inline-flex overflow-hidden rounded-md border-2 border-black text-xs font-medium" role="group" aria-label="Discount type">
           {(['percent', 'amount'] as const).map((option) => (
             <button
@@ -42,10 +42,10 @@ export function DiscountField({ kind, value, onChange, discountCents, formatAmou
           placeholder={kind === 'percent' ? '0' : '0.00'}
           aria-label={kind === 'percent' ? 'Discount percent' : 'Discount amount in dollars'}
           disabled={disabled}
-          className="w-16 rounded-lg border-2 border-black px-2 py-1 text-right text-sm"
+          className="w-14 min-w-0 rounded-lg border-2 border-black px-2 py-1 text-right text-sm"
         />
-        <span className="w-20 text-right text-red-700">{discountCents > 0 ? `−${formatAmount(discountCents)}` : formatAmount(0)}</span>
       </span>
+      <span className="ml-auto whitespace-nowrap text-right text-red-700">{discountCents > 0 ? `−${formatAmount(discountCents)}` : formatAmount(0)}</span>
     </div>
   );
 }

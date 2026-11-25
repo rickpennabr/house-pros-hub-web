@@ -26,6 +26,8 @@ interface AccordionProps {
   hasErrors?: boolean;
   missingInfoMessage?: string;
   tip?: string;
+  /** Form section look: the title sits at the top of the box with no header bar or divider. */
+  flush?: boolean;
 }
 
 export default function Accordion({
@@ -42,7 +44,27 @@ export default function Accordion({
   className = '',
   missingInfoMessage,
   tip,
+  flush = false,
 }: AccordionProps) {
+  if (flush) {
+    return (
+      <section className={`rounded-lg border-2 border-black bg-white ${className}`}>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+          className="flex w-full items-center justify-between gap-3 rounded-lg p-4 text-left"
+        >
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+            {subtitle ? <span className="truncate text-xs text-gray-600">{subtitle}</span> : null}
+          </span>
+          {isOpen ? <ChevronUp className="h-5 w-5 shrink-0 text-black" /> : <ChevronDown className="h-5 w-5 shrink-0 text-black" />}
+        </button>
+        {isOpen ? <div className="space-y-4 px-4 pb-4">{children}</div> : null}
+      </section>
+    );
+  }
   // Determine if we should show error styling (red border and message)
   // Show when accordion is collapsed, required, and incomplete (has errors or missing info)
   const showErrorState = !isOpen && required && !isComplete;

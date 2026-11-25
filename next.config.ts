@@ -70,6 +70,8 @@ function devConnectSrc(): string {
 }
 
 const nextConfig: NextConfig = {
+  // Hide the dev-only "N" route indicator; it sat on top of the mobile bottom bar. Errors still show.
+  devIndicators: false,
   outputFileTracingIncludes: {
     "/api/chat/messages": ["./lib/chat/probot-hardscape.md"],
   },

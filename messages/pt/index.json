@@ -55,6 +55,10 @@
       "myBusiness": "Meu Negócio",
       "accountManagement": "Gerenciar Conta",
       "manageAccounts": "Gerenciar Contas",
+      "helpShort": "Ajuda",
+      "estimateShort": "Orçamento",
+      "accountsShort": "Contas",
+      "clientPortal": "Portal do cliente",
       "proscrm": "ProsCRM",
       "customerPortal": "Portal do cliente",
       "probot": "ProBot",
@@ -910,6 +914,9 @@
     "crmMenuDragHint": "Arraste um quadro para mudar a ordem",
     "proAdd": {
       "title": "Adicionar",
+      "addPlace": "Adicionar um lugar",
+      "requestEstimate": "Pedir um orçamento",
+      "findPro": "Encontrar um pro",
       "crm": "CRM",
       "customer": "Novo contato",
       "estimate": "Novo orçamento",
@@ -925,6 +932,8 @@
     "crmProTrades": "ProTrades",
     "crmPlants": "Plantas",
     "crmHardscape": "Hardscape",
+    "crmHardscapeProducts": "Produtos",
+    "crmProQuote": "ProQuote",
     "crmLandscape": "Paisagismo"
   },
   "validation": {

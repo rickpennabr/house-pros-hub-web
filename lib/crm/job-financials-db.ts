@@ -309,8 +309,10 @@ export async function loadOwnerJobData(
       amount_cents: n(row.amount_cents),
       miles: n(row.miles),
       expense_id: str(row.expense_id),
+      purpose: str(row.purpose),
     };
-    const key = jobKeyOf(row);
+    // Estimate visits are a cost of selling: they stay in company costs, not in a project's profit.
+    const key = trip.purpose === 'estimate' ? null : jobKeyOf(row);
     if (key && jobs.has(key)) push(data.mileage, key, trip);
     else if (!only) data.unassigned.mileage.push(trip);
   }
@@ -443,8 +445,13 @@ export function profitAndLoss(data: OwnerJobData, range: DateRange): ProfitAndLo
     if (!isOverheadCategory(expense.category)) continue;
     overheadByCategory.set(expense.category, (overheadByCategory.get(expense.category) ?? 0) + expense.amount_cents);
   }
-  const unlinkedMileage = data.unassigned.mileage.filter((trip) => !trip.expense_id).reduce((sum, trip) => sum + trip.amount_cents, 0);
+  const unbilledTrips = data.unassigned.mileage.filter((trip) => !trip.expense_id);
+  const estimateTripCents = unbilledTrips.filter((trip) => trip.purpose === 'estimate').reduce((sum, trip) => sum + trip.amount_cents, 0);
+  const unlinkedMileage = unbilledTrips.filter((trip) => trip.purpose !== 'estimate').reduce((sum, trip) => sum + trip.amount_cents, 0);
   if (unlinkedMileage > 0) overheadByCategory.set('Mileage', (overheadByCategory.get('Mileage') ?? 0) + unlinkedMileage);
+  if (estimateTripCents > 0) {
+    overheadByCategory.set('Estimate trips (selling)', (overheadByCategory.get('Estimate trips (selling)') ?? 0) + estimateTripCents);
+  }
   const overhead = [...overheadByCategory.entries()]
     .map(([category, amountCents]) => ({ category, amountCents }))
     .sort((a, b) => b.amountCents - a.amountCents);
