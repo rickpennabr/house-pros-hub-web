@@ -10,6 +10,8 @@ const bodySchema = z.object({
   /** sent: the pro sent the reminder or follow-up (the card already called the send endpoint). */
   action: z.enum(['sent', 'snooze', 'done']),
   days: z.number().int().min(1).max(30).optional(),
+  /** What closed the card, shown on it: paid, dismissed, project created, final invoice started, opened. */
+  outcome: z.enum(['paid', 'dismissed', 'project_created', 'invoice_started', 'opened']).optional(),
 });
 
 function addDays(days: number): string {
@@ -50,10 +52,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .update({
         payload: {
           ...payload,
-          followup: { ...current, status, ...(snoozedUntil ? { snoozedUntil } : {}), ...(status !== 'snoozed' ? { actedAt: now } : {}) },
+          followup: {
+            ...current,
+            status,
+            ...(snoozedUntil ? { snoozedUntil } : {}),
+            ...(status !== 'snoozed' ? { actedAt: now } : {}),
+            ...(parsed.data.outcome ? { outcome: parsed.data.outcome } : {}),
+          },
         } as unknown as Json,
       })
       .eq('id', card.message_id);
   }
-  return NextResponse.json({ status, snoozedUntil, actedAt: status === 'snoozed' ? null : now });
+  return NextResponse.json({ status, snoozedUntil, actedAt: status === 'snoozed' ? null : now, outcome: parsed.data.outcome ?? null });
 }

@@ -98,6 +98,7 @@
   },
   "probot": {
     "chatList": {
+      "chats": "Chats",
       "voice": "Voice message",
       "all": "All",
       "unread": "Unread",

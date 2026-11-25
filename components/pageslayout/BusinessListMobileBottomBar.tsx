@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
-import { FileText, LogIn, Phone, UserCog } from 'lucide-react';
+import { FileText, LogIn, Phone } from 'lucide-react';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import { useProBotTransition } from '@/contexts/ProBotTransitionContext';
 import { HUB_WHATSAPP_URL } from '@/lib/constants/company';
@@ -147,7 +147,7 @@ export default function BusinessListMobileBottomBar({
     </button>
   ) : (
     <button type="button" onClick={() => go('/account-management')} className={item} aria-label={tAccount('manageAccounts')}>
-      {box(<UserCog className="h-[22px] w-[22px] text-white" />)}
+      {box(<HouseMark variant="gear" tone="light" className="h-[26px] w-[26px]" />)}
       <span className="max-w-full truncate">{tAccount('accountsShort')}</span>
     </button>
   );

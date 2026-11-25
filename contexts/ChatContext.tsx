@@ -12,7 +12,8 @@ const VISITOR_ID_KEY = 'probot_visitor_id';
 export type ChatOpenChoice = 'account_estimate' | null;
 
 const CHAT_UNREAD_POLL_MS_OPEN = 30_000;
-const CHAT_UNREAD_POLL_MS_CLOSED = 60_000;
+// New-message badge and sound: check every 20s while the app is open and visible.
+const CHAT_UNREAD_POLL_MS_CLOSED = 20_000;
 const VISITOR_SESSION_IDLE_MS = 2_500;
 
 interface ChatContextType {
@@ -118,7 +119,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const fetchUnread = async () => {
       try {
         const url =
-          isAdmin || isContractor
+          isAdmin || isContractor || user?.id
             ? '/api/notifications/unread-count'
             : visitorId
               ? `/api/notifications/unread-count?visitorId=${encodeURIComponent(visitorId)}`
@@ -141,7 +142,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       window.removeEventListener(LEADS_CHANGED_EVENT, onLeadsChanged);
       stop();
     };
-  }, [isAdmin, isContractor, visitorId, isOpen]);
+  }, [isAdmin, isContractor, visitorId, isOpen, user?.id]);
 
   // New message: play the chime when the unread count goes up (not on the first load).
   const lastUnreadRef = useRef<number | null>(null);

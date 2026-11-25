@@ -84,7 +84,7 @@ export function proOpenAiTools(): OpenAiTool[] {
       function: {
         name: 'get_day_schedule',
         description:
-          'Everything on one day: appointments and meetings, maintenance due, projects running, and invoices due. Use for "what do I have tomorrow".',
+          'Everything on one day: appointments and meetings, estimate visits homeowners booked, maintenance due, projects running, and invoices due. Use for "what do I have tomorrow".',
         parameters: { type: 'object', additionalProperties: false, required: ['day'], properties: { day: dayParam } },
       },
     },
@@ -488,7 +488,9 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
     }
 
     // get_day_schedule
-    const [tasks, projects, invoices] = await Promise.all([
+    const { data: ownedBusinesses } = await db.from('businesses').select('id').eq('owner_id', ownerId);
+    const businessIds = (ownedBusinesses ?? []).map((row) => row.id);
+    const [tasks, projects, invoices, bookings] = await Promise.all([
       db
         .from('pro_crm_tasks')
         .select('id, task_type, other_label, customer_id, meeting_with, start_at, end_at')
@@ -510,8 +512,20 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
         .eq('owner_id', ownerId)
         .in('status', ['sent', 'partial', 'overdue'])
         .eq('due_date', day),
+      // Visits homeowners booked on the pro's booking calendar.
+      businessIds.length
+        ? db
+            .from('pro_estimate_bookings')
+            .select('id, guest_first_name, guest_last_name, service_name, slot_start_at, visit_city')
+            .in('business_id', businessIds)
+            .eq('status', 'confirmed')
+            .gte('slot_start_at', from)
+            .lt('slot_start_at', to)
+            .order('slot_start_at')
+        : Promise.resolve({ data: [] as { id: string; guest_first_name: string | null; guest_last_name: string | null; service_name: string | null; slot_start_at: string; visit_city: string | null }[] }),
     ]);
     const dayTasks = (tasks.data ?? []).filter((row) => localDate(row.start_at, context.timeZone) === day);
+    const dayBookings = (bookings.data ?? []).filter((row) => localDate(row.slot_start_at, context.timeZone) === day);
     const names = await customerNames(db, ownerId, [
       ...due.map((plan) => plan.customer_id),
       ...visits.map((row) => row.customer_id),
@@ -532,6 +546,12 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
           until: localTime(row.end_at, context.timeZone),
           what: taskLabel[row.task_type] ?? row.other_label ?? 'Appointment',
           with: (row.customer_id ? names.get(row.customer_id) : null) ?? row.meeting_with ?? null,
+        })),
+        visitRequests: dayBookings.map((row) => ({
+          time: localTime(row.slot_start_at, context.timeZone),
+          with: [row.guest_first_name, row.guest_last_name].filter(Boolean).join(' ') || null,
+          service: row.service_name,
+          city: row.visit_city,
         })),
         maintenance: due.map((plan) => ({ customer: names.get(plan.customer_id) ?? 'Unknown customer', plan: plan.name })),
         maintenanceLogged: visits.length,

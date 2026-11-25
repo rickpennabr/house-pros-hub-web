@@ -168,6 +168,8 @@ export default function ProBotChatArea({
   onWelcomeChoiceMade,
 }: ProBotChatAreaProps) {
   const t = useTranslations('probot');
+  // Phones: contact chats show "← Chats" on the left with the name centered.
+  const backWithChats = !selectedContact?.isProBot && Boolean(onOpenSidebar);
   const tPlaces = useTranslations('places');
   const tBot = useTranslations('bot');
   const tSuccess = useTranslations('estimate.success');
@@ -1490,7 +1492,7 @@ export default function ProBotChatArea({
   return (
     <div className={`flex flex-col min-h-0 overflow-hidden h-full ${PROBOT_CHAT_BG} probot-chat-area-pc-transparent`}>
       {((!showWelcome && !showAdminInitialWelcome) || isAdminView) && (
-        <div className="probot-chat-header sticky top-0 z-10 border-b border-gray-200 px-4 py-2 shrink-0 bg-white md:bg-transparent flex items-center justify-between gap-2">
+        <div className="probot-chat-header sticky top-0 z-10 border-b border-gray-200 px-2 md:px-4 py-2 shrink-0 bg-white md:bg-transparent flex items-center justify-between gap-2">
           {isAdminView && adminViewingConversation && onExitAdminConversation ? (
             <>
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -1571,16 +1573,18 @@ export default function ProBotChatArea({
             </>
           ) : (
           <>
-          <div className="flex items-center gap-2 min-w-0 flex-1 min-w-0">
+          {/* Phones: ← Chats on the left, the contact's logo and name centered (WhatsApp style). */}
+          <div className={`flex items-center gap-2 min-w-0 flex-1 ${backWithChats ? 'max-md:justify-center max-md:pl-[76px] max-md:pr-2' : ''}`}>
             {!selectedContact?.isProBot && onOpenSidebar && (
               <button
                 type="button"
                 onClick={onOpenSidebar}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors shrink-0 cursor-pointer -ml-1"
+                className="flex items-center gap-1 p-2 rounded-lg hover:bg-gray-100 transition-colors shrink-0 cursor-pointer max-md:absolute max-md:left-1 md:-ml-1"
                 aria-label={t('backToContacts')}
                 title={t('backToContacts')}
               >
                 <ArrowLeft className="w-5 h-5 text-gray-700" />
+                <span className="md:hidden text-sm font-semibold text-gray-800">{t('chatList.chats')}</span>
               </button>
             )}
             {(() => {
@@ -1629,7 +1633,7 @@ export default function ProBotChatArea({
                 </div>
               );
             })()}
-            <div className="min-w-0 flex-1">
+            <div className={`min-w-0 ${backWithChats ? 'max-md:flex-none md:flex-1' : 'flex-1'}`}>
               <h2 className="text-base font-semibold text-gray-800 truncate">
                 {selectedContact?.isProBot ? selectedContact.name : selectedContact?.name ?? ''}
               </h2>

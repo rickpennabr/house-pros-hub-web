@@ -162,7 +162,7 @@ function ProBotLayoutContent({
   viewportH,
 }: ProBotLayoutContentProps) {
   const t = useTranslations('probot');
-  const { inChat, onBackToWelcome } = useProBotHeader();
+  const { inChat, onBackToWelcome, withProBot } = useProBotHeader();
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -174,7 +174,8 @@ function ProBotLayoutContent({
     return () => mql.removeEventListener('change', update);
   }, []);
 
-  const showBackChevron = isMobile && inChat;
+  // The HPH logo (home) always stays top-left; going back to the chat list is the ← in the chat header.
+  const showBackChevron = false && isMobile && inChat;
 
   return (
     <>
@@ -265,6 +266,11 @@ function ProBotLayoutContent({
               </div>
 
               {/* Center: ProBot image + label (waving GIF first, then typing GIF). Show static avatar until GIF loads to avoid broken-image "?" on mobile. */}
+              {!withProBot ? (
+                <div className="absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2">
+                  <span className="text-base md:text-lg font-bold text-black whitespace-nowrap">{t('chatList.chats')}</span>
+                </div>
+              ) : (
               <div className="flex items-center justify-center gap-2 flex-1 min-w-0 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0">
                 <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-gray-100 relative">
                   {/* Static fallback: visible until GIF loads (or on error) */}
@@ -292,6 +298,7 @@ function ProBotLayoutContent({
                   ProBot
                 </span>
               </div>
+              )}
 
               {/* Right: same notification bell as the business page, then profile */}
               <div className="flex items-center gap-2 flex-shrink-0 z-[100]">

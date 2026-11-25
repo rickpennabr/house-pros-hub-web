@@ -42,13 +42,12 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ count: n, chat: n }, { status: 200 });
       }
 
+      // Every signed-in user: all their chats (pros and ProBot replying), plus customers writing to their business.
+      // Customers used to be counted on this browser's visitor chat only, which missed chats started elsewhere.
       const userBusinessId = await getOwnedBusinessId(user.id);
-      if (userBusinessId) {
-        // Both profiles: customers writing to the business + pros/ProBot replying to the personal account.
-        const { business, personal } = await loadUnreadByContact(supabase, user.id, userBusinessId);
-        const total = business + personal;
-        return NextResponse.json({ count: total, chat: total, business, personal }, { status: 200 });
-      }
+      const { business, personal } = await loadUnreadByContact(supabase, user.id, userBusinessId);
+      const total = business + personal;
+      return NextResponse.json({ count: total, chat: total, business, personal }, { status: 200 });
     }
 
     // Visitor: require visitorId query param

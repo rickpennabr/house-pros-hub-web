@@ -7,11 +7,14 @@ export interface ProBotHeaderOptions {
   inChat: boolean;
   /** Called when user taps the back chevron (navigate to ProBot welcome page). */
   onBackToWelcome: () => void;
+  /** True while the open chat is ProBot: the page header shows ProBot; otherwise it shows "Chats". */
+  withProBot: boolean;
 }
 
 const defaultOptions: ProBotHeaderOptions = {
   inChat: false,
   onBackToWelcome: () => {},
+  withProBot: true,
 };
 
 type SetProBotHeaderOptions = (opts: Partial<ProBotHeaderOptions>) => void;

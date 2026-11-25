@@ -132,13 +132,23 @@ export interface ProAgentPayload {
   plantId?: ChatPlantId;
   /** Morning follow-up for a pro: an unpaid invoice or an unanswered estimate, with action buttons. */
   followup?: ChatProbotFollowup;
+  /** This message is the pro's morning brief (shows a link to its settings). */
+  morningBrief?: { date: string; locale?: 'en' | 'es' | 'pt' };
 }
 
 export interface ChatProbotFollowup {
   followupId: string;
-  kind: 'invoice_unpaid' | 'estimate_waiting';
-  /** Invoice or estimate id. */
+  kind: 'invoice_unpaid' | 'estimate_waiting' | 'estimate_accepted' | 'project_finishing' | 'project_starting';
+  /** Invoice, estimate or project id (by kind). */
   documentId: string;
+  customerId?: string;
+  /** Project cards: the project's name and its finish/start date. */
+  projectName?: string;
+  date?: string;
+  /** How the card was closed: shown as the done line. */
+  outcome?: 'paid' | 'dismissed' | 'project_created' | 'invoice_started' | 'opened';
+  /** Language the card was written in. */
+  locale?: 'en' | 'es' | 'pt';
   documentNumber: string;
   customerName: string;
   customerPhone: string | null;

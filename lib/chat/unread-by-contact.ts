@@ -58,8 +58,8 @@ export async function loadUnreadByContact(
       .is('read_at', null)
       .limit(2000);
     for (const row of replies ?? []) {
-      // Replies from the user's own business are business-side activity, not personal mail.
-      if (businessId && row.business_id === businessId) continue;
+      // Replies from the user's own business count too (a pro testing, or one family account): the business side only
+      // counts visitor messages, so nothing is counted twice.
       personal += 1;
       bump(row.business_id ? `business:${row.business_id}` : 'probot');
     }

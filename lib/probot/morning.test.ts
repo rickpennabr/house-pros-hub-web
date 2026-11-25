@@ -11,7 +11,13 @@ function estimate(id: string, sentOn: string, amountCents = 100_000): FollowupCa
   return { kind: 'estimate_waiting', documentId: id, documentNumber: `#${id}`, customerId: 'c', amountCents, sentOn };
 }
 function row(documentId: string, status: FollowupHistory['status'], extra: Partial<FollowupHistory> = {}): FollowupHistory {
-  return { id: `row-${documentId}-${status}`, documentId, status, snoozedUntil: null, actedOn: null, ...extra };
+  return { id: `row-${documentId}-${status}`, kind: 'invoice_unpaid', documentId, status, snoozedUntil: null, actedOn: null, ...extra };
+}
+function project(id: string, kind: 'project_finishing' | 'project_starting', date: string): FollowupCandidate {
+  return { kind, documentId: id, documentNumber: `#${id}`, customerId: 'c', amountCents: 0, sentOn: TODAY, projectName: 'Pavers', date };
+}
+function accepted(id: string, amountCents = 100_000): FollowupCandidate {
+  return { kind: 'estimate_accepted', documentId: id, documentNumber: `#${id}`, customerId: 'c', amountCents, sentOn: '2026-11-24' };
 }
 
 describe('pickFollowups', () => {
@@ -69,7 +75,6 @@ describe('pickFollowups', () => {
 const quiet: BriefFacts = {
   firstName: 'Rick',
   today: TODAY,
-  dayName: 'Wednesday, November 25',
   appointments: [],
   maintenance: [],
   finishing: [],
@@ -104,8 +109,60 @@ describe('buildBriefText', () => {
 });
 
 describe('isMorningNow', () => {
-  it('is 6 AM Las Vegas time', () => {
-    assert.equal(isMorningNow('America/Los_Angeles', new Date('2026-11-25T14:30:00Z')), true);
-    assert.equal(isMorningNow('America/Los_Angeles', new Date('2026-11-25T15:30:00Z')), false);
+  it('is 6 AM Las Vegas time by default', () => {
+    assert.equal(isMorningNow('America/Los_Angeles', undefined, new Date('2026-11-25T14:30:00Z')), true);
+    assert.equal(isMorningNow('America/Los_Angeles', undefined, new Date('2026-11-25T15:30:00Z')), false);
+  });
+
+  it('follows the pro hour and time zone', () => {
+    // 12:30 UTC = 7:30 AM in New York (EST).
+    assert.equal(isMorningNow('America/New_York', 7, new Date('2026-11-25T12:30:00Z')), true);
+    assert.equal(isMorningNow('America/New_York', 6, new Date('2026-11-25T12:30:00Z')), false);
+  });
+});
+
+describe('week 2 cards', () => {
+  it('uses the pro wait days', () => {
+    const candidates = [invoice('a', '2026-11-20'), estimate('e', '2026-11-20')];
+    assert.equal(pickFollowups(candidates, [], TODAY, { invoiceDays: 7, estimateDays: 3 }).map((d) => d.candidate.documentId).join(), 'e');
+    assert.equal(pickFollowups(candidates, [], TODAY, { invoiceDays: 5, estimateDays: 5 }).length, 2);
+  });
+
+  it('brings up project and accepted cards once, keyed by kind', () => {
+    const candidates = [project('p', 'project_finishing', '2026-11-27'), accepted('e')];
+    assert.equal(pickFollowups(candidates, [], TODAY).length, 2);
+    const handled = [
+      row('p', 'done', { kind: 'project_finishing', actedOn: '2026-11-20' }),
+      // A waiting-estimate card for the same estimate does not block the accepted card.
+      row('e', 'sent', { kind: 'estimate_waiting', actedOn: '2026-11-20' }),
+    ];
+    assert.deepEqual(pickFollowups(candidates, handled, TODAY).map((d) => d.candidate.documentId), ['e']);
+  });
+
+  it('orders late invoices, accepted, finishing, invoices, starting, estimates', () => {
+    const picked = pickFollowups(
+      [
+        estimate('est', '2026-11-01'),
+        project('start', 'project_starting', '2026-11-26'),
+        invoice('inv', '2026-11-01'),
+        project('finish', 'project_finishing', '2026-11-27'),
+        accepted('acc'),
+        invoice('late', '2026-11-01', 10_000, '2026-11-20'),
+      ],
+      [],
+      TODAY,
+    );
+    assert.deepEqual(picked.map((d) => d.candidate.documentId), ['late', 'acc', 'finish', 'inv', 'start', 'est']);
+  });
+
+  it('writes the brief in Spanish and Portuguese', () => {
+    const facts = { ...quiet, cards: 1, finishing: [{ name: 'Patio', customer: 'Daniel', finish: '2026-11-26' }] };
+    const es = buildBriefText({ ...facts, locale: 'es' })!;
+    assert.match(es, /¡Buenos días, Rick!/);
+    assert.match(es, /termina mañana/);
+    assert.match(es, /1 cosa necesita tu OK/);
+    const pt = buildBriefText({ ...facts, locale: 'pt' })!;
+    assert.match(pt, /Bom dia, Rick!/);
+    assert.match(pt, /termina amanhã/);
   });
 });

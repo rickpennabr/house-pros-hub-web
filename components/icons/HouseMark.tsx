@@ -17,8 +17,9 @@ export function HouseMark({
   tone?: 'dark' | 'light';
 }) {
   const INK = tone === 'light' ? '#FFFFFF' : DARK;
+  // viewBox starts at y=3 so the house (roof top ~9, wall bottom 43.5) sits in the middle of the box.
   return (
-    <svg viewBox="0 0 48 46" className={className} aria-hidden>
+    <svg viewBox="0 3 48 46" className={className} aria-hidden>
       {/* Roof: a flat band, mitered at the peak, ending on the wall tops */}
       <path d="M3.5 24L24 11L44.5 24" fill="none" stroke={RED} strokeWidth="4.2" strokeLinejoin="miter" strokeMiterlimit="10" />
       {/* Walls: two thick posts, like the outer strokes of the H's */}

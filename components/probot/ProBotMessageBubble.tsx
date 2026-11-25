@@ -407,6 +407,14 @@ export default function ProBotMessageBubble({
           {msg.payload?.leadOffer ? (
             <LeadOfferCard key={`${msg.payload.leadOffer.referralId}-${msg.payload.leadOffer.status}`} lead={msg.payload.leadOffer} canAnswer={!isAdminView} />
           ) : null}
+          {msg.payload?.morningBrief && !isAdminView ? (
+            <Link
+              href={`/${locale}/crm/probot-settings`}
+              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-600 underline hover:text-black"
+            >
+              {msg.payload.morningBrief.locale === 'es' ? 'Ajustes del resumen' : msg.payload.morningBrief.locale === 'pt' ? 'Ajustes do resumo' : 'Brief settings'}
+            </Link>
+          ) : null}
           {msg.payload?.followup ? (
             <ProbotFollowupCard key={`${msg.payload.followup.followupId}-${msg.payload.followup.status}`} card={msg.payload.followup} canAnswer={!isAdminView} />
           ) : null}

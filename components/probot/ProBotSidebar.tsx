@@ -171,7 +171,16 @@ export default function ProBotSidebar({
   // Start collapsed so mobile loads with sidebar closed; desktop expands after mount (see effect).
   const [internalSidebarOpen, setInternalSidebarOpen] = useState(false);
   const isControlled = controlledSidebarOpen !== undefined && onSidebarOpenChange !== undefined;
-  const sidebarOpen = isControlled ? controlledSidebarOpen : internalSidebarOpen;
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px)');
+    const update = () => setIsDesktop(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+  // PC: the contact list is always open (no collapse). Phones open and close it.
+  const sidebarOpen = isDesktop || (isControlled ? controlledSidebarOpen : internalSidebarOpen);
   const setSidebarOpen = isControlled ? onSidebarOpenChange! : setInternalSidebarOpen;
   const [contactsOpen, setContactsOpen] = useState(true);
   // Single search bar at top (mobile and desktop); filters both history and contacts.
@@ -298,7 +307,7 @@ export default function ProBotSidebar({
         onPointerEnter={handlePointerEnter}
       >
       {/* PC: collapse tab on right edge when sidebar is expanded */}
-      {!isMobile && sidebarOpen && (
+      {!isMobile && !isDesktop && sidebarOpen && (
         <button
           type="button"
           onClick={() => setSidebarOpen(false)}
@@ -310,7 +319,7 @@ export default function ProBotSidebar({
         </button>
       )}
       {/* PC: expand tab on right edge when sidebar is collapsed */}
-      {!isMobile && !sidebarOpen && (
+      {!isMobile && !isDesktop && !sidebarOpen && (
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
@@ -409,7 +418,8 @@ export default function ProBotSidebar({
                       type="button"
                       onClick={() => onSelectContact(contact)}
                       className={`flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 ${actions.length ? 'pr-9' : ''} text-left transition-colors ${
-                        isSelected ? 'bg-gray-100' : 'bg-white md:hover:bg-gray-50'
+                        // PC: the open chat gets a red bar on the left and a darker row, like WhatsApp Web's selected chat.
+                        isSelected ? 'bg-gray-100 md:bg-gray-200 md:shadow-[inset_4px_0_0_#dc2626]' : 'bg-white md:hover:bg-gray-50'
                       }`}
                     >
                       <span className="relative shrink-0">

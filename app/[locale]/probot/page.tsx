@@ -595,8 +595,10 @@ function ProBotPageContent() {
   }, []);
 
   useEffect(() => {
-    setProBotHeader({ inChat: inChatView, onBackToWelcome });
-  }, [inChatView, onBackToWelcome, setProBotHeader]);
+    // ProBot in the page header only while chatting with ProBot (not on the phone chat list or another chat).
+    const onPhoneList = sidebarOpen && typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+    setProBotHeader({ inChat: inChatView, onBackToWelcome, withProBot: Boolean(selectedContact.isProBot) && !onPhoneList });
+  }, [inChatView, onBackToWelcome, setProBotHeader, selectedContact.isProBot, sidebarOpen]);
 
   // When contractor opens a conversation, refetch unread count and History Chat list after messages load (and get marked read)
   useEffect(() => {

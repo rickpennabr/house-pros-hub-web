@@ -4,18 +4,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocale } from 'next-intl';
 import { NotificationBellDropdown } from '@/components/admin/NotificationBellDropdown';
 import { useAuth } from '@/contexts/AuthContext';
-import { useChat } from '@/contexts/ChatContext';
 
 const NEW_SIGNUPS_POLL_MS = 60 * 1000;
 
 /**
  * The header notification bell used on the business list.
- * Admins see platform activity; everyone else sees unread ProBot messages.
+ * Admins see platform activity. Chat messages are counted on ProBot only (bottom bar and ProBot button), not here.
  */
 export function HeaderNotificationBell() {
   const locale = useLocale();
   const { isAdmin, isAuthenticated } = useAuth();
-  const { chatUnreadCount } = useChat();
   const [notificationCount, setNotificationCount] = useState(0);
 
   const fetchNewSignupsCount = useCallback(async () => {
@@ -54,7 +52,7 @@ export function HeaderNotificationBell() {
   return (
     <NotificationBellDropdown
       variant="chat"
-      notificationCount={chatUnreadCount}
+      notificationCount={0}
       locale={locale}
     />
   );
