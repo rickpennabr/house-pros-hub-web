@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { ContactPropertySelect } from '@/components/crm/ContactPropertySelect';
 import { contactDisplayName } from '@/lib/crm/contact-name';
+import { HardscapeMaterialPicker, pickedMaterialLine, type PickedMaterial } from '@/components/protrades/HardscapeMaterialPicker';
 import {
   HARDSCAPE_AREAS,
   spotDescription,
@@ -31,6 +32,8 @@ interface CustomerOption {
 interface PlannedSpot extends QuoteSpot {
   id: string;
   rateCents: number;
+  /** Materials from the Hardscape database, each billed by its own quantity. */
+  extras: PickedMaterial[];
 }
 
 const money = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -77,6 +80,7 @@ export function HardscapeProQuote() {
   const [subarea, setSubarea] = useState('');
   const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [materialIds, setMaterialIds] = useState<string[]>([]);
+  const [extras, setExtras] = useState<PickedMaterial[]>([]);
   const [qty, setQty] = useState('');
   const [unitPick, setUnit] = useState('sq ft');
   const [rateTyped, setRateTyped] = useState<string | null>(null);
@@ -125,6 +129,7 @@ export function HardscapeProQuote() {
     setSubarea('');
     setServiceIds([]);
     setMaterialIds([]);
+    setExtras([]);
     setQty('');
     setRateTyped(null);
   };
@@ -137,11 +142,15 @@ export function HardscapeProQuote() {
     }
     setError(null);
     const rateCents = Math.round((Number(rate) || 0) * 100);
-    setSpots((current) => [...current, { ...draft, id: `${Date.now()}`, rateCents }]);
+    setSpots((current) => [...current, { ...draft, id: `${Date.now()}`, rateCents, extras }]);
     resetSpot();
   };
 
-  const total = spots.reduce((sum, spot) => sum + Math.round(spot.qty * spot.rateCents), 0);
+  const spotWhere = (spot: PlannedSpot) => (spot.subarea === spot.area ? spot.area : `${spot.subarea} (${spot.area})`);
+  const total = spots.reduce(
+    (sum, spot) => sum + Math.round(spot.qty * spot.rateCents) + spot.extras.reduce((s, m) => s + Math.round(m.qty * m.priceCents), 0),
+    0
+  );
 
   const create = async () => {
     if (!customerId) {
@@ -163,7 +172,7 @@ export function HardscapeProQuote() {
         body: JSON.stringify({
           customerId,
           placeId: placeId || null,
-          lineItems: spots.map((spot) => spotLineItem(spot, spot.rateCents)),
+          lineItems: spots.flatMap((spot) => [spotLineItem(spot, spot.rateCents), ...spot.extras.map((m) => pickedMaterialLine(m, spotWhere(spot)))]),
           note: note.trim() || null,
           jobArea: jobArea || null,
         }),
@@ -270,6 +279,7 @@ export function HardscapeProQuote() {
               </Choice>
             ))}
           </div>
+          <HardscapeMaterialPicker picked={extras} onChange={setExtras} />
         </Step>
       ) : null}
 

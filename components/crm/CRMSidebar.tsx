@@ -24,6 +24,7 @@ import {
   QrCode,
   GripVertical,
   ChevronDown,
+  ClipboardList,
 } from 'lucide-react';
 import { BsGrid3X3Gap } from 'react-icons/bs';
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
@@ -143,6 +144,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     { href: `${base}/jobsite`, labelKey: 'crmJobsite', icon: Camera },
     { href: `${base}/calendar`, labelKey: 'crmCalendar', icon: Calendar },
     { href: `${base}/expenses`, labelKey: 'crmExpenses', icon: Receipt },
+    { href: `${base}/purchase-orders`, labelKey: 'crmPurchaseOrders', icon: ClipboardList },
     { href: `${base}/mileage`, labelKey: 'crmMileage', icon: Car },
     { href: `${base}/tools`, labelKey: 'crmTools', icon: Hammer },
     { href: `${base}/reports`, labelKey: 'crmReports', icon: BarChart3 },

@@ -11,21 +11,26 @@ import { DEFAULT_PROBOT_SETTINGS, PRO_TIME_ZONES, type ProbotSettings } from '@/
 
 function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (value: boolean) => void; label: string; hint?: string }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-4 py-2">
+    <div className="flex items-start justify-between gap-4 py-2">
       <span>
         <span className="block text-sm font-medium text-gray-900">{label}</span>
         {hint ? <span className="block text-xs text-gray-600">{hint}</span> : null}
       </span>
+      {/* Same switch as the message sound in Settings: green when on, knob at a fixed left. */}
       <button
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={label}
         onClick={() => onChange(!checked)}
-        className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? 'bg-black' : 'bg-gray-300'}`}
+        className={`relative h-7 w-12 shrink-0 rounded-full p-0 transition-colors ${checked ? 'bg-green-500' : 'bg-gray-300'}`}
       >
-        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        <span
+          aria-hidden
+          className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${checked ? 'left-[22px]' : 'left-0.5'}`}
+        />
       </button>
-    </label>
+    </div>
   );
 }
 

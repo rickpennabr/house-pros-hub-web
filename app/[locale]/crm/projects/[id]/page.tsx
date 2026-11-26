@@ -7,6 +7,7 @@ import { useLocale } from 'next-intl';
 import { ArrowLeft, Camera, Car, CircleDollarSign, Mail, MapPin, Package, Pencil, Phone, Wrench } from 'lucide-react';
 import { JobFinancials } from '@/components/crm/JobFinancials';
 import { ProjectMaterials } from '@/components/projects/ProjectMaterials';
+import { PurchaseOrderList } from '@/components/crm/PurchaseOrderList';
 import { ProjectTrips } from '@/components/projects/ProjectTrips';
 import { ProjectEquipment } from '@/components/projects/ProjectEquipment';
 import { ProjectPhotos } from '@/components/projects/ProjectPhotos';
@@ -214,7 +215,12 @@ export default function ProjectPage() {
 
       <div role="tabpanel">
         {tab === 'costs' ? <JobFinancials kind="project" id={id} /> : null}
-        {tab === 'materials' ? <ProjectMaterials projectId={id} onCount={onMaterials} /> : null}
+        {tab === 'materials' ? (
+          <div className="space-y-6">
+            <ProjectMaterials projectId={id} onCount={onMaterials} />
+            <PurchaseOrderList projectId={id} compact />
+          </div>
+        ) : null}
         {tab === 'trips' ? <ProjectTrips projectId={id} onCount={onTrips} /> : null}
         {tab === 'equipment' ? <ProjectEquipment projectId={id} onCount={onEquipment} /> : null}
         {tab === 'photos' ? <ProjectPhotos projectId={id} embedded /> : null}
