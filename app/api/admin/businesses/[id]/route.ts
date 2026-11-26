@@ -345,12 +345,21 @@ export async function PUT(
           }
         }
       }
+      // Keep the old licenses so a failed save can put them back.
+      const { data: oldLicenses } = await service
+        .from('licenses')
+        .select('business_id, license_number, license_type, license_name, is_active')
+        .eq('business_id', id);
       await service.from('licenses').delete().eq('business_id', id);
+      const seen = new Set<string>();
       const licenseInserts = body.licenses.map((license) => {
-        const num = (license.licenseNumber ?? '').trim();
+        const raw = (license.licenseNumber ?? '').trim();
+        // Empty, or the same number twice in this form: saved without a number (unique only when set).
+        const num = raw && !seen.has(raw) ? raw : '';
+        if (num) seen.add(num);
         return {
           business_id: id,
-          license_number: num || '',
+          license_number: num || null,
           license_type: license.license,
           license_name: license.trade || null,
           is_active: true,
@@ -359,8 +368,28 @@ export async function PUT(
       const { error: insertError } = await service.from('licenses').insert(licenseInserts);
       if (insertError) {
         console.error('PUT /api/admin/businesses/[id] licenses insert error:', insertError);
+        if (oldLicenses?.length) await service.from('licenses').insert(oldLicenses);
+        let message = 'Failed to save licenses';
+        if (insertError.code === '23505') {
+          // Say which number and which business already has it.
+          const numbers = licenseInserts.map((row) => row.license_number).filter((n): n is string => Boolean(n));
+          const { data: taken } = numbers.length
+            ? await service
+                .from('licenses')
+                .select('license_number, business:businesses(business_name)')
+                .in('license_number', numbers)
+                .neq('business_id', id)
+                .limit(1)
+                .maybeSingle()
+            : { data: null };
+          const owner = (taken as { license_number?: string; business?: { business_name?: string } | { business_name?: string }[] } | null);
+          const ownerName = Array.isArray(owner?.business) ? owner?.business[0]?.business_name : owner?.business?.business_name;
+          message = owner?.license_number
+            ? `License ${owner.license_number} is already on ${ownerName || 'another business'}`
+            : 'A license with this number already exists';
+        }
         return NextResponse.json(
-          { error: insertError.code === '23505' ? 'A license with this number already exists' : 'Failed to save licenses' },
+          { error: message },
           { status: 400 }
         );
       }

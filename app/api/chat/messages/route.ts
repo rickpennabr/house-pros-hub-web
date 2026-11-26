@@ -1,13 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import type { Database } from '@/lib/types/supabase';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
-import { sendMessageSchema, getMessagesSchema } from '@/lib/schemas/chat';
+import { sendMessageSchema, getMessagesSchema, messageFeedbackSchema } from '@/lib/schemas/chat';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { filterAllowedAttachments } from '@/lib/utils/chatAttachmentAllowlist';
 import { chatPushUrl, sendAdminPushNotification, sendBusinessPushNotification } from '@/lib/services/pushNotificationService';
 import { answerHubThread } from '@/lib/chat/hub-agent-reply';
 import { photoContext } from '@/lib/chat/photo-context';
+import { transcribeVoiceNote } from '@/lib/ai/read-attachment';
+import { attachSpokenReply } from '@/lib/ai/speech';
+import { probotLimitReached, type ProbotLimit } from '@/lib/chat/probot-usage';
+import { readReceipt } from '@/lib/ai/read-receipt';
+import { userOwnsCrm } from '@/lib/crm/require-contractor';
+import type { ProAgentPayload } from '@/lib/types/chat';
 import { parseReactions } from '@/lib/chat/reactions';
 import { claimHubReply, releaseHubReply } from '@/lib/chat/hub-reply-lock';
 import { parseAgentPayload } from '@/lib/chat/proagent-policy';
@@ -17,6 +23,19 @@ import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 import { parseStoredReply, snapshotFromRow } from '@/lib/chat/reply-snapshot';
 import { resolveVisitorConversation, visitorOwnsConversation } from '@/lib/chat/resolveConversation';
+
+/** The signed-in admin is never held to ProBot's daily limit. */
+async function isAdminSession(): Promise<boolean> {
+  try {
+    const session = await createClient();
+    const {
+      data: { user },
+    } = await session.auth.getUser();
+    return Boolean(user?.email && user.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase());
+  } catch {
+    return false;
+  }
+}
 
 async function sessionUserId(): Promise<string | undefined> {
   try {
@@ -45,7 +64,8 @@ export async function POST(request: NextRequest) {
       const msg = parsed.error.flatten().fieldErrors?.body?.[0] ?? 'Invalid request';
       return NextResponse.json({ error: msg }, { status: 400 });
     }
-    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments, replyToId, placeShareId, locale } = parsed.data;
+    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments, replyToId, placeShareId, locale, actingAs, actingFirstName, actingBusinessName, chatId: rawChatId } = parsed.data;
+    const persona = actingAs ? { mode: actingAs, firstName: actingFirstName, businessName: actingBusinessName } : undefined;
     const cookieDenied = visitorCookieDenied(request, visitorId);
     if (cookieDenied) return cookieDenied;
 
@@ -74,6 +94,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // A ProBot chat (hub only) must belong to this conversation.
+    let chatId: string | undefined;
+    let chatTitle: string | null = null;
+    if (rawChatId && !businessId) {
+      const { data: chat } = await supabase
+        .from('probot_chats')
+        .select('id, title')
+        .eq('id', rawChatId)
+        .eq('conversation_id', conversationId)
+        .maybeSingle();
+      if (!chat) return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
+      chatId = (chat as { id: string }).id;
+      chatTitle = (chat as { title: string | null }).title;
+    }
+
     let replyTo: ReturnType<typeof snapshotFromRow> = null;
     if (replyToId) {
       const { data: target } = await supabase
@@ -95,12 +130,14 @@ export async function POST(request: NextRequest) {
       attachments?: unknown;
       reply_to?: unknown;
       payload?: unknown;
+      chat_id?: string;
     } = {
       conversation_id: conversationId,
       sender: 'visitor',
       body: (messageBody ?? '').trim() || ' ',
     };
     if (businessId) insertPayload.business_id = businessId;
+    if (chatId) insertPayload.chat_id = chatId;
     if (attachments?.length) insertPayload.attachments = attachments;
     if (replyTo) insertPayload.reply_to = replyTo;
     if (placeShareId && businessId) {
@@ -131,6 +168,7 @@ export async function POST(request: NextRequest) {
     if (result.error && (result.error.code === '42703' || String(result.error.message).includes('does not exist'))) {
       delete insertPayload.reply_to;
       delete insertPayload.attachments;
+      delete insertPayload.chat_id;
       const colsWithoutAttachments = 'id, conversation_id, sender, body, created_at, business_id, payload';
       result = await supabase
         .from('probot_messages')
@@ -148,6 +186,52 @@ export async function POST(request: NextRequest) {
     }
 
     const message = result.data;
+
+    // The chat is named after its first message (no AI call), and moves to the top of the list.
+    if (chatId) {
+      const words = (messageBody ?? '').trim().split(/\s+/).filter(Boolean);
+      const title =
+        chatTitle ||
+        (words.length > 0 ? words.slice(0, 6).join(' ') + (words.length > 6 ? '…' : '') : attachments?.some((att) => att.name.startsWith('voice-note')) ? 'Voice chat' : 'Photo chat');
+      await supabase.from('probot_chats').update({ title: title.slice(0, 120), updated_at: new Date().toISOString() }).eq('id', chatId);
+    }
+
+    // Hub thread: ProBot listens to a voice note. Its words become the message text (shown under the
+    // voice bubble and kept in the history), so ProBot answers what was said.
+    let spokenBody = messageBody ?? '';
+    const voiceNote =
+      !businessId && !spokenBody.trim() ? attachments?.find((att) => att.name.startsWith('voice-note')) : undefined;
+    // Daily ProBot limit (hub only; the admin is never limited). Over it: no listening, no AI, no voice.
+    let overLimit: ProbotLimit | undefined;
+    if (!businessId && conversationId && !(await isAdminSession())) {
+      overLimit = await probotLimitReached(supabase, conversationId, Boolean(voiceNote)).catch(() => undefined);
+    }
+
+    /**
+     * A pro on the business profile sends a photo: if it is a receipt, ProBot offers a "Save expense?"
+     * card instead of describing the photo (one read, same as the photo reader).
+     */
+    const receiptContext = async (): Promise<{ body: string; extraPayload: ProAgentPayload } | null> => {
+      const photo = attachments?.find((att) => att.contentType.startsWith('image/'));
+      if (!photo || overLimit || actingAs !== 'business') return null;
+      const userId = await sessionUserId();
+      if (!userId || !(await userOwnsCrm(userId).catch(() => false))) return null;
+      const draft = await readReceipt(photo).catch(() => null);
+      if (!draft) return null;
+      const words = (messageBody ?? '').trim();
+      return {
+        body: `${words || 'Here is a receipt.'}\n\n[The user sent a photo of a receipt from ${draft.vendor || 'a store'} dated ${draft.date}, category ${draft.category}. A "Save expense?" card with the amount is shown under your reply. In one or two sentences, say you read the receipt and ask them to check the card and tap Save. Do not repeat the amount.]`,
+        extraPayload: { expenseDraft: draft },
+      };
+    };
+
+    const hear = async () => {
+      if (!voiceNote || overLimit) return;
+      const heard = await transcribeVoiceNote(voiceNote).catch(() => null);
+      if (!heard) return;
+      spokenBody = heard;
+      await supabase.from('probot_messages').update({ body: heard }).eq('id', (message as unknown as { id: string }).id);
+    };
 
     if (displayName && conversationId) {
       const updateRes = await supabase
@@ -175,22 +259,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const pushTitle = businessId ? 'New message to a Pro' : 'New message from visitor';
-    const pushBody =
-      (messageBody ?? '').trim().length > 0
-        ? (messageBody ?? '').slice(0, 80) + ((messageBody ?? '').length > 80 ? '…' : '')
-        : 'Sent a photo';
-    // Badge = total unread visitor messages so app icon shows e.g. "1" on phone
-    const { count: adminUnreadCount } = await supabase
-      .from('probot_messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('sender', 'visitor')
-      .is('read_at', null);
-    const badgeCount = typeof adminUnreadCount === 'number' && adminUnreadCount >= 0 ? Math.min(99, adminUnreadCount) : 1;
-    await sendAdminPushNotification(pushTitle, pushBody, '/admin/chat', badgeCount);
-    if (businessId) {
-      await sendBusinessPushNotification(businessId, pushTitle, pushBody, chatPushUrl(locale, 'business'), badgeCount);
-    }
+    // Notifications go out after the reply starts: the sender never waits on them.
+    after(async () => {
+      const pushTitle = businessId ? 'New message to a Pro' : 'New message from visitor';
+      const pushBody =
+        (messageBody ?? '').trim().length > 0
+          ? (messageBody ?? '').slice(0, 80) + ((messageBody ?? '').length > 80 ? '…' : '')
+          : 'Sent a photo';
+      // Badge = total unread visitor messages so app icon shows e.g. "1" on phone
+      const { count: adminUnreadCount } = await supabase
+        .from('probot_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('sender', 'visitor')
+        .is('read_at', null);
+      const badgeCount = typeof adminUnreadCount === 'number' && adminUnreadCount >= 0 ? Math.min(99, adminUnreadCount) : 1;
+      await sendAdminPushNotification(pushTitle, pushBody, '/admin/chat', badgeCount);
+      if (businessId) {
+        await sendBusinessPushNotification(businessId, pushTitle, pushBody, chatPushUrl(locale, 'business'), badgeCount);
+      }
+    });
 
     const msg = message as unknown as { id: string; conversation_id: string; sender: string; body: string; created_at: string; attachments?: unknown };
 
@@ -235,22 +322,41 @@ export async function POST(request: NextRequest) {
           };
           try {
             send('message', visitorMessage);
-            const history = await recentHubTurns(supabase, conversationId);
+            const history = await recentHubTurns(supabase, conversationId, chatId);
             if (attachments?.some((att) => att.contentType.startsWith('image/'))) send('status', { label: 'reading_photo' });
-            const photo = await photoContext(messageBody ?? '', attachments, locale);
+            if (voiceNote && !overLimit) {
+              send('status', { label: 'listening' });
+              await hear();
+            }
+            await hear();
+            if (attachments?.some((att) => att.contentType.startsWith('image/')) && actingAs === 'business') send('status', { label: 'reading_receipt' });
+            const receipt = await receiptContext();
+            const photo = receipt ? { body: receipt.body, plantId: undefined } : await photoContext(spokenBody, attachments, locale);
             const answered = await answerHubThread({
+              extraPayload: receipt?.extraPayload,
               conversationId,
               locale,
               history: history.slice(0, -1),
               body: photo.body,
               plantId: photo.plantId,
               userId: await sessionUserId(),
+              persona,
+              chatId,
+              overLimit,
               onProgress: (progress) => {
                 if (progress.type === 'status') send('status', { label: progress.label });
                 if (progress.type === 'token') send('token', { text: progress.text });
               },
             });
-            if (answered) send('bot', answered);
+            if (answered) {
+              // A voice note is answered with a voice note.
+              if (voiceNote && !overLimit) {
+                send('status', { label: 'recording' });
+                const spoken = await attachSpokenReply(supabase, answered, locale).catch(() => null);
+                if (spoken) answered.attachments = [spoken];
+              }
+              send('bot', answered);
+            }
             send('done', {});
           } catch (error) {
             console.error('ProBot messages stream error:', error);
@@ -274,16 +380,25 @@ export async function POST(request: NextRequest) {
 
     if (!businessId && conversationId && (await claimHubReply(conversationId))) {
       try {
-        const history = await recentHubTurns(supabase, conversationId);
-        const photo = await photoContext(messageBody ?? '', attachments, locale);
+        const history = await recentHubTurns(supabase, conversationId, chatId);
+        const receipt = await receiptContext();
+        const photo = receipt ? { body: receipt.body, plantId: undefined } : await photoContext(spokenBody, attachments, locale);
         const answered = await answerHubThread({
+          extraPayload: receipt?.extraPayload,
           conversationId,
           locale,
           history: history.slice(0, -1),
           body: photo.body,
           plantId: photo.plantId,
           userId: await sessionUserId(),
+          persona,
+          chatId,
+          overLimit,
         });
+        if (answered && voiceNote && !overLimit) {
+          const spoken = await attachSpokenReply(supabase, answered, locale).catch(() => null);
+          if (spoken) answered.attachments = [spoken];
+        }
         if (answered) botMessage = answered;
       } finally {
         await releaseHubReply(conversationId);
@@ -357,7 +472,7 @@ export async function GET(request: NextRequest) {
     const conversationId = searchParams.get('conversationId');
     const visitorId = searchParams.get('visitorId') ?? undefined;
     const locale = searchParams.get('locale') ?? undefined;
-    const parsed = getMessagesSchema.safeParse({ conversationId, visitorId, locale });
+    const parsed = getMessagesSchema.safeParse({ conversationId, visitorId, locale, chatId: searchParams.get('chatId') ?? undefined });
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
@@ -450,11 +565,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    type MessageRow = { id: string; sender: string; body: string; created_at: string; business_id?: string | null; read_at?: string | null; attachments?: unknown; reply_to?: unknown; admin_sent_as?: string | null; admin_user_id?: string | null; payload?: unknown; reactions?: unknown };
+    type MessageRow = { id: string; sender: string; body: string; created_at: string; chat_id?: string | null; business_id?: string | null; read_at?: string | null; attachments?: unknown; reply_to?: unknown; admin_sent_as?: string | null; admin_user_id?: string | null; payload?: unknown; reactions?: unknown };
     let rawMessages: MessageRow[] | null = null;
 
     // Newest columns first. Fallbacks only drop optional columns and keep the card payload while it exists.
     const columnSets = [
+      'id, sender, body, created_at, business_id, read_at, attachments, reply_to, admin_user_id, payload, reactions, chat_id',
       'id, sender, body, created_at, business_id, read_at, attachments, reply_to, admin_user_id, payload, reactions',
       'id, sender, body, created_at, business_id, read_at, attachments, reply_to, admin_user_id, payload',
       'id, sender, body, created_at, business_id, read_at, attachments, payload',
@@ -468,11 +584,12 @@ export async function GET(request: NextRequest) {
         .from('probot_messages')
         .select(cols)
         .in('conversation_id', conversationIds)
-        .order('created_at', { ascending: true })
+        // The newest 300, shown oldest first (ascending + limit used to return the oldest 300 and drop new ones).
+        .order('created_at', { ascending: false })
         .limit(300);
       if (!result.error) {
         if (lastSelectError) console.warn('ProBot messages GET fallback columns:', cols, '-', lastSelectError.message);
-        rawMessages = ((result.data ?? []) as unknown as Partial<MessageRow>[]).map((m) => ({
+        rawMessages = ((result.data ?? []) as unknown as Partial<MessageRow>[]).reverse().map((m) => ({
           read_at: null,
           attachments: [],
           admin_user_id: null,
@@ -496,6 +613,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // One ProBot chat: its hub messages only (pro threads stay).
+    const viewChatId = isVisitorContext ? parsed.data.chatId : undefined;
+    if (viewChatId) {
+      rows = rows.filter((m) => m.business_id || (viewChatId === 'legacy' ? !m.chat_id : m.chat_id === viewChatId));
+    }
+
     // Visitor is waiting on the hub thread (no pro selected). Answer once the latest hub message is theirs.
     if (isVisitorContext && !contractorReadBusinessId) {
       const hubRows = rows.filter((m) => !m.business_id);
@@ -511,6 +634,8 @@ export async function GET(request: NextRequest) {
       if (
         lastHub?.sender === 'visitor' &&
         (lastHub.body.trim() || lastPhotos.length > 0) &&
+        // A voice note not heard yet is answered by its send request, not here.
+        !(!lastHub.body.trim() && lastPhotos.some((att) => att.name.startsWith('voice-note'))) &&
         (await claimHubReply(parsed.data.conversationId))
       ) {
         try {
@@ -526,6 +651,7 @@ export async function GET(request: NextRequest) {
             body: photo.body,
             plantId: photo.plantId,
             userId: await sessionUserId(),
+            chatId: viewChatId && viewChatId !== 'legacy' ? viewChatId : undefined,
           });
           if (answered) {
             rows = [
@@ -664,14 +790,21 @@ export async function GET(request: NextRequest) {
 
 async function recentHubTurns(
   supabase: ReturnType<typeof createServiceRoleClient>,
-  conversationId: string
+  conversationId: string,
+  chatId?: string
 ): Promise<ProbotTurn[]> {
-  const { data, error } = await supabase
-    .from('probot_messages')
-    .select('sender, body, business_id, created_at')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
-    .limit(16);
+  // Newest 16, oldest first. A chat remembers only its own messages.
+  const query = () =>
+    supabase
+      .from('probot_messages')
+      .select('sender, body, business_id, created_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false })
+      .limit(16);
+  let result = chatId ? await query().eq('chat_id', chatId) : await query();
+  if (chatId && result.error) result = await query();
+  const { error } = result;
+  const data = (result.data ?? []).slice().reverse();
   if (error) return [];
   return ((data ?? []) as { sender: string; body: string; business_id?: string | null }[])
     .filter((row) => !row.business_id && row.body.trim())
@@ -680,4 +813,52 @@ async function recentHubTurns(
       sender: row.sender === 'admin' ? 'admin' : 'visitor',
       body: row.body,
     }));
+}
+
+/**
+ * PATCH /api/chat/messages: 👍 / 👎 on a ProBot answer in the visitor's own chat.
+ * Saved on the reply's payload (feedback), for reviewing bad answers.
+ */
+export async function PATCH(request: NextRequest) {
+  const rateLimitRes = await checkRateLimit(request, 'chat');
+  if (rateLimitRes) return rateLimitRes;
+  try {
+    const parsed = messageFeedbackSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    const cookieDenied = visitorCookieDenied(request, parsed.data.visitorId);
+    if (cookieDenied) return cookieDenied;
+    const supabase = createServiceRoleClient();
+    const { data: message } = await supabase
+      .from('probot_messages')
+      .select('id, conversation_id, sender, business_id, payload')
+      .eq('id', parsed.data.id)
+      .maybeSingle();
+    if (!message || message.sender !== 'admin' || message.business_id) {
+      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+    }
+    if (!(await visitorOwnsConversation(supabase, message.conversation_id, parsed.data.visitorId))) {
+      return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+    }
+    const payload = message.payload && typeof message.payload === 'object' && !Array.isArray(message.payload) ? message.payload : {};
+    const { error } = await supabase
+      .from('probot_messages')
+      .update({
+        payload: {
+          ...(payload as Record<string, unknown>),
+          ...(parsed.data.feedback !== undefined ? { feedback: parsed.data.feedback } : {}),
+          ...(parsed.data.actionDone && (payload as Record<string, unknown>).proAction
+            ? { proAction: { ...((payload as Record<string, unknown>).proAction as Record<string, unknown>), done: true } }
+            : {}),
+          ...(parsed.data.expenseSavedId && (payload as Record<string, unknown>).expenseDraft
+            ? { expenseDraft: { ...((payload as Record<string, unknown>).expenseDraft as Record<string, unknown>), savedExpenseId: parsed.data.expenseSavedId } }
+            : {}),
+        } as Database['public']['Tables']['probot_messages']['Update']['payload'],
+      })
+      .eq('id', parsed.data.id);
+    if (error) return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('PATCH /api/chat/messages', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

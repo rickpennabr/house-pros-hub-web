@@ -55,7 +55,9 @@ function SignUpForm() {
   const { refreshBusinesses } = useAccountSwitch();
   
   // Get role from URL if coming from Free Estimate button
-  const urlRole = searchParams.get('role') as 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | null;
+  const rawUrlRole = searchParams.get('role') as 'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | null;
+  // No installers for now: an old installer link signs up a handyman.
+  const urlRole = rawUrlRole === 'installer' ? 'handyman' : rawUrlRole;
   const skipRoleSelection = searchParams.get('skipRoleSelection') === 'true';
   const fromQuickRepair = (searchParams.get('returnUrl') ?? '').includes('/quick-repair');
   
@@ -64,7 +66,7 @@ function SignUpForm() {
   const [currentStep, setCurrentStep] = useState<SignupStep>(() => {
     if (fromQuickRepair) return 'form';
     if (skipRoleSelection || urlRole === 'customer') return 'customer-signup-choice';
-    if (urlRole === 'contractor' || urlRole === 'realtor' || urlRole === 'installer' || urlRole === 'handyman') return 'invitation-code';
+    if (urlRole === 'contractor' || urlRole === 'realtor' || urlRole === 'handyman') return 'invitation-code';
     return 'role-selection';
   });
   const [selectedRole, setSelectedRole] = useState<'customer' | 'contractor' | 'realtor' | 'installer' | 'handyman' | null>(

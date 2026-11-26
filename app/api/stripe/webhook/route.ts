@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { applyInvoiceCheckoutSession } from '@/lib/billing/invoice-checkout';
+import { applyInvoiceCheckoutSession, applyInvoiceChargeReversal } from '@/lib/billing/invoice-checkout';
 import { getStripe, subscriptionPeriodEnd } from '@/lib/billing/stripe';
 import { logger } from '@/lib/utils/logger';
 import { loadPlans, planForPrice } from '@/lib/billing/plans';
+import { syncConnectAccount } from '@/lib/billing/connect';
 
 /**
  * POST /api/stripe/webhook
@@ -43,6 +44,25 @@ export async function POST(request: NextRequest) {
       if (userId && subscriptionId && (kind === 'hub_pro' || kind === 'hub_plan' || kind === 'prodrive_overage')) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         await applySubscription(service, userId, kind, subscription);
+      }
+    }
+
+    // A pro's Stripe Connect account finished setup or changed.
+    if (event.type === 'account.updated') {
+      await syncConnectAccount(service, event.data.object as Stripe.Account);
+    }
+
+    // Invoice card payments refunded in Stripe, or a chargeback lost: take them off the invoice.
+    if (event.type === 'charge.refunded') {
+      const reversed = await applyInvoiceChargeReversal(service, event.data.object as Stripe.Charge);
+      if ('error' in reversed) throw new Error(reversed.error);
+    }
+    if (event.type === 'charge.dispute.closed') {
+      const dispute = event.data.object as Stripe.Dispute;
+      if (dispute.status === 'lost') {
+        const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id;
+        const reversed = await applyInvoiceChargeReversal(service, await stripe.charges.retrieve(chargeId), true);
+        if ('error' in reversed) throw new Error(reversed.error);
       }
     }
 

@@ -22,7 +22,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const rateLimitRes = await checkRateLimit(request, 'chat');
+  const rateLimitRes = await checkRateLimit(request, 'chatRead');
   if (rateLimitRes) return rateLimitRes;
 
   try {

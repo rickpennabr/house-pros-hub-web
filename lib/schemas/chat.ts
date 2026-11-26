@@ -26,6 +26,12 @@ export const sendMessageSchema = z.object({
   locale: z.enum(["en", "pt", "es"]).optional(),
   /** Hub ProAgent turns can stream status + tokens over SSE. */
   stream: z.boolean().optional(),
+  /** Who is talking to ProBot: the account picked at the top (personal, or one of their businesses). */
+  actingAs: z.enum(['personal', 'business']).optional(),
+  actingFirstName: z.string().trim().max(60).optional(),
+  actingBusinessName: z.string().trim().max(120).optional(),
+  /** The ProBot chat this hub message belongs to (Gemini-style chats). */
+  chatId: z.string().uuid().optional(),
 }).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0, {
   message: 'Message cannot be empty',
   path: ['body'],
@@ -35,6 +41,19 @@ export const getMessagesSchema = z.object({
   conversationId: z.string().uuid(),
   visitorId: z.string().trim().max(100).optional(), // for visitor verification
   locale: z.enum(['en', 'pt', 'es']).optional(),
+  /** Only this ProBot chat's hub messages ('legacy' = the thread from before chats). */
+  chatId: z.union([z.string().uuid(), z.literal('legacy')]).optional(),
+});
+
+/** 👍 / 👎 on a ProBot answer. */
+export const messageFeedbackSchema = z.object({
+  id: z.string().uuid(),
+  visitorId: z.string().trim().min(1).max(100),
+  feedback: z.enum(['up', 'down']).nullable().optional(),
+  /** The receipt card was saved as this expense. */
+  expenseSavedId: z.string().trim().min(1).max(64).optional(),
+  /** The pro confirmed the action card. */
+  actionDone: z.literal(true).optional(),
 });
 
 export const deleteConversationSchema = z.object({

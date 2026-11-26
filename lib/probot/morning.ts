@@ -383,12 +383,58 @@ function documentColumn(kind: Kind): 'invoice_id' | 'estimate_id' | 'project_id'
   return 'project_id';
 }
 
-async function postMessage(db: Db, conversationId: string, body: string, payload: Record<string, unknown> | null): Promise<string | null> {
-  const { data, error } = await db
-    .from('probot_messages')
-    .insert({ conversation_id: conversationId, sender: 'admin', admin_sent_as: 'probot', body, payload: payload as unknown as Json })
+/**
+ * The briefs live in one "Morning briefs" ProBot chat on the pro's business profile (their default
+ * business), so they show when the pro is acting as the business. Null before migration 180.
+ */
+async function briefChat(db: Db, ownerId: string, conversationId: string): Promise<string | null> {
+  const { data: settings } = await db.from('pro_invoice_settings').select('default_business_id').eq('owner_id', ownerId).maybeSingle();
+  let businessId = settings?.default_business_id ?? null;
+  if (!businessId) {
+    const { data: business } = await db.from('businesses').select('id').eq('owner_id', ownerId).eq('is_active', true).order('created_at').limit(1).maybeSingle();
+    businessId = business?.id ?? null;
+  }
+  if (!businessId) return null;
+  const title = 'Morning briefs';
+  const { data: existing, error } = await db
+    .from('probot_chats')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('profile_key', businessId)
+    .eq('title', title)
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  if (existing) {
+    // Newest on top of the chat list.
+    await db.from('probot_chats').update({ updated_at: new Date().toISOString() }).eq('id', existing.id);
+    return existing.id;
+  }
+  const { data: created } = await db
+    .from('probot_chats')
+    .insert({ conversation_id: conversationId, profile_key: businessId, title })
     .select('id')
     .single();
+  return created?.id ?? null;
+}
+
+async function postMessage(
+  db: Db,
+  conversationId: string,
+  body: string,
+  payload: Record<string, unknown> | null,
+  chatId: string | null = null
+): Promise<string | null> {
+  const row = { conversation_id: conversationId, sender: 'admin' as const, admin_sent_as: 'probot', body, payload: payload as unknown as Json };
+  let { data, error } = await db
+    .from('probot_messages')
+    .insert(chatId ? { ...row, chat_id: chatId } : row)
+    .select('id')
+    .single();
+  if (error && chatId) {
+    ({ data, error } = await db.from('probot_messages').insert(row).select('id').single());
+  }
+  if (!data) return null;
   if (error) {
     console.error('[probot-morning] message', error.message);
     return null;
@@ -487,7 +533,8 @@ export async function runMorningForPro(
   if (!brief) return { ownerId, sent: false, cards: 0, reason: 'quiet day' };
 
   const conversationId = await proProbotConversation(db, ownerId);
-  await postMessage(db, conversationId, brief, { morningBrief: { date: today, locale } });
+  const chatId = await briefChat(db, ownerId, conversationId).catch(() => null);
+  await postMessage(db, conversationId, brief, { morningBrief: { date: today, locale } }, chatId);
 
   let cards = 0;
   for (const decision of decisions) {
@@ -520,7 +567,7 @@ export async function runMorningForPro(
       status: 'open',
       locale,
     };
-    const messageId = await postMessage(db, conversationId, followupText(card, today), { followup: card });
+    const messageId = await postMessage(db, conversationId, followupText(card, today), { followup: card }, chatId);
     await crm.from('probot_followups').update({ status: 'open', snoozed_until: null, message_id: messageId }).eq('id', rowId);
     cards += 1;
   }

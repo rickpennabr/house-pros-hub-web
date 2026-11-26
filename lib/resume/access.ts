@@ -20,7 +20,7 @@ export async function requireInstaller(): Promise<
       supabase: null,
     };
   }
-  const allowed = await hasRole(user.id, 'installer');
+  const allowed = (await hasRole(user.id, 'handyman')) || (await hasRole(user.id, 'installer'));
   if (!allowed) {
     return {
       error: NextResponse.json({ error: 'installer_required' }, { status: 403 }),

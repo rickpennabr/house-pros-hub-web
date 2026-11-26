@@ -872,7 +872,7 @@ export function PlaceDetail({ placeId }: { placeId: string }) {
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-3">
-                {invoice.status !== 'paid' && invoice.status !== 'cancelled' && invoice.amountCents - invoice.appliedCents > 0 ? (
+                {invoice.canPayByCard && invoice.status !== 'paid' && invoice.status !== 'cancelled' && invoice.amountCents - invoice.appliedCents > 0 ? (
                   <button
                     type="button"
                     disabled={actingId === invoice.id}

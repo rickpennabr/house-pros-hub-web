@@ -94,6 +94,8 @@ export function proOpenAiTools(): OpenAiTool[] {
 export interface ProToolResult {
   data: unknown;
   isError: boolean;
+  /** Records to open from the answer (never sent to the model). Hub paths without locale. */
+  links?: { label: string; href: string }[];
 }
 
 /* ---------- dates ---------- */
@@ -193,7 +195,7 @@ export function resolveDay(raw: string, today: string): string | null {
 /* ---------- helpers ---------- */
 
 /** Same "1234.00 USD" format the price guard already trusts on place records. */
-function usd(cents: number | null | undefined): string | null {
+export function usd(cents: number | null | undefined): string | null {
   if (typeof cents !== 'number') return null;
   return `${(cents / 100).toFixed(2)} USD`;
 }
@@ -208,7 +210,7 @@ interface CustomerRow {
 
 type Db = ReturnType<typeof createServiceRoleClient>;
 
-async function customersNamed(db: Db, ownerId: string, name: string): Promise<CustomerRow[]> {
+export async function customersNamed(db: Db, ownerId: string, name: string): Promise<CustomerRow[]> {
   const words = name.replace(/[^\p{L}\p{N}\s'-]/gu, ' ').split(/\s+/).filter((word) => word.length >= 2).slice(0, 3);
   if (words.length === 0) return [];
   let query = db
@@ -375,6 +377,10 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
           more: Math.max(0, rows.length - 15),
         },
         isError: false,
+        links: rows.slice(0, 3).map((row) => ({
+          label: `${row.invoice_number || row.display_id} · ${names.get(row.customer_id) ?? 'Invoice'}`,
+          href: `/crm/invoices/${row.id}`,
+        })),
       };
     }
 
@@ -441,6 +447,7 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
           })),
         },
         isError: false,
+        links: (data ?? []).slice(0, 3).map((row) => ({ label: row.name, href: `/crm/projects/${row.id}` })),
       };
     }
 

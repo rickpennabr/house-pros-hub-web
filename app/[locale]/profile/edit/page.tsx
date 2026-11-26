@@ -219,7 +219,7 @@ export default function EditProfilePage() {
 
   const toggleInstaller = async () => {
     if (roleBusy) return;
-    const hasInstaller = accountRoles.includes('installer');
+    const hasInstaller = accountRoles.includes('handyman');
     setRoleBusy(true);
     setRoleError('');
     setRoleMessage('');
@@ -232,7 +232,7 @@ export default function EditProfilePage() {
           'X-CSRF-Token': csrfToken,
         },
         credentials: 'include',
-        body: JSON.stringify({ role: 'installer', csrfToken }),
+        body: JSON.stringify({ role: 'handyman', csrfToken }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -1002,13 +1002,13 @@ export default function EditProfilePage() {
               type="button"
               onClick={toggleInstaller}
               disabled={roleBusy}
-              aria-pressed={accountRoles.includes('installer')}
+              aria-pressed={accountRoles.includes('handyman')}
               className={`mt-3 flex w-full items-center gap-3 rounded-lg border-2 border-black p-3 text-left cursor-pointer disabled:opacity-50 ${
-                accountRoles.includes('installer') ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
+                accountRoles.includes('handyman') ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'
               }`}
             >
-              <HardHat className={`h-5 w-5 ${accountRoles.includes('installer') ? 'text-white' : 'text-red-500'}`} />
-              <span className="text-sm font-medium">{t('installerRole')}</span>
+              <HardHat className={`h-5 w-5 ${accountRoles.includes('handyman') ? 'text-white' : 'text-red-500'}`} />
+              <span className="text-sm font-medium">{t('handymanRole')}</span>
             </button>
             {roleMessage && <p className="mt-2 text-sm text-green-700">{roleMessage}</p>}
             {roleError && <p className="mt-2 text-sm text-red-600">{roleError}</p>}

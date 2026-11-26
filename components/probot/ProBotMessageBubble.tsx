@@ -4,8 +4,12 @@ import { useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { Building2, User, Check, CheckCheck, ChevronDown, Copy, Download, ImageIcon, Reply, Trash2, UserPlus, CalendarDays, Home as HomeIcon, FileText, Receipt, Sprout } from 'lucide-react';
+import { Mic, RotateCcw, ThumbsDown, ThumbsUp, Building2, User, Check, CheckCheck, ChevronDown, Copy, Download, ImageIcon, Reply, Trash2, UserPlus, CalendarDays, Home as HomeIcon, FileText, Receipt, Sprout } from 'lucide-react';
 import { ChatMediaAttachment } from '@/components/chat/ChatMediaAttachment';
+import { ProbotWorkWord } from '@/components/probot/ProbotWorkWord';
+import { ExpenseDraftCard } from '@/components/probot/ExpenseDraftCard';
+import { ProActionCard } from '@/components/probot/ProActionCard';
+import { useChatOptional } from '@/contexts/ChatContext';
 import ChatEstimateShareCard from '@/components/chat/ChatEstimateShareCard';
 import ChatInvoiceShareCard from '@/components/chat/ChatInvoiceShareCard';
 import ChatDocCard, { CHAT_DOC_BUBBLE_WIDTH } from '@/components/chat/ChatDocCard';
@@ -45,6 +49,14 @@ interface ProBotMessageBubbleProps {
   draftStatus?: string | null;
   /** Admin: correct a wrong plant identification on a ProBot answer. */
   onCorrectPlant?: (msg: ChatMessage) => void;
+  /** ProBot chat (Gemini-style): answers as plain text with actions under them, your messages in a gray bubble. */
+  assistantLayout?: boolean;
+  /** 👍 / 👎 on a ProBot answer (null clears). */
+  onFeedback?: (msg: ChatMessage, value: 'up' | 'down' | null) => void;
+  /** Ask again: resend the message this answer replied to. */
+  onRetry?: (msg: ChatMessage) => void;
+  /** Only on the latest answer: its next-step buttons send the text. */
+  onSuggestion?: (text: string) => void;
 }
 
 export default function ProBotMessageBubble({
@@ -67,7 +79,13 @@ export default function ProBotMessageBubble({
   onCrmQuickAction,
   draftStatus,
   onCorrectPlant,
+  assistantLayout = false,
+  onFeedback,
+  onRetry,
+  onSuggestion,
 }: ProBotMessageBubbleProps) {
+  const [copied, setCopied] = useState(false);
+  const chatContext = useChatOptional();
   const [addingToCrm, setAddingToCrm] = useState(false);
   const [crmError, setCrmError] = useState<string | null>(null);
   const [menu, setMenu] = useState<null | 'below' | 'above'>(null);
@@ -82,7 +100,9 @@ export default function ProBotMessageBubble({
   /** ProBot's reply while it is still being written (ProBotChatArea adds it as "stream-…"). */
   const isDraft = msg.sender === 'admin' && msg.id.startsWith('stream-');
   /** Place cards replace their plain-text body. */
-  const showBody = Boolean(body.trim()) && !msg.payload?.placeShare && !msg.payload?.placeLinked && !msg.payload?.leadOffer && !msg.payload?.followup;
+  const draftRecording = /recording/i.test(draftStatus ?? '');
+  const isVoiceNote = Boolean(msg.attachments?.some((att) => att.name.startsWith('voice-note')));
+  const showBody = Boolean(body.trim()) && !isVoiceNote && !msg.payload?.placeShare && !msg.payload?.placeLinked && !msg.payload?.leadOffer && !msg.payload?.followup;
   /** Document cards share one width, whatever the caption length. */
   const hasDocCard = Boolean(
     msg.payload?.crmEstimate ||
@@ -232,19 +252,27 @@ export default function ProBotMessageBubble({
         }}
         onTouchEnd={cancelPress}
         onTouchMove={cancelPress}
-        className={`group relative max-md:select-none max-md:[-webkit-touch-callout:none] ${hasDocCard ? CHAT_DOC_BUBBLE_WIDTH : 'max-w-[85%]'} rounded-lg px-2.5 py-1.5 text-sm text-gray-900 flex items-start gap-2 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] ${
-          isOwn ? 'rounded-tr-none bg-[#d9fdd3]' : 'rounded-tl-none bg-white'
-        }`}
+        className={
+          assistantLayout
+            ? `group relative max-md:select-none max-md:[-webkit-touch-callout:none] flex items-start text-[15px] leading-relaxed text-gray-900 ${
+                isOwn ? 'max-w-[80%] rounded-lg bg-gray-100 px-4 py-2.5' : `${hasDocCard ? CHAT_DOC_BUBBLE_WIDTH : 'w-full'} px-1 py-1`
+              }`
+            : `group relative max-md:select-none max-md:[-webkit-touch-callout:none] ${hasDocCard ? CHAT_DOC_BUBBLE_WIDTH : 'max-w-[85%]'} rounded-lg px-2.5 py-1.5 text-sm text-gray-900 flex items-start gap-2 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] ${
+                isOwn ? 'rounded-tr-none bg-[#d9fdd3]' : 'rounded-tl-none bg-white'
+              }`
+        }
       >
-        <div className="w-8 h-8 shrink-0 rounded-lg border-2 border-black overflow-hidden bg-gray-200 flex items-center justify-center">
-          {avatarContent}
-        </div>
+        {assistantLayout ? null : (
+          <div className="w-8 h-8 shrink-0 rounded-lg border-2 border-black overflow-hidden bg-gray-200 flex items-center justify-center">
+            {avatarContent}
+          </div>
+        )}
         {hasMenu ? (
           <button
             type="button"
             onClick={() => (menu ? setMenu(null) : openMenu())}
             className={`absolute right-1 top-1 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-gray-500 transition-opacity hover:text-black ${
-              isOwn ? 'bg-[#d9fdd3]' : 'bg-white'
+              assistantLayout ? (isOwn ? 'bg-gray-100' : 'bg-transparent') : isOwn ? 'bg-[#d9fdd3]' : 'bg-white'
             } ${menu ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100 max-md:hidden'}`}
             aria-label={t('messageMenu')}
             aria-haspopup="menu"
@@ -277,7 +305,7 @@ export default function ProBotMessageBubble({
           </button>
         ) : null}
         <div className="min-w-0 flex-1">
-          {msg.sender === 'admin' && (
+          {msg.sender === 'admin' && !assistantLayout && (
             <p className="text-xs font-medium text-gray-500 mb-1">
               {isBusinessReply
                 ? businessName
@@ -306,11 +334,61 @@ export default function ProBotMessageBubble({
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]" />
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" />
               </span>
-              {draftStatus ? <span className="text-xs">{draftStatus}</span> : null}
+              {!draftStatus || /^(Thinking|Writing)/.test(draftStatus) ? (
+                <ProbotWorkWord />
+              ) : draftStatus ? (
+                <span className={`flex items-center gap-1 text-xs ${draftRecording ? 'font-medium text-green-700' : ''}`}>
+                  {draftRecording ? <Mic className="h-3.5 w-3.5 animate-pulse" aria-hidden /> : null}
+                  {draftStatus}
+                </span>
+              ) : null}
             </p>
           ) : null}
           {showBody ? (
             <p className="min-w-0 whitespace-pre-wrap break-words pr-5 leading-relaxed">{renderBody(body)}</p>
+          ) : null}
+          {msg.payload?.links?.length && !isOwn && !isAdminView ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {msg.payload.links.map((link) => (
+                <a
+                  key={link.href}
+                  href={`/${locale}${link.href}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-800 hover:border-black"
+                >
+                  {link.label} →
+                </a>
+              ))}
+            </div>
+          ) : null}
+          {msg.payload?.proAction && !isOwn && !isAdminView ? (
+            <ProActionCard
+              action={msg.payload.proAction}
+              onDone={() => {
+                const visitorId = chatContext?.visitorId;
+                if (!visitorId) return;
+                void fetch('/api/chat/messages', {
+                  method: 'PATCH',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ id: msg.id, visitorId, actionDone: true }),
+                }).catch(() => undefined);
+              }}
+            />
+          ) : null}
+          {msg.payload?.expenseDraft && !isOwn ? (
+            <ExpenseDraftCard
+              draft={msg.payload.expenseDraft}
+              onSaved={(expenseId) => {
+                const visitorId = chatContext?.visitorId;
+                if (!visitorId) return;
+                void fetch('/api/chat/messages', {
+                  method: 'PATCH',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ id: msg.id, visitorId, expenseSavedId: expenseId }),
+                }).catch(() => undefined);
+              }}
+            />
           ) : null}
           {msg.payload?.plantId ? (
             msg.payload.plantId.correctedTo ? (
@@ -495,7 +573,62 @@ export default function ProBotMessageBubble({
               <span className="text-sm italic">{t('photoPlaceholder')}</span>
             </div>
           ) : null}
-          {(isAdminView && msg.sender === 'admin') || (!isAdminView && msg.sender === 'visitor') ? (
+          {assistantLayout ? (
+            !isOwn && !isDraft && (showBody || msg.attachments?.length) ? (
+              <div className="mt-1.5 flex items-center gap-0.5 text-gray-500">
+                {onFeedback ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onFeedback(msg, msg.payload?.feedback === 'up' ? null : 'up')}
+                      aria-label="Good answer"
+                      title="Good answer"
+                      aria-pressed={msg.payload?.feedback === 'up'}
+                      className={`flex h-8 w-8 items-center justify-center rounded-md hover:bg-gray-100 hover:text-black ${msg.payload?.feedback === 'up' ? 'text-black' : ''}`}
+                    >
+                      <ThumbsUp className={`h-4 w-4 ${msg.payload?.feedback === 'up' ? 'fill-current' : ''}`} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onFeedback(msg, msg.payload?.feedback === 'down' ? null : 'down')}
+                      aria-label="Bad answer"
+                      title="Bad answer"
+                      aria-pressed={msg.payload?.feedback === 'down'}
+                      className={`flex h-8 w-8 items-center justify-center rounded-md hover:bg-gray-100 hover:text-black ${msg.payload?.feedback === 'down' ? 'text-black' : ''}`}
+                    >
+                      <ThumbsDown className={`h-4 w-4 ${msg.payload?.feedback === 'down' ? 'fill-current' : ''}`} />
+                    </button>
+                  </>
+                ) : null}
+                {onRetry ? (
+                  <button
+                    type="button"
+                    onClick={() => onRetry(msg)}
+                    aria-label="Ask again"
+                    title="Ask again"
+                    className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-gray-100 hover:text-black"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </button>
+                ) : null}
+                {body.trim() && !isVoiceNote ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(body);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1500);
+                    }}
+                    aria-label={t('copyMessage')}
+                    title={t('copyMessage')}
+                    className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-gray-100 hover:text-black"
+                  >
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                ) : null}
+              </div>
+            ) : null
+          ) : (isAdminView && msg.sender === 'admin') || (!isAdminView && msg.sender === 'visitor') ? (
             <p
               className={`text-xs mt-1.5 flex items-center justify-end gap-1 opacity-90 text-gray-500`}
               title={msg.read_at ? t('read') : t('sent')}
@@ -530,6 +663,20 @@ export default function ProBotMessageBubble({
               )}
             </p>
           )}
+          {assistantLayout && !isOwn && onSuggestion && msg.payload?.suggestions?.length ? (
+            <div className="mt-2 flex flex-col items-start gap-1">
+              {msg.payload.suggestions.map((text) => (
+                <button
+                  key={text}
+                  type="button"
+                  onClick={() => onSuggestion(text)}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-left text-sm text-gray-800 hover:border-black hover:bg-gray-50"
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {msg.replyLinkUrl && msg.replyLinkLabel && (
             <Link
               href={msg.replyLinkUrl}

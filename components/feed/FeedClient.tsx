@@ -12,7 +12,7 @@ import { isHubPro, ProAddModal } from '@/components/pageslayout/ProAddChooser';
 import { useAuth } from '@/contexts/AuthContext';
 import type { FeedFilter, FeedItem, FeedPage, FeedScope } from '@/lib/feed/types';
 
-function FeedSkeleton({ count = 3 }: { count?: number }) {
+export function FeedSkeleton({ count = 3 }: { count?: number }) {
   return (
     <div className="space-y-4" aria-hidden>
       {Array.from({ length: count }).map((_, i) => (
@@ -174,7 +174,7 @@ export default function FeedClient({ initialPage, localCity }: { initialPage: Fe
         : t('empty');
 
   return (
-    <div className="flex min-h-full w-full flex-1 flex-col">
+    <div className="flex min-h-full w-full flex-1 flex-col animate-feed-in">
       <FeedHeader
         searchOpen={searchOpen}
         search={search}

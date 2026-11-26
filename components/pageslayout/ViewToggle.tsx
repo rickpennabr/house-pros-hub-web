@@ -169,25 +169,8 @@ export default function ViewToggle({
           </button>
         </div>
       )}
-      {onAdd && (
-        <button
-          type="button"
-          onClick={onAdd}
-          className={`
-            ${showAddOnDesktop ? 'flex' : 'flex md:hidden'} items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 shrink-0
-            rounded-lg border-2 border-white box-border text-white hover:bg-gray-800
-            ${controlSize}
-            ${!embedded && showAddOnDesktop ? 'md:w-auto md:min-w-10 md:px-3' : ''}
-          `}
-          aria-label={addLabel}
-          aria-expanded={addOpen}
-        >
-          <Plus className={`${iconSize} transition-transform duration-200 ${addOpen ? 'rotate-45' : ''}`} />
-          {!embedded && showAddOnDesktop && (
-            <span className="hidden md:inline whitespace-nowrap tracking-wider">{addLabel}</span>
-          )}
-        </button>
-      )}
+      {/* House in the middle: Customer portal or My Places, following the active profile. */}
+      {showAccount && <HomeShortcutButton withLabel={!embedded} />}
       {showCrm && (
         <button
           type="button"
@@ -225,8 +208,30 @@ export default function ViewToggle({
           )}
         </button>
       )}
-      {/* House last: Customer portal or My Places, following the active profile. */}
-      {showAccount && <HomeShortcutButton withLabel={!embedded} />}
+      {/* Add on the right. */}
+      {onAdd && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className={`
+            ${showAddOnDesktop ? 'flex' : 'flex md:hidden'} items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 shrink-0
+            rounded-lg border-2 border-white box-border text-white hover:bg-gray-800
+            ${controlSize}
+            ${!embedded && showAddOnDesktop ? 'md:w-auto md:min-w-10 md:px-3' : ''}
+          `}
+          aria-label={addLabel}
+          aria-expanded={addOpen}
+        >
+          {addOpen ? (
+            <Plus className={`${iconSize} rotate-45 transition-transform duration-200`} />
+          ) : (
+            <HouseMark variant="plus" tone="light" className="h-7 w-7 shrink-0" />
+          )}
+          {!embedded && showAddOnDesktop && (
+            <span className="hidden md:inline whitespace-nowrap tracking-wider">{addLabel}</span>
+          )}
+        </button>
+      )}
     </div>
   );
 

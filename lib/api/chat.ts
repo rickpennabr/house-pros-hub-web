@@ -25,9 +25,10 @@ export interface GetMessagesResponse {
 
 export async function getMessages(
   conversationId: string,
-  options?: { visitorId?: string; credentials?: RequestCredentials; locale?: 'en' | 'pt' | 'es' }
+  options?: { visitorId?: string; credentials?: RequestCredentials; locale?: 'en' | 'pt' | 'es'; chatId?: string }
 ): Promise<GetMessagesResponse> {
   const params = new URLSearchParams({ conversationId });
+  if (options?.chatId) params.set('chatId', options.chatId);
   if (options?.visitorId) params.set('visitorId', options.visitorId);
   if (options?.locale) params.set('locale', options.locale);
   const res = await fetch(`/api/chat/messages?${params}`, {
@@ -67,6 +68,11 @@ export interface SendMessagePayload {
   placeShareId?: string;
   locale?: 'en' | 'pt' | 'es';
   stream?: boolean;
+  actingAs?: 'personal' | 'business';
+  actingFirstName?: string;
+  actingBusinessName?: string;
+  /** The ProBot chat (Gemini-style chats). */
+  chatId?: string;
 }
 
 export type SendMessageBot = {
@@ -77,6 +83,7 @@ export type SendMessageBot = {
   created_at: string;
   admin_sent_as: 'probot';
   payload?: import('@/lib/types/chat').ProAgentPayload | null;
+  attachments?: import('@/lib/types/chat').ChatAttachment[];
 };
 
 export type SendMessageResult = {

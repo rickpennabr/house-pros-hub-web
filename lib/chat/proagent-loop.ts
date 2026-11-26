@@ -14,6 +14,11 @@ import {
 } from '@/lib/chat/proagent-policy'
 import { replyInventsPrice } from '@/lib/chat/probot-eval'
 import { probotAutoReply } from '@/lib/chat/probot-reply'
+import { isSmallTalk } from '@/lib/chat/small-talk'
+import { isMemoryTool, loadMemories, memoryOpenAiTools, memoryPrompt, runMemoryTool } from '@/lib/chat/probot-memory'
+import { nextSteps } from '@/lib/chat/probot-suggestions'
+import { isProActionTool, prepareProAction, proActionOpenAiTools } from '@/lib/agent/pro-actions'
+import { LIMIT_COPY, type ProbotLimit } from '@/lib/chat/probot-usage'
 import { redactForModel } from '@/lib/chat/probot-redact'
 import {
   completeChat,
@@ -114,6 +119,31 @@ This person is a pro and owns a CRM on House Pros Hub. Today is ${dayName} (${to
 - Talk like a helpful office manager: short, warm, the most important fact first. For a voice-style question, write the way you would say it out loud.`
 }
 
+export interface ProAgentPersona {
+  mode: 'personal' | 'business'
+  firstName?: string
+  businessName?: string
+}
+
+/** Plain name only (it goes into the instructions). */
+function cleanName(value: string | undefined, max: number): string {
+  return (value ?? '').replace(/[^\p{L}\p{N} .,&'-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+/** Greets them by first name and keeps the talk on the profile they picked. */
+function personaPrompt(persona: ProAgentPersona | undefined, signedIn: boolean): string {
+  if (!persona || !signedIn) return ''
+  const name = cleanName(persona.firstName, 40)
+  const greet = name
+    ? `\n- Their first name is ${name}. Start your reply with "Hi ${name}!" (in their language) when they greet you or it is the first message of the chat, then answer. Use their name now and then, not in every sentence.`
+    : ''
+  if (persona.mode === 'business') {
+    const business = cleanName(persona.businessName, 80)
+    return `\n\nThey are on their business profile${business ? ` (${business})` : ''}. Talk to them as the owner running that business: their jobs, customers, estimates, invoices, schedule and crew. Offer business help, not homeowner help.${greet}`
+  }
+  return `\n\nThey are on their personal profile, as a homeowner. Talk about their home, their places, and finding or hiring a pro. Do not bring up their business, CRM, invoices to customers or crew.${greet}`
+}
+
 function agentPrompt(locale: string | undefined, playbook: string, portalBrief: string, signedIn: boolean, pro: string = ''): string {
   const language = locale === 'pt' ? 'Portuguese' : locale === 'es' ? 'Spanish' : 'English'
   const notes = playbook
@@ -130,6 +160,8 @@ function agentPrompt(locale: string | undefined, playbook: string, portalBrief: 
   const moneyRule = portalBrief || signedIn
     ? '- Never state a dollar amount, a rebate amount, or a start date unless that figure is written in their place record.'
     : '- Never state a dollar amount, a rebate amount, or a date the work will start.'
+  // Fixed rules first, the same text on every turn, so the provider can cache that part of the
+  // prompt (cheaper input). Everything about this person and this turn comes after it.
   return `You are ProAgent, the assistant on House Pros Hub (houseproshub.com).
 ${AGENT_RULE}
 ${PROAGENT_POLICY}
@@ -138,9 +170,11 @@ How to work:
 - Greetings and general questions: answer in a few sentences. Do not call tools.
 - A homeowner who wants a pro or a local job: call search_pros or list_categories. Use get_pro when they ask about one pro. Put the city in city, not in search.
 - create_estimate only when every required field came from the homeowner in this chat. If a field is missing, ask for it. Do not invent contact details, an address, a budget, or a timeline.
+- Keep it short. A simple answer is 2 to 5 sentences. When the answer has several facts, steps, or options (a plant, its care, how to do something, things to check), write one lead sentence, then short "- " bullets that start with a **bold** label, e.g. "- **Water:** Deep, infrequent watering." Use **bold** for key names and *italic* for scientific names. No markdown headings, no tables.${notes}
+
+For this person:
 ${moneyRule}
-- Reply in ${language} unless the user clearly wrote in another language.
-- Keep it short. A simple answer is 2 to 5 sentences. When the answer has several facts, steps, or options (a plant, its care, how to do something, things to check), write one lead sentence, then short "- " bullets that start with a **bold** label, e.g. "- **Water:** Deep, infrequent watering." Use **bold** for key names and *italic* for scientific names. No markdown headings, no tables.${placeTools}${pro}${notes}${places}`
+- Reply in ${language} unless the user clearly wrote in another language.${placeTools}${pro}${places}`
 }
 
 function rememberPros(found: ProAgentProCard[], data: unknown, locale: string): ProAgentProCard[] {
@@ -193,10 +227,27 @@ function finish(input: {
 }
 
 /**
+ * One homeowner turn, plus next-step buttons picked from the tools that ran (no AI call).
+ */
+export async function runProAgentTurn(input: Parameters<typeof runProAgentTurnInner>[0]): Promise<ProAgentTurnResult> {
+  const raw = await runProAgentTurnInner(input)
+  const links = turnLinks.get(input)
+  const result = links?.length ? { ...raw, payload: { ...(raw.payload ?? {}), links: links.slice(-3) } } : raw
+  if (result.outcome !== 'model' || result.payload?.confirm || result.payload?.proAction) return result
+  const ran = result.steps.filter((step) => step.status === 'ok').map((step) => step.toolName)
+  const suggestions = nextSteps(ran, input.locale)
+  if (suggestions.length === 0) return result
+  return { ...result, payload: { ...(result.payload ?? {}), suggestions } }
+}
+
+/**
  * One homeowner turn. Read tools run here. create_estimate stops the loop and waits for Confirm.
  * If every provider rejects tools, the single-shot reply is the fallback.
  */
-export async function runProAgentTurn(input: {
+/** Open links from the CRM tools of the current turn (set while the loop runs). */
+const turnLinks = new WeakMap<object, { label: string; href: string }[]>()
+
+async function runProAgentTurnInner(input: {
   body: string
   locale?: string
   history: ProbotTurn[]
@@ -206,6 +257,10 @@ export async function runProAgentTurn(input: {
   /** The pro's IANA time zone, for "today" and "the 26th". Defaults to Las Vegas. */
   timeZone?: string
   onProgress?: (event: ProAgentProgress) => void
+  /** The account picked at the top, so ProBot greets them by name and talks about the right side. */
+  persona?: ProAgentPersona
+  /** Over today's limit: a fixed answer, no AI call. */
+  overLimit?: ProbotLimit
 }): Promise<ProAgentTurnResult> {
   const scripted = probotAutoReply(input.body, input.locale)
   const fallback = probotAutoReply(' ', input.locale)
@@ -221,6 +276,21 @@ export async function runProAgentTurn(input: {
       outcome: 'model',
       provider: 'script',
       model: 'script',
+      playbookAttached: false,
+      latencyMs: 0,
+    }
+  }
+
+  if (input.overLimit) {
+    const body = LIMIT_COPY[localeOf(input.locale)][input.overLimit]
+    progress?.({ type: 'token', text: body })
+    return {
+      body,
+      payload: null,
+      steps: [],
+      outcome: 'fallback',
+      provider: 'limit',
+      model: 'limit',
       playbookAttached: false,
       latencyMs: 0,
     }
@@ -247,21 +317,33 @@ export async function runProAgentTurn(input: {
     sender: turn.sender,
     body: redactForModel(turn.body),
   }))
-  const playbook = jobPlaybookFor(safeBody, safeHistory)
+  // Small talk ("hi", "thanks"): no tools, no playbook, no place record, short history. A fraction of the tokens.
+  const smallTalk = isSmallTalk(trimmed, input.persona?.firstName)
+  const playbook = smallTalk ? '' : jobPlaybookFor(safeBody, safeHistory)
   const signedIn = Boolean(input.userId)
   // CRM tools only for the CRM owner. Crew members do not see the books.
-  const isPro = input.userId ? await userOwnsCrm(input.userId).catch(() => false) : false
+  // On the personal profile a pro is a homeowner here: no business tools.
+  const isPro =
+    !smallTalk && input.userId && input.persona?.mode !== 'personal' ? await userOwnsCrm(input.userId).catch(() => false) : false
   const timeZone = validTimeZone(input.timeZone) ?? DEFAULT_PRO_TIME_ZONE
-  const tools = [
-    ...proAgentOpenAiTools(),
-    ...(signedIn ? placeOpenAiTools() : []),
-    ...(isPro ? proOpenAiTools() : []),
-  ]
+  const tools = smallTalk
+    ? []
+    : [
+        ...proAgentOpenAiTools(),
+        ...(signedIn ? placeOpenAiTools() : []),
+        ...(isPro ? proOpenAiTools() : []),
+        ...(isPro ? proActionOpenAiTools() : []),
+      ]
+  const brief = smallTalk ? '' : input.portalBrief?.trim() ?? ''
+  // Memory: what they told ProBot before, per side (personal or business). Signed-in only.
+  const memoryMode = input.persona?.mode === 'business' ? 'business' : 'personal'
+  const memories = input.userId ? await loadMemories(input.userId, memoryMode).catch(() => []) : []
+  if (input.userId && !smallTalk) tools.push(...memoryOpenAiTools())
   const origin = siteOrigin()
   const messages: ChatCompletionMessage[] = [
     {
       role: 'system',
-      content: agentPrompt(input.locale, playbook, input.portalBrief?.trim() ?? '', signedIn, isPro ? proPrompt(todayIn(timeZone), timeZone) : ''),
+      content: agentPrompt(input.locale, playbook, brief, signedIn, (isPro ? proPrompt(todayIn(timeZone), timeZone) : '') + personaPrompt(input.persona, signedIn) + memoryPrompt(memories)),
     },
     ...safeHistory
       .map((turn) => ({
@@ -269,7 +351,7 @@ export async function runProAgentTurn(input: {
         content: turn.body.trim(),
       }))
       .filter((turn) => turn.content.length > 0)
-      .slice(-8),
+      .slice(smallTalk ? -4 : -8),
     { role: 'user', content: safeBody },
   ]
 
@@ -382,10 +464,56 @@ export async function runProAgentTurn(input: {
           })
         }
 
+        if (isMemoryTool(call.name)) {
+          const result = input.userId
+            ? await runMemoryTool(call.name, args, { userId: input.userId, mode: memoryMode })
+            : { data: { error: 'Sign in to save facts.' }, isError: true }
+          steps.push({
+            id: randomUUID(),
+            toolName: call.name,
+            status: result.isError ? 'failed' : 'ok',
+            latencyMs: Date.now() - stepStarted,
+            // The fact itself is private; the step log keeps only the outcome.
+            input: {},
+            output: { ok: !result.isError },
+          })
+          messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result.data) })
+          continue
+        }
+
+        if (isProActionTool(call.name)) {
+          const prepared = isPro && input.userId
+            ? await prepareProAction(call.name, args, { userId: input.userId, timeZone })
+            : { error: 'Only the CRM owner can do this.' }
+          if ('error' in prepared) {
+            steps.push({ id: randomUUID(), toolName: call.name, status: 'failed', latencyMs: Date.now() - stepStarted, input: args, output: { error: prepared.error } })
+            messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify({ error: prepared.error }) })
+            continue
+          }
+          steps.push({ id: randomUUID(), toolName: call.name, status: 'needs_confirm', latencyMs: Date.now() - stepStarted, input: args, output: null })
+          const said = completion.content ? parseModelReply(completion.content) : null
+          const actionBody = said || ({ es: 'Revisa y toca Confirmar.', pt: 'Confira e toque em Confirmar.' } as Record<string, string>)[locale] || 'Check it and tap Confirm.'
+          progress?.({ type: 'token', text: actionBody })
+          const done = finish({
+            body: actionBody,
+            pros,
+            steps,
+            confirm: undefined,
+            endpoint: lastEndpoint,
+            playbookAttached: playbook.length > 0,
+            started,
+            outcome: 'model',
+            locale,
+            fallback,
+          })
+          return { ...done, payload: { ...(done.payload ?? {}), proAction: prepared.action } }
+        }
+
         if (isProTool(call.name)) {
           const result = isPro && input.userId
             ? await runProTool(call.name, args, { userId: input.userId, timeZone })
             : { data: { error: 'Only the CRM owner can read this.' }, isError: true }
+          if ('links' in result && result.links?.length) turnLinks.set(input, result.links)
           const output = JSON.stringify(result.data).slice(0, 6000)
           // Amounts in the result are allowed in the reply (price guard).
           if (!result.isError) grounding += `

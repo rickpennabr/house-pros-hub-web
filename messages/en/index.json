@@ -2138,8 +2138,9 @@
     "emailMismatch": "That email does not match this account",
     "profileUpdated": "Profile updated successfully!",
     "hubUseTitle": "How you use the Hub",
-    "hubUseHelp": "Installer is you, not a business listing. Turn it on here. A street address is only required when a customer requests an estimate.",
+    "hubUseHelp": "Handyman is you, not a business listing. Turn it on here. A street address is only required when a customer requests an estimate.",
     "installerRole": "I'm an Installer",
+    "handymanRole": "I'm a Handyman",
     "roleUpdated": "Classification updated.",
     "roleFailed": "Could not update your classification.",
     "fields": {

@@ -10,7 +10,7 @@ import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
  * - Admin (ProBot/Hub) messages in those same conversations not yet read.
  */
 export async function GET(request: NextRequest) {
-  const rateLimitRes = await checkRateLimit(request, 'chat');
+  const rateLimitRes = await checkRateLimit(request, 'chatRead');
   if (rateLimitRes) return rateLimitRes;
 
   try {

@@ -2216,3 +2216,28 @@ input[type='search']::-webkit-search-decoration {
   -webkit-appearance: none;
   appearance: none;
 }
+
+/* ProBot working words: the tool moves like it is working (hammer swings, brush strokes, drill spins). */
+@keyframes probot-swing { 0%, 100% { transform: rotate(-35deg); } 50% { transform: rotate(20deg); } }
+@keyframes probot-stroke { 0%, 100% { transform: translate(-2px, 1px) rotate(-10deg); } 50% { transform: translate(2px, -1px) rotate(10deg); } }
+@keyframes probot-spin { to { transform: rotate(360deg); } }
+@keyframes probot-dig { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(2px) rotate(-20deg); } }
+@keyframes probot-word-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.probot-tool { transform-origin: 70% 70%; animation: probot-stroke 0.9s ease-in-out infinite; }
+.probot-tool-nailing { animation: probot-swing 0.5s ease-in-out infinite; }
+.probot-tool-drilling, .probot-tool-wrenching { transform-origin: 50% 50%; animation: probot-spin 0.8s linear infinite; }
+.probot-tool-digging, .probot-tool-bricking { animation: probot-dig 0.8s ease-in-out infinite; }
+.probot-work-word { display: inline-block; animation: probot-word-in 0.3s ease-out; }
+@media (prefers-reduced-motion: reduce) { .probot-tool, .probot-work-word { animation: none; } }
+
+/* Feed arriving after its placeholders: a short fade, no jump. */
+@keyframes feed-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-feed-in {
+  animation: feed-in 0.25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-feed-in { animation: none; }
+}

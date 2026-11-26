@@ -10,7 +10,7 @@ import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
  * Used for the notification bell badge when the user (customer) has unread ProBot messages.
  */
 export async function GET(request: NextRequest) {
-  const rateLimitRes = await checkRateLimit(request, 'chat');
+  const rateLimitRes = await checkRateLimit(request, 'chatRead');
   if (rateLimitRes) return rateLimitRes;
 
   try {

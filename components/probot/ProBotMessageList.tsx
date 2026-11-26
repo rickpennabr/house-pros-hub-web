@@ -40,6 +40,12 @@ interface ProBotMessageListProps {
   draftStatus?: string | null;
   /** Admin: correct a wrong plant identification on a ProBot answer. */
   onCorrectPlant?: (msg: ChatMessage) => void;
+  /** ProBot chat, Gemini-style (see ProBotMessageBubble). */
+  assistantLayout?: boolean;
+  onFeedback?: (msg: ChatMessage, value: 'up' | 'down' | null) => void;
+  onRetry?: (msg: ChatMessage) => void;
+  /** Tap a next-step button under ProBot's latest answer: sends it. */
+  onSuggestion?: (text: string) => void;
 }
 
 export default function ProBotMessageList({
@@ -64,6 +70,10 @@ export default function ProBotMessageList({
   onCrmQuickAction,
   draftStatus,
   onCorrectPlant,
+  assistantLayout = false,
+  onFeedback,
+  onRetry,
+  onSuggestion,
 }: ProBotMessageListProps) {
   const uniqueMessages = useMemo(() => dedupeMessagesById(messages), [messages]);
   const listRef = useRef<HTMLDivElement>(null);
@@ -123,11 +133,12 @@ export default function ProBotMessageList({
 
   return (
     // Desktop: one centered reading column (like AI chat apps), the same width as the composer.
-    <div ref={listRef} className="p-4 space-y-3 min-h-0 w-full md:mx-auto md:max-w-3xl">
-      {uniqueMessages.map((msg) => (
+    <div ref={listRef} className={`min-h-0 w-full md:mx-auto md:max-w-3xl ${assistantLayout ? 'space-y-6 px-4 py-6' : 'p-4 space-y-3'}`}>
+      {uniqueMessages.map((msg, index) => (
         <ProBotMessageBubble
           key={msg.id}
           msg={msg}
+          onSuggestion={index === uniqueMessages.length - 1 ? onSuggestion : undefined}
           isAdminView={isAdminView}
           adminViewingConversation={adminViewingConversation}
           selectedContact={selectedContact}
@@ -145,6 +156,9 @@ export default function ProBotMessageList({
           onPickTime={onPickTime}
           onCrmQuickAction={onCrmQuickAction}
           draftStatus={draftStatus}
+          assistantLayout={assistantLayout}
+          onFeedback={onFeedback}
+          onRetry={onRetry}
           onCorrectPlant={onCorrectPlant}
         />
       ))}

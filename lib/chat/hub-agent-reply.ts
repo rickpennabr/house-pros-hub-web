@@ -1,4 +1,6 @@
 import type { Json } from '@/lib/types/supabase'
+import type { ProbotLimit } from '@/lib/chat/probot-usage'
+import type { ProAgentPersona } from '@/lib/chat/proagent-loop'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { isMissingColumnError } from '@/lib/chat/probot-reply'
 import { recordProbotTrace } from '@/lib/chat/probot-trace'
@@ -16,6 +18,8 @@ export interface HubBotMessage {
   created_at: string
   admin_sent_as: 'probot'
   payload: ProAgentPayload | null
+  /** ProBot's spoken reply (a voice note), when it answers a voice note. */
+  attachments?: { url: string; name: string; contentType: string }[]
 }
 
 async function conversationPaused(conversationId: string): Promise<boolean> {
@@ -72,6 +76,13 @@ export async function answerHubThread(input: {
   onProgress?: (event: ProAgentProgress) => void
   /** The reply answers a plant photo: kept on the reply so an admin can correct it. */
   plantId?: ChatPlantId
+  persona?: ProAgentPersona
+  /** The ProBot chat the reply goes into. */
+  chatId?: string
+  /** Over today's ProBot limit: a fixed answer, no AI. */
+  overLimit?: ProbotLimit
+  /** Cards from before the AI turn (a receipt's expense draft), saved on the reply. */
+  extraPayload?: ProAgentPayload
 }): Promise<HubBotMessage | null> {
   if (await conversationPaused(input.conversationId)) return null
   await supersedePendingDrafts(input.conversationId)
@@ -92,6 +103,8 @@ export async function answerHubThread(input: {
     portalBrief,
     userId: input.userId,
     onProgress: input.onProgress,
+    persona: input.persona,
+    overLimit: input.overLimit,
   })
 
   const supabase = createServiceRoleClient()
@@ -100,13 +113,23 @@ export async function answerHubThread(input: {
     sender: 'admin' as const,
     body: turn.body,
     admin_sent_as: 'probot' as const,
-    payload: (input.plantId ? { ...(turn.payload ?? {}), plantId: input.plantId } : turn.payload ?? null) as Json,
+    payload: (input.plantId || input.extraPayload
+      ? { ...(turn.payload ?? {}), ...(input.extraPayload ?? {}), ...(input.plantId ? { plantId: input.plantId } : {}) }
+      : turn.payload ?? null) as Json,
   }
   let inserted = await supabase
     .from('probot_messages')
-    .insert(withPayload)
+    .insert(input.chatId ? { ...withPayload, chat_id: input.chatId } : withPayload)
     .select('id, conversation_id, sender, body, created_at, payload')
     .single()
+  // Before migration 180 there is no chat_id: save it in the single thread.
+  if (input.chatId && isMissingColumnError(inserted.error)) {
+    inserted = await supabase
+      .from('probot_messages')
+      .insert(withPayload)
+      .select('id, conversation_id, sender, body, created_at, payload')
+      .single()
+  }
 
   // Older databases lack payload and/or admin_sent_as; save the reply without them.
   if (isMissingColumnError(inserted.error)) {

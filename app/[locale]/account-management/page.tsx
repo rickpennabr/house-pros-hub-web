@@ -267,7 +267,7 @@ function AccountManagementContent() {
       : businessActions
           .filter((action) => {
             if (action.id === 'personal-proscrm') return (isPro || isInstaller || isHandyman) && !isAdmin;
-            if (action.id === 'personal-proresume') return isInstaller;
+            if (action.id === 'personal-proresume') return isInstaller || isHandyman;
             if (action.id === 'personal-qrcode') return (isInstaller || isHandyman) && !isPro && !isAdmin;
             return true;
           })

@@ -6,6 +6,7 @@ import { applyCompanyDisplay } from '@/lib/invoices/companyDisplay';
 import { applyInvoiceBrand } from '@/lib/invoices/invoice-brand';
 import { resolveInvoiceDueDate } from '@/lib/invoices/invoiceDueOnReceipt';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
+import { connectAccountFor } from '@/lib/billing/connect';
 
 /**
  * GET /api/invoices/public?token=uuid
@@ -138,7 +139,10 @@ export async function GET(request: NextRequest) {
     // The customer's house it is on now, for the chat card (the saved label can go stale).
     const place = await docPlaceLabel(supabase, { kind: 'invoice', id: row.id, customerId: row.customer_id });
 
+    const canPayByCard = Boolean(await connectAccountFor(supabase, row.owner_id, row.business_id).catch(() => null));
+
     return NextResponse.json({
+      canPayByCard,
       place,
       invoiceNumber: row.invoice_number,
       amountCents: row.amount_cents,

@@ -5,6 +5,9 @@ import { Pause, Play } from 'lucide-react';
 
 const BARS = 30;
 
+/** Voice notes to start playing as soon as they show (ProBot's answer to your voice note). */
+export const autoPlayVoiceUrls = new Set<string>();
+
 /** Same bars every time for the same file (a real waveform would need decoding the whole file). */
 function waveFor(seed: string): number[] {
   let h = 2166136261;
@@ -31,6 +34,17 @@ export function VoiceNotePlayer({ url, label = 'Voice message' }: { url: string;
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
   const bars = useMemo(() => waveFor(url), [url]);
+
+  useEffect(() => {
+    if (!autoPlayVoiceUrls.has(url)) return;
+    autoPlayVoiceUrls.delete(url);
+    const audio = audioRef.current;
+    if (!audio) return;
+    document.querySelectorAll('audio[data-voice-note]').forEach((el) => {
+      if (el !== audio) (el as HTMLAudioElement).pause();
+    });
+    void audio.play().catch(() => undefined);
+  }, [url]);
 
   useEffect(() => {
     const audio = audioRef.current;

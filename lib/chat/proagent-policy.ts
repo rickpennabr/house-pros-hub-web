@@ -227,7 +227,50 @@ export function parseAgentPayload(value: unknown): ProAgentPayload | null {
       };
     }
   }
-  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.crmInvoice && !payload.placeShare && !payload.leadOffer && !payload.bookingInvite && !payload.placeLinked && !payload.plantId) return null;
+  if (row.feedback === 'up' || row.feedback === 'down') payload.feedback = row.feedback;
+  if (row.proAction && typeof row.proAction === 'object') {
+    const action = row.proAction as Record<string, unknown>;
+    const kinds = ['remind_invoice', 'mark_invoice_paid', 'schedule_visit', 'log_hours'] as const;
+    const kind = kinds.find((value) => value === action.kind);
+    if (kind && typeof action.url === 'string' && action.url.startsWith('/api/crm/')) {
+      payload.proAction = {
+        kind,
+        title: typeof action.title === 'string' ? action.title : '',
+        lines: Array.isArray(action.lines) ? action.lines.filter((line): line is string => typeof line === 'string').slice(0, 5) : [],
+        url: action.url,
+        body: action.body && typeof action.body === 'object' && !Array.isArray(action.body) ? (action.body as Record<string, unknown>) : {},
+        ...(typeof action.openUrl === 'string' && action.openUrl.startsWith('/') ? { openUrl: action.openUrl } : {}),
+        ...(action.done === true ? { done: true } : {}),
+      };
+    }
+  }
+  if (Array.isArray(row.links)) {
+    const links = row.links
+      .filter((item): item is { label: string; href: string } =>
+        Boolean(item) && typeof item.label === 'string' && typeof item.href === 'string' && /^\/crm\/[\w/-]+$/.test(item.href))
+      .slice(0, 3);
+    if (links.length) payload.links = links.map((item) => ({ label: item.label.slice(0, 80), href: item.href }));
+  }
+  if (row.expenseDraft && typeof row.expenseDraft === 'object') {
+    const draft = row.expenseDraft as Record<string, unknown>;
+    const text = (value: unknown) => (typeof value === 'string' ? value : '');
+    if (typeof draft.receiptUrl === 'string' && draft.receiptUrl) {
+      payload.expenseDraft = {
+        vendor: text(draft.vendor),
+        amountCents: typeof draft.amountCents === 'number' ? draft.amountCents : 0,
+        date: text(draft.date),
+        category: text(draft.category) || 'Materials',
+        description: text(draft.description),
+        receiptUrl: draft.receiptUrl,
+        ...(typeof draft.savedExpenseId === 'string' ? { savedExpenseId: draft.savedExpenseId } : {}),
+      };
+    }
+  }
+  if (Array.isArray(row.suggestions)) {
+    const suggestions = row.suggestions.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 3);
+    if (suggestions.length) payload.suggestions = suggestions.map((item) => item.slice(0, 120));
+  }
+  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.crmInvoice && !payload.placeShare && !payload.leadOffer && !payload.bookingInvite && !payload.placeLinked && !payload.plantId && !payload.feedback && !payload.suggestions && !payload.expenseDraft && !payload.proAction && !payload.links) return null;
   return payload;
 }
 

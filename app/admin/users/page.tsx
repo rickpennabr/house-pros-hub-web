@@ -13,7 +13,7 @@ import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import type { AdminUserRow } from '@/app/api/admin/users/route';
 import { houseTrade, houseTradeTitle } from '@/lib/pros/house-trades';
 
-const ROLE_FILTERS = ['all', 'admin', 'customer', 'contractor', 'realtor', 'installer', 'handyman'] as const;
+const ROLE_FILTERS = ['all', 'admin', 'customer', 'contractor', 'realtor', 'handyman'] as const;
 type RoleFilter = (typeof ROLE_FILTERS)[number];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -40,7 +40,6 @@ const EDITABLE_ROLES = [
   { value: 'customer', label: 'Customer' },
   { value: 'contractor', label: 'House Pro (business)' },
   { value: 'realtor', label: 'Realtor' },
-  { value: 'installer', label: 'Installer' },
   { value: 'handyman', label: 'Handyman' },
 ] as const;
 

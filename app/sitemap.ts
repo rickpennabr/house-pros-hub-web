@@ -59,9 +59,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const product of content.products) {
     pages.push(entry(`/proproducts/${product.slug}`, 'en', 0.6, 'weekly', product.updatedAt));
   }
-  for (const installer of content.installers) {
-    pages.push(entry(`/installers/${installer.slug}`, 'en', 0.5, 'monthly', installer.updatedAt));
-  }
   for (const post of content.posts) {
     const locale = locales.includes(post.locale as Locale) ? (post.locale as Locale) : 'en';
     pages.push(entry(`/blog/${post.slug}`, locale, 0.7, 'monthly', post.updatedAt));

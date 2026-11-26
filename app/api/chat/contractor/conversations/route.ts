@@ -18,7 +18,7 @@ type ConvRow = {
  * Same shape as admin conversations so History Chat sidebar can show the list.
  */
 export async function GET(request: NextRequest) {
-  const rateLimitRes = await checkRateLimit(request, 'chat');
+  const rateLimitRes = await checkRateLimit(request, 'chatRead');
   if (rateLimitRes) return rateLimitRes;
 
   try {

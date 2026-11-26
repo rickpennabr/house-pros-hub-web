@@ -602,11 +602,12 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
       >
         <div className="space-y-4">
           {form.licenses.map((lic, i) => (
-            <div key={i} className="flex gap-2 items-start">
+            // Type on its own line, then the number and remove: fits the panel on any width.
+            <div key={i} className="space-y-2 rounded-lg border border-gray-300 p-3">
               <Select
                 value={lic.license}
                 onChange={(e) => updateLicense(i, 'license', e.target.value)}
-                className="flex-1 min-w-0"
+                className="w-full min-w-0"
               >
                 {licenseOptions.map((opt) => (
                   <option key={opt.value || 'empty'} value={opt.value}>
@@ -614,6 +615,7 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
                   </option>
                 ))}
               </Select>
+              <div className="flex items-center gap-2">
               <Input
                 value={lic.licenseNumber}
                 onChange={(e) => updateLicense(i, 'licenseNumber', e.target.value)}
@@ -623,11 +625,12 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
               <button
                 type="button"
                 onClick={() => removeLicense(i)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 cursor-pointer"
                 aria-label="Remove license"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
+              </div>
             </div>
           ))}
           <Button type="button" variant="secondary" size="sm" onClick={addLicense}>

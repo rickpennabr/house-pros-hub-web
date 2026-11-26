@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
+import { ProbotChatList } from '@/components/probot/ProbotChatList';
 import { ChevronLeft, ChevronRight, MessageCircle, Users, Building2, User, X, MoreVertical, Check, CheckCheck, Camera, Paperclip, Mic } from 'lucide-react';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
@@ -523,6 +524,7 @@ export default function ProBotSidebar({
                         ) : null}
                       </>
                     ) : null}
+                    {contact.isProBot ? <ProbotChatList onOpen={() => onSelectContact(contact)} /> : null}
                     </div>
                   );
                 })}

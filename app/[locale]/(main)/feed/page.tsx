@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { getTranslations } from 'next-intl/server';
 import FeedClient from '@/components/feed/FeedClient';
+import FeedLoading from './loading';
 import { getFeedViewer, loadFeedPage } from '@/lib/feed/server';
 import { resolveLocale } from '@/lib/seo/metadata';
 import type { FeedPage } from '@/lib/feed/types';
@@ -18,7 +20,16 @@ export async function generateMetadata({
   };
 }
 
-export default async function FeedRoutePage() {
+/** The page shell paints at once; the first feed page streams in behind feed-shaped placeholders. */
+export default function FeedRoutePage() {
+  return (
+    <Suspense fallback={<FeedLoading />}>
+      <FeedFirstPage />
+    </Suspense>
+  );
+}
+
+async function FeedFirstPage() {
   let initialPage: FeedPage = { items: [], nextCursor: null, isAdmin: false };
   let localCity = 'Las Vegas';
   try {

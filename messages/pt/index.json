@@ -2138,8 +2138,9 @@
     "emailMismatch": "Esse e-mail não corresponde a esta conta",
     "profileUpdated": "Perfil atualizado com sucesso!",
     "hubUseTitle": "Como você usa o Hub",
-    "hubUseHelp": "Instalador é você, não um negócio do diretório. Ative aqui. O endereço só é obrigatório quando um cliente pede um orçamento.",
+    "hubUseHelp": "Faz-tudo é você, não um negócio do diretório. Ative aqui. O endereço só é obrigatório quando um cliente pede um orçamento.",
     "installerRole": "Sou instalador",
+    "handymanRole": "Sou faz-tudo",
     "roleUpdated": "Classificação atualizada.",
     "roleFailed": "Não foi possível atualizar sua classificação.",
     "fields": {

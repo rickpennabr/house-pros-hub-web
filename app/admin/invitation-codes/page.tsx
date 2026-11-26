@@ -126,7 +126,7 @@ export default function InvitationCodesPage() {
         <div>
           <h1 className="text-3xl font-semibold text-black mb-2">Invitation codes</h1>
           <p className="text-gray-600 mb-3">
-            Generate one-time codes for contractor, realtor, installer, or handyman signup. Each code expires in 30 days.
+            Generate one-time codes for contractor, realtor, or handyman signup. Each code expires in 30 days.
           </p>
           <div className="flex gap-2 border-b border-gray-200">
             <button
@@ -150,17 +150,6 @@ export default function InvitationCodesPage() {
               }`}
             >
               Realtor
-            </button>
-            <button
-              type="button"
-              onClick={() => setRole('installer')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                role === 'installer'
-                  ? 'border-black text-black'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Installer
             </button>
             <button
               type="button"
@@ -234,7 +223,26 @@ export default function InvitationCodesPage() {
         itemLabel="codes"
         primaryColumnId="code"
         renderCell={(row, columnId) => {
-          if (columnId === 'code') return <span className="font-mono text-sm">{row.code}</span>;
+          if (columnId === 'code')
+            return (
+              <span className="flex items-center gap-2">
+                <span className="font-mono text-sm">{row.code}</span>
+                {!row.used_at ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void copyCode(row.code);
+                    }}
+                    className={`rounded-md border px-2 py-0.5 text-xs font-medium ${
+                      copiedCode === row.code ? 'border-green-600 bg-green-50 text-green-700' : 'border-black bg-white text-black hover:bg-gray-100'
+                    }`}
+                  >
+                    {copiedCode === row.code ? 'Copied!' : 'Copy'}
+                  </button>
+                ) : null}
+              </span>
+            );
           if (columnId === 'status') {
             const status = codeStatus(row);
             const className = status === 'Unused' ? 'text-green-600 font-medium' : 'text-gray-600';

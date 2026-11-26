@@ -1,4 +1,5 @@
 import { joinMailLine, mailStreetKey } from '@/lib/address/unit';
+import { cardReadyFor } from '@/lib/billing/connect';
 import { isHouseTradeSlug, tradeFromLicense } from '@/lib/pros/house-trades';
 import { canChangeAppointment } from '@/lib/booking/appointmentPolicy';
 import { safeTimeZone } from '@/lib/booking/dayOfReminder';
@@ -732,6 +733,8 @@ export interface PlaceBundle {
     proName: string;
     ownerId: string | null;
     receivedAt: string;
+    /** The pro connected Stripe: the customer can pay by card. */
+    canPayByCard: boolean;
   }>;
   estimates: Array<{
     id: string;
@@ -914,7 +917,7 @@ export async function loadPlaceBundle(
       .order('created_at', { ascending: false }),
     admin
       .from('pro_crm_invoices')
-      .select('id, customer_id, place_id, invoice_number, status, amount_cents, payment_applied_cents, due_date, invoice_date, created_at')
+      .select('id, owner_id, business_id, customer_id, place_id, invoice_number, status, amount_cents, payment_applied_cents, due_date, invoice_date, created_at')
       .in('customer_id', customerIds)
       .neq('status', 'draft')
       .order('invoice_date', { ascending: false }),
@@ -989,7 +992,9 @@ export async function loadPlaceBundle(
     ownerId: ownerForCustomer(doc.customer_id),
     receivedAt: doc.created_at,
   }));
+  const cardReady = await cardReadyFor(admin, invoices).catch(() => new Set<string>());
   const invoiceItems: PlaceBundle['invoices'] = invoices.map((invoice) => ({
+    canPayByCard: cardReady.has(`${invoice.owner_id}|${invoice.business_id ?? ''}`),
     id: invoice.id,
     number: invoice.invoice_number,
     status: invoice.status,

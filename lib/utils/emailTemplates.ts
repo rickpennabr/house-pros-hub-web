@@ -1211,6 +1211,8 @@ export interface InvoiceReminderEmailData {
   /** 0 when due today. */
   daysOverdue: number;
   viewUrl: string;
+  /** The pro connected Stripe: the button says Pay now; otherwise View invoice. */
+  canPayByCard?: boolean;
   /** e.g. "Zelle: name@example.com". Line breaks kept. */
   paymentInstructions?: string | null;
   message?: string | null;
@@ -1281,7 +1283,7 @@ export function generateInvoiceReminderEmail(data: InvoiceReminderEmailData): st
     '<p style="margin:0 0 12px 0;font-size:15px;line-height:1.5;color:#111827;">' + greeting + '</p>',
     '<p style="margin:0 0 20px 0;font-size:15px;line-height:1.5;color:#374151;">This is a friendly reminder about invoice #' + number + ' from ' + business + '. If you already paid, thank you, and please disregard this email.</p>',
     message,
-    '<a href="' + url + '" style="display:inline-block;padding:14px 40px;background-color:' + red + ';color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;border-radius:8px;">Pay now</a>',
+    '<a href="' + url + '" style="display:inline-block;padding:14px 40px;background-color:' + red + ';color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;border-radius:8px;">' + (data.canPayByCard === false ? 'View invoice' : 'Pay now') + '</a>',
     '</td></tr>',
     otherWays,
     '<tr><td align="center" style="padding:24px 24px 28px 24px;">',

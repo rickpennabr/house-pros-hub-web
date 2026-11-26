@@ -572,6 +572,24 @@ export interface Database {
           }
         ];
       };
+      stripe_connect_accounts: {
+        Row: { id: string; owner_id: string; business_id: string | null; stripe_account_id: string; charges_enabled: boolean; payouts_enabled: boolean; details_submitted: boolean; created_at: string; updated_at: string };
+        Insert: { id?: string; owner_id: string; business_id?: string | null; stripe_account_id: string; charges_enabled?: boolean; payouts_enabled?: boolean; details_submitted?: boolean; created_at?: string; updated_at?: string };
+        Update: { id?: string; owner_id?: string; business_id?: string | null; stripe_account_id?: string; charges_enabled?: boolean; payouts_enabled?: boolean; details_submitted?: boolean; created_at?: string; updated_at?: string };
+        Relationships: [];
+      };
+      probot_memories: {
+        Row: { id: string; user_id: string; profile_mode: string; fact: string; created_at: string };
+        Insert: { id?: string; user_id: string; profile_mode?: string; fact: string; created_at?: string };
+        Update: { id?: string; user_id?: string; profile_mode?: string; fact?: string; created_at?: string };
+        Relationships: [];
+      };
+      probot_chats: {
+        Row: { id: string; conversation_id: string; title: string | null; profile_key: string; created_at: string; updated_at: string };
+        Insert: { id?: string; conversation_id: string; title?: string | null; profile_key?: string; created_at?: string; updated_at?: string };
+        Update: { id?: string; conversation_id?: string; title?: string | null; profile_key?: string; created_at?: string; updated_at?: string };
+        Relationships: [];
+      };
       probot_messages: {
         Row: {
           id: string;
@@ -580,6 +598,7 @@ export interface Database {
           body: string;
           created_at: string;
           business_id: string | null;
+          chat_id: string | null;
           read_at: string | null;
           attachments: Json;
           reply_to: Json | null;
@@ -595,6 +614,7 @@ export interface Database {
           body: string;
           created_at?: string;
           business_id?: string | null;
+          chat_id?: string | null;
           read_at?: string | null;
           attachments?: Json;
           reply_to?: Json | null;
@@ -610,6 +630,7 @@ export interface Database {
           body?: string;
           created_at?: string;
           business_id?: string | null;
+          chat_id?: string | null;
           read_at?: string | null;
           attachments?: Json;
           reply_to?: Json | null;

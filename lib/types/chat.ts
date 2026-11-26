@@ -109,7 +109,37 @@ export interface ChatCrmInvoiceShare {
 }
 
 /** Cards attached to a ProAgent chat message. Plain text stays in body. */
+/** A CRM action ProBot prepared; the pro taps Confirm and the card calls url with body. */
+export interface ChatProAction {
+  kind: 'remind_invoice' | 'mark_invoice_paid' | 'schedule_visit' | 'log_hours';
+  title: string;
+  lines: string[];
+  /** Always a /api/crm/ path, called with the pro's own session. */
+  url: string;
+  body: Record<string, unknown>;
+  /** Hub page to open after it is done (no locale). */
+  openUrl?: string;
+  /** Set once confirmed. */
+  done?: boolean;
+}
+
+/** What ProBot read off a receipt photo. */
+export interface ChatExpenseDraft {
+  vendor: string;
+  amountCents: number;
+  date: string;
+  category: string;
+  description: string;
+  receiptUrl: string;
+  /** Set once the pro saved it. */
+  savedExpenseId?: string;
+}
+
 export interface ProAgentPayload {
+  /** 👍 / 👎 the person gave this ProBot answer. */
+  feedback?: 'up' | 'down' | null;
+  /** Next-step buttons under the answer; tapping one sends it. */
+  suggestions?: string[];
   pros?: ProAgentProCard[];
   confirm?: {
     stepId: string;
@@ -130,6 +160,12 @@ export interface ProAgentPayload {
   crmInvoice?: ChatCrmInvoiceShare;
   /** ProBot's answer came from a plant photo: what the identifier said, so an admin can correct it. */
   plantId?: ChatPlantId;
+  /** Receipt photo read by ProBot: a "Save expense?" card (nothing saved until the pro taps Save). */
+  expenseDraft?: ChatExpenseDraft;
+  /** A prepared CRM action waiting for Confirm. */
+  proAction?: ChatProAction;
+  /** Records ProBot talked about (invoice, project): "Open" links under the answer. */
+  links?: { label: string; href: string }[];
   /** Morning follow-up for a pro: an unpaid invoice or an unanswered estimate, with action buttons. */
   followup?: ChatProbotFollowup;
   /** This message is the pro's morning brief (shows a link to its settings). */

@@ -69,7 +69,12 @@ export default function AdminMfaPage() {
 
   const load = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return setStage({ kind: 'signedOut' });
+    if (!userData.user) {
+      // The cookie still names the admin but the session is dead (expired or revoked), so proxy.ts
+      // keeps sending every page here. Clear it so the site opens and sign-in can start fresh.
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+      return setStage({ kind: 'signedOut' });
+    }
     const [{ data: aal }, { data: list }] = await Promise.all([
       supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
       supabase.auth.mfa.listFactors(),

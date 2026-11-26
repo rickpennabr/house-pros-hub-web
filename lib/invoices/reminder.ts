@@ -6,6 +6,7 @@ import { getDefaultCompanyForInvoice } from '@/lib/invoices/defaultCompany';
 import { invoiceDueState, type InvoiceDueState } from '@/lib/invoices/dueState';
 import { applyInvoiceBrand } from '@/lib/invoices/invoice-brand';
 import { getOrCreateInvoicePayLink } from '@/lib/invoices/payLink';
+import { connectAccountFor } from '@/lib/billing/connect';
 import type { InvoiceEmailData, InvoiceReminderEmailData } from '@/lib/utils/emailTemplates';
 
 type Db = SupabaseClient<Database>;
@@ -156,10 +157,11 @@ export async function buildInvoiceReminder(args: {
   const to = customer?.email?.trim();
   if (!to) return { ok: false, status: 400, error: 'This customer has no email address. Add one on the contact first.' };
 
-  const [{ business, themeColor }, settings, link] = await Promise.all([
+  const [{ business, themeColor }, settings, link, card] = await Promise.all([
     loadInvoiceEmailBusiness(supabase, ownerId, row.business_id ?? null, row.company_display),
     loadReminderSettings(supabase, ownerId),
     getOrCreateInvoicePayLink(args.service, invoiceId, args.baseUrl, args.locale ?? 'en'),
+    connectAccountFor(args.service, ownerId, row.business_id ?? null).catch(() => null),
   ]);
   if (!link) return { ok: false, status: 500, error: 'Could not create the pay link' };
 
@@ -186,6 +188,7 @@ export async function buildInvoiceReminder(args: {
       dueDateLabel: reminderDateLabel(state.dueDate),
       daysOverdue: state.daysOverdue,
       viewUrl: link.url,
+      canPayByCard: Boolean(card),
       paymentInstructions: settings.paymentInstructions,
       message: message?.trim() || null,
       footerText: business.invoice_footer ?? null,

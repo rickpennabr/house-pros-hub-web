@@ -54,7 +54,7 @@ function displayNameFromConv(
  * Query: optional visitorId when the user is authenticated without a business (same rules as unread-count).
  */
 export async function GET(request: NextRequest) {
-  const rateLimitRes = await checkRateLimit(request, 'chat');
+  const rateLimitRes = await checkRateLimit(request, 'chatRead');
   if (rateLimitRes) return rateLimitRes;
 
   try {

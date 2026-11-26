@@ -54,7 +54,6 @@ const ROWS: Row[] = [
   ['general_contractor', 'general', 'General Contractor', 'Contratista general', 'Empreiteiro geral', 'Home', 'General Contractor', 'B-2', 'builder construction'],
   ['remodeler', 'general', 'Remodeler', 'Remodelador', 'Reformador', 'Hammer', 'General Contractor', 'B-2', 'remodel renovation kitchen bath'],
   ['handyman', 'general', 'Handyman', 'Handyman', 'Faz-tudo', 'Hand', 'Handyman', undefined, 'repairs small jobs'],
-  ['installer', 'general', 'Installer', 'Instalador', 'Instalador', 'Wrench', 'Installer', undefined, 'install'],
 
   ['foundation', 'structure', 'Foundation Contractor', 'Contratista de cimientos', 'Empreiteiro de fundações', 'Box', 'Concrete', 'C-5', 'foundation slab'],
   ['concrete', 'structure', 'Concrete Contractor', 'Contratista de concreto', 'Empreiteiro de concreto', 'Box', 'Concrete', 'C-5', 'cement driveway'],

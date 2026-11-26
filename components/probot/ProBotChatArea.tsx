@@ -1,29 +1,37 @@
 'use client';
 
+import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
+import { ensureProbotChat, loadProbotChats, touchProbotChat, useProbotChats } from '@/lib/chat/probot-chats-store';
+import { ProBotStart } from '@/components/probot/ProBotStart';
+import { autoPlayVoiceUrls } from '@/components/chat/VoiceNotePlayer';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
+
+// Forms and editors open only after a tap, so they load then and keep the first chat paint light.
+const PlantCorrectionModal = dynamic(() => import('@/components/probot/PlantCorrectionModal').then((m) => m.PlantCorrectionModal), { ssr: false });
+const ChatSignupForm = dynamic(() => import('@/components/chat/ChatSignupForm'), { ssr: false });
+const ChatEstimateForm = dynamic(() => import('@/components/chat/ChatEstimateForm'), { ssr: false });
+const ChatCrmDocEditor = dynamic(() => import('@/components/chat/ChatCrmDocEditor'), { ssr: false });
+const AddCustomerForm = dynamic(() => import('@/components/chat/AddCustomerForm'), { ssr: false });
+const ProEstimateBookingFlow = dynamic(() => import('@/components/probot/ProEstimateBookingFlow'), { ssr: false });
+const ProBotCrmViews = dynamic(() => import('./ProBotCrmViews').then((m) => m.ProBotCrmViews), { ssr: false });
 import { Building2, CreditCard, FileText, FolderOpen, Receipt, Trash2, ArrowLeft, User, CalendarDays, Check, UserPlus, Home as HomeIcon, Loader2 } from 'lucide-react';
 import { useChat } from '@/contexts/ChatContext';
 import { SimpleConfirmDialog } from '@/components/ui/SimpleConfirmDialog';
 import Modal from '@/components/ui/Modal';
-import { PlantCorrectionModal } from '@/components/probot/PlantCorrectionModal';
 import { useAuth } from '@/contexts/AuthContext';
-import ChatSignupForm from '@/components/chat/ChatSignupForm';
-import ChatEstimateForm from '@/components/chat/ChatEstimateForm';
 import ChatInputBar from '@/components/chat/ChatInputBar';
 import ChatCrmDocPicker, { type ChatCrmDocKind } from '@/components/chat/ChatCrmDocPicker';
 import ChatQuickDocComposer, { type QuickDocKind } from '@/components/chat/ChatQuickDocComposer';
-import ChatCrmDocEditor from '@/components/chat/ChatCrmDocEditor';
 import { createEstimateShare, createInvoiceShare, type SharedCrmDoc } from '@/lib/chat/crm-doc-share';
 import { ChatCamFrame } from '@/components/chat/ChatCamFrame';
-import AddCustomerForm from '@/components/chat/AddCustomerForm';
-import ProEstimateBookingFlow from '@/components/probot/ProEstimateBookingFlow';
 import { PROBOT_ASSETS, PROBOT_CHAT_BG } from '@/lib/constants/probot';
 import ProBotMessageList from './ProBotMessageList';
-import { ProBotCrmViews, type ProBotCrmViewType } from './ProBotCrmViews';
+import type { ProBotCrmViewType } from './ProBotCrmViews';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
 import type { ChatMessage, ChatAttachment } from '@/lib/types/chat';
 import { chatReplyFromMessage } from '@/lib/types/chat';
@@ -90,6 +98,12 @@ interface ProBotChatAreaProps {
 }
 
 const TYPING_MS = 60;
+/**
+ * Kept for the browser tab (module scope survives client navigation), so reopening ProBot paints the
+ * last thread at once and refreshes it in the background instead of starting from an empty screen.
+ */
+const conversationIdCache = new Map<string, string>();
+const threadCache = new Map<string, { messages: ChatMessage[]; hubAgent: unknown }>();
 const WHERE_START_TYPING_MS = 45;
 
 /** Persisted so welcome (hi, how do you want to start) shows only once per device. Bump version to re-show. */
@@ -305,55 +319,62 @@ export default function ProBotChatArea({
   const howDoYouWantToStartText = t('howDoYouWantToStart');
   const businessId = selectedContact?.isProBot ? undefined : selectedContact?.businessId;
 
+  // One request resolves the thread (guest cookie or account). The key carries the user, so signing in
+  // re-resolves to the account thread. A cached id opens the chat at once while the server confirms it.
+  const conversationCacheKey = `${visitorId ?? ''}:${user?.id ?? 'guest'}`;
   const loadConversation = useCallback(async () => {
     if (!visitorId) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    const cached = conversationIdCache.get(conversationCacheKey);
+    if (cached) setConversationId(cached);
+    else setLoading(true);
     setError(null);
     try {
       const { conversationId: cid } = await createConversation(visitorId);
+      conversationIdCache.set(conversationCacheKey, cid);
       setConversationId(cid);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong');
+      if (!cached) setError(e instanceof Error ? e.message : 'Something went wrong');
     } finally {
       setLoading(false);
     }
-  }, [visitorId, setConversationId]);
+  }, [visitorId, conversationCacheKey, setConversationId]);
 
   useEffect(() => {
     if (!visitorId) setLoading(false);
   }, [visitorId]);
+
+  // Signed out: forget the account's cached threads so the next person on this device never sees them.
+  const signedInUserId = user?.id ?? null;
+  useEffect(() => {
+    if (signedInUserId) return;
+    threadCache.clear();
+    for (const key of [...conversationIdCache.keys()]) if (!key.endsWith(':guest')) conversationIdCache.delete(key);
+  }, [signedInUserId]);
 
   useEffect(() => {
     if (adminViewingConversation) return;
     loadConversation();
   }, [loadConversation, adminViewingConversation]);
 
-  // After sign-in, re-resolve so the account thread (and its history) is used instead of a guest cookie thread.
-  useEffect(() => {
-    if (adminViewingConversation || !isAuthenticated || !user?.id || !visitorId) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { conversationId: cid } = await createConversation(visitorId);
-        if (!cancelled) setConversationId(cid);
-      } catch {
-        // Keep the current conversation if resolve fails.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [adminViewingConversation, isAuthenticated, user?.id, visitorId, setConversationId]);
-
   const loadMessages = useCallback(async () => {
     if (!conversationId || !visitorId) return;
+    const requestedChat = activeChatRef.current ?? 'none';
+    const threadKey = `${conversationId}:${requestedChat}`;
+    const cachedThread = threadCache.get(threadKey);
+    if (cachedThread) {
+      setMessages((prev) => (prev.length ? prev : cachedThread.messages));
+      setHubAgent((prev: typeof hubAgent) => prev ?? (cachedThread.hubAgent as typeof hubAgent));
+      setMessagesLoadedOnce(true);
+      setLoadedChatKey(requestedChat);
+    }
     try {
       const data = await getMessages(conversationId, {
         visitorId,
         credentials: 'include',
+        ...(activeChatRef.current ? { chatId: activeChatRef.current } : {}),
         ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
       });
       const msgs = (data.messages ?? []) as ChatMessage[];
@@ -367,14 +388,18 @@ export default function ProBotChatArea({
             }
           : m
       );
-      setMessages(dedupeMessagesById(withLink));
+      const fresh = dedupeMessagesById(withLink);
+      threadCache.set(threadKey, { messages: fresh, hubAgent: data.hubAgent ?? null });
+      setMessages(fresh);
       setHubAgent(data.hubAgent ?? null);
       setMessagesLoadedOnce(true);
+      setLoadedChatKey(requestedChat);
       setError(null);
     } catch (e) {
-      setMessages([]);
-      setHubAgent(null);
+      if (!cachedThread) setMessages([]);
+      if (!cachedThread) setHubAgent(null);
       setMessagesLoadedOnce(true);
+      setLoadedChatKey(requestedChat);
       setError(e instanceof Error ? e.message : t('sendUnavailable'));
     }
   }, [conversationId, visitorId, t, locale]);
@@ -460,6 +485,53 @@ export default function ProBotChatArea({
   }, [conversationId, adminViewingConversation]);
 
   const isAdminView = Boolean((isAdmin || isContractor) && adminViewingConversation);
+  // The account picked at the top: a business shows its logo on the messages you send.
+  const { activeAccount } = useAccountSwitch();
+  /** ProBot chats (Gemini-style), one list per profile. */
+  const probotChats = useProbotChats();
+  const probotProfile = activeAccount?.type === 'business' ? activeAccount.id : 'personal';
+  const activeChatRef = useRef<string | null>(null);
+  activeChatRef.current = probotChats.ready ? probotChats.activeChatId : null;
+  /** A chat created by the first send: its messages are already on screen, no reload. */
+  const skipChatReloadRef = useRef(false);
+  /** Which ProBot chat the loaded messages belong to ('none' = no chat picked). Until it matches, nothing is shown: no flash. */
+  const [loadedChatKey, setLoadedChatKey] = useState<string | null>(null);
+  /** The voice bubble shown from the recording until the saved message arrives. */
+  const localVoiceIdRef = useRef<string | null>(null);
+  // ProBot chats for the profile picked at the top.
+  useEffect(() => {
+    if (!conversationId || !visitorId || !isAuthenticated || isAdminView) return;
+    void loadProbotChats(conversationId, visitorId, probotProfile);
+  }, [conversationId, visitorId, isAuthenticated, isAdminView, probotProfile]);
+
+  // Opening another chat loads its messages (not after the first send made the chat).
+  useEffect(() => {
+    if (skipChatReloadRef.current) {
+      skipChatReloadRef.current = false;
+      setLoadedChatKey(probotChats.activeChatId ?? 'none');
+      return;
+    }
+    if (!probotChats.ready || isAdminView) return;
+    setMessages((prev) => prev.filter((m) => m.business_id));
+    void loadMessages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on a chat switch
+  }, [probotChats.activeChatId]);
+
+  /** 👍 / 👎 on a ProBot answer: saved on the message (tap again to clear). */
+  const giveFeedback = useCallback(
+    (msg: ChatMessage, value: 'up' | 'down' | null) => {
+      if (!visitorId) return;
+      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, payload: { ...(m.payload ?? {}), feedback: value } } : m)));
+      void fetch('/api/chat/messages', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: msg.id, visitorId, feedback: value }),
+      }).catch(() => undefined);
+    },
+    [visitorId]
+  );
+
   /** A pro (not the hub admin) replying in a customer thread. */
   const isProReplying = isAdminView && !isAdmin;
 
@@ -494,11 +566,30 @@ export default function ProBotChatArea({
     };
   }, [isAdminView, isContractor, selectedContact?.id, adminViewingConversation?.user_id]);
 
+  // ProBot chats: a new chat (none open yet) starts empty, on the centered start screen.
+  const probotNewChat = Boolean(
+    !isAdminView && selectedContact?.isProBot && isAuthenticated && probotChats.ready && probotChats.activeChatId === null
+  );
   const filteredMessages = isAdminView
     ? messages
     : selectedContact
-      ? filterMessagesForContact(messages, selectedContact)
+      ? probotNewChat && !sending
+        ? // A new chat: only the voice note you just recorded (while it uploads).
+          messages.filter((m) => m.id.startsWith('local-voice-'))
+        : filterMessagesForContact(messages, selectedContact)
       : [];
+  /** Gemini-style ProBot thread (plain answers, gray bubbles for you); pro chats keep WhatsApp bubbles. */
+  const assistantLayout = Boolean(!isAdminView && selectedContact?.isProBot && isAuthenticated);
+  // Opening ProBot: wait for the chat list and that chat's messages before showing anything.
+  const probotDeciding = Boolean(
+    assistantLayout &&
+      Boolean(conversationId) &&
+      !sending &&
+      (!probotChats.loaded || loadedChatKey !== (probotChats.ready ? probotChats.activeChatId ?? 'none' : loadedChatKey ?? 'none'))
+  );
+  const showProbotStart = Boolean(
+    !probotDeciding && assistantLayout && probotChats.ready && filteredMessages.length === 0 && !sending && !forceWelcomeView && !loading
+  );
 
   // Notify parent so History Chat only shows ProBot when this conversation has at least one message
   useEffect(() => {
@@ -525,8 +616,14 @@ export default function ProBotChatArea({
   // For guests: always show welcome when they open ProBot. For signed-in customers: once per device (localStorage).
   // For contractors: always show welcome when no messages so they always see "Hi {name}", "How do you want to start?" and CRM buttons.
   const isCustomer = !isAdmin && !isContractor;
+  // Wait for the chat history before choosing welcome vs conversation, so opening ProBot does not
+  // flash the welcome screen and then swap to the messages. Signed-in users always have a chat to load.
+  const historySettled = messagesLoadedOnce || (!isAuthenticated && !conversationId);
   const showWelcome =
+    !showProbotStart &&
+    !probotDeciding &&
     (roleKnown &&
+      historySettled &&
       !isAdminView &&
       selectedContact?.isProBot &&
       !error &&
@@ -629,6 +726,16 @@ export default function ProBotChatArea({
       const useHubStream = Boolean(selectedContact?.isProBot && !businessId);
       const draftBotId = useHubStream ? `stream-${Date.now()}` : null;
       try {
+        // ProBot chats: the open chat, or a new one made by this first message.
+        const voiceTurn = (extra?.attachments ?? []).some((att) => att.name.startsWith('voice-note'));
+        const wasNewChat = useHubStream && probotChats.ready && probotChats.activeChatId === null;
+        if (wasNewChat) skipChatReloadRef.current = true;
+        const chatId = useHubStream && isAuthenticated ? await ensureProbotChat() : undefined;
+        if (!chatId) skipChatReloadRef.current = false;
+        if (chatId) {
+          const words = body.trim().split(/\s+/).filter(Boolean);
+          touchProbotChat(chatId, words.length ? words.slice(0, 6).join(' ') + (words.length > 6 ? '…' : '') : 'Voice chat');
+        }
         const displayName =
           isAuthenticated && user
             ? [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
@@ -646,6 +753,14 @@ export default function ProBotChatArea({
             ...(replyTarget ? { replyToId: replyTarget.id } : {}),
             ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
             ...(useHubStream ? { stream: true } : {}),
+            ...(chatId ? { chatId } : {}),
+            ...(isAuthenticated && activeAccount
+              ? {
+                  actingAs: activeAccount.type,
+                  ...(user?.firstName ? { actingFirstName: user.firstName } : {}),
+                  ...(activeAccount.type === 'business' && activeAccount.name ? { actingBusinessName: activeAccount.name } : {}),
+                }
+              : {}),
           },
           useHubStream
             ? {
@@ -663,7 +778,9 @@ export default function ProBotChatArea({
                     sender: msg.sender as 'visitor' | 'admin',
                     attachments: msg.attachments ?? [],
                   };
-                  setMessages((prev) => [...prev, newMsg]);
+                  const localId = localVoiceIdRef.current;
+                  localVoiceIdRef.current = null;
+                  setMessages((prev) => [...prev.filter((row) => row.id !== localId), newMsg]);
                   if (!conversationId && msg.conversationId) setConversationId(msg.conversationId);
                   if (draftBotId) {
                     setMessages((prev) => [
@@ -689,7 +806,7 @@ export default function ProBotChatArea({
                   }
                 },
                 onToken: (text) => {
-                  if (!draftBotId) return;
+                  if (!draftBotId || voiceTurn) return;
                   setMessages((prev) =>
                     prev.map((row) =>
                       row.id === draftBotId ? { ...row, body: `${row.body}${text}` } : row
@@ -698,6 +815,8 @@ export default function ProBotChatArea({
                 },
                 onBot: (bot) => {
                   setAgentStatus(null);
+                  const spoken = bot.attachments?.find((att) => att.contentType.startsWith('audio/'));
+                  if (voiceTurn && spoken) autoPlayVoiceUrls.add(spoken.url);
                   const isEstimateReply = bot.body === t('replyAccountEstimate');
                   setMessages((prev) => {
                     const withoutDraft = draftBotId
@@ -712,6 +831,7 @@ export default function ProBotChatArea({
                         created_at: bot.created_at,
                         admin_sent_as: 'probot' as const,
                         ...(bot.payload ? { payload: bot.payload } : {}),
+                        ...(bot.attachments?.length ? { attachments: bot.attachments } : {}),
                         ...(isEstimateReply
                           ? {
                               replyLinkUrl: `/${locale}/estimate`,
@@ -761,6 +881,7 @@ export default function ProBotChatArea({
                   created_at: bot.created_at,
                   admin_sent_as: 'probot',
                   ...(botPayload ? { payload: botPayload } : {}),
+                  ...(bot.attachments?.length ? { attachments: bot.attachments } : {}),
                   ...(isEstimateReply
                     ? {
                         replyLinkUrl: `/${locale}/estimate`,
@@ -796,6 +917,9 @@ export default function ProBotChatArea({
       }
     },
     [
+      activeAccount,
+      probotChats.ready,
+      probotChats.activeChatId,
       visitorId,
       conversationId,
       businessId,
@@ -1095,6 +1219,21 @@ export default function ProBotChatArea({
     [conversationId, visitorId, pendingAttachments.length, t, setConversationId]
   );
 
+  /** ↻ on a ProBot answer: ask the question before it again. */
+  const retryAnswer = useCallback(
+    (msg: ChatMessage) => {
+      const index = filteredMessages.findIndex((m) => m.id === msg.id);
+      const question = [...filteredMessages.slice(0, index < 0 ? filteredMessages.length : index)]
+        .reverse()
+        .find((m) => m.sender === 'visitor');
+      if (!question) return;
+      const voice = question.attachments?.filter((att) => att.name.startsWith('voice-note')) ?? [];
+      if (voice.length > 0) void sendMessage(' ', { attachments: voice });
+      else if (question.body.trim()) void sendMessage(question.body.trim(), { attachments: [] });
+    },
+    [filteredMessages, sendMessage]
+  );
+
   /** Voice note: upload it, then send it at once as its own message (WhatsApp-style). */
   const handleSendVoice = useCallback(
     async (file: File) => {
@@ -1102,7 +1241,26 @@ export default function ProBotChatArea({
         setError(t('sendUnavailable'));
         return;
       }
-      setUploadingAttach(true);
+      // Your voice bubble shows now, from the recording; the saved one replaces it.
+      const localId = `local-voice-${Date.now()}`;
+      localVoiceIdRef.current = localId;
+      const localUrl = URL.createObjectURL(file);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: localId,
+          sender: isAdminView ? 'admin' : 'visitor',
+          body: ' ',
+          created_at: new Date().toISOString(),
+          attachments: [{ url: localUrl, name: file.name, contentType: file.type || 'audio/webm' }],
+        } as ChatMessage,
+      ]);
+      const dropLocal = () => {
+        if (localVoiceIdRef.current === localId) localVoiceIdRef.current = null;
+        setMessages((prev) => prev.filter((row) => row.id !== localId));
+        setTimeout(() => URL.revokeObjectURL(localUrl), 60000);
+      };
+
       setError(null);
       try {
         let cid = conversationId;
@@ -1127,12 +1285,14 @@ export default function ProBotChatArea({
           return;
         }
         fileByUrl.current.set(list[0].url, file);
+        setUploadingAttach(false);
         if (isAdminView) await sendAdminReply(' ', list);
         else await sendMessage(' ', { attachments: list });
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Upload failed');
       } finally {
         setUploadingAttach(false);
+        dropLocal();
       }
     },
     [visitorId, conversationId, isAdminView, sendAdminReply, sendMessage, setConversationId, t]
@@ -1707,7 +1867,7 @@ export default function ProBotChatArea({
           {/* Scrollable messages area: flex-1 min-h-0 so it gets a bounded height and scrolls on mobile. Transparent on PC so mountains show through. */}
           <div
             ref={messagesScrollRef}
-            className={`h-full min-h-0 flex flex-col ${!showProBotWizardFlow && !showWelcome ? 'bg-[#efeae2] bg-[radial-gradient(rgba(11,20,26,0.06)_1px,transparent_1px)] bg-[length:16px_16px]' : 'md:bg-transparent'} ${!showProBotWizardFlow ? 'overflow-y-auto overflow-x-hidden overscroll-contain' : 'overflow-hidden'}`}
+            className={`h-full min-h-0 flex flex-col ${assistantLayout && !showWelcome ? 'bg-white' : !showProBotWizardFlow && !showWelcome ? 'bg-[#efeae2] bg-[radial-gradient(rgba(11,20,26,0.06)_1px,transparent_1px)] bg-[length:16px_16px]' : 'md:bg-transparent'} ${!showProBotWizardFlow ? 'overflow-y-auto overflow-x-hidden overscroll-contain' : 'overflow-hidden'}`}
             style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 } as React.CSSProperties}
           >
             {(showWelcome || showAdminInitialWelcome) ? (
@@ -1729,7 +1889,7 @@ export default function ProBotChatArea({
                       />
                     </div>
                     {!showProBotWizardFlow && !showAdminInitialWelcome && (
-                      <div className="w-full shrink-0 mt-4">
+                      <div className="w-full max-w-[960px] mx-auto shrink-0 mt-4">
                         <ChatCamFrame>
                         <form
                           onSubmit={handleSubmit}
@@ -1949,7 +2109,7 @@ export default function ProBotChatArea({
                   </div>
                   )}
                   {!showProBotWizardFlow && !showAdminInitialWelcome && (
-                    <div className="w-full shrink-0 md:mb-[50px]">
+                    <div className="w-full max-w-[960px] mx-auto shrink-0 md:mb-[50px]">
                       <ChatCamFrame>
                       <form
                         onSubmit={handleSubmit}
@@ -2219,6 +2379,43 @@ export default function ProBotChatArea({
                   </button>
                 </div>
               </div>
+            ) : showProbotStart ? (
+              <ProBotStart
+                firstName={user?.firstName ?? ''}
+                business={activeAccount?.type === 'business'}
+                onPick={(text) => void sendMessage(text)}
+              >
+                <ChatCamFrame className="w-full max-w-[960px] mx-auto">
+                  <form
+                    onSubmit={handleSubmit}
+                    className="w-full rounded-2xl border-2 border-black bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5 shadow-sm"
+                  >
+                    <ChatInputBar
+                      attachments={pendingAttachmentsView}
+                      wrapperClassName="flex items-center gap-0 w-full"
+                      replyPreview={replyPreview}
+                      onCancelReply={() => setReplyTarget(null)}
+                      onRecorderError={setError}
+                      onSendVoice={handleSendVoice}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      placeholder="Ask ProBot"
+                      disabled={sending}
+                      maxLength={2000}
+                      inputRef={messageInputRef}
+                      fileInputRef={fileInputRef}
+                      onFileSelect={handleFileSelect}
+                      attachMenuOpen={attachMenuOpen}
+                      setAttachMenuOpen={setAttachMenuOpen}
+                      attachDisabled={uploadingAttach || pendingAttachments.length >= 10}
+                      sendDisabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
+                      hasText={!!(inputValue.trim() || pendingAttachments.length > 0)}
+                      labels={chatInputLabels}
+                      crmActions={crmActions}
+                    />
+                  </form>
+                </ChatCamFrame>
+              </ProBotStart>
             ) : showBusinessEmptyChat ? (
               <div className="probot-chat-business-empty flex-1 flex flex-col items-center justify-center px-2 pt-6 pb-4 min-h-0 w-full">
                 <div className="flex flex-col items-center text-center w-full max-w-md">
@@ -2241,7 +2438,7 @@ export default function ProBotChatArea({
                   >
                     {t('booking.bookProEstimate')}
                   </button>
-                  <ChatCamFrame className="w-full">
+                  <ChatCamFrame className="w-full max-w-[960px] mx-auto">
                   <form
                     onSubmit={handleSubmit}
                     className="w-full rounded-2xl border-2 border-black bg-gray-50/80 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5"
@@ -2277,11 +2474,17 @@ export default function ProBotChatArea({
               <>
                 {/* The error shows once, in the bar above the input (with Dismiss). */}
                 <ProBotMessageList
-                  messages={filteredMessages}
+                  messages={probotDeciding ? [] : filteredMessages}
                   // Shown inside ProBot's draft bubble, next to its animated avatar.
                   draftStatus={
                     sending && selectedContact?.isProBot && !businessId
-                      ? agentStatus === 'reading_photo'
+                      ? agentStatus === 'recording'
+                        ? 'ProBot is recording audio…'
+                        : agentStatus === 'listening'
+                        ? 'Listening…'
+                        : agentStatus === 'reading_receipt'
+                        ? 'Reading your receipt…'
+                      : agentStatus === 'reading_photo'
                         ? 'Looking at your photo…'
                         : agentStatus === 'searching_pros'
                           ? 'Searching pros…'
@@ -2318,9 +2521,13 @@ export default function ProBotChatArea({
                         ?? (adminViewingConversation.participant_type === 'contractor'
                           ? adminViewingConversation.business_logo ?? null
                           : null)
-                      : isContractor && user?.businessLogo
-                        ? user.businessLogo
-                        : user?.userPicture ?? null
+                      : activeAccount?.type === 'business'
+                        ? activeAccount.avatar || user?.businessLogo || user?.userPicture || null
+                        : activeAccount?.type === 'personal'
+                          ? activeAccount.avatar || user?.userPicture || null
+                          : isContractor && user?.businessLogo
+                            ? user.businessLogo
+                            : user?.userPicture ?? null
                   }
                   businessReplyName={
                     adminViewingConversation?.business_name || user?.companyName || null
@@ -2343,6 +2550,10 @@ export default function ProBotChatArea({
                   onCrmQuickAction={isAdminView && isContractor ? (kind) => setComposerKind(kind) : undefined}
                   onPickTime={isAdminView ? undefined : (msg) => msg.payload?.bookingInvite && setBookingInvite(msg.payload.bookingInvite)}
                   onCorrectPlant={isAdmin ? setPlantFix : undefined}
+                  assistantLayout={assistantLayout}
+                  onFeedback={assistantLayout ? giveFeedback : undefined}
+                  onRetry={assistantLayout ? retryAnswer : undefined}
+                  onSuggestion={assistantLayout && !sending ? (text) => void sendMessage(text) : undefined}
                 />
                 <PlantCorrectionModal
                   msg={plantFix}
@@ -2458,7 +2669,7 @@ export default function ProBotChatArea({
             )}
           </div>
 
-          {!showProBotWizardFlow && !showWelcome && !showAdminInitialWelcome && !showBusinessEmptyChat && (
+          {!showProBotWizardFlow && !showWelcome && !showAdminInitialWelcome && !showBusinessEmptyChat && !showProbotStart && !probotDeciding && (
             <>
               {error && (
                 <div className="shrink-0 px-4 py-2 bg-red-50 border-t border-red-200 flex items-center justify-between gap-2">

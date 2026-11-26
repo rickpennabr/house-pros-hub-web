@@ -9,7 +9,7 @@ import { ADMIN_EMAIL } from '@/lib/constants/admin';
  * Used for the ProBot floating button badge when the admin has unread messages.
  */
 export async function GET(request: NextRequest) {
-  const rateLimitRes = await checkRateLimit(request, 'chat');
+  const rateLimitRes = await checkRateLimit(request, 'chatRead');
   if (rateLimitRes) return rateLimitRes;
 
   try {

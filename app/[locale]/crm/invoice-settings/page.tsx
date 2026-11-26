@@ -11,6 +11,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import Modal from '@/components/ui/Modal';
 import { FileDropTarget } from '@/components/ui/FileDropTarget';
+import { CardPaymentsSettings } from '@/components/crm/CardPaymentsSettings';
 
 interface InvoiceSettings {
   owner_id: string;
@@ -496,6 +497,8 @@ export default function CRMInvoiceSettingsPage() {
             Printed at the bottom of every invoice, on screen and in the PDF: payment instructions, license number, terms and conditions.
           </p>
         </FormField>
+
+        <CardPaymentsSettings />
 
         <h2 className="text-base font-semibold text-gray-900 pt-4">Payment reminders</h2>
         <FormField label="Other ways to pay (optional)">

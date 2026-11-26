@@ -28,6 +28,7 @@ import {
   Sprout,
   type LucideIcon,
   Presentation,
+  FlaskConical,
 } from 'lucide-react';
 import { useAdminSearch } from './AdminSearchContext';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
@@ -47,6 +48,7 @@ export const navItems: NavItem[] = [
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/estimates', label: 'Estimates', icon: ClipboardList },
   { href: '/admin/chat', label: 'ProBot Chat', icon: MessageCircle },
+  { href: '/admin/hublab', label: 'HubLab', icon: FlaskConical },
   { href: '/admin/plant-corrections', label: 'Plant ID training', icon: Sprout },
   { href: '/admin/customers', label: 'Customers', icon: User },
   { href: '/admin/businesses', label: 'Businesses', icon: Building2 },

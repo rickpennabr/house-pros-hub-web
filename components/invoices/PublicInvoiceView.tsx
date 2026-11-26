@@ -43,6 +43,7 @@ export function PublicInvoiceView({
     customer: InvoiceTemplateCustomer | null;
     business: InvoiceTemplateBusiness | null;
     themeColorHex: string;
+    canPayByCard: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(token ? null : 'Missing link. Use the link from your invoice email.');
   const [loading, setLoading] = useState(Boolean(token));
@@ -72,6 +73,7 @@ export function PublicInvoiceView({
           customer: res.customer,
           business: res.business,
           themeColorHex: res.themeColorHex ?? '#000000',
+          canPayByCard: res.canPayByCard === true,
         });
       })
       .catch((err) => {
@@ -102,7 +104,8 @@ export function PublicInvoiceView({
   const displayCustomer: InvoiceTemplateCustomer = customer ?? { first_name: '', last_name: '', billing_address: null };
   const displayBusiness: InvoiceTemplateBusiness = business ?? { business_name: 'My Business', address: null };
   const balance = Math.max(0, invoice.amount_cents - (invoice.payment_applied_cents ?? 0));
-  const canPay = !readOnly && Boolean(token) && balance > 0 && invoice.status !== 'cancelled' && invoice.status !== 'draft';
+  const owes = !readOnly && Boolean(token) && balance > 0 && invoice.status !== 'cancelled' && invoice.status !== 'draft';
+  const canPay = owes && data.canPayByCard;
 
   async function pay() {
     if (!token) return;
@@ -146,6 +149,9 @@ export function PublicInvoiceView({
             >
               {paying ? 'Starting payment…' : `Pay ${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(balance / 100)}`}
             </button>
+          ) : null}
+          {owes && !data.canPayByCard ? (
+            <p className="text-sm text-gray-700">Ask {data.business?.business_name || 'the business'} how to pay this invoice.</p>
           ) : null}
           {payError ? <p className="text-sm text-red-600">{payError}</p> : null}
           {!presentMode && !embedded ? (
