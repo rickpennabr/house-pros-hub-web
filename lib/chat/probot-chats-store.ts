@@ -12,6 +12,7 @@ export interface ProbotChatItem {
   title: string | null;
   updated_at: string;
   legacy?: boolean;
+  unread?: number;
 }
 
 interface State {
@@ -23,6 +24,8 @@ interface State {
   profile: string;
   conversationId: string | null;
   visitorId: string | null;
+  /** Unread ProBot messages on the other profile (personal vs business). */
+  elsewhere: number;
 }
 
 let state: State = {
@@ -33,6 +36,7 @@ let state: State = {
   profile: 'personal',
   conversationId: null,
   visitorId: null,
+  elsewhere: 0,
 };
 const listeners = new Set<() => void>();
 
@@ -73,7 +77,7 @@ export async function loadProbotChats(conversationId: string, visitorId: string,
   try {
     const params = new URLSearchParams({ conversationId, visitorId, profile });
     const res = await fetch(`/api/chat/probot-chats?${params}`, { cache: 'no-store', credentials: 'include' });
-    const data = (await res.json().catch(() => ({}))) as { chats?: ProbotChatItem[]; ready?: boolean };
+    const data = (await res.json().catch(() => ({}))) as { chats?: ProbotChatItem[]; ready?: boolean; elsewhere?: number };
     if (!res.ok) throw new Error('load');
     // Ignore an old answer after a quick profile switch.
     if (state.profile !== profile || state.conversationId !== conversationId) return;
@@ -81,8 +85,11 @@ export async function loadProbotChats(conversationId: string, visitorId: string,
     const fromUrl = !state.loaded ? urlChat() : null;
     let activeChatId = changedProfile ? null : state.activeChatId;
     if (fromUrl && chats.some((chat) => chat.id === fromUrl)) activeChatId = fromUrl;
+    // Opening ProBot with something new (a morning brief, a reply): go to that chat.
+    if (!fromUrl && !activeChatId && (!state.loaded || changedProfile)) activeChatId = chats.find((chat) => (chat.unread ?? 0) > 0)?.id ?? null;
+    if (activeChatId) chats.forEach((chat) => { if (chat.id === activeChatId) chat.unread = 0; });
     if (activeChatId && !chats.some((chat) => chat.id === activeChatId)) activeChatId = null;
-    set({ chats, ready: data.ready !== false, loaded: true, activeChatId });
+    set({ chats, ready: data.ready !== false, loaded: true, activeChatId, elsewhere: data.elsewhere ?? 0 });
     writeUrl(activeChatId);
   } catch {
     set({ loaded: true });
@@ -90,7 +97,7 @@ export async function loadProbotChats(conversationId: string, visitorId: string,
 }
 
 export function selectProbotChat(chatId: string | null): void {
-  set({ activeChatId: chatId });
+  set({ activeChatId: chatId, chats: state.chats.map((chat) => (chat.id === chatId && chat.unread ? { ...chat, unread: 0 } : chat)) });
   writeUrl(chatId);
 }
 

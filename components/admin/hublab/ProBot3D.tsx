@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Outlines, RoundedBox } from '@react-three/drei';
-import { CanvasTexture, DoubleSide, Group, LatheGeometry, MathUtils, SRGBColorSpace, Vector2, type Texture } from 'three';
+import { CanvasTexture, DoubleSide, ExtrudeGeometry, Group, LatheGeometry, MathUtils, Shape, SRGBColorSpace, Vector2, type Texture } from 'three';
 
 /** The three ProBots from the brand art: finds the house, runs the office, builds. */
 export const PROBOT_POSES = ['finder', 'office', 'builder'] as const;
@@ -81,6 +81,26 @@ function drawPaper(ctx: CanvasRenderingContext2D, w: number, h: number, checks =
   }
 }
 
+/** Face glass: a thin, flat pane with round corners (a RoundedBox cannot round corners wider than half its depth). */
+const SCREEN = (() => {
+  const w = 0.42;
+  const h = 0.29;
+  const r = 0.075;
+  const shape = new Shape();
+  shape.moveTo(-w / 2 + r, -h / 2);
+  shape.lineTo(w / 2 - r, -h / 2);
+  shape.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+  shape.lineTo(w / 2, h / 2 - r);
+  shape.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+  shape.lineTo(-w / 2 + r, h / 2);
+  shape.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+  shape.lineTo(-w / 2, -h / 2 + r);
+  shape.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+  const geo = new ExtrudeGeometry(shape, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 4, curveSegments: 24 });
+  geo.translate(0, 0, -0.006);
+  return geo;
+})();
+
 const BRIM = new LatheGeometry(
   [
     [0.3, 0.02], [0.33, 0.0], [0.36, -0.01], [0.385, -0.005], [0.395, 0.015],
@@ -88,34 +108,81 @@ const BRIM = new LatheGeometry(
   96
 );
 
-/** Hand: palm plus fingers. open = waving, grip = holding something, thumb = thumbs up. */
+/**
+ * Chunky toy-robot hand like the art: a rounded palm, three thick fingers with knuckles and a thumb.
+ * open = waving / relaxed, grip = fist around a handle, thumb = fist with the thumb up.
+ * The fingers point down the forearm (local -y).
+ */
 function Hand({ kind, side, outline }: { kind: 'open' | 'grip' | 'thumb'; side: 1 | -1; outline: boolean }) {
-  const mat = <meshPhysicalMaterial color={C.silver} roughness={0.32} metalness={0.55} clearcoat={0.6} />;
-  const curled = kind !== 'open';
+  const mat = <meshPhysicalMaterial color={C.silver} roughness={0.3} metalness={0.55} clearcoat={0.7} clearcoatRoughness={0.2} />;
+  const dark = <meshPhysicalMaterial color={C.joint} roughness={0.4} metalness={0.6} />;
+  const fist = kind !== 'open';
   return (
     <group>
-      <RoundedBox args={[0.085, 0.075, 0.06]} radius={0.025} smoothness={4} castShadow>
+      {/* Wrist cuff */}
+      <mesh position={[0, 0.035, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, 0.02, 24]} />
+        {dark}
+      </mesh>
+      {/* Palm */}
+      <RoundedBox args={[0.1, fist ? 0.085 : 0.075, 0.065]} radius={0.03} smoothness={5} castShadow>
         {mat}
         <Edge on={outline} />
       </RoundedBox>
-      {[-0.028, -0.009, 0.01, 0.029].map((x, i) => (
-        <group key={x} position={[x, -0.04, curled ? 0.02 : 0]} rotation={[curled ? -1.6 : -0.05 * i, 0, open(kind) ? (x * 4) : 0]}>
-          <mesh position={[0, -0.022, 0]} castShadow>
-            <capsuleGeometry args={[0.0115, curled ? 0.025 : 0.04, 4, 12]} />
-            {mat}
-          </mesh>
-        </group>
-      ))}
-      <group position={kind === 'thumb' ? [0, -0.02, 0.02] : [-side * 0.045, 0.0, 0.015]} rotation={kind === 'thumb' ? [0, 0, 0] : [0, 0, side * 0.9]}>
-        <mesh position={[0, kind === 'thumb' ? -0.06 : -0.015, kind === 'thumb' ? 0.02 : 0]} castShadow>
-          <capsuleGeometry args={[0.013, 0.035, 4, 12]} />
-          {mat}
-        </mesh>
-      </group>
+      {fist ? (
+        <>
+          {/* Curled fingers wrapped to the front */}
+          {[-0.03, 0, 0.03].map((x) => (
+            <mesh key={x} position={[x, -0.045, 0.012]} rotation={[0, 0, Math.PI / 2]} castShadow>
+              <capsuleGeometry args={[0.019, 0.012, 6, 16]} />
+              {mat}
+            </mesh>
+          ))}
+          {/* Thumb: across the front of the fist, or straight up past it */}
+          {kind === 'thumb' ? (
+            <mesh position={[side * -0.035, -0.085, 0.02]} castShadow>
+              <capsuleGeometry args={[0.018, 0.04, 6, 16]} />
+              {mat}
+              <Edge on={outline} />
+            </mesh>
+          ) : (
+            <mesh position={[0, -0.02, 0.04]} rotation={[0, 0, side * 1.2]} castShadow>
+              <capsuleGeometry args={[0.017, 0.035, 6, 16]} />
+              {mat}
+            </mesh>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Three fingers, two segments each, slightly spread and bent */}
+          {[-0.032, 0, 0.032].map((x, i) => (
+            <group key={x} position={[x, -0.04, 0]} rotation={[-0.15, 0, (i - 1) * 0.12]}>
+              <mesh position={[0, -0.018, 0]} castShadow>
+                <capsuleGeometry args={[0.016, 0.022, 6, 16]} />
+                {mat}
+              </mesh>
+              <mesh position={[0, -0.046, 0]}>
+                <sphereGeometry args={[0.012, 12, 12]} />
+                {dark}
+              </mesh>
+              <mesh position={[0, -0.066, 0.004]} rotation={[-0.25, 0, 0]} castShadow>
+                <capsuleGeometry args={[0.015, 0.016, 6, 16]} />
+                {mat}
+              </mesh>
+            </group>
+          ))}
+          <group position={[-side * 0.052, -0.005, 0.012]} rotation={[0, 0, -side * 0.7]}>
+            <mesh position={[0, -0.022, 0]} castShadow>
+              <capsuleGeometry args={[0.016, 0.028, 6, 16]} />
+              {mat}
+            </mesh>
+          </group>
+        </>
+      )}
     </group>
   );
 }
-const open = (kind: string) => kind === 'open';
+
 
 /** Chunky robot arm: ball shoulder, upper arm, elbow, forearm, hand (and whatever it holds). */
 function Arm({
@@ -488,12 +555,12 @@ export function ProBot3D({ pose, outline }: Props) {
       {/* Head: rounded TV with the glowing face */}
       <group ref={head} position={[0, 0.88, 0]}>
         <group position={[0, 0.25, 0]}>
-          <RoundedBox args={[0.62, 0.46, 0.44]} radius={0.15} smoothness={8} castShadow>
+          <RoundedBox args={[0.58, 0.46, 0.44]} radius={0.14} smoothness={10} castShadow>
             {metal}
             <Edge on={outline} />
           </RoundedBox>
           {([-1, 1] as const).map((s) => (
-            <group key={s} position={[s * 0.315, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <group key={s} position={[s * 0.295, -0.01, 0]} rotation={[0, 0, Math.PI / 2]}>
               <mesh castShadow>
                 <cylinderGeometry args={[0.085, 0.085, 0.06, 40]} />
                 <meshPhysicalMaterial color={C.silverDark} roughness={0.3} metalness={0.65} clearcoat={0.6} />
@@ -501,11 +568,11 @@ export function ProBot3D({ pose, outline }: Props) {
               </mesh>
             </group>
           ))}
-          <RoundedBox args={[0.48, 0.31, 0.03]} radius={0.06} smoothness={6} position={[0, -0.005, 0.207]}>
+          <mesh geometry={SCREEN} position={[0, -0.02, 0.212]}>
             <meshPhysicalMaterial color={C.screen} roughness={0.06} metalness={0.2} clearcoat={1} clearcoatRoughness={0.04} />
-          </RoundedBox>
-          <group position={[0, 0, 0.226]}>
-            <group ref={eyes} position={[0, 0.03, 0]}>
+          </mesh>
+          <group position={[0, 0, 0.222]}>
+            <group ref={eyes} position={[0, 0.015, 0]}>
               {([-1, 1] as const).map((s) => (
                 <mesh key={s} position={[s * 0.1, -0.02, 0]}>
                   <torusGeometry args={[0.04, 0.011, 16, 40, Math.PI]} />
@@ -513,7 +580,7 @@ export function ProBot3D({ pose, outline }: Props) {
                 </mesh>
               ))}
             </group>
-            <group ref={smile} position={[0, -0.04, 0]}>
+            <group ref={smile} position={[0, -0.055, 0]}>
               <mesh rotation={[0, 0, Math.PI]}>
                 <torusGeometry args={[0.035, 0.009, 16, 40, Math.PI]} />
                 {glow}
@@ -524,7 +591,7 @@ export function ProBot3D({ pose, outline }: Props) {
         </group>
 
         {/* Hard hat with ridges and brim */}
-        <group position={[0, 0.43, -0.01]} rotation={[-0.06, 0, 0]}>
+        <group position={[0, 0.375, -0.01]} rotation={[-0.06, 0, 0]}>
           <mesh castShadow scale={[1.05, 0.92, 1.02]}>
             <sphereGeometry args={[0.34, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2]} />
             <meshPhysicalMaterial color={C.hat} roughness={0.42} clearcoat={0.7} clearcoatRoughness={0.3} />

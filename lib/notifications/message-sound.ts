@@ -27,6 +27,7 @@ export function setMessageSoundOn(on: boolean) {
 
 type AudioCtor = typeof AudioContext;
 let ctx: AudioContext | null = null;
+let lastPlayed = 0;
 
 function audioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -51,6 +52,10 @@ export function unlockMessageSound() {
 /** Play the chime. `force` plays it even when the setting is off (the "Test" button). */
 export function playMessageSound(force = false) {
   if (!force && !messageSoundOn()) return;
+  // The banner and the unread badge can both fire for one message: one chime.
+  const now = Date.now();
+  if (!force && now - lastPlayed < 2000) return;
+  lastPlayed = now;
   const audio = audioContext();
   if (!audio) return;
   if (audio.state === 'suspended') void audio.resume().catch(() => undefined);

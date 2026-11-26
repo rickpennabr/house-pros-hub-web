@@ -681,13 +681,14 @@ export async function GET(request: NextRequest) {
     const nowIso = new Date().toISOString();
     let readAtUpdated = false;
     if (isVisitorContext) {
-      const hasUnreadAdmin = rows.some((m) => m.sender === 'admin' && !m.read_at);
-      if (hasUnreadAdmin) {
+      const unreadAdminIds = rows.filter((m) => m.sender === 'admin' && !m.read_at).map((m) => m.id);
+      if (unreadAdminIds.length > 0) {
         const up = await supabase
           .from('probot_messages')
           .update({ read_at: nowIso })
           .eq('conversation_id', parsed.data.conversationId)
           .eq('sender', 'admin')
+          .in('id', unreadAdminIds)
           .is('read_at', null);
         readAtUpdated = !up.error || up.error.code !== '42703';
       }

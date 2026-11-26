@@ -137,18 +137,20 @@ function ProBotPageContent() {
   const isContractor = ownsBusiness && activeAccount?.type === 'business';
   const asProfileParam = searchParams.get('as');
 
-  // Open the profile the chat or notification belongs to: customer threads → business, pro/ProBot threads → personal.
+  // Open the profile the chat or notification belongs to: customer threads → business, pro threads → personal.
   // With no target, open whichever profile has unread messages when the active one has none.
   useEffect(() => {
     if (!ownsBusiness || !user?.businessId || businessesLoading || !activeAccount) return;
+    // Opening ProBot keeps the profile in use (it is on both); no unread-based switch either.
+    if (contactParam === 'probot' && !asProfileParam) return;
     const target: 'business' | 'personal' | null =
       asProfileParam === 'business' || asProfileParam === 'personal'
         ? asProfileParam
         : contactParam?.startsWith('customer-') || contactParam?.startsWith('visitor-') || conversationParam
           ? 'business'
-          : contactParam
+          : contactParam && contactParam !== 'probot'
             ? 'personal'
-            : null;
+            : null; // ProBot is on both profiles: opening it never switches the account.
     const switchTo = (next: 'business' | 'personal') => {
       if (next === 'business' && activeAccount.type !== 'business') setActiveAccountId(user.businessId!);
       if (next === 'personal' && activeAccount.type !== 'personal') setActiveAccountId(user.id);

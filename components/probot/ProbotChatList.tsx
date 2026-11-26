@@ -15,7 +15,7 @@ import {
  * for the profile picked at the top. Each has ⋮ Rename / Delete.
  */
 export function ProbotChatList({ onOpen }: { onOpen: () => void }) {
-  const { ready, chats, activeChatId } = useProbotChats();
+  const { ready, chats, activeChatId, elsewhere } = useProbotChats();
   const [menuId, setMenuId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -37,6 +37,11 @@ export function ProbotChatList({ onOpen }: { onOpen: () => void }) {
         <SquarePen className="h-4 w-4 shrink-0" aria-hidden />
         New chat
       </button>
+      {elsewhere > 0 ? (
+        <p className="mx-1 mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+          New ProBot messages on your other profile. Switch profile at the top to see them.
+        </p>
+      ) : null}
       {chats.length > 0 ? <p className="px-3 pb-1 pt-2 text-xs font-medium text-gray-500">Chats</p> : null}
       <ul className="max-h-72 overflow-y-auto">
         {chats.map((chat) => {
@@ -79,7 +84,8 @@ export function ProbotChatList({ onOpen }: { onOpen: () => void }) {
                   }`}
                   title={title}
                 >
-                  <span className="truncate">{title}</span>
+                  <span className={`truncate ${chat.unread ? 'font-semibold text-black' : ''}`}>{title}</span>
+                  {chat.unread ? <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-red-600" aria-label="New messages" /> : null}
                 </button>
               )}
               {renaming?.id === chat.id ? null : (

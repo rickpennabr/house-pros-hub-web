@@ -18,6 +18,8 @@ export interface ProbotChatRow {
   id: string;
   title: string | null;
   updated_at: string;
+  /** ProBot messages not read yet in this chat. */
+  unread?: number;
   /** The single thread from before chats existed. */
   legacy?: boolean;
 }
@@ -76,7 +78,27 @@ export async function GET(request: NextRequest) {
       chats.push({ id: 'legacy', title: null, updated_at: (legacy as { created_at: string }).created_at, legacy: true });
     }
   }
-  return NextResponse.json({ chats, ready: true });
+  // Unread ProBot messages: per chat in this list, and the rest (other profile's chats).
+  const { data: unreadRows } = await supabase
+    .from('probot_messages')
+    .select('chat_id')
+    .eq('conversation_id', parsed.data.conversationId)
+    .eq('sender', 'admin')
+    .is('business_id', null)
+    .is('read_at', null)
+    .limit(500);
+  const counts = new Map<string, number>();
+  for (const row of (unreadRows ?? []) as { chat_id: string | null }[]) {
+    const key = row.chat_id ?? 'legacy';
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  let listed = 0;
+  for (const chat of chats) {
+    chat.unread = counts.get(chat.id) ?? 0;
+    listed += chat.unread;
+  }
+  const elsewhere = [...counts.values()].reduce((sum, value) => sum + value, 0) - listed;
+  return NextResponse.json({ chats, ready: true, elsewhere: Math.max(0, elsewhere) });
 }
 
 export async function POST(request: NextRequest) {
