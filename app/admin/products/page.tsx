@@ -9,6 +9,7 @@ import { AdminFloatingAddButton } from '@/components/admin/AdminFloatingAddButto
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
 import type { ProProduct } from '@/lib/products/types';
 import { FileDropTarget } from '@/components/ui/FileDropTarget';
+import { QuickAddProduct } from '@/components/admin/QuickAddProduct';
 
 interface ProductFormState {
   name: string;
@@ -117,6 +118,7 @@ export default function AdminProductsPage() {
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const actionsButtonRef = useRef<HTMLButtonElement | null>(null);
 
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -314,12 +316,29 @@ export default function AdminProductsPage() {
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Products</h1>
           <p className="mt-0.5 text-sm text-gray-500">Any product type. Use specifications for facts that change by category. Paver colors and pallet counts stay under variations.</p>
         </div>
-        <Button variant="primary" size="sm" className="hidden md:flex items-center gap-2 shrink-0" onClick={openCreate}>
-          <Plus className="w-4 h-4" />
-          Add product
-        </Button>
+        <div className="hidden shrink-0 items-center gap-2 md:flex">
+          <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={openCreate}>
+            Full form
+          </Button>
+          <Button variant="primary" size="sm" className="flex items-center gap-2" onClick={() => setQuickAddOpen(true)}>
+            <Plus className="w-4 h-4" />
+            Add product
+          </Button>
+        </div>
       </div>
-      <AdminFloatingAddButton onClick={openCreate} ariaLabel="Add product" />
+      <AdminFloatingAddButton onClick={() => setQuickAddOpen(true)} ariaLabel="Add product" />
+      <QuickAddProduct
+        isOpen={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        products={products}
+        onSaved={(product) =>
+          setProducts((current) =>
+            current.some((item) => item.id === product.id)
+              ? current.map((item) => (item.id === product.id ? product : item))
+              : [...current, product]
+          )
+        }
+      />
 
       <AdminDataTable
         clientSide

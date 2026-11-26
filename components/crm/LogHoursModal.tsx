@@ -5,8 +5,8 @@ import { Trash2 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { FormField } from '@/components/ui/FormField';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 interface Contact {
   id: string;
@@ -157,22 +157,19 @@ export function LogHoursModal({
         ) : null}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label="Who worked">
-            <Select value={personId} onChange={(e) => setPersonId(e.target.value)}>
-              <option value="">Someone else (type the name)</option>
-              {[true, false].map((crew) => {
-                const group = contacts.filter((contact) => contact.crew === crew);
-                return group.length ? (
-                  <optgroup key={String(crew)} label={crew ? 'Crew and subs' : 'Other contacts'}>
-                    {group.map((contact) => (
-                      <option key={contact.id} value={contact.id}>
-                        {contact.name}
-                        {contact.rateCents != null ? ` · ${money(contact.rateCents)}/h` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null;
-              })}
-            </Select>
+            <PickerSelect
+              value={personId}
+              onChange={setPersonId}
+              noneLabel="Someone else (type the name)"
+              searchPlaceholder="Search people"
+              options={[...contacts.filter((contact) => contact.crew), ...contacts.filter((contact) => !contact.crew)].map((contact) => ({
+                value: contact.id,
+                label: contact.name,
+                detail: [contact.crew ? 'Crew and subs' : 'Other contact', contact.rateCents != null ? `${money(contact.rateCents)}/h` : '']
+                  .filter(Boolean)
+                  .join(' · '),
+              }))}
+            />
           </FormField>
           {personId ? (
             <FormField label="Cost per hour ($)" tip="Leave empty to use the cost saved on the contact, or your default crew cost.">

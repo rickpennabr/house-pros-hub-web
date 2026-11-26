@@ -23,3 +23,7 @@ No pills and no circles. Buttons, chips, badges, inputs, selects, icon buttons, 
 ## Mobile bottom bar
 
 The mobile bottom menu is `BusinessListMobileBottomBar` (`components/pageslayout/BusinessListMobileBottomBar.tsx`): black, five even spots with labels, the raised house in the center, house icons from `HouseMark`. Its spots change for pros (business or personal profile), signed-in customers and guests. Never build another bottom bar. Full rule: `.cursor/rules/component-styling/bottom-bar.md`.
+
+## Pickers
+
+Lists of people, places or things (customers, suppliers, properties, projects, estimates, vehicles, crew, tools) use `PickerSelect` (`components/ui/PickerSelect.tsx`): the Hub's own list with a search bar when long, a second line per row, always inside the screen. A customer's properties use `ContactPropertySelect`. Short fixed choices (unit, status, terms, days) use `Select` (`components/ui/Select.tsx`). Never a bare `<select>`, and never `Select` over a data list. Full rule: `.cursor/rules/component-styling/pickers.md`.

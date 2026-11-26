@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2, Undo2, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 interface Tool {
   id: string;
@@ -123,15 +123,16 @@ export function ProjectEquipment({ projectId, onCount }: { projectId: string; on
         <h3 className="font-bold">Our tools on this job</h3>
         <p className="text-xs text-gray-600">From ProTools. Items with a daily rate are charged to the project for each day they are here (see Costs).</p>
         <div className="flex flex-wrap gap-2">
-          <Select value={pick} onChange={(e) => setPick(e.target.value)} className="min-w-[14rem] flex-1" aria-label="Tool to bring">
-            <option value="">{available.length ? 'Pick a tool or equipment…' : 'No available tools in ProTools'}</option>
-            {available.map((tool) => (
-              <option key={tool.id} value={tool.id}>
-                {tool.name}
-                {tool.category ? ` · ${tool.category}` : ''}
-              </option>
-            ))}
-          </Select>
+          <PickerSelect
+            value={pick}
+            onChange={setPick}
+            className="min-w-[14rem] flex-1"
+            aria-label="Tool to bring"
+            placeholder={available.length ? 'Pick a tool or equipment…' : 'No available tools in ProTools'}
+            disabled={!available.length}
+            searchPlaceholder="Search tools"
+            options={available.map((tool) => ({ value: tool.id, label: tool.name, detail: tool.category || null }))}
+          />
           <Button type="button" size="sm" onClick={() => void assign()} disabled={busy || !pick}>
             <Wrench className="mr-1 h-4 w-4" /> Bring to job
           </Button>

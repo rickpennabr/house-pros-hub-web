@@ -16,6 +16,7 @@ import {
   showsHardscapeFilters,
 } from '@/lib/products/tradeFilters';
 import type { ProProduct } from '@/lib/products/types';
+import { brandLogoSrc } from '@/lib/products/brand-logos';
 
 interface ProductGridProps {
   products: ProProduct[];
@@ -308,16 +309,8 @@ function brandColor(brand: string): string {
   return '#000000';
 }
 
-function brandLogoSrc(brand: string): string {
-  const normalized = brand.toLowerCase();
-  if (normalized.includes('belgard')) return '/images/brands/belgard/Belgard_logo_symbol.png';
-  if (normalized.includes('keystone')) return '/images/brands/keystone/keystone-logo_symbol.png';
-  if (normalized.includes('las vegas') || normalized.includes('lvp')) return '/images/brands/lasvegaspaver/LasVegasPaver_logo_symbol.png';
-  return '';
-}
-
-function BrandMark({ brand }: { brand: string }) {
-  const logo = brandLogoSrc(brand);
+function BrandMark({ brand, logoUrl }: { brand: string; logoUrl?: string | null }) {
+  const logo = brandLogoSrc(brand, logoUrl);
   const color = brandColor(brand);
   return (
     <div
@@ -399,7 +392,7 @@ function ProductCard({
           </div>
           {product.brand ? (
             <div className="ml-2 flex shrink-0 items-center justify-center">
-              <BrandMark brand={product.brand} />
+              <BrandMark brand={product.brand} logoUrl={product.brand_logo} />
             </div>
           ) : null}
         </div>

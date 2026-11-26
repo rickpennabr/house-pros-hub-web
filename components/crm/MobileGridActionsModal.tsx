@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppIcon } from '@/components/icons/hub';
 import Link from 'next/link';
+import { Check, Move } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 
 export interface MobileGridActionItem {
@@ -51,7 +52,15 @@ export function MobileGridActionsModal({
   const didDrag = useRef(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const reorderEnabled = Boolean(onReorder) && items.length > 1;
+  const canReorder = Boolean(onReorder) && items.length > 1;
+  // Drag only after tapping the move button, so a swipe on the tiles scrolls the list on phones.
+  const [arranging, setArranging] = useState(false);
+  const reorderEnabled = canReorder && arranging;
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (!isOpen) setArranging(false);
+  }
 
   useEffect(() => () => cleanupRef.current?.(), []);
   useEffect(() => {
@@ -130,6 +139,20 @@ export function MobileGridActionsModal({
       onClose={onClose}
       title={title}
       showHeader
+      headerAction={
+        canReorder ? (
+          <button
+            type="button"
+            onClick={() => setArranging((on) => !on)}
+            aria-pressed={arranging}
+            aria-label={arranging ? 'Done arranging' : 'Arrange tiles'}
+            title={arranging ? 'Done' : 'Arrange tiles'}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg border-2 border-black transition-colors ${arranging ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+          >
+            {arranging ? <Check className="h-5 w-5" /> : <Move className="h-5 w-5" />}
+          </button>
+        ) : null
+      }
       maxWidth="md"
       contentClassName="p-0 md:p-6"
     >
@@ -173,7 +196,7 @@ export function MobileGridActionsModal({
                   style={style}
                   {...dragProps}
                 >
-                  <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
+                  <Icon className={`w-6 h-6 ${item.borderClass || cycle ? 'hub-live-mobile' : ''} ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
                   <span className="text-sm text-center">{item.label}</span>
                 </a>
               );
@@ -191,7 +214,7 @@ export function MobileGridActionsModal({
                 style={style}
                 {...dragProps}
               >
-                <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
+                <Icon className={`w-6 h-6 ${item.borderClass || cycle ? 'hub-live-mobile' : ''} ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
                 <span className="text-sm text-center">{item.label}</span>
               </Link>
             );
@@ -210,7 +233,7 @@ export function MobileGridActionsModal({
               style={style}
               {...dragProps}
             >
-              <Icon className={`w-6 h-6 ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
+              <Icon className={`w-6 h-6 ${item.borderClass || cycle ? 'hub-live-mobile' : ''} ${item.isActive ? 'text-white' : item.iconClass ?? 'text-red-600'}`} />
               <span className="text-sm text-center">{item.label}</span>
             </button>
           );

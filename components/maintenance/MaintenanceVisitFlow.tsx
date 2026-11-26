@@ -28,6 +28,7 @@ import { formatDurationClock } from '@/lib/crm/maintenance-defaults';
 import { computeActiveSeconds, formatLaborHours } from '@/lib/crm/maintenance-time';
 import { primeLiveCamera } from '@/lib/media/prime-camera';
 import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 type Step = 'setup' | 'active' | 'done';
 
@@ -868,53 +869,37 @@ export function MaintenanceVisitFlow({
           </div>
 
           <FormField label={t('customer')}>
-            <select
-              className="w-full border-2 border-black rounded-lg px-3 py-2 text-sm"
+            <PickerSelect
               value={selectedCustomerId}
-              onChange={(event) => {
-                setSelectedCustomerId(event.target.value);
+              onChange={(value) => {
+                setSelectedCustomerId(value);
                 setSelectedPlanId('');
               }}
-            >
-              <option value="">{t('chooseCustomer')}</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
+              placeholder={t('chooseCustomer')}
+              options={customers.map((customer) => ({ value: customer.id, label: customer.name }))}
+            />
           </FormField>
 
           {customerPlans.length > 0 && (
             <FormField label={t('plan')}>
-              <select
-                className="w-full border-2 border-black rounded-lg px-3 py-2 text-sm"
+              <PickerSelect
                 value={selectedPlanId}
-                onChange={(event) => setSelectedPlanId(event.target.value)}
-              >
-                {customerPlans.map((plan) => (
-                  <option key={plan.id} value={plan.id}>
-                    {plan.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedPlanId}
+                options={customerPlans.map((plan) => ({ value: plan.id, label: plan.name }))}
+              />
             </FormField>
           )}
 
           <FormField label={t('responsible')}>
-            <select
-              className="w-full border-2 border-black rounded-lg px-3 py-2 text-sm"
+            <PickerSelect
               value={responsibleCrewId}
-              onChange={(event) => setResponsibleCrewId(event.target.value)}
-            >
-              <option value="">{t('chooseResponsible')}</option>
-              {crew.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.displayName}
-                  {member.status === 'invited' ? ` (${t('invited')})` : ''}
-                </option>
-              ))}
-            </select>
+              onChange={setResponsibleCrewId}
+              placeholder={t('chooseResponsible')}
+              options={crew.map((member) => ({
+                value: member.id,
+                label: `${member.displayName}${member.status === 'invited' ? ` (${t('invited')})` : ''}`,
+              }))}
+            />
           </FormField>
 
           <div className="space-y-2">

@@ -5,6 +5,7 @@ import { Car, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 interface Trip {
   id: string;
@@ -166,14 +167,11 @@ export function ProjectTrips({ projectId, onCount }: { projectId: string; onCoun
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                   <label className="col-span-2 text-xs font-medium md:col-span-1">
                     Vehicle
-                    <Select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} className="mt-1">
-                      {vehicles.map((vehicle) => (
-                        <option key={vehicle.id} value={vehicle.id} disabled={vehicle.costPerMileCents == null}>
-                          {vehicle.name}
-                          {vehicle.costPerMileCents == null ? ' (no rate yet)' : ` · ${money(vehicle.costPerMileCents)}/mi`}
-                        </option>
-                      ))}
-                    </Select>
+                    <PickerSelect
+                      value={vehicleId}
+                      onChange={(value) => setVehicleId(value)}
+                      options={vehicles.map((vehicle) => ({ value: String(vehicle.id), label: `${vehicle.name}${vehicle.costPerMileCents == null ? ' (no rate yet)' : ` · ${money(vehicle.costPerMileCents)}/mi`}` }))}
+                    />
                   </label>
                   <label className="text-xs font-medium">
                     Date

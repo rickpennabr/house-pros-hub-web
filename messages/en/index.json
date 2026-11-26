@@ -3397,6 +3397,7 @@
     "tool_plants": "Plants Database",
     "tool_maintenance": "Maintenance System",
     "tool_hardscapeProducts": "Database",
+    "tool_hardscapeQuote": "ProQuote",
     "on": "On",
     "off": "Off",
     "limitNote": "Your {plan} plan includes {limit, plural, one {# ProTrade} other {# ProTrades}} ({used} on).",
@@ -3444,7 +3445,10 @@
     "kind_other": "Other",
     "kind_boulder": "Boulders",
     "kind_soil": "Sand, soil & gravel",
-    "kind_flagstone": "Flagstone"
+    "kind_flagstone": "Flagstone",
+    "collection_all": "All sources",
+    "collection_pavers": "Pavers & wall",
+    "collection_rockYard": "Rock yard (Star Nursery)"
   },
   "twoStep": {
     "title": "Two-step sign-in",

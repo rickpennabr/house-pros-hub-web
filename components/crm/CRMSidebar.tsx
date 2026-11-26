@@ -20,7 +20,6 @@ import {
   Car,
   Hammer,
   Camera,
-  Home,
   QrCode,
   GripVertical,
   ChevronDown,
@@ -31,7 +30,13 @@ import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import { useProTrades } from '@/hooks/useProTrades';
 import { TRADES, TRADE_SLUGS } from '@/lib/protrades/trades';
-import { HardscapeIcon, LandscapeIcon, MaintenanceIcon, PlantsIcon, ProTradesIcon, PROTRADES_TILE_COLORS, type AppIcon } from '@/components/icons/hub';
+import { HardscapeIcon, LandscapeIcon, MaintenanceIcon, PlantsIcon, ProQuoteIcon, ProTradesIcon, PROTRADES_TILE_COLORS, type AppIcon } from '@/components/icons/hub';
+import { HouseMark } from '@/components/icons/HouseMark';
+
+/** Customer portal: the same house as the center of the mobile bottom bar (white on a black, active row). */
+function PortalHouseIcon({ className = '' }: { className?: string }) {
+  return <HouseMark variant="plain" tone={className.includes('text-white') ? 'light' : 'dark'} className={className.replace(/text-\S+/g, '')} />;
+}
 
 interface NavItem {
   href: string;
@@ -96,7 +101,7 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
     const active = activeTradeKey.split(',');
     const on = [...TRADE_SLUGS.map((slug) => active.includes(slug)), false, false];
     function ProTradesNavIcon({ className }: { className?: string }) {
-      return <ProTradesIcon className={className} colors={[...PROTRADES_TILE_COLORS]} on={on} />;
+      return <ProTradesIcon className={`${className ?? ''} hub-live-mobile`} colors={[...PROTRADES_TILE_COLORS]} on={on} />;
     }
     return ProTradesNavIcon;
   }, [activeTradeKey]);
@@ -130,13 +135,13 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
             iconClass: TRADES.hardscape.color.text,
             children: [
               { href: `${base}/protrades/hardscape`, labelKey: 'crmHardscapeProducts', icon: HardscapeIcon, iconClass: TRADES.hardscape.color.text },
-              { href: `${base}/protrades/hardscape/quote`, labelKey: 'crmProQuote', icon: FileText, iconClass: TRADES.hardscape.color.text },
+              { href: `${base}/protrades/hardscape/quote`, labelKey: 'crmProQuote', icon: ProQuoteIcon, iconClass: TRADES.hardscape.color.text },
             ],
           },
         ]
       : []),
     { href: base, labelKey: 'crmDashboard', icon: LayoutDashboard },
-    { href: `${base}/portal`, labelKey: 'crmPortal', icon: Home },
+    { href: `${base}/portal`, labelKey: 'crmPortal', icon: PortalHouseIcon },
     { href: `${base}/customers`, labelKey: 'crmCustomers', icon: Users },
     { href: `${base}/estimates`, labelKey: 'crmEstimates', icon: FileText },
     { href: `${base}/invoices`, labelKey: 'crmInvoices', icon: FileCheck },

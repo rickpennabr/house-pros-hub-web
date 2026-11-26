@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { PortalPropertyHistory, type PropertyHistory } from '@/components/crm/PortalPropertyHistory';
 import { FormField } from '@/components/ui/FormField';
-import { Select } from '@/components/ui/Select';
 import { Building, Building2, Home, User } from 'lucide-react';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { PortalNewActivity } from '@/components/crm/PortalNewActivity';
 import { HubCustomerImport } from '@/components/crm/HubCustomerImport';
+import { TypingSearchInput } from '@/components/common/TypingSearchInput';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 interface CustomerRow {
   id: string;
@@ -30,6 +31,8 @@ interface CustomerRow {
 export default function CustomerPortalPage() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [customerId, setCustomerId] = useState('');
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [customerListOpen, setCustomerListOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const locale = (useParams()?.locale as string) || 'en';
   /** The property picked for this customer; empty is their default house. */
@@ -45,7 +48,7 @@ export default function CustomerPortalPage() {
     const requested = new URLSearchParams(window.location.search).get('customerId');
     const list: CustomerRow[] = data.customers ?? [];
     const fromLink = requested && list.some((row) => row.id === requested) ? requested : '';
-    setCustomerId((current) => current || fromLink || list[0]?.id || '');
+    setCustomerId((current) => current || fromLink);
   }, []);
 
   useEffect(() => {
@@ -75,9 +78,26 @@ export default function CustomerPortalPage() {
   const pickCustomer = (id: string) => {
     setCustomerId(id);
     setPlaceId('');
+    setCustomerQuery('');
+    setCustomerListOpen(false);
+  };
+
+  /** Clearing the search goes back to New activity. */
+  const clearCustomer = () => {
+    setCustomerId('');
+    setPlaceId('');
+    setCustomerQuery('');
+    setHistory(null);
   };
 
   const customer = customers.find((row) => row.id === customerId) ?? null;
+  const customerLabel = (row: CustomerRow) => `${contactDisplayName(row)}${row.company_name && row.company_name !== contactDisplayName(row) ? ` · ${row.company_name}` : ''}`;
+  const words = customerQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = customers.filter((row) => {
+    if (!words.length) return true;
+    const text = [contactDisplayName(row), row.company_name, row.email, row.street_address, row.city].filter(Boolean).join(' ').toLowerCase();
+    return words.every((word) => text.includes(word));
+  });
   const propertyData = history?.key === `${customerId}:${placeId}` ? history.data : null;
   // Keep the picker steady while another property of the same customer loads.
   const properties = history?.key.startsWith(`${customerId}:`) ? history.data.properties : [];
@@ -93,7 +113,6 @@ export default function CustomerPortalPage() {
           and files.
         </p>
       </div>
-      <PortalNewActivity />
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <FormField
@@ -104,15 +123,51 @@ export default function CustomerPortalPage() {
           </span>
         }
       >
-        <Select value={customerId} onChange={(event) => pickCustomer(event.target.value)}>
-          {customers.length === 0 ? <option value="">No customers yet</option> : null}
-          {customers.map((row) => (
-            <option key={row.id} value={row.id}>
-              {contactDisplayName(row)}
-              {row.company_name ? ` · ${row.company_name}` : ''}
-            </option>
-          ))}
-        </Select>
+        {/* Search, then pick: the list opens under the bar and narrows as you type. */}
+        <div className="relative">
+          <TypingSearchInput
+            value={customerListOpen || !customer ? customerQuery : customerLabel(customer)}
+            onChange={(value) => {
+              setCustomerQuery(value);
+              setCustomerListOpen(true);
+              if (!value && !customerListOpen) clearCustomer();
+            }}
+            onFocus={() => {
+              setCustomerQuery('');
+              setCustomerListOpen(true);
+            }}
+            onBlur={() => setTimeout(() => setCustomerListOpen(false), 150)}
+            placeholder={customers.length ? 'Search customers by name, company or address' : 'No customers yet'}
+            clearLabel="Clear customer"
+          />
+          {customerListOpen ? (
+            <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-y-auto rounded-lg border-2 border-black bg-white shadow-lg">
+              {matches.length === 0 ? (
+                <p className="p-3 text-sm text-gray-500">No customer matches “{customerQuery.trim()}”.</p>
+              ) : (
+                matches.slice(0, 100).map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => pickCustomer(row.id)}
+                    className={`block w-full border-b border-gray-100 px-3 py-2 text-left last:border-0 hover:bg-gray-50 ${row.id === customerId ? 'bg-gray-100' : ''}`}
+                  >
+                    <span className="block truncate text-sm font-medium text-gray-900">{customerLabel(row)}</span>
+                    <span className="block truncate text-xs text-gray-500">
+                      {[row.street_address, row.city, row.email].filter(Boolean).join(' · ') || ' '}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
+        </div>
+        {customer ? (
+          <button type="button" onClick={clearCustomer} className="mt-1 text-xs font-medium text-gray-600 underline">
+            Back to new activity
+          </button>
+        ) : null}
         <HubCustomerImport
           onImported={async (imported) => {
             try {
@@ -125,6 +180,8 @@ export default function CustomerPortalPage() {
         />
       </FormField>
 
+      {!customer ? <PortalNewActivity /> : null}
+
       {customer && properties.length > 1 ? (
         <FormField
           label={
@@ -134,15 +191,11 @@ export default function CustomerPortalPage() {
             </span>
           }
         >
-          <Select value={property?.id ?? ''} onChange={(event) => setPlaceId(event.target.value)}>
-            {properties.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-                {[row.street, row.city].filter(Boolean).length ? ` · ${[row.street, row.city].filter(Boolean).join(', ')}` : ''}
-                {row.isDefault ? ' (default)' : ''}
-              </option>
-            ))}
-          </Select>
+          <PickerSelect
+            value={property?.id ?? ''}
+            onChange={(value) => setPlaceId(value)}
+            options={properties.map((row) => ({ value: String(row.id), label: `${row.name}${[row.street, row.city].filter(Boolean).length ? ` · ${[row.street, row.city].filter(Boolean).join(', ')}` : ''}${row.isDefault ? ' (default)' : ''}` }))}
+          />
         </FormField>
       ) : null}
 

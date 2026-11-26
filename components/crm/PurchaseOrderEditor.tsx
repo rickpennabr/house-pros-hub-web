@@ -6,9 +6,9 @@ import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { canEditLines, canReceive, type PoStatus } from '@/lib/crm/purchase-orders';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 export interface PurchaseOrderView {
   id: string;
@@ -355,19 +355,23 @@ export function PurchaseOrderEditor({
         <div className="space-y-4 p-1">
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField label="Supplier">
-              <Select value={supplierId} onChange={(e) => {
-                setSupplierId(e.target.value);
+              <PickerSelect
+                value={supplierId}
+                onChange={(value) => {
+                setSupplierId(value);
                 if (!po) setSendEmail('');
-              }}>
-                <option value="">Pick a supplier</option>
-                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </Select>
+              }}
+                placeholder={"Pick a supplier"}
+                options={suppliers.map((s) => ({ value: String(s.id), label: String(s.label) }))}
+              />
             </FormField>
             <FormField label="Project">
-              <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                <option value="">No project</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-              </Select>
+              <PickerSelect
+                value={projectId}
+                onChange={(value) => setProjectId(value)}
+                noneLabel={"No project"}
+                options={projects.map((p) => ({ value: String(p.id), label: String(p.label) }))}
+              />
             </FormField>
             <FormField label="Needed by">
               <Input type="date" value={neededBy} onChange={(e) => setNeededBy(e.target.value)} />

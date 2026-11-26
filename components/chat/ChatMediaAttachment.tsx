@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ImageIcon, Paperclip } from 'lucide-react';
 import { VoiceNotePlayer } from '@/components/chat/VoiceNotePlayer';
 import type { ChatAttachment } from '@/lib/types/chat';
+import { ImageLightbox } from '@/components/ui/ImageLightbox';
 
 function isVoice(att: ChatAttachment): boolean {
   return att.name.startsWith('voice-note') || att.contentType.startsWith('audio/');
@@ -31,6 +32,14 @@ function ChatImage({ url, name }: { url: string; name: string }) {
 
 /** Photo, video, voice note, or file inside a chat bubble. */
 export function ChatMediaAttachment({ att }: { att: ChatAttachment }) {
+  const [gallery, setGallery] = useState<{ images: { url: string; name: string }[]; index: number } | null>(null);
+  const openGallery = (button: HTMLElement) => {
+    const scope = button.closest('[data-chat-thread]') ?? document;
+    const nodes = Array.from(scope.querySelectorAll<HTMLElement>('[data-chat-image-url]'));
+    const images = nodes.map((node) => ({ url: node.dataset.chatImageUrl ?? '', name: node.dataset.chatImageName ?? '' }));
+    const index = Math.max(0, nodes.indexOf(button));
+    setGallery(images.length ? { images, index } : { images: [{ url: att.url, name: att.name }], index: 0 });
+  };
   if (isVoice(att)) {
     return <VoiceNotePlayer url={att.url} />;
   }
@@ -48,14 +57,20 @@ export function ChatMediaAttachment({ att }: { att: ChatAttachment }) {
   }
   if (att.contentType.startsWith('image/')) {
     return (
-      <a
-        href={att.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-1 block max-w-[280px] overflow-hidden rounded-xl border border-black/10"
-      >
-        <ChatImage url={att.url} name={att.name} />
-      </a>
+      <>
+        {/* Opens in the Hub's photo viewer, not a new tab. */}
+        <button
+          type="button"
+          data-chat-image-url={att.url}
+          data-chat-image-name={att.name}
+          onClick={(event) => openGallery(event.currentTarget)}
+          className="mt-1 block w-full max-w-[280px] cursor-zoom-in overflow-hidden rounded-xl border border-black/10 text-left"
+          aria-label={att.name ? 'Open ' + att.name : 'Open photo'}
+        >
+          <ChatImage url={att.url} name={att.name} />
+        </button>
+        {gallery ? <ImageLightbox images={gallery.images} index={gallery.index} onClose={() => setGallery(null)} /> : null}
+      </>
     );
   }
   return (

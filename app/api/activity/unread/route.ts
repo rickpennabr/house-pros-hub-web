@@ -10,7 +10,7 @@ type AnyDb = { from: (table: string) => any }; // eslint-disable-line @typescrip
  * places: what pros did on each of the user's places since they last opened its timeline.
  * crmTotal (pros): what customers did since the pro last opened the feed banner.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
@@ -86,14 +86,17 @@ export async function GET() {
     : { count: 0 };
   crmTotal = (views ?? 0) + (approvals ?? 0) + (payments ?? 0) + (bookings ?? 0);
 
-  // The latest important customer actions, for the feed card.
-  if (crmTotal > 0) {
+  // The latest important customer actions, for the feed card. With ?recent=1 (Customer portal),
+  // nothing new still lists the last 30 days, so the portal always shows what customers did.
+  const wantRecent = new URL(request.url).searchParams.get('recent') === '1';
+  const listSince = crmTotal > 0 ? crmSince : wantRecent ? new Date(Date.now() - 30 * 86_400_000).toISOString() : null;
+  if (listSince) {
     const { data: approved } = await supabase
       .from('pro_crm_estimates')
       .select('id, display_id, signer_name, signed_at, amount_cents')
       .eq('owner_id', user.id)
       .not('signer_name', 'is', null)
-      .gt('signed_at', crmSince)
+      .gt('signed_at', listSince)
       .order('signed_at', { ascending: false })
       .limit(5);
     for (const row of approved ?? []) {
@@ -105,7 +108,7 @@ export async function GET() {
       .eq('owner_id', user.id)
       .is('voided_at', null)
       .or('method.ilike.%card%,method.ilike.%stripe%,method.ilike.%online%')
-      .gt('created_at', crmSince)
+      .gt('created_at', listSince)
       .order('created_at', { ascending: false })
       .limit(5);
     for (const row of paid ?? []) {
@@ -116,7 +119,7 @@ export async function GET() {
           .from('pro_estimate_bookings')
           .select('id, service_name, guest_first_name, created_at')
           .in('business_id', businessIds)
-          .gt('created_at', crmSince)
+          .gt('created_at', listSince)
           .order('created_at', { ascending: false })
           .limit(5)
       : { data: [] };

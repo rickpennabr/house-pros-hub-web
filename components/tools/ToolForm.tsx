@@ -16,6 +16,7 @@ import {
   type ToolKind,
   type ToolStatus,
 } from '@/lib/crm/pro-tools';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 export interface ToolFormValues {
   /** Empty until the user picks Tool or Equipment. */
@@ -412,34 +413,31 @@ export function ToolForm({ values, onChange, lists, businessId, disabled = false
             </Select>
           </FormField>
           <FormField label="Who has it">
-            <Select value={values.assignedCrewId} onChange={(e) => set('assignedCrewId', e.target.value)} disabled={disabled}>
-              <option value="">Nobody (in the shop)</option>
-              {lists.crew.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
-                </option>
-              ))}
-            </Select>
+            <PickerSelect
+              value={values.assignedCrewId}
+              onChange={(value) => set('assignedCrewId', value)}
+              noneLabel={"Nobody (in the shop)"}
+              disabled={disabled}
+              options={lists.crew.map((member) => ({ value: String(member.id), label: String(member.name) }))}
+            />
           </FormField>
           <FormField label="Project">
-            <Select value={values.projectId} onChange={(e) => set('projectId', e.target.value)} disabled={disabled}>
-              <option value="">No project</option>
-              {lists.projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </Select>
+            <PickerSelect
+              value={values.projectId}
+              onChange={(value) => set('projectId', value)}
+              noneLabel={"No project"}
+              disabled={disabled}
+              options={lists.projects.map((project) => ({ value: String(project.id), label: String(project.name) }))}
+            />
           </FormField>
           <FormField label="Maintenance house">
-            <Select value={values.maintenancePlanId} onChange={(e) => set('maintenancePlanId', e.target.value)} disabled={disabled}>
-              <option value="">No house</option>
-              {lists.houses.map((house) => (
-                <option key={house.id} value={house.id}>
-                  {house.name}
-                </option>
-              ))}
-            </Select>
+            <PickerSelect
+              value={values.maintenancePlanId}
+              onChange={(value) => set('maintenancePlanId', value)}
+              noneLabel={"No house"}
+              disabled={disabled}
+              options={lists.houses.map((house) => ({ value: String(house.id), label: String(house.name) }))}
+            />
           </FormField>
           <FormField label="Kept at">
             <Input

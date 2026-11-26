@@ -84,6 +84,8 @@ function alsoTradesMissing(error: { code?: string; message?: string } | null): b
 export interface CatalogQuery {
   trade: TradeSlug;
   kind?: string;
+  /** Hardscape: 'pavers' (manufacturer catalog) or 'rock-yard' (Star Nursery). Kept apart on purpose. */
+  collection?: string;
   category?: string;
   q?: string;
   includeInactive?: boolean;
@@ -101,11 +103,14 @@ export async function searchCatalog(
   } catch (err) {
     // Before migration 156 there is no also_trades column: show the trade's own items.
     if (err instanceof SharedColumnMissing) return searchCatalogWith(input, service, false);
+    // Before migration 176 there is no collection column: show everything.
+    if (err instanceof CollectionColumnMissing) return searchCatalog({ ...input, collection: undefined }, service);
     throw err;
   }
 }
 
 class SharedColumnMissing extends Error {}
+class CollectionColumnMissing extends Error {}
 
 async function searchCatalogWith(
   input: CatalogQuery,
@@ -118,6 +123,7 @@ async function searchCatalogWith(
   query = shared ? query.or(inTrade(input.trade)) : query.eq('trade', input.trade);
   if (!input.includeInactive) query = query.eq('is_active', true);
   if (input.kind) query = query.eq('kind', input.kind);
+  if (input.collection) query = query.eq('collection', input.collection);
   if (input.category) query = query.eq('category', input.category);
   const q = input.q?.trim().replace(/[%,()]/g, ' ').slice(0, 80);
   if (q) query = query.or(`name.ilike.%${q}%,brand.ilike.%${q}%,scientific_name.ilike.%${q}%,category.ilike.%${q}%`);
@@ -127,6 +133,7 @@ async function searchCatalogWith(
     .order('name', { ascending: true })
     .range((page - 1) * pageSize, page * pageSize - 1);
   if (error) {
+    if (input.collection && /collection/.test(error.message ?? '')) throw new CollectionColumnMissing();
     if (shared && alsoTradesMissing(error)) throw new SharedColumnMissing();
     if (isTableMissing(error)) throw new ProTradesError(PROTRADES_NOT_READY, 503);
     throw new Error(error.message);
@@ -136,6 +143,7 @@ async function searchCatalogWith(
   categoryQuery = shared ? categoryQuery.or(inTrade(input.trade)) : categoryQuery.eq('trade', input.trade);
   if (!input.includeInactive) categoryQuery = categoryQuery.eq('is_active', true);
   if (input.kind) categoryQuery = categoryQuery.eq('kind', input.kind);
+  if (input.collection) categoryQuery = categoryQuery.eq('collection', input.collection);
   const { data: cats } = await categoryQuery.limit(1000);
   const categories = [...new Set((cats ?? []).map((row) => row.category).filter((c): c is string => Boolean(c)))].sort();
 

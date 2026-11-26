@@ -38,6 +38,7 @@ export function TradeCatalogBrowser({ trade }: { trade: TradeSlug }) {
   const color = TRADES[trade].color;
   const [kind, setKind] = useState<string>(kinds.length === 1 ? kinds[0].slug : '');
   const [category, setCategory] = useState('');
+  const [collection, setCollection] = useState('');
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [page, setPage] = useState(1);
@@ -64,6 +65,7 @@ export function TradeCatalogBrowser({ trade }: { trade: TradeSlug }) {
     setError(null);
     const params = new URLSearchParams({ trade, page: String(page) });
     if (kind) params.set('kind', kind);
+    if (trade === 'hardscape' && collection) params.set('collection', collection);
     if (category) params.set('category', category);
     if (debounced.trim()) params.set('q', debounced.trim());
     try {
@@ -79,7 +81,7 @@ export function TradeCatalogBrowser({ trade }: { trade: TradeSlug }) {
     } finally {
       if (id === request.current) setLoading(false);
     }
-  }, [trade, kind, category, debounced, page, t]);
+  }, [trade, kind, collection, category, debounced, page, t]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -152,6 +154,15 @@ export function TradeCatalogBrowser({ trade }: { trade: TradeSlug }) {
         </div>
       ) : null}
 
+      {trade === 'hardscape' ? (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {[{ slug: '', key: 'collection_all' }, { slug: 'pavers', key: 'collection_pavers' }, { slug: 'rock-yard', key: 'collection_rockYard' }].map((row) => (
+            <button key={row.key} type="button" className={kindChip(collection === row.slug)} onClick={() => { setCollection(row.slug); setCategory(''); setPage(1); }}>
+              {t(row.key)}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {kinds.length > 1 ? (
         <div className="flex gap-2 overflow-x-auto pb-1">
           <button type="button" className={kindChip(!kind)} onClick={() => { setKind(''); setCategory(''); setPage(1); }}>

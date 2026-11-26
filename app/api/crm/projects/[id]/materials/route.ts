@@ -10,6 +10,8 @@ interface MaterialRow {
   name: string;
   unit: string;
   planned_qty: number | string;
+  /** From the estimate (ProQuote materials list); null when added on the project. Migration 178. */
+  estimated_qty?: number | string | null;
   note: string | null;
   sort_order: number;
   created_at: string;
@@ -37,14 +39,17 @@ export async function GET(_request: NextRequest, { params }: Params) {
     const project = await loadScopedProject(scope, (await params).id);
     if (project instanceof NextResponse) return project;
 
-    const [materials, deliveries] = await Promise.all([
+    const materialQuery = (columns: string) =>
       scope.supabase
         .from('pro_crm_project_materials')
-        .select('id, name, unit, planned_qty, note, sort_order, created_at')
+        .select(columns)
         .eq('owner_id', scope.ownerId)
         .eq('project_id', project.id)
         .order('sort_order')
-        .order('created_at'),
+        .order('created_at');
+    const base = 'id, name, unit, planned_qty, note, sort_order, created_at';
+    const [firstTry, deliveries] = await Promise.all([
+      materialQuery(`${base}, estimated_qty`),
       scope.supabase
         .from('pro_crm_project_material_deliveries')
         .select('id, material_id, delivered_on, quantity, source, note, created_by_name, created_at')
@@ -53,6 +58,8 @@ export async function GET(_request: NextRequest, { params }: Params) {
         .order('delivered_on')
         .order('created_at'),
     ]);
+    // Before migration 178 there is no estimated_qty: read without it.
+    const materials = firstTry.error && /estimated_qty/.test(firstTry.error.message ?? '') ? await materialQuery(base) : firstTry;
     const failure = materials.error ?? deliveries.error;
     if (failure) {
       if (materialsSchemaMissing(failure.message)) return NextResponse.json({ materials: [], setupError: MATERIALS_SETUP_ERROR });
@@ -66,14 +73,16 @@ export async function GET(_request: NextRequest, { params }: Params) {
       byMaterial.set(row.material_id, list);
     }
     return NextResponse.json({
-      materials: ((materials.data ?? []) as MaterialRow[]).map((row) => {
+      materials: ((materials.data ?? []) as unknown as MaterialRow[]).map((row) => {
         const sent = byMaterial.get(row.id) ?? [];
+        const estimated = row.estimated_qty == null ? null : Number(row.estimated_qty);
         return {
           id: row.id,
           name: row.name,
           unit: row.unit,
           note: row.note,
           ...summarizeMaterial(Number(row.planned_qty), sent),
+          estimatedQty: estimated,
           deliveries: sent.map((delivery) => ({
             id: delivery.id,
             deliveredOn: delivery.delivered_on,

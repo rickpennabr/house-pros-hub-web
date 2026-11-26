@@ -30,6 +30,7 @@ import {
   type AgreementKind,
   type MaintenanceFrequency,
 } from '@/lib/crm/estimate-agreement';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 export interface EstimateLineItemFormValue {
   product_or_service?: string;
@@ -320,23 +321,17 @@ export function EstimateDocumentForm({
           <div className={`${DOCUMENT_FORM_LAYOUT.tintBlock} bg-gray-100`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 text-sm">
               <div className="space-y-3">
-                <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-y-1">
                   <label className="text-gray-600">
                     Customer <span className="text-red-600">*</span>
                   </label>
-                  <Select
+                  <PickerSelect
                     value={customerId}
-                    onChange={(e) => onCustomerIdChange(e.target.value)}
-                    required
+                    onChange={(value) => onCustomerIdChange(value)}
+                    placeholder={"Select customer"}
                     disabled={mode === 'edit' || lockCustomer}
-                  >
-                    <option value="">Select customer</option>
-                    {customerOptions.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {contactDisplayName(customer)}
-                      </option>
-                    ))}
-                  </Select>
+                    options={customerOptions.map((customer) => ({ value: String(customer.id), label: String(contactDisplayName(customer)) }))}
+                  />
                 </div>
                 {onPlaceIdChange ? (
                   <ContactPropertySelect
@@ -360,7 +355,7 @@ export function EstimateDocumentForm({
                     />
                   </div>
                 ) : null}
-                <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-y-1">
                   <label className="text-gray-600">Estimate number</label>
                   <Input
                     value={mode === 'create' ? 'Auto-generated on save' : (estimateNumber || '—')}
@@ -371,7 +366,7 @@ export function EstimateDocumentForm({
                 </div>
               </div>
               <div className="space-y-3">
-                <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-y-1">
                   <label className="text-gray-600">Status</label>
                   <Select value={status} onChange={(e) => onStatusChange(e.target.value)}>
                     {allowedEstimateStatuses(savedStatus).map((option) => (
@@ -381,11 +376,11 @@ export function EstimateDocumentForm({
                     ))}
                   </Select>
                 </div>
-                <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-y-1">
                   <label className="text-gray-600">Valid until</label>
                   <Input type="date" value={validUntilDate} onChange={(e) => onValidUntilDateChange(e.target.value)} />
                 </div>
-                <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-y-1">
                   <label className="text-gray-600">Job area</label>
                   <Input
                     value={jobArea}
@@ -394,7 +389,7 @@ export function EstimateDocumentForm({
                     maxLength={80}
                   />
                 </div>
-                <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-y-1">
                   <label className="text-gray-600">Agreement</label>
                   <Select
                     value={agreementKind}
@@ -412,7 +407,7 @@ export function EstimateDocumentForm({
                   </Select>
                 </div>
                 {agreementKind === 'maintenance' ? (
-                  <div className="grid grid-cols-[auto,minmax(0,1fr)] items-center gap-x-4 gap-y-1">
+                  <div className="grid grid-cols-[minmax(0,1fr)] gap-y-1">
                     <label className="text-gray-600">Visit schedule</label>
                     <Select
                       value={maintenanceFrequency}
@@ -450,7 +445,9 @@ export function EstimateDocumentForm({
               <tbody>
                 {lineItems.map((line, index) => (
                   <tr key={index} className="border-b border-gray-200">
-                    <td className="py-1 px-2 text-sm text-gray-600 align-top pt-2">{index + 1}</td>
+                    <td className="py-1 px-2 text-sm text-gray-600 align-top">
+                      <span className="flex h-9 items-center">{index + 1}</span>
+                    </td>
                     <td className="py-1 px-2 align-top">
                       <ProductOrServiceCombobox
                         value={line.product_or_service ?? ''}
@@ -559,9 +556,11 @@ export function EstimateDocumentForm({
                         />
                       </div>
                     </td>
-                    <td className="py-1 px-2 align-top text-right text-sm text-gray-700 pt-2">{formatAmount(line.amount_cents)}</td>
+                    <td className="py-1 px-2 align-top text-right text-sm text-gray-700">
+                      <span className="flex h-9 items-center justify-end">{formatAmount(line.amount_cents)}</span>
+                    </td>
                     <td className="py-1 px-2 align-top">
-                      <div className="relative">
+                      <div className="relative flex h-9 items-center">
                         <button
                           type="button"
                           ref={openRowMenuIndex === index ? rowMenuButtonRef : null}

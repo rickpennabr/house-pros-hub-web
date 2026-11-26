@@ -18,7 +18,7 @@ export function PortalNewActivity() {
 
   useEffect(() => {
     let cancelled = false;
-    void fetch('/api/activity/unread', { credentials: 'include', cache: 'no-store' })
+    void fetch('/api/activity/unread?recent=1', { credentials: 'include', cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         if (cancelled || !json) return;
@@ -41,14 +41,18 @@ export function PortalNewActivity() {
     };
   }, []);
 
-  if (!data || data.total === 0) return null;
+  if (!data) return null;
   const others = Math.max(0, data.total - data.recent.length);
+  const isNew = data.total > 0;
 
   return (
     <section className="rounded-lg border-2 border-black bg-white p-3">
       <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-        <Bell className="h-4 w-4 text-red-600" /> New activity ({data.total})
+        <Bell className="h-4 w-4 text-red-600" /> {isNew ? `New activity (${data.total})` : 'Recent activity'}
       </h2>
+      {data.recent.length === 0 ? (
+        <p className="py-2 text-sm text-gray-500">Nothing from your customers in the last 30 days.</p>
+      ) : null}
       <ul className="divide-y divide-gray-200">
         {data.recent.map((item) => (
           <li key={item.id}>
@@ -67,7 +71,7 @@ export function PortalNewActivity() {
           </li>
         ))}
       </ul>
-      {others > 0 ? (
+      {isNew && others > 0 ? (
         <p className="mt-1 text-xs text-gray-600">
           {data.recent.length > 0 ? `+ ${others} more: ` : ''}customers opened estimates or invoices you sent.
         </p>

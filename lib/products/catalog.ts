@@ -11,7 +11,7 @@ export const CATALOG_SELECT = `
   specs:product_specs(spec_name, spec_value, sort_order),
   created_at,
   updated_at,
-  brand:brands(brand_name),
+  brand:brands(brand_name, logo_url),
   variants:product_variants(
     variant_id,
     size,
@@ -35,7 +35,7 @@ export const CATALOG_LIST_SELECT = `
   image_url,
   created_at,
   updated_at,
-  brand:brands(brand_name),
+  brand:brands(brand_name, logo_url),
   variants:product_variants(
     variant_id,
     size,
@@ -48,6 +48,7 @@ export const CATALOG_LIST_SELECT = `
 
 interface NamedRow {
   brand_name?: string;
+  logo_url?: string | null;
   color_name?: string;
   thickness_mm?: string;
   thickness_in?: string;
@@ -129,6 +130,7 @@ export function mapCatalogProduct(row: CatalogProductRow): ProProduct {
     name: row.product_name,
     slug: String(row.base_product_id),
     brand: one(row.brand)?.brand_name ?? '',
+    brand_logo: one(row.brand)?.logo_url ?? null,
     product_type: row.product_type ?? '',
     description: row.product_note ?? '',
     image_url: images[0] ?? null,
@@ -151,11 +153,17 @@ async function runCatalogQuery<T>(
   run: (select: string) => PromiseLike<{ data: T; error: { message?: string } | null }>,
   select = CATALOG_SELECT
 ): Promise<{ data: T; error: { message?: string } | null }> {
-  const withSpecs = await run(select);
-  if (select === CATALOG_SELECT && withSpecs.error && /product_specs/i.test(withSpecs.error.message ?? '')) {
-    return run(CATALOG_SELECT.replace(SPECS_EMBED, ''));
+  let query = select;
+  let result = await run(query);
+  // Before migration 179 the brand has no logo column: ask again without it.
+  if (result.error && /logo_url/i.test(result.error.message ?? '')) {
+    query = query.split('brand:brands(brand_name, logo_url)').join('brand:brands(brand_name)');
+    result = await run(query);
   }
-  return withSpecs;
+  if (query.includes(SPECS_EMBED) && result.error && /product_specs/i.test(result.error.message ?? '')) {
+    return run(query.replace(SPECS_EMBED, ''));
+  }
+  return result;
 }
 
 /** Full catalog rows (admin / detail-adjacent). Includes specs and variant images. */
@@ -219,15 +227,23 @@ export async function replaceCatalogSpecs(
   if (inserted.error) throw inserted.error;
 }
 
-export async function resolveBrandId(service: SupabaseClient, name: string): Promise<number | null> {
+export async function resolveBrandId(service: SupabaseClient, name: string, logoUrl?: string): Promise<number | null> {
   const brandName = name.trim();
   if (!brandName) return null;
+  const logo = logoUrl?.trim() ?? '';
   const existing = await service.from('brands').select('brand_id').eq('brand_name', brandName).maybeSingle();
   if (existing.error) throw existing.error;
-  if (existing.data?.brand_id) return existing.data.brand_id as number;
-  const inserted = await service.from('brands').insert({ brand_name: brandName }).select('brand_id').single();
-  if (inserted.error || !inserted.data) throw inserted.error ?? new Error('Failed to save brand');
-  return inserted.data.brand_id as number;
+  let brandId = existing.data?.brand_id as number | undefined;
+  if (!brandId) {
+    const inserted = await service.from('brands').insert({ brand_name: brandName }).select('brand_id').single();
+    if (inserted.error || !inserted.data) throw inserted.error ?? new Error('Failed to save brand');
+    brandId = inserted.data.brand_id as number;
+  }
+  if (logo) {
+    const saved = await service.from('brands').update({ logo_url: logo }).eq('brand_id', brandId);
+    if (saved.error && !/logo_url/i.test(saved.error.message ?? '')) throw saved.error;
+  }
+  return brandId;
 }
 
 export async function resolveColorId(service: SupabaseClient, name: string): Promise<number | null> {

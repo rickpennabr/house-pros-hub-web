@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
   const service = createServiceRoleClient();
   try {
-    const brandId = await resolveBrandId(service, parsed.data.brand);
+    const brandId = await resolveBrandId(service, parsed.data.brand, parsed.data.brand_logo_url);
     const inserted = await service
       .from('base_products')
       .insert({

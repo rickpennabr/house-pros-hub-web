@@ -19,9 +19,9 @@ interface TypingSearchInputProps {
 }
 
 const DEFAULT_INPUT_CLASS =
-  'h-10 w-full rounded-lg border-2 border-black bg-white pl-10 pr-8 text-base text-black placeholder:text-gray-500 focus:outline-none';
+  'h-10 w-full rounded-lg border-2 border-black bg-white pl-8 pr-6 sm:pl-10 sm:pr-8 text-base text-black placeholder:text-gray-500 focus:outline-none';
 const DEFAULT_ICON_CLASS =
-  'pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500';
+  'pointer-events-none absolute left-2 top-1/2 sm:left-3 h-5 w-5 -translate-y-1/2 text-red-500';
 
 /** Search field whose empty placeholder types itself out, the same way other placeholders do. */
 export function TypingSearchInput({
@@ -59,7 +59,15 @@ export function TypingSearchInput({
       <Search className={iconClassName} />
       <input
         ref={inputRef}
-        type="text"
+        type="search"
+        // A search box, never a form field: no saved emails/addresses from the browser or password managers.
+        name="hub-search"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onFocus={onFocus}
@@ -75,7 +83,7 @@ export function TypingSearchInput({
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => onChange('')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-gray-600 hover:text-black"
+          className="absolute right-1.5 top-1/2 sm:right-2 -translate-y-1/2 cursor-pointer text-gray-600 hover:text-black"
           aria-label={clearLabel}
         >
           <X className="h-4 w-4" />

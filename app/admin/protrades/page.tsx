@@ -7,7 +7,7 @@ import Modal from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { SimpleConfirmDialog } from '@/components/ui/SimpleConfirmDialog';
-import { PLANT_CATEGORIES, TRADES, TRADE_SLUGS, defaultUnitFor, type TradeSlug } from '@/lib/protrades/trades';
+import { HARDSCAPE_COLLECTIONS, PLANT_CATEGORIES, TRADES, TRADE_SLUGS, defaultUnitFor, type TradeSlug } from '@/lib/protrades/trades';
 
 interface Item {
   id?: string;
@@ -289,6 +289,7 @@ function ItemEditor({ item, onClose, onSaved }: { item: Item; onClose: () => voi
 export default function AdminProTradesPage() {
   const [trade, setTrade] = useState<TradeSlug>('landscape');
   const [kind, setKind] = useState('');
+  const [collection, setCollection] = useState('');
   const [search, setSearch] = useState('');
   const [items, setItems] = useState<Item[]>([]);
   const [total, setTotal] = useState(0);
@@ -332,6 +333,7 @@ export default function AdminProTradesPage() {
     setError(null);
     const params = new URLSearchParams({ trade });
     if (kind) params.set('kind', kind);
+    if (trade === 'hardscape' && collection) params.set('collection', collection);
     if (search.trim()) params.set('q', search.trim());
     try {
       const res = await fetch(`/api/admin/protrades/catalog?${params}`, { credentials: 'include' });
@@ -344,7 +346,7 @@ export default function AdminProTradesPage() {
     } finally {
       setLoading(false);
     }
-  }, [trade, kind, search]);
+  }, [trade, kind, collection, search]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 250);
@@ -422,6 +424,20 @@ export default function AdminProTradesPage() {
       </div>
 
       <TypingSearchInput value={search} onChange={setSearch} placeholder="Search name, brand, Latin name or category…" clearLabel="Clear search" />
+      {trade === 'hardscape' ? (
+        <div className="flex flex-wrap gap-2">
+          {[{ slug: '', label: 'All sources' }, ...HARDSCAPE_COLLECTIONS].map((row) => (
+            <button
+              key={row.slug || 'all'}
+              type="button"
+              onClick={() => setCollection(row.slug)}
+              className={`cursor-pointer rounded-lg border-2 border-black px-3 py-1 text-sm font-semibold ${collection === row.slug ? 'bg-black text-white' : 'bg-white'}`}
+            >
+              {row.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {TRADES[trade].kinds.length > 1 ? (
         <div className="flex flex-wrap gap-2">
           {[{ slug: '' }, ...TRADES[trade].kinds].map((row) => (

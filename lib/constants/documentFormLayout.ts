@@ -11,20 +11,20 @@ export const DOCUMENT_FORM_LAYOUT = {
     'sticky bottom-0 left-0 right-0 border-t border-gray-200 bg-white px-4 md:px-8 py-4 flex flex-wrap items-center justify-between gap-3',
 } as const;
 
-/** Shared unit/qty/rate column widths for estimate + invoice line editors: all three fields are the same width. */
+/** Shared unit/qty/rate column widths for estimate + invoice line editors. 6rem each on phones; on PC unit 3.6rem, qty 3.62rem, rate 4rem. */
 export const DOCUMENT_LINE_QTY_RATE = {
   tableMinWidth: 720,
-  unitTh: 'text-left py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-[6rem] w-[6rem]',
-  qtyTh: 'text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-[6rem] w-[6rem]',
-  rateTh: 'text-right py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-[6rem] w-[6rem]',
-  unitTd: 'min-w-[6rem] w-[6rem] py-1 px-2 align-top',
-  qtyTd: 'min-w-[6rem] w-[6rem] py-1 px-2 align-top text-right',
-  rateTd: 'min-w-[6rem] w-[6rem] py-1 px-2 align-top text-right',
-  unitWrap: 'block w-[6rem] min-w-[6rem]',
-  qtyWrap: 'block w-[6rem] min-w-[6rem]',
-  rateWrap: 'block w-[6rem] min-w-[6rem]',
-  unitInput: 'text-sm py-1.5 !w-full !min-w-0 border-gray-300',
-  qtyInput: 'text-sm py-1.5 !w-full text-right border-gray-300',
-  rateInput: 'text-sm py-1.5 !w-full text-right border-gray-300',
+  unitTh: 'text-center py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-[6rem] w-[6rem] lg:min-w-[3.6rem] lg:w-[3.6rem]',
+  qtyTh: 'text-center py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-[6rem] w-[6rem] lg:min-w-[3.62rem] lg:w-[3.62rem]',
+  rateTh: 'text-center py-2 px-2 text-xs font-semibold uppercase text-gray-600 min-w-[6rem] w-[6rem] lg:min-w-[4rem] lg:w-[4rem]',
+  unitTd: 'min-w-[6rem] w-[6rem] lg:min-w-[3.6rem] lg:w-[3.6rem] py-1 px-2 align-top',
+  qtyTd: 'min-w-[6rem] w-[6rem] lg:min-w-[3.62rem] lg:w-[3.62rem] py-1 px-2 align-top text-right',
+  rateTd: 'min-w-[6rem] w-[6rem] lg:min-w-[4rem] lg:w-[4rem] py-1 px-2 align-top text-right',
+  unitWrap: 'block w-[6rem] min-w-[6rem] lg:w-[3.6rem] lg:min-w-[3.6rem]',
+  qtyWrap: 'block w-[6rem] min-w-[6rem] lg:w-[3.62rem] lg:min-w-[3.62rem]',
+  rateWrap: 'block w-[6rem] min-w-[6rem] lg:w-[4rem] lg:min-w-[4rem]',
+  unitInput: 'text-sm py-1.5 lg:px-1.5 text-center !w-full !min-w-0 border-gray-300',
+  qtyInput: 'text-sm py-1.5 lg:px-1.5 !w-full text-right border-gray-300',
+  rateInput: 'text-sm py-1.5 lg:px-1.5 !w-full text-right border-gray-300',
 } as const;
 

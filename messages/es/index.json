@@ -3148,6 +3148,7 @@
     "tool_plants": "Base de datos de plantas",
     "tool_maintenance": "Sistema de mantenimiento",
     "tool_hardscapeProducts": "Base de datos",
+    "tool_hardscapeQuote": "ProQuote",
     "on": "Activado",
     "off": "Desactivado",
     "limitNote": "Tu plan {plan} incluye {limit, plural, one {# ProTrade} other {# ProTrades}} ({used} activos).",
@@ -3195,7 +3196,10 @@
     "kind_other": "Otros",
     "kind_boulder": "Rocas grandes",
     "kind_soil": "Arena, tierra y grava",
-    "kind_flagstone": "Laja"
+    "kind_flagstone": "Laja",
+    "collection_all": "Todas las fuentes",
+    "collection_pavers": "Adoquines y muros",
+    "collection_rockYard": "Patio de rocas (Star Nursery)"
   },
   "twoStep": {
     "title": "Inicio de sesión en dos pasos",

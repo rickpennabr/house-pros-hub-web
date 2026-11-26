@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   CalendarDays,
@@ -16,6 +16,7 @@ import {
   Wrench,
   Home,
   Search,
+  Calculator,
 } from 'lucide-react';
 import { MobileGridActionsModal, type MobileGridActionItem } from '@/components/crm/MobileGridActionsModal';
 
@@ -33,6 +34,21 @@ interface ProAddModalProps {
 export function ProAddModal({ isOpen, onClose }: ProAddModalProps) {
   const locale = useLocale();
   const t = useTranslations('bot');
+  // ProQuote shows only when the Hardscape trade is on in ProTrades.
+  const [hardscapeOn, setHardscapeOn] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch('/api/crm/protrades', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { active?: string[] } | null) => {
+        if (!cancelled) setHardscapeOn(Boolean(data?.active?.includes('hardscape')));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   const items = useMemo((): MobileGridActionItem[] => {
     const crm = `/${locale}/crm`;
@@ -43,13 +59,14 @@ export function ProAddModal({ isOpen, onClose }: ProAddModalProps) {
       { id: 'expense', href: `${crm}/expenses?new=1`, label: t('proAdd.expense'), icon: Receipt },
       { id: 'trip', href: `${crm}/mileage?new=1`, label: t('proAdd.trip'), icon: Car },
       { id: 'estimate', href: `${crm}/estimates?new=1`, label: t('proAdd.estimate'), icon: FileText },
+      ...(hardscapeOn ? [{ id: 'proquote', href: `${crm}/protrades/hardscape/quote`, label: 'ProQuote', icon: Calculator }] : []),
       { id: 'task', href: `${crm}/calendar?new=task`, label: t('proAdd.task'), icon: CalendarDays },
       { id: 'service', href: `${crm}/services?new=1`, label: t('proAdd.service'), icon: Shovel },
       { id: 'product', href: `${crm}/products?new=1`, label: t('proAdd.product'), icon: Package },
       { id: 'jobsite', href: `${crm}/jobsite`, label: t('crmJobsite'), icon: Camera },
       { id: 'maintenance', href: `${crm}/maintenance?new=1`, label: t('proAdd.maintenance'), icon: Wrench },
     ];
-  }, [locale, t]);
+  }, [locale, t, hardscapeOn]);
 
   return (
     <MobileGridActionsModal

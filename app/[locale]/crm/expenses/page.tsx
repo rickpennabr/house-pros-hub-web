@@ -22,6 +22,7 @@ import { categoryUsesVehicle } from '@/lib/crm/mileage-cost';
 import { BUSINESS_COST_CATEGORIES, JOB_COST_CATEGORIES } from '@/lib/crm/job-financials';
 import { UNIT_OPTIONS } from '@/lib/constants/unitOptions';
 import { TitleCount } from '@/components/crm/TitleCount';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 const SORT_OPTIONS = [
   { value: 'expense_date', label: 'Date' },
@@ -985,10 +986,12 @@ export default function CRMExpensesPage() {
             )}
             {categoryUsesVehicle(formCategory) && vehicles.length > 0 && (
               <FormField label="Vehicle" tip="Tags this cost to a truck so Mileage can compare it with the numbers you entered.">
-                <Select value={formVehicleId} onChange={(event) => setFormVehicleId(event.target.value)}>
-                  <option value="">No vehicle</option>
-                  {vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}
-                </Select>
+                <PickerSelect
+                  value={formVehicleId}
+                  onChange={(value) => setFormVehicleId(value)}
+                  noneLabel={"No vehicle"}
+                  options={vehicles.map((vehicle) => ({ value: String(vehicle.id), label: String(vehicle.name) }))}
+                />
               </FormField>
             )}
             <FormField label="Amount ($)" required>
@@ -1000,11 +1003,17 @@ export default function CRMExpensesPage() {
                   <Input value={formPoNumber} onChange={(e) => setFormPoNumber(e.target.value)} placeholder="PO number" />
                 </FormField>
                 <FormField label="Vendor" tip="Vendors are contacts with the Supplier role. Add a new one if they are not in the list.">
-                  <Select
+                  <PickerSelect
                     value={formSupplierId}
-                    onChange={(e) => {
-                      if (e.target.value !== '__new__') {
-                        setFormSupplierId(e.target.value);
+                    placeholder="Select vendor"
+                    searchPlaceholder="Search vendors"
+                    options={[
+                      { value: '__new__', label: '+ Add new supplier' },
+                      ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name })),
+                    ]}
+                    onChange={(value) => {
+                      if (value !== '__new__') {
+                        setFormSupplierId(value);
                         return;
                       }
                       const openContact = async () => {
@@ -1028,11 +1037,7 @@ export default function CRMExpensesPage() {
                       };
                       void openContact();
                     }}
-                  >
-                    <option value="">Select vendor</option>
-                    <option value="__new__">Add new supplier</option>
-                    {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-                  </Select>
+                  />
                 </FormField>
               </>
             )}
@@ -1126,23 +1131,22 @@ export default function CRMExpensesPage() {
           <form onSubmit={(event) => { void saveNewProject(event); }} className="space-y-4">
             {projectFormError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{projectFormError}</div>}
             <FormField label="Customer" required>
-              <Select
+              <PickerSelect
                 value={projectDraft.customerId}
-                onChange={(event) => {
-                  if (event.target.value === '__new__') {
+                placeholder="Select customer"
+                searchPlaceholder="Search customers"
+                options={[
+                  { value: '__new__', label: '+ Add new customer' },
+                  ...billableCustomers.map((customer) => ({ value: customer.id, label: customer.name })),
+                ]}
+                onChange={(value) => {
+                  if (value === '__new__') {
                     setShowProjectCustomerModal(true);
                     return;
                   }
-                  setProjectDraft((current) => ({ ...current, customerId: event.target.value, estimateId: '' }));
+                  setProjectDraft((current) => ({ ...current, customerId: value, estimateId: '' }));
                 }}
-                required
-              >
-                <option value="">Select customer</option>
-                <option value="__new__">Add new customer</option>
-                {billableCustomers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>{customer.name}</option>
-                ))}
-              </Select>
+              />
             </FormField>
             <FormField label="Project name" required>
               <Input
@@ -1154,17 +1158,13 @@ export default function CRMExpensesPage() {
               />
             </FormField>
             <FormField label="Estimate (optional)">
-              <Select
+              <PickerSelect
                 value={projectDraft.estimateId}
-                onChange={(event) => setProjectDraft((current) => ({ ...current, estimateId: event.target.value }))}
-              >
-                <option value="">None</option>
-                {projectEstimates
-                  .filter((estimate) => estimate.customer_id === projectDraft.customerId)
-                  .map((estimate) => (
-                    <option key={estimate.id} value={estimate.id}>Estimate ${(estimate.amount_cents / 100).toFixed(2)}</option>
-                  ))}
-              </Select>
+                onChange={(value) => setProjectDraft((current) => ({ ...current, estimateId: value }))}
+                noneLabel={"None"}
+                options={projectEstimates
+                  .filter((estimate) => estimate.customer_id === projectDraft.customerId).map((estimate) => ({ value: String(estimate.id), label: `Estimate $${(estimate.amount_cents / 100).toFixed(2)}` }))}
+              />
             </FormField>
             <FormField label="Status">
               <Select

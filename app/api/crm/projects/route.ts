@@ -196,7 +196,16 @@ export async function GET(request: NextRequest) {
     const contractByEstimate = new Map<string, number>();
     estimatesResult.data?.forEach((estimate) => contractByEstimate.set(estimate.id, estimate.amount_cents ?? 0));
 
+    // The property each project is at (a customer can have several).
+    const placeIds = [...new Set(list.map((p) => (p as { place_id?: string | null }).place_id).filter((id): id is string => Boolean(id)))];
+    const placeMap = new Map<string, { name: string | null; street: string | null; city: string | null }>();
+    if (placeIds.length) {
+      const { data: places } = await createServiceRoleClient().from('customer_places').select('id, name, street, city').in('id', placeIds);
+      (places ?? []).forEach((place: { id: string; name: string | null; street: string | null; city: string | null }) => placeMap.set(place.id, place));
+    }
+
     const withCustomer = list.map((p) => {
+      const place = (p as { place_id?: string | null }).place_id ? placeMap.get((p as { place_id?: string | null }).place_id as string) : undefined;
       const c = customerMap.get(p.customer_id);
       const contractAmountCents = p.estimate_id ? contractByEstimate.get(p.estimate_id) ?? null : null;
       const home = [c?.street_address, c?.apartment, c?.city, c?.state, c?.zip_code]
@@ -219,6 +228,8 @@ export async function GET(request: NextRequest) {
         customerLastName: c?.last_name ?? null,
         customerDisplayName: c ? contactDisplayName(c) : null,
         customerAddress: home || billing,
+        propertyName: place?.name ?? null,
+        propertyAddress: place ? [place.street, place.city].filter(Boolean).join(', ') : null,
         contract_amount_cents: contractAmountCents,
         project_cost_cents: financials.get(p.id)?.totalCostCents ?? 0,
         invoiced_cents: financials.get(p.id)?.revenue.invoicedCents ?? 0,
@@ -325,6 +336,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message || 'Failed to create project' }, { status: 500 });
+    if (estimateId) await copyEstimateMaterials(user.id, estimateId, row.id).catch((err) => console.error('copy estimate materials', err));
     if (customerId) {
       await recordCustomerPlaceEvent(customerId, {
         placeId: placeId || undefined,
@@ -340,4 +352,38 @@ export async function POST(request: NextRequest) {
     console.error('POST /api/crm/projects', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+/** The estimate's materials list (from ProQuote) becomes the project's planned materials. */
+async function copyEstimateMaterials(ownerId: string, estimateId: string, projectId: string) {
+  const db = createServiceRoleClient();
+  const { data, error } = await db
+    .from('pro_crm_estimate_materials' as never)
+    .select('id, catalog_item_id, product_id, name, brand, options, area, unit, qty, sort_order')
+    .eq('estimate_id', estimateId)
+    .eq('owner_id', ownerId)
+    .order('sort_order', { ascending: true });
+  // Before migration 178 there is no list: nothing to copy.
+  if (error || !data) return;
+  const list = data as unknown as {
+    id: string; catalog_item_id: string | null; product_id: string | null; name: string; brand: string | null;
+    options: string | null; area: string | null; unit: string; qty: number | string; sort_order: number;
+  }[];
+  if (!list.length) return;
+  const rows = list.map((m) => ({
+    owner_id: ownerId,
+    project_id: projectId,
+    name: (m.brand ? m.name + " (" + m.brand + ")" : m.name).slice(0, 200),
+    unit: m.unit,
+    planned_qty: Number(m.qty) || 0,
+    estimated_qty: Number(m.qty) || 0,
+    note: [m.options, m.area ? "For " + m.area : null].filter(Boolean).join(" · ").slice(0, 500) || null,
+    sort_order: m.sort_order,
+    created_by: ownerId,
+    catalog_item_id: m.catalog_item_id,
+    product_id: m.product_id,
+    estimate_material_id: m.id,
+  }));
+  const { error: insertError } = await db.from('pro_crm_project_materials' as never).insert(rows as never);
+  if (insertError) throw new Error(insertError.message);
 }

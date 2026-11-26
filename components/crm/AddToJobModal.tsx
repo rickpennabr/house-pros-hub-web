@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Modal from '@/components/ui/Modal';
-import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 interface ProjectOption {
   id: string;
@@ -95,15 +95,11 @@ export function AddToJobModal({
             <p className="text-sm text-gray-600">No open jobs. Create a project first.</p>
           ) : null}
           {projects && projects.length > 0 ? (
-            <Select value={projectId} onChange={(event) => setProjectId(event.target.value)} aria-label="Job">
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                  {project.start_date ? ` · starts ${project.start_date}` : ''}
-                  {project.status === 'in_progress' ? ' · in progress' : project.status === 'on_hold' ? ' · on hold' : ''}
-                </option>
-              ))}
-            </Select>
+            <PickerSelect
+              value={projectId}
+              onChange={(value) => setProjectId(value)}
+              options={projects.map((project) => ({ value: String(project.id), label: `${project.name}${project.start_date ? ` · starts ${project.start_date}` : ''}${project.status === 'in_progress' ? ' · in progress' : project.status === 'on_hold' ? ' · on hold' : ''}` }))}
+            />
           ) : null}
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <div className="flex justify-end gap-2">

@@ -35,16 +35,42 @@ const material = (name: string, dollars: number, unit = 'sq ft'): Omit<Hardscape
   kind: 'material', name, unit, rateCents: Math.round(dollars * 100),
 });
 
+/**
+ * Order services show in ProQuote: installations first, then sealing, prep and removals.
+ * Services a pro added themselves come after these, in their own order.
+ */
+export const HARDSCAPE_SERVICE_ORDER = [
+  'pavers installation',
+  'artificial turf installation',
+  'retaining wall installation',
+  'pavers sealing',
+  'excavation and grading',
+  'base material',
+  'concrete removal',
+  'pavers removal',
+];
+
+export function sortHardscapeServices<T extends { name: string }>(items: T[]): T[] {
+  const rank = (name: string) => {
+    const at = HARDSCAPE_SERVICE_ORDER.indexOf(name.trim().toLowerCase());
+    return at < 0 ? HARDSCAPE_SERVICE_ORDER.length : at;
+  };
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => rank(a.item.name) - rank(b.item.name) || a.index - b.index)
+    .map(({ item }) => item);
+}
+
 /** Starter list. Prices are placeholders the pro edits in "Prices". */
 export const HARDSCAPE_STARTER: HardscapeCatalogItem[] = [
-  service('Concrete removal', 3),
-  service('Pavers removal', 2),
+  service('Pavers installation', 8),
+  service('Artificial turf installation', 6),
+  service('Retaining wall installation', 35, 'LF'),
+  service('Pavers sealing', 1.5),
   service('Excavation and grading', 1.5),
   service('Base material', 2),
-  service('Pavers installation', 8),
-  service('Retaining wall installation', 35, 'LF'),
-  service('Artificial turf installation', 6),
-  service('Pavers sealing', 1.5),
+  service('Concrete removal', 3),
+  service('Pavers removal', 2),
   material('Pavers', 4),
   material('Wall block', 20, 'LF'),
   material('Artificial turf', 3),

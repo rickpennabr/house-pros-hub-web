@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/Select';
 import Modal from '@/components/ui/Modal';
 import { contactDisplayName } from '@/lib/crm/contact-name';
 import { projectDurationText } from '@/lib/crm/project-duration';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 interface Manager {
   id: string;
@@ -166,14 +167,13 @@ export function ProjectFromEstimateDialog({ estimateId, customerName, onClose, o
           </label>
           <label className="block text-sm font-medium text-gray-900">
             Project manager
-            <Select value={managerId} onChange={(event) => setManagerId(event.target.value)} className="mt-1">
-              <option value="">{managers.length ? 'None yet' : 'No project managers yet'}</option>
-              {managers.map((manager) => (
-                <option key={manager.id} value={manager.id}>
-                  {manager.name}
-                </option>
-              ))}
-            </Select>
+            <PickerSelect
+              value={managerId}
+              onChange={setManagerId}
+              className="mt-1"
+              noneLabel={managers.length ? 'None yet' : 'No project managers yet'}
+              options={managers.map((manager) => ({ value: manager.id, label: manager.name }))}
+            />
           </label>
         </div>
         {managers.length === 0 && !loading ? (

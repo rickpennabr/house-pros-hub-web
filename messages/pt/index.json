@@ -3397,6 +3397,7 @@
     "tool_plants": "Banco de dados de plantas",
     "tool_maintenance": "Sistema de manutenção",
     "tool_hardscapeProducts": "Banco de dados",
+    "tool_hardscapeQuote": "ProQuote",
     "on": "Ativado",
     "off": "Desativado",
     "limitNote": "Seu plano {plan} inclui {limit, plural, one {# ProTrade} other {# ProTrades}} ({used} ativos).",
@@ -3444,7 +3445,10 @@
     "kind_other": "Outros",
     "kind_boulder": "Pedras grandes",
     "kind_soil": "Areia, terra e cascalho",
-    "kind_flagstone": "Pedra laje"
+    "kind_flagstone": "Pedra laje",
+    "collection_all": "Todas as fontes",
+    "collection_pavers": "Pavers e muros",
+    "collection_rockYard": "Pátio de pedras (Star Nursery)"
   },
   "twoStep": {
     "title": "Login em duas etapas",

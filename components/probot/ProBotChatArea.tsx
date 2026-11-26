@@ -2475,7 +2475,7 @@ export default function ProBotChatArea({
               )}
               <form
                 onSubmit={handleSubmit}
-                className="probot-chat-footer shrink-0 w-full px-2 md:px-4 py-3 pb-[max(10px,env(safe-area-inset-bottom))] md:pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 bg-white md:bg-transparent border-t border-gray-200/90 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] md:shadow-none"
+                className="probot-chat-footer shrink-0 w-full px-2 md:px-4 pt-3 pb-[calc(0.625rem+env(safe-area-inset-bottom,0px))] md:pb-[max(1rem,env(safe-area-inset-bottom,0px))] bg-white md:bg-transparent border-t border-gray-200/90 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] md:shadow-none"
               >
               {/* Same centered column as the messages (ProBotMessageList). */}
               <ChatCamFrame className="w-full md:mx-auto md:max-w-3xl">

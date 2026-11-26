@@ -162,7 +162,8 @@ export default function BusinessListClient({
           currentView={view}
           onViewChange={setView}
           views={isPro ? [] : undefined}
-          onAdd={isPro ? () => setAddOpen(true) : undefined}
+          // Same as the mobile bar: signed-in customers get Add too (their menu opens CustomerAddModal).
+          onAdd={isAuthenticated ? () => setAddOpen(true) : undefined}
           addLabel={tCommon('view.add')}
           addOpen={addOpen}
           showAddOnDesktop

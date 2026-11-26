@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
@@ -12,13 +13,14 @@ import { Select } from '@/components/ui/Select';
 export interface PickedMaterial {
   key: string;
   catalogItemId: string;
+  /** "mine" when catalogItemId is the pro's own product id. */
+  source?: "mine";
   name: string;
   brand: string;
   /** "Color: Sahara · Thickness: 60mm" */
   options: string;
   qty: number;
   unit: string;
-  priceCents: number;
 }
 
 interface CatalogHit {
@@ -31,6 +33,8 @@ interface CatalogHit {
   typical_price_cents: number | null;
   image_url: string | null;
   specs: { name: string; value: string }[] | null;
+  /** "mine" = one of the pro's own CRM products, not in the Hub database. */
+  source?: "mine";
 }
 
 /** Specs with several values ("Sahara, Mirage, Tuscany") become a choice: color, thickness, size, shape. */
@@ -40,7 +44,6 @@ function choiceSpecs(item: CatalogHit): { name: string; values: string[] }[] {
     .filter((spec) => spec.values.length > 1 && /colou?r|thick|size|shape|finish|texture|pattern|style/i.test(spec.name));
 }
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 /**
  * Type to find any hardscape material (pavers, wall block, base, sand, gravel, rock).
@@ -59,8 +62,45 @@ export function HardscapeMaterialPicker({
   const [chosen, setChosen] = useState<CatalogHit | null>(null);
   const [optionValues, setOptionValues] = useState<Record<string, string>>({});
   const [qty, setQty] = useState('');
-  const [price, setPrice] = useState('');
   const qtyRef = useRef<HTMLInputElement>(null);
+  // "Add material": not in the database yet -> save it to My products and pick it, without leaving the quote.
+  const [adding, setAdding] = useState<{ name: string; unit: string; brand: string } | null>(null);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const saveNewMaterial = async () => {
+    if (!adding || !adding.name.trim()) return;
+    setAddBusy(true);
+    setAddError(null);
+    try {
+      const res = await fetch('/api/crm/products', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: adding.name.trim(), unit: adding.unit.trim() || 'each', brand: adding.brand.trim(), category: 'Hardscape' }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { product?: { id: string; name: string; brand?: string | null; unit?: string | null }; error?: string };
+      if (!res.ok || !body.product) throw new Error(body.error || 'Could not add the material');
+      const product = body.product;
+      setAdding(null);
+      choose({
+        id: product.id,
+        name: product.name,
+        brand: product.brand ?? '',
+        kind: 'mine',
+        category: 'Hardscape',
+        unit: product.unit || adding.unit || 'each',
+        typical_price_cents: null,
+        image_url: null,
+        specs: null,
+        source: 'mine',
+      });
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Could not add the material');
+    } finally {
+      setAddBusy(false);
+    }
+  };
 
   useEffect(() => {
     const q = query.trim();
@@ -71,9 +111,9 @@ export function HardscapeMaterialPicker({
     }
     setLoading(true);
     const timer = setTimeout(() => {
-      void fetch(`/api/crm/protrades/catalog?trade=hardscape&q=${encodeURIComponent(q)}`, { credentials: 'include' })
+      void fetch(`/api/crm/protrades/catalog?trade=hardscape&mine=1&q=${encodeURIComponent(q)}`, { credentials: 'include' })
         .then((r) => r.json())
-        .then((body: { items?: CatalogHit[] }) => setHits((body.items ?? []).slice(0, 12)))
+        .then((body: { items?: CatalogHit[]; mine?: CatalogHit[] }) => setHits([...(body.items ?? []).slice(0, 12), ...(body.mine ?? []).slice(0, 8)]))
         .catch(() => setHits([]))
         .finally(() => setLoading(false));
     }, 250);
@@ -84,7 +124,6 @@ export function HardscapeMaterialPicker({
     setChosen(item);
     setQuery(item.brand ? `${item.name} · ${item.brand}` : item.name);
     setOptionValues(Object.fromEntries(choiceSpecs(item).map((spec) => [spec.name, spec.values[0]])));
-    setPrice(item.typical_price_cents ? (item.typical_price_cents / 100).toFixed(2) : '');
     setQty('');
     setTimeout(() => qtyRef.current?.focus(), 0);
   };
@@ -94,7 +133,6 @@ export function HardscapeMaterialPicker({
     setQuery('');
     setOptionValues({});
     setQty('');
-    setPrice('');
   };
 
   const add = () => {
@@ -110,12 +148,12 @@ export function HardscapeMaterialPicker({
       {
         key: `${chosen.id}-${Date.now()}`,
         catalogItemId: chosen.id,
+        source: chosen.source,
         name: chosen.name,
         brand: chosen.brand,
         options,
         qty: Math.round(amount * 100) / 100,
         unit: chosen.unit,
-        priceCents: Math.round((Number(price) || 0) * 100),
       },
     ]);
     reset();
@@ -125,7 +163,7 @@ export function HardscapeMaterialPicker({
 
   return (
     <div className="space-y-3 rounded-lg border border-gray-200 p-3">
-      <p className="text-sm font-semibold text-gray-900">Materials from the Hardscape database</p>
+      <p className="text-sm font-semibold text-gray-900">Pick from the Hardscape database or your products</p>
       <div className="relative">
         <TypingSearchInput
           value={query}
@@ -134,6 +172,7 @@ export function HardscapeMaterialPicker({
             setQuery(value);
           }}
           placeholder="Type a material: washed concrete sand, pavers, base…"
+          inputClassName="h-10 w-full rounded-lg border-2 border-black bg-white pl-8 pr-2 sm:pl-10 text-base text-black placeholder:text-gray-500 focus:outline-none"
           clearLabel="Clear"
         />
         {!chosen && query.trim().length >= 2 ? (
@@ -141,7 +180,19 @@ export function HardscapeMaterialPicker({
             {loading ? (
               <p className="flex items-center gap-2 p-3 text-sm text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Searching…</p>
             ) : hits.length === 0 ? (
-              <p className="p-3 text-sm text-gray-500">No material matches “{query.trim()}”.</p>
+              <div className="space-y-2 p-3">
+                <p className="text-sm text-gray-500">No material matches “{query.trim()}”.</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setAddError(null);
+                    setAdding({ name: query.trim(), unit: 'each', brand: '' });
+                  }}
+                >
+                  <Plus className="mr-1 h-4 w-4" /> Add new material
+                </Button>
+              </div>
             ) : (
               hits.map((item) => (
                 <button
@@ -159,12 +210,9 @@ export function HardscapeMaterialPicker({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-gray-900">{item.name}</span>
                     <span className="block truncate text-xs text-gray-500">
-                      {[item.brand, item.category].filter(Boolean).join(' · ')}
+                      {[item.source === 'mine' ? 'My products' : null, item.brand, item.category].filter(Boolean).join(' · ')}
                     </span>
                   </span>
-                  {item.typical_price_cents ? (
-                    <span className="shrink-0 text-xs text-gray-600">{money(item.typical_price_cents)} / {item.unit}</span>
-                  ) : null}
                 </button>
               ))
             )}
@@ -189,7 +237,7 @@ export function HardscapeMaterialPicker({
             </div>
           ) : null}
           <div className="grid grid-cols-2 gap-3">
-            <FormField label={`Quantity (${chosen.unit})`} required>
+            <FormField label={`Estimated quantity (${chosen.unit})`} required>
               <Input
                 ref={qtyRef}
                 type="number"
@@ -205,9 +253,6 @@ export function HardscapeMaterialPicker({
                 }}
                 placeholder="0"
               />
-            </FormField>
-            <FormField label={`Price per ${chosen.unit} ($)`}>
-              <Input type="number" inputMode="decimal" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
             </FormField>
           </div>
           <div className="flex justify-end gap-2">
@@ -229,7 +274,6 @@ export function HardscapeMaterialPicker({
                 {item.options ? <span className="block truncate text-xs text-gray-500">{item.options}</span> : null}
               </span>
               <span className="shrink-0 text-gray-700">{item.qty} {item.unit}</span>
-              <span className="w-20 shrink-0 text-right text-gray-700">{money(Math.round(item.qty * item.priceCents))}</span>
               <button
                 type="button"
                 onClick={() => onChange(picked.filter((p) => p.key !== item.key))}
@@ -242,19 +286,46 @@ export function HardscapeMaterialPicker({
           ))}
         </ul>
       ) : null}
+      <Modal isOpen={adding !== null} onClose={() => (addBusy ? undefined : setAdding(null))} title="Add material" showHeader maxWidth="md" contentClassName="p-4">
+        {adding ? (
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveNewMaterial();
+            }}
+          >
+            <p className="text-sm text-gray-600">Saved to your products, then added to this quote. You can add photos and prices later in Products.</p>
+            <label className="block text-sm font-medium">
+              Name
+              <Input value={adding.name} onChange={(e) => setAdding({ ...adding, name: e.target.value })} maxLength={160} required autoFocus />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm font-medium">
+                Unit
+                <Select value={adding.unit} onChange={(e) => setAdding({ ...adding, unit: e.target.value })}>
+                  {['each', 'bag', 'ton', 'yd', 'sq ft', 'LF', 'pallet', 'gal'].map((unit) => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </Select>
+              </label>
+              <label className="block text-sm font-medium">
+                Brand (optional)
+                <Input value={adding.brand} onChange={(e) => setAdding({ ...adding, brand: e.target.value })} maxLength={120} />
+              </label>
+            </div>
+            {addError ? <p className="text-sm text-red-600">{addError}</p> : null}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setAdding(null)} disabled={addBusy}>Cancel</Button>
+              <Button type="submit" disabled={addBusy || !adding.name.trim()}>
+                {addBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
+                Add material
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
     </div>
   );
 }
 
-/** Estimate line for one picked material (billed by its own quantity, not the area size). */
-export function pickedMaterialLine(item: PickedMaterial, where: string) {
-  const name = item.brand ? `${item.name} (${item.brand})` : item.name;
-  return {
-    product_or_service: name,
-    description: [item.options, `For ${where}`].filter(Boolean).join(' · '),
-    unit: item.unit,
-    qty: item.qty,
-    rate_cents: item.priceCents,
-    amount_cents: Math.round(item.qty * item.priceCents),
-  };
-}

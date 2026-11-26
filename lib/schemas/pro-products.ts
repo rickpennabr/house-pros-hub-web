@@ -20,6 +20,8 @@ const palletCount = z.number().int().min(0).max(100000);
 export const proProductWriteSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(160),
   brand: z.string().trim().max(120),
+  /** Logo for a new brand; saved on the brand. */
+  brand_logo_url: catalogImage.optional(),
   product_type: z.string().trim().max(80),
   description: z.string().trim().max(4000),
   image_url: catalogImage.optional(),

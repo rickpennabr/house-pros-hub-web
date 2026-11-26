@@ -83,7 +83,10 @@ export const TRADES: Record<TradeSlug, TradeDefinition> = {
       { slug: 'sealer', unit: 'gallon' },
       { slug: 'other', unit: 'each' },
     ],
-    tools: [{ path: '/protrades/hardscape', labelKey: 'tool_hardscapeProducts' }],
+    tools: [
+      { path: '/protrades/hardscape', labelKey: 'tool_hardscapeProducts' },
+      { path: '/protrades/hardscape/quote', labelKey: 'tool_hardscapeQuote' },
+    ],
   },
 };
 
@@ -94,6 +97,12 @@ export const TRADES: Record<TradeSlug, TradeDefinition> = {
 export const PLANT_CATEGORIES = ['Tree', 'Palm', 'Shrub', 'Perennial', 'Groundcover', 'Desert Accent', 'Succulent', 'Cactus', 'Grass', 'Vine', 'Turf'] as const;
 
 /** Best guess of a hardscape item's type from its name, brand and category (used when importing products). */
+/** Hardscape sources kept apart: the manufacturer paver catalog and the Star Nursery rock yard. */
+export const HARDSCAPE_COLLECTIONS = [
+  { slug: 'pavers', label: 'Pavers & wall (manufacturers)' },
+  { slug: 'rock-yard', label: 'Rock yard (Star Nursery)' },
+] as const;
+
 export function guessHardscapeKind(text: string): string {
   const t = text.toLowerCase();
   if (/polymeric|joint sand|bedding sand|sand/.test(t)) return 'sand';

@@ -24,6 +24,7 @@ import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 import { ChartLoading, ProjectListChart } from '@/components/crm/ListCharts';
 import { isProjectChart } from '@/lib/crm/list-charts';
 import { TitleCount } from '@/components/crm/TitleCount';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 const SORT_OPTIONS = [
   { value: 'created_at', label: 'Created' },
@@ -619,16 +620,21 @@ export default function CRMProjectsPage() {
           <form onSubmit={viewMode === 'add' ? handleSubmitAdd : handleSubmitEdit} className="space-y-4">
             {formError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{formError}</div>}
             <FormField label="Customer" required>
-              <Select value={formCustomerId} onChange={(e) => { setFormCustomerId(e.target.value); setFormEstimateId(''); }} required disabled={viewMode === 'edit'}>
-                <option value="">Select customer</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{contactDisplayName(c)}</option>)}
-              </Select>
+              <PickerSelect
+                value={formCustomerId}
+                onChange={(value) => { setFormCustomerId(value); setFormEstimateId(''); }}
+                placeholder={"Select customer"}
+                disabled={viewMode === 'edit'}
+                options={customers.map((c) => ({ value: String(c.id), label: String(contactDisplayName(c)) }))}
+              />
             </FormField>
             <FormField label="Estimate (optional)">
-              <Select value={formEstimateId} onChange={(e) => setFormEstimateId(e.target.value)}>
-                <option value="">None</option>
-                {estimatesForCustomer.map((est) => <option key={est.id} value={est.id}>Estimate ${(est.amount_cents / 100).toFixed(2)}</option>)}
-              </Select>
+              <PickerSelect
+                value={formEstimateId}
+                onChange={(value) => setFormEstimateId(value)}
+                noneLabel={"None"}
+                options={estimatesForCustomer.map((est) => ({ value: String(est.id), label: `Estimate $${(est.amount_cents / 100).toFixed(2)}` }))}
+              />
             </FormField>
             <FormField label="Project name" required>
               <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Kitchen remodel" required />

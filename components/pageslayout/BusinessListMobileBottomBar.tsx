@@ -41,6 +41,21 @@ interface BusinessListMobileBottomBarProps {
  *
  * Mobile is card view only, so there are no view buttons. Settings is in the profile menu.
  */
+/** The notch: 63px opening (53px house + 5px gap each side), 44px deep (5px under the house); corners follow the house (8px + 5px gap = 13px) and the top edges curve in smoothly. */
+const NOTCH_SVG = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="75" height="44"><path d="M0 0H75A6 6 0 0 0 69 6V31A13 13 0 0 1 56 44H19A13 13 0 0 1 6 31V6A6 6 0 0 0 0 0Z"/></svg>');
+const NOTCHED_BAR_MASK: import('react').CSSProperties = {
+  WebkitMaskImage: `url("data:image/svg+xml,${NOTCH_SVG}"), linear-gradient(#000, #000)`,
+  maskImage: `url("data:image/svg+xml,${NOTCH_SVG}"), linear-gradient(#000, #000)`,
+  WebkitMaskRepeat: 'no-repeat',
+  maskRepeat: 'no-repeat',
+  WebkitMaskPosition: 'center top, 0 0',
+  maskPosition: 'center top, 0 0',
+  WebkitMaskSize: '75px 44px, 100% 100%',
+  maskSize: '75px 44px, 100% 100%',
+  WebkitMaskComposite: 'xor',
+  maskComposite: 'exclude',
+};
+
 export default function BusinessListMobileBottomBar({
   showProAdd = false,
   signedIn = false,
@@ -126,11 +141,11 @@ export default function BusinessListMobileBottomBar({
   const center = (
     <button type="button" onClick={() => go(homeTarget)} className={item.replace('relative ', '')} aria-label={homeLabel}>
       {/* Raised above the other icons' line. */}
-      <span className="relative z-10 -mt-[28px] flex h-[53px] w-[53px] items-center justify-center rounded-lg border-[5px] border-white bg-black">
+      <span className="relative z-10 -mt-[46px] -translate-y-3 flex h-[53px] w-[53px] items-center justify-center rounded-lg bg-black">
         <HouseMark variant="plain" tone="light" className="h-10 w-10" />
         {signedIn ? <NotificationCount count={home.count} className="pointer-events-none absolute -right-3 -top-3 z-10" /> : null}
       </span>
-      <span className="max-w-full truncate">{homeLabel}</span>
+      <span className="max-w-full -translate-y-1 truncate">{homeLabel}</span>
     </button>
   );
 
@@ -171,10 +186,12 @@ export default function BusinessListMobileBottomBar({
 
   const bar = (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[100] flex items-end bg-black px-1 pt-1.5 shadow-[0_-4px_10px_rgba(0,0,0,0.15)]"
+      className="fixed bottom-0 left-0 right-0 z-[100] flex items-end px-1 pt-1.5"
       aria-label="Main menu"
       style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom, 0px))' }}
     >
+      {/* Black background with a see-through notch around the raised center house (like a cut-out). */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-black" style={NOTCHED_BAR_MASK} />
       {first}
       {probot}
       {center}

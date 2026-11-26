@@ -20,6 +20,7 @@ import {
   type VehicleCostInput,
 } from '@/lib/crm/mileage-cost';
 import { TitleCount } from '@/components/crm/TitleCount';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 interface VehicleView {
   id: string;
@@ -649,12 +650,12 @@ export default function CRMMileagePage() {
             {trip && (
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField label="Vehicle" required>
-                  <Select value={trip.vehicleId} onChange={(event) => setTrip({ ...trip, vehicleId: event.target.value })}>
-                    <option value="">Select vehicle</option>
-                    {vehicles.map((vehicle) => (
-                      <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>
-                    ))}
-                  </Select>
+                  <PickerSelect
+                    value={trip.vehicleId}
+                    onChange={(value) => setTrip({ ...trip, vehicleId: value })}
+                    placeholder={"Select vehicle"}
+                    options={vehicles.map((vehicle) => ({ value: String(vehicle.id), label: String(vehicle.name) }))}
+                  />
                 </FormField>
                 <FormField label="Miles" required>
                   <Input inputMode="decimal" value={trip.miles} onChange={(event) => setTrip({ ...trip, miles: event.target.value })} placeholder="24" />
@@ -674,10 +675,10 @@ export default function CRMMileagePage() {
                   <Input value={trip.destination} onChange={(event) => setTrip({ ...trip, destination: event.target.value })} placeholder="Job site" />
                 </FormField>
                 <FormField label="Customer">
-                  <Select
+                  <PickerSelect
                     value={trip.customerId}
-                    onChange={(event) => {
-                      const customerId = event.target.value;
+                    onChange={(value) => {
+                      const customerId = value;
                       const chosen = estimates.find((item) => item.id === trip.estimateId);
                       const address = customers.find((item) => item.id === customerId)?.address ?? '';
                       setTrip({
@@ -687,35 +688,34 @@ export default function CRMMileagePage() {
                         destination: trip.destination || address,
                       });
                     }}
-                  >
-                    <option value="">No customer</option>
-                    {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-                  </Select>
+                    noneLabel={"No customer"}
+                    options={customers.map((customer) => ({ value: String(customer.id), label: String(customer.name) }))}
+                  />
                 </FormField>
                 <FormField label="Estimate">
-                  <Select
+                  <PickerSelect
                     value={trip.estimateId}
-                    onChange={(event) => {
-                      const estimate = estimates.find((item) => item.id === event.target.value);
+                    onChange={(value) => {
+                      const estimate = estimates.find((item) => item.id === value);
                       setTrip({
                         ...trip,
-                        estimateId: event.target.value,
+                        estimateId: value,
                         customerId: estimate?.customerId || trip.customerId,
                         destination: trip.destination || estimate?.address || '',
                       });
                     }}
-                  >
-                    <option value="">No estimate</option>
-                    {estimates
-                      .filter((item) => !trip.customerId || item.customerId === trip.customerId)
-                      .map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-                  </Select>
+                    noneLabel={"No estimate"}
+                    options={estimates
+                      .filter((item) => !trip.customerId || item.customerId === trip.customerId).map((item) => ({ value: String(item.id), label: String(item.label) }))}
+                  />
                 </FormField>
                 <FormField label="Project">
-                  <Select value={trip.projectId} onChange={(event) => setTrip({ ...trip, projectId: event.target.value })}>
-                    <option value="">No project</option>
-                    {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-                  </Select>
+                  <PickerSelect
+                    value={trip.projectId}
+                    onChange={(value) => setTrip({ ...trip, projectId: value })}
+                    noneLabel={"No project"}
+                    options={projects.map((project) => ({ value: String(project.id), label: String(project.name) }))}
+                  />
                 </FormField>
                 <FormField label="Note">
                   <Input value={trip.note} onChange={(event) => setTrip({ ...trip, note: event.target.value })} placeholder="Optional" />

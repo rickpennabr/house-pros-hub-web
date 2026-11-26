@@ -14,6 +14,7 @@ import { ToolForm, toolFormError, toolPayload, useToolPickLists, type ToolFormVa
 import { formatCents } from '@/lib/crm/catalog-options';
 import { TOOL_STATUS_LABELS, TOOL_STATUSES, type ToolStatus } from '@/lib/crm/pro-tools';
 import type { ToolListItem } from '@/lib/crm/pro-tools-db';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 type ToolDetail = ToolListItem & {
   usefulLifeYears: number;
@@ -369,34 +370,31 @@ export default function ToolDetailPage() {
               </Select>
             </FormField>
             <FormField label="Who has it">
-              <Select value={move.assignedCrewId} onChange={(e) => setMove({ ...move, assignedCrewId: e.target.value })} disabled={busy}>
-                <option value="">Nobody (in the shop)</option>
-                {lists.crew.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-              </Select>
+              <PickerSelect
+                value={move.assignedCrewId}
+                onChange={(value) => setMove({ ...move, assignedCrewId: value })}
+                noneLabel={"Nobody (in the shop)"}
+                disabled={busy}
+                options={lists.crew.map((member) => ({ value: String(member.id), label: String(member.name) }))}
+              />
             </FormField>
             <FormField label="Project">
-              <Select value={move.projectId} onChange={(e) => setMove({ ...move, projectId: e.target.value })} disabled={busy}>
-                <option value="">No project</option>
-                {lists.projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
+              <PickerSelect
+                value={move.projectId}
+                onChange={(value) => setMove({ ...move, projectId: value })}
+                noneLabel={"No project"}
+                disabled={busy}
+                options={lists.projects.map((project) => ({ value: String(project.id), label: String(project.name) }))}
+              />
             </FormField>
             <FormField label="Maintenance house">
-              <Select value={move.maintenancePlanId} onChange={(e) => setMove({ ...move, maintenancePlanId: e.target.value })} disabled={busy}>
-                <option value="">No house</option>
-                {lists.houses.map((house) => (
-                  <option key={house.id} value={house.id}>
-                    {house.name}
-                  </option>
-                ))}
-              </Select>
+              <PickerSelect
+                value={move.maintenancePlanId}
+                onChange={(value) => setMove({ ...move, maintenancePlanId: value })}
+                noneLabel={"No house"}
+                disabled={busy}
+                options={lists.houses.map((house) => ({ value: String(house.id), label: String(house.name) }))}
+              />
             </FormField>
           </div>
           <FormField label="Note">
@@ -439,14 +437,13 @@ export default function ToolDetailPage() {
               <Input type="date" value={upkeep.date} onChange={(e) => setUpkeep({ ...upkeep, date: e.target.value })} disabled={busy} />
             </FormField>
             <FormField label="Bill to project">
-              <Select value={upkeep.projectId} onChange={(e) => setUpkeep({ ...upkeep, projectId: e.target.value })} disabled={busy}>
-                <option value="">Business cost</option>
-                {lists.projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
+              <PickerSelect
+                value={upkeep.projectId}
+                onChange={(value) => setUpkeep({ ...upkeep, projectId: value })}
+                noneLabel={"Business cost"}
+                disabled={busy}
+                options={lists.projects.map((project) => ({ value: String(project.id), label: String(project.name) }))}
+              />
             </FormField>
             <FormField label="Next service">
               <Input

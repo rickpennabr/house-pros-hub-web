@@ -22,6 +22,8 @@ interface Material {
   unit: string;
   note: string | null;
   plannedQty: number;
+  /** Quantity on the estimate (ProQuote); null when the material was added on the project. */
+  estimatedQty: number | null;
   deliveredQty: number;
   remainingQty: number;
   extraQty: number;
@@ -35,6 +37,19 @@ const STATUS: Record<Material['status'], { label: string; className: string }> =
   sent: { label: 'All sent', className: 'border-green-600 text-green-700' },
   over: { label: 'Sent extra', className: 'border-red-500 text-red-700' },
 };
+
+/** Used (sent) against the estimate: "+20 over" in red, "-15 under" in green, nothing until something is sent. */
+function VsEstimate({ estimated, used }: { estimated: number; used: number }) {
+  if (used <= 0) return null;
+  const diff = Math.round((used - estimated) * 100) / 100;
+  if (diff === 0) return <span className="block text-xs text-gray-600">on estimate</span>;
+  const pct = estimated > 0 ? ` (${Math.round((Math.abs(diff) / estimated) * 100)}%)` : '';
+  return diff > 0 ? (
+    <span className="block text-xs font-medium text-red-700">+{formatQty(diff)} over{pct}</span>
+  ) : (
+    <span className="block text-xs font-medium text-green-700">{formatQty(diff)} under{pct}</span>
+  );
+}
 
 const today = () => new Date().toISOString().slice(0, 10);
 const shortDate = (iso: string) =>
@@ -197,7 +212,14 @@ export function ProjectMaterials({ projectId, onCount }: { projectId: string; on
                         {material.note ? <span className="block truncate text-xs text-gray-600">{material.note}</span> : null}
                       </span>
                     </button>
-                    <div className="grid grid-cols-3 gap-4 text-sm tabular-nums">
+                    <div className={`grid gap-4 text-sm tabular-nums ${material.estimatedQty != null ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                      {material.estimatedQty != null ? (
+                        <span>
+                          <span className="block text-xs text-gray-500">Estimated</span>
+                          {formatQty(material.estimatedQty)}
+                          <VsEstimate estimated={material.estimatedQty} used={material.deliveredQty} />
+                        </span>
+                      ) : null}
                       <span>
                         <span className="block text-xs text-gray-500">Planned</span>
                         {formatQty(material.plannedQty)} {material.unit}

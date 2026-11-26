@@ -43,6 +43,7 @@ import { ContactPropertySelect } from '@/components/crm/ContactPropertySelect';
 import { DiscountField } from '@/components/documents/DiscountField';
 import { discountCents as discountCentsFor, discountFromForm, type DiscountKind } from '@/lib/crm/document-discount';
 import type { ContactProperty } from '@/lib/places/contact-places';
+import { PickerSelect } from '@/components/ui/PickerSelect';
 
 interface InvoiceEditorProps {
   title: string;
@@ -325,27 +326,20 @@ export function InvoiceEditor({
                   <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">
                     Bill to <span className="text-red-600">*</span>
                   </label>
-                  <Select
+                  <PickerSelect
                     value={customerId}
-                    onChange={(e) => {
-                      setCustomerId(e.target.value);
+                    onChange={(value) => {
+                      setCustomerId(value);
                       setPlaceId('');
                       setLineItems((current) => {
                         const kept = current.filter((line) => !line.expense_id);
                         return kept.length > 0 ? kept : [emptyInvoiceLine()];
                       });
                     }}
-                    required
+                    placeholder={"Select customer"}
                     disabled={Boolean(embedded)}
-                    className="w-full"
-                  >
-                    <option value="">Select customer</option>
-                    {customerOptions.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customerLabel(customer)}
-                      </option>
-                    ))}
-                  </Select>
+                    options={customerOptions.map((customer) => ({ value: String(customer.id), label: String(customerLabel(customer)) }))}
+                  />
                   {embedded ? null : (
                     <HubCustomerImport
                       disabled={saving}
@@ -442,7 +436,9 @@ export function InvoiceEditor({
                 <tbody>
                   {lineItems.map((line, idx) => (
                     <tr key={idx} className="border-b border-gray-200">
-                      <td className="py-1 px-2 text-sm text-gray-600 align-top pt-2">{idx + 1}</td>
+                      <td className="py-1 px-2 text-sm text-gray-600 align-top">
+                        <span className="flex h-9 items-center">{idx + 1}</span>
+                      </td>
                       <td className="py-1 px-2 align-top">
                         <ProductOrServiceCombobox
                           value={line.product_or_service}
@@ -545,10 +541,11 @@ export function InvoiceEditor({
                           />
                         </div>
                       </td>
-                      <td className="py-1 px-2 align-top text-right text-sm text-gray-700 pt-2">
-                        {formatAmount(line.amount_cents)}
+                      <td className="py-1 px-2 align-top text-right text-sm text-gray-700">
+                        <span className="flex h-9 items-center justify-end">{formatAmount(line.amount_cents)}</span>
                       </td>
                       <td className="py-1 px-2 align-top">
+                        <span className="flex h-9 items-center">
                         <button
                           type="button"
                           onClick={() => {
@@ -560,6 +557,7 @@ export function InvoiceEditor({
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        </span>
                       </td>
                     </tr>
                   ))}

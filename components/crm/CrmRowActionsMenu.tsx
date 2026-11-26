@@ -88,14 +88,16 @@ interface CrmRowActionsPortalProps {
   position: MenuPosition | null;
   menuRef: RefObject<HTMLDivElement | null>;
   children: ReactNode;
+  /** Stacking class; raise it when the list lives in a modal. */
+  zClassName?: string;
 }
 
-export function CrmRowActionsPortal({ openId, position, menuRef, children }: CrmRowActionsPortalProps) {
+export function CrmRowActionsPortal({ openId, position, menuRef, children, zClassName = 'z-[100]' }: CrmRowActionsPortalProps) {
   if (!openId || !position || typeof document === 'undefined') return null;
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[100] min-w-[120px] py-1 bg-white border border-gray-200 rounded-md shadow-lg"
+      className={`fixed ${zClassName} min-w-[120px] py-1 bg-white border border-gray-200 rounded-md shadow-lg`}
       style={{ top: position.top, left: position.left }}
     >
       {children}

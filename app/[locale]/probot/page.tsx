@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Building2, FolderOpen, Trash2, UserPlus } from 'lucide-react';
+import { Building2, FolderOpen, Loader2, Trash2, UserPlus } from 'lucide-react';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { deleteConversation, getVisitorDeleteToken } from '@/lib/api/chat';
 import { createLocalePath } from '@/lib/redirect';
@@ -96,6 +96,10 @@ function ProBotPageContent() {
   const pendingUserContactParamRef = useRef<string | null>(null);
   const { isAuthenticated, user, isLoading: authLoading } = useAuth();
   const [selectedContact, setSelectedContact] = useState<ProBotContact>(PROBOT_CONTACT);
+  // A link to a contact (?contact=customer-…) shows a blank loader until that contact is known, never ProBot first.
+  const linkedContactPending = Boolean(
+    contactParam && contactParam !== 'probot' && (selectedContact.isProBot || selectedContact.name === contactParam)
+  );
   const tChat = useTranslations('probot');
   const pageLocale = useLocale();
   const [pendingContactDelete, setPendingContactDelete] = useState<ProBotContact | null>(null);
@@ -597,8 +601,8 @@ function ProBotPageContent() {
   useEffect(() => {
     // ProBot in the page header only while chatting with ProBot (not on the phone chat list or another chat).
     const onPhoneList = sidebarOpen && typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
-    setProBotHeader({ inChat: inChatView, onBackToWelcome, withProBot: Boolean(selectedContact.isProBot) && !onPhoneList });
-  }, [inChatView, onBackToWelcome, setProBotHeader, selectedContact.isProBot, sidebarOpen]);
+    setProBotHeader({ inChat: inChatView, onBackToWelcome, withProBot: Boolean(selectedContact.isProBot) && !onPhoneList && !linkedContactPending });
+  }, [inChatView, onBackToWelcome, setProBotHeader, selectedContact.isProBot, sidebarOpen, linkedContactPending]);
 
   // When contractor opens a conversation, refetch unread count and History Chat list after messages load (and get marked read)
   useEffect(() => {
@@ -796,7 +800,12 @@ function ProBotPageContent() {
         sidebarOpen={sidebarOpen}
         onSidebarOpenChange={setSidebarOpen}
       />
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+      <div className="relative flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+        {linkedContactPending ? (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#efeae2]" aria-busy>
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          </div>
+        ) : null}
         <ProBotChatArea
           selectedContact={selectedContact}
           hubOnline={selectedContact?.id === 'probot' ? hubOnline : undefined}

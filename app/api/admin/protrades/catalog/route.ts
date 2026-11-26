@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const result = await searchCatalog({
       trade,
       kind: params.get('kind') || undefined,
+      collection: params.get('collection') || undefined,
       q: params.get('q') || undefined,
       page: Number(params.get('page') || 1),
       pageSize: 100,

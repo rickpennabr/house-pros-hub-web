@@ -22,6 +22,8 @@ export interface ProProduct {
   name: string;
   slug: string;
   brand: string;
+  /** Logo saved on the brand (Admin → Products); null uses the built-in logo. */
+  brand_logo?: string | null;
   product_type: string;
   description: string;
   image_url: string | null;
