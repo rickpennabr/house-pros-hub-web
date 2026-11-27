@@ -21,6 +21,7 @@ import {
   LogIn, 
   LogOut, 
   HelpCircle,
+  BookOpen,
   LayoutDashboard,
   MessageCircle,
   Briefcase,
@@ -334,6 +335,13 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
 
           <div className="border-t-2 border-black"></div>
           <div className="p-2">
+            <button
+              onClick={() => handleMenuItemClick('/docs')}
+              className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
+            >
+              <BookOpen className="w-4 h-4 text-red-600" />
+              <span>{t('hubDocs')}</span>
+            </button>
             <button
               onClick={() => handleMenuItemClick('/help')}
               className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"

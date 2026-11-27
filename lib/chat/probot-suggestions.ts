@@ -27,6 +27,7 @@ const AFTER_TOOL: Record<string, string[]> = {
   get_day_schedule: ['tomorrow', 'owes', 'projects'],
   get_maintenance_on: ['today', 'tomorrow'],
   get_tax_summary: ['owes', 'projects'],
+  get_trip_costs: ['today', 'owes'],
   search_pros: ['morePros', 'estimate'],
   list_categories: ['findPro', 'estimate'],
   get_pro: ['estimate', 'morePros'],

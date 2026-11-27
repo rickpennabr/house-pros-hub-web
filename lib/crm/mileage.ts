@@ -144,6 +144,9 @@ export interface TripView {
   note: string | null;
   expenseId: string | null;
   billed: boolean;
+  /** Recorded live with GPS (has a route map). */
+  tracked: boolean;
+  tripTypeId: string | null;
 }
 
 export function presentTrip(row: TripRow, billed: boolean): TripView {
@@ -166,6 +169,9 @@ export function presentTrip(row: TripRow, billed: boolean): TripView {
     note: row.note,
     expenseId: row.expense_id,
     billed,
+    // Columns from migration 188 (absent before it runs).
+    tracked: Boolean((row as { tracked?: boolean | null }).tracked),
+    tripTypeId: (row as { trip_type_id?: string | null }).trip_type_id ?? null,
   };
 }
 

@@ -82,7 +82,8 @@
       "personalAccount": "Personal account",
       "businessAccount": "Business account",
       "switchAccount": "Switch account",
-      "shareBusiness": "Share business"
+      "shareBusiness": "Share business",
+      "hubDocs": "Hub Docs"
     },
     "settings": {
       "languagePreferenceSaved": "Your choice is saved to your account and used whenever you sign in."
@@ -2022,7 +2023,8 @@
     "termsOfService": "Terms of Service",
     "privacyPolicy": "Privacy Policy",
     "cookiePolicy": "Cookie Policy",
-    "copyright": "All rights reserved."
+    "copyright": "All rights reserved.",
+    "docs": "Hub Docs"
   },
   "accountManagement": {
     "title": "Account Management",
@@ -3601,5 +3603,17 @@
     "noMatches": "No matching posts.",
     "tryAll": "Nothing nearby yet. Try All to see every city.",
     "trySearch": "Try a different search."
+  },
+  "docs": {
+    "brand": "Hub Docs",
+    "backToHub": "Back to Hub",
+    "search": "Search guides...",
+    "clear": "Clear search",
+    "menu": "Guides",
+    "close": "Close",
+    "help": "Help & Support",
+    "onThisPage": "On this page",
+    "profileLink": "Hub Docs",
+    "footerLink": "Hub Docs"
   }
 }

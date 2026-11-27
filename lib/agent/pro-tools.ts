@@ -17,6 +17,7 @@ export const PRO_TOOL_NAMES = [
   'get_projects',
   'get_maintenance_on',
   'get_day_schedule',
+  'get_trip_costs',
   'get_tax_summary',
 ] as const;
 
@@ -104,6 +105,23 @@ export function proOpenAiTools(): OpenAiTool[] {
     {
       type: 'function',
       function: {
+        name: 'get_trip_costs',
+        description:
+          'Driving costs from the mileage log for a period, grouped by trip type (Estimate, Repair visit...) or by customer: trips, miles, cost, and average cost per trip. Use for "how much do I spend driving", "what do estimates cost me in gas", "which customer costs me the most to drive to".',
+        parameters: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            from: { type: 'string', description: 'First day, YYYY-MM-DD. Default: January 1 of this year.' },
+            to: { type: 'string', description: 'Last day, YYYY-MM-DD. Default: today.' },
+            group_by: { type: 'string', enum: ['type', 'customer'], description: 'Default: type.' },
+          },
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
         name: 'get_tax_summary',
         description:
           'The pro\'s books for one tax year, Schedule C style: income received, expenses by Schedule C line (meals at 50%), mileage standard vs actual (the larger is used), net profit, self-employment tax estimate and the quarterly estimate, 1099s to send, missing W-9s, missing receipts. Use for "how much did I make", "my profit this year", "my expenses", "prepare my taxes", "do I owe taxes", "1099s".',
@@ -135,6 +153,15 @@ const TOOL_PAGE: Partial<Record<ProToolName, { href: string; label: Record<PageL
       en: 'You can see all your contacts here.',
       es: 'Puedes ver todos tus contactos aquí.',
       pt: 'Você pode ver todos os seus contatos aqui.',
+    },
+  },
+  get_trip_costs: {
+    href: '/crm/mileage',
+    label: { en: 'Mileage', es: 'Millaje', pt: 'Quilometragem' },
+    line: {
+      en: 'All your trips and their routes are here.',
+      es: 'Todos tus viajes y sus rutas están aquí.',
+      pt: 'Todas as suas viagens e rotas estão aqui.',
     },
   },
   get_tax_summary: {
@@ -455,6 +482,65 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
   const today = todayIn(context.timeZone);
 
   try {
+    if (name === 'get_trip_costs') {
+      const isDay = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+      const from = isDay(args.from) ? String(args.from) : `${today.slice(0, 4)}-01-01`;
+      const to = isDay(args.to) ? String(args.to) : today;
+      const byCustomer = args.group_by === 'customer';
+      const { data, error } = await db
+        .from('pro_crm_mileage_trips')
+        .select('*')
+        .eq('owner_id', ownerId)
+        .gte('trip_date', from)
+        .lte('trip_date', to)
+        .limit(5000);
+      if (error) return { data: { error: error.message }, isError: true };
+      const trips = (data ?? []) as Array<{ miles: number | string; amount_cents: number; purpose: string; customer_id: string | null; trip_type_id?: string | null }>;
+      const typeIds = [...new Set(trips.map((t) => t.trip_type_id).filter((id): id is string => Boolean(id)))];
+      const typeNames = new Map<string, string>();
+      if (typeIds.length) {
+        const { data: types } = await db.from('pro_crm_trip_types' as never).select('id, label').in('id', typeIds);
+        for (const row of (types ?? []) as Array<{ id: string; label: string }>) typeNames.set(row.id, row.label);
+      }
+      const customerIds = [...new Set(trips.map((t) => t.customer_id).filter((id): id is string => Boolean(id)))];
+      const customers = byCustomer ? await customerNames(db, ownerId, customerIds) : new Map<string, string>();
+      const purposeName: Record<string, string> = { job: 'Job', estimate: 'Estimate', supply_run: 'Supply run', other: 'Other' };
+      const groups = new Map<string, { trips: number; miles: number; cents: number }>();
+      for (const trip of trips) {
+        const key = byCustomer
+          ? (trip.customer_id && customers.get(trip.customer_id)) || 'No customer'
+          : (trip.trip_type_id && typeNames.get(trip.trip_type_id)) || purposeName[trip.purpose] || 'Other';
+        const group = groups.get(key) ?? { trips: 0, miles: 0, cents: 0 };
+        group.trips += 1;
+        group.miles += Number(trip.miles) || 0;
+        group.cents += trip.amount_cents || 0;
+        groups.set(key, group);
+      }
+      const rows = [...groups.entries()]
+        .sort((a, b) => b[1].cents - a[1].cents)
+        .slice(0, 15)
+        .map(([group, g]) => ({
+          [byCustomer ? 'customer' : 'type']: group,
+          trips: g.trips,
+          miles: Math.round(g.miles * 10) / 10,
+          cost: usd(g.cents),
+          perTrip: usd(Math.round(g.cents / g.trips)),
+        }));
+      const totalCents = trips.reduce((sum, t) => sum + (t.amount_cents || 0), 0);
+      return {
+        data: {
+          from,
+          to,
+          totalTrips: trips.length,
+          totalMiles: Math.round(trips.reduce((sum, t) => sum + (Number(t.miles) || 0), 0) * 10) / 10,
+          totalCost: usd(totalCents),
+          groups: rows,
+          note: 'Cost is miles × each vehicle\'s cost per mile. Answer in bullets, biggest cost first, with trips and the average per trip.',
+        },
+        isError: false,
+      };
+    }
+
     if (name === 'get_tax_summary') {
       const thisYear = Number(today.slice(0, 4));
       const asked = Number(args.year);

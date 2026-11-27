@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Phone, Mail } from 'lucide-react';
+import Link from 'next/link';
+import { Phone, Mail, BookOpen } from 'lucide-react';
+import { useLocale } from 'next-intl';
 import Accordion from '@/components/ui/Accordion';
 
 export default function HelpPage() {
+  const locale = useLocale();
   const [openAccordion, setOpenAccordion] = useState<string | null>(null);
 
   const handlePhoneClick = () => {
@@ -42,6 +45,21 @@ export default function HelpPage() {
             We're here to help! Find answers to common questions or contact us directly.
           </p>
         </div>
+
+        <Link
+          href={`/${locale}/docs`}
+          className="mb-6 flex items-center gap-4 rounded-lg border-2 border-black bg-white p-4 transition-colors hover:bg-gray-50"
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-black bg-white">
+            <BookOpen className="h-6 w-6 text-black" aria-hidden />
+          </div>
+          <div>
+            <p className="text-base font-semibold text-black md:text-lg">Hub Docs</p>
+            <p className="text-sm text-gray-600 md:text-base">
+              Step-by-step guides for ProBot, CRM, and homeowners.
+            </p>
+          </div>
+        </Link>
 
         {/* FAQ Section */}
         <div className="space-y-4">

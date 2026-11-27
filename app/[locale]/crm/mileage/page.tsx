@@ -21,6 +21,7 @@ import {
 } from '@/lib/crm/mileage-cost';
 import { TitleCount } from '@/components/crm/TitleCount';
 import { PickerSelect } from '@/components/ui/PickerSelect';
+import { TripTracker } from '@/components/crm/mileage/TripTracker';
 
 interface VehicleView {
   id: string;
@@ -41,6 +42,8 @@ interface VehicleView {
 }
 
 interface TripView {
+  /** Recorded live with GPS: has a route map. */
+  tracked?: boolean;
   id: string;
   vehicleId: string | null;
   vehicleName: string;
@@ -520,6 +523,14 @@ export default function CRMMileagePage() {
       </div>
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
+      {!loading ? (
+        <TripTracker
+          vehicles={vehicles.map((vehicle) => ({ id: vehicle.id, name: vehicle.name }))}
+          customers={customers.map((customer) => ({ id: customer.id, name: customer.name }))}
+          costPerMileCents={(id) => vehicles.find((vehicle) => vehicle.id === id)?.cost.costPerMileCents ?? null}
+          onSaved={() => void load(selectedId)}
+        />
+      ) : null}
       {loading ? (
         <div className="p-12 text-center text-sm text-gray-500">Loading mileage…</div>
       ) : (
@@ -764,7 +775,16 @@ export default function CRMMileagePage() {
                     const projectName = projects.find((project) => project.id === item.projectId)?.name;
                     return (
                       <tr key={item.id} className="border-b border-gray-200 align-top">
-                        <td className="py-3 pr-3 whitespace-nowrap">{formatTripDate(item.tripDate)}</td>
+                        <td className="py-3 pr-3 whitespace-nowrap">
+                          {formatTripDate(item.tripDate)}
+                          {item.tracked ? (
+                            <a href={`/api/crm/mileage/trips/${item.id}/map?w=600&h=300`} target="_blank" rel="noreferrer" className="mt-1 block" title="Route map">
+                              {/* eslint-disable-next-line @next/next/no-img-element -- private route image from our own API */}
+                              <img src={`/api/crm/mileage/trips/${item.id}/map?w=160&h=90`} alt="Route" loading="lazy" className="h-[45px] w-[80px] rounded-md border border-gray-200 object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                              <span className="mt-0.5 inline-block rounded-md bg-black px-1 text-[10px] font-semibold text-white">GPS</span>
+                            </a>
+                          ) : null}
+                        </td>
                         <td className="py-3 pr-3">{item.customerName || '—'}</td>
                         <td className="py-3 pr-3">{item.estimateLabel || '—'}</td>
                         <td className="py-3 pr-3">{item.vehicleName}</td>

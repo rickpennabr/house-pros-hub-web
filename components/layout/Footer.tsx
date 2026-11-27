@@ -17,6 +17,12 @@ export default function Footer() {
         <div className="w-full flex flex-col md:flex-row justify-between items-center gap-2 md:gap-6">
           {/* Legal Links */}
           <div className={`flex flex-nowrap justify-center md:justify-start gap-2 md:gap-6 ${textSizeClass}`}>
+            <Link
+              href={`/${locale}/docs`}
+              className="text-gray-600 hover:text-black underline transition-colors whitespace-nowrap"
+            >
+              {t('docs')}
+            </Link>
             <Link 
               href={`/${locale}/legal/terms`}
               className="text-gray-600 hover:text-black underline transition-colors whitespace-nowrap"

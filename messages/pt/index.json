@@ -82,7 +82,8 @@
       "personalAccount": "Conta pessoal",
       "businessAccount": "Conta comercial",
       "switchAccount": "Trocar conta",
-      "shareBusiness": "Compartilhar negócio"
+      "shareBusiness": "Compartilhar negócio",
+      "hubDocs": "Hub Docs"
     },
     "settings": {
       "languagePreferenceSaved": "Sua escolha é salva na sua conta e usada sempre que você entrar."
@@ -2022,7 +2023,8 @@
     "termsOfService": "Termos de Serviço",
     "privacyPolicy": "Política de Privacidade",
     "cookiePolicy": "Política de Cookies",
-    "copyright": "Todos os direitos reservados."
+    "copyright": "Todos os direitos reservados.",
+    "docs": "Hub Docs"
   },
   "accountManagement": {
     "title": "Gerenciar conta",
@@ -3601,5 +3603,17 @@
     "noMatches": "Nenhuma publicação encontrada.",
     "tryAll": "Nada por perto ainda. Toque em Todos para ver todas as cidades.",
     "trySearch": "Tente outra busca."
+  },
+  "docs": {
+    "brand": "Hub Docs",
+    "backToHub": "Voltar ao Hub",
+    "search": "Pesquisar guias...",
+    "clear": "Limpar pesquisa",
+    "menu": "Guias",
+    "close": "Fechar",
+    "help": "Ajuda e suporte",
+    "onThisPage": "Nesta página",
+    "profileLink": "Hub Docs",
+    "footerLink": "Hub Docs"
   }
 }

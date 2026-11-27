@@ -16,6 +16,7 @@ const TRANSLATED_PATHS = [
   '/feed',
   '/estimate',
   '/help',
+  '/docs',
   '/legal/terms',
   '/legal/privacy',
   '/legal/cookies',
