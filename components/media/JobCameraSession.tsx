@@ -237,6 +237,12 @@ export function JobCameraSession({
   const startingRef = useRef<Promise<boolean> | null>(null);
   const liveRequest = useRef(0);
   const openWatch = useRef(0);
+  /**
+   * Phones and tablets: use the phone's own camera app (full screen, works with the browser bars showing),
+   * then come back here to review and upload. The in-page live frame is only for PC.
+   */
+  const [simple] = useState(() => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches);
+  const openNativeCamera = (video = captureMode === 'video') => (video ? videoInputRef : cameraInputRef).current?.click();
 
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -346,7 +352,10 @@ export function JobCameraSession({
       current.forEach((shot) => URL.revokeObjectURL(shot.url));
       return [];
     });
-    void startLive('environment', { quiet: true });
+    if (simple) {
+      // Straight to the phone camera (some browsers need a tap first: the big button below does it).
+      window.setTimeout(() => (begin === 'video' ? videoInputRef : cameraInputRef).current?.click(), 0);
+    } else void startLive('environment', { quiet: true });
     return () => {
       queueMicrotask(() => {
         if (openWatch.current !== watch) return;
@@ -751,6 +760,18 @@ export function JobCameraSession({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={draft.url} alt="" className="absolute inset-0 h-full w-full object-contain" />
           )
+        ) : simple ? (
+          <button
+            type="button"
+            onClick={() => openNativeCamera()}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center"
+          >
+            <span className="flex h-20 w-20 items-center justify-center rounded-lg bg-white text-black">
+              {captureMode === 'video' ? <Video className="h-9 w-9" /> : <Camera className="h-9 w-9" />}
+            </span>
+            <span className="text-base font-bold">{captureMode === 'video' ? t('video') : t('shutter')}</span>
+            <span className="text-sm text-white/70">{isFix ? fix('captureHint') : t('shutterHint')}</span>
+          </button>
         ) : !live ? (
           <div className="absolute inset-0 flex items-center justify-center px-8 text-center text-sm text-white/70">
             {isFix ? fix('captureHint') : t('shutterHint')}
@@ -894,6 +915,10 @@ export function JobCameraSession({
           <button
             type="button"
             onClick={() => {
+              if (simple) {
+                openNativeCamera();
+                return;
+              }
               if (captureMode === 'video') {
                 void startRecording();
                 return;

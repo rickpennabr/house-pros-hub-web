@@ -165,7 +165,7 @@ export default function PageHeader({ children }: PageHeaderProps) {
               <span className="hidden h-10 flex-col items-center justify-center md:flex">
                 <Logo src={mobileLogoSrc} className="h-[26px] w-auto object-contain" />
                 <span className="mt-0.5 whitespace-nowrap text-[11px] font-semibold leading-none tracking-wide text-red-600">
-                  One mind for all your house needs.
+                  Your House on Pros Hands
                 </span>
               </span>
             </Link>

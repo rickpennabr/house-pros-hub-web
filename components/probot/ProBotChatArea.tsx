@@ -37,7 +37,7 @@ import type { ProBotCrmViewType } from './ProBotCrmViews';
 import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
 import type { ChatMessage, ChatAttachment } from '@/lib/types/chat';
 import { chatReplyFromMessage } from '@/lib/types/chat';
-import { ChatPendingAttachments, type JobProjectOption } from './ChatPendingAttachments';
+import { ChatPendingAttachments, type JobProjectOption, type UploadingAttachment } from './ChatPendingAttachments';
 import { ForwardMessageModal } from './ForwardMessageModal';
 import { uploadProDriveFile } from '@/lib/drive/upload-client';
 import { requestCurrentLocation } from '@/lib/media/capture-location';
@@ -234,6 +234,8 @@ export default function ProBotChatArea({
   /** In-chat quick estimate / invoice / payment request form. */
   const [composerKind, setComposerKind] = useState<QuickDocKind | null>(null);
   const [uploadingAttach, setUploadingAttach] = useState(false);
+  /** Picked files shown at once from the device, each with a progress ring, until they finish uploading. */
+  const [attachUploads, setAttachUploads] = useState<UploadingAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
   /** The scrolling messages panel; the message list keeps it pinned to the newest message. */
@@ -1292,6 +1294,22 @@ export default function ProBotChatArea({
       }
       setUploadingAttach(true);
       setError(null);
+      // WhatsApp-style: the files show now, from the device, and a ring closes as they upload.
+      const batchId = `up-${Date.now()}`;
+      const local: UploadingAttachment[] = Array.from(files).map((file, index) => ({
+        id: `${batchId}-${index}`,
+        url: URL.createObjectURL(file),
+        name: file.name,
+        contentType: file.type || 'application/octet-stream',
+        percent: 0,
+      }));
+      setAttachUploads((prev) => [...prev, ...local]);
+      const localIds = new Set(local.map((item) => item.id));
+      const finishLocal = () => {
+        setAttachUploads((prev) => prev.filter((item) => !localIds.has(item.id)));
+        // The saved file replaces the preview; free the preview once it has had time to swap.
+        setTimeout(() => local.forEach((item) => URL.revokeObjectURL(item.url)), 30000);
+      };
       try {
         let cid = conversationId;
         if (!cid) {
@@ -1303,7 +1321,13 @@ export default function ProBotChatArea({
         formData.set('conversationId', cid);
         formData.set('visitorId', visitorId);
         for (let i = 0; i < files.length; i++) formData.append('file', files[i]);
-        const res = await uploadWithProgress('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
+        const res = await uploadWithProgress('/api/storage/upload-chat-attachment', {
+          method: 'POST',
+          body: formData,
+          silent: true,
+          onProgress: (percent) =>
+            setAttachUploads((prev) => prev.map((item) => (localIds.has(item.id) ? { ...item, percent } : item))),
+        });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           const errMsg = typeof data.error === 'string' ? data.error : 'Upload failed';
@@ -1320,6 +1344,7 @@ export default function ProBotChatArea({
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Upload failed');
       } finally {
+        finishLocal();
         setUploadingAttach(false);
         e.target.value = '';
       }
@@ -1381,7 +1406,8 @@ export default function ProBotChatArea({
         formData.set('conversationId', cid);
         formData.set('visitorId', visitorId);
         formData.append('file', file);
-        const res = await uploadWithProgress('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
+        // The voice bubble is already on screen: no top progress bar.
+        const res = await uploadWithProgress('/api/storage/upload-chat-attachment', { method: 'POST', body: formData, silent: true });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           setError(typeof data.error === 'string' ? data.error : 'Upload failed');
@@ -1516,6 +1542,7 @@ export default function ProBotChatArea({
       attachments={pendingAttachments}
       onRemove={removePendingAttachment}
       uploading={uploadingAttach}
+      uploads={attachUploads}
       projects={isContractor ? jobProjects : []}
       savedToProject={savedToProject}
       savingUrl={savingProjectUrl}

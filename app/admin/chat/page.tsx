@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import type { ProAgentPayload } from '@/lib/types/chat';
 import { hasPushSubscription } from '@/lib/push/has-subscription';
 import { CHAT_ATTACHMENT_ACCEPT } from '@/lib/utils/chatAttachmentAccept';
+import { ChatPendingAttachments, type UploadingAttachment } from '@/components/probot/ChatPendingAttachments';
 
 interface Conversation {
   id: string;
@@ -79,6 +80,8 @@ export default function AdminChatPage() {
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [uploadingAttach, setUploadingAttach] = useState(false);
+  /** Picked files shown at once, each with a progress ring (WhatsApp-style). */
+  const [attachUploads, setAttachUploads] = useState<UploadingAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -352,16 +355,34 @@ export default function AdminChatPage() {
         return;
       }
       setUploadingAttach(true);
+      const batchId = `up-${Date.now()}`;
+      const local: UploadingAttachment[] = Array.from(files).map((file, index) => ({
+        id: `${batchId}-${index}`,
+        url: URL.createObjectURL(file),
+        name: file.name,
+        contentType: file.type || 'application/octet-stream',
+        percent: 0,
+      }));
+      const localIds = new Set(local.map((item) => item.id));
+      setAttachUploads((prev) => [...prev, ...local]);
       try {
         const formData = new FormData();
         formData.set('conversationId', selectedId);
         formData.set('visitorId', 'admin');
         for (let i = 0; i < files.length; i++) formData.append('file', files[i]);
-        const res = await uploadWithProgress('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
+        const res = await uploadWithProgress('/api/storage/upload-chat-attachment', {
+          method: 'POST',
+          body: formData,
+          silent: true,
+          onProgress: (percent) =>
+            setAttachUploads((prev) => prev.map((item) => (localIds.has(item.id) ? { ...item, percent } : item))),
+        });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.attachments?.length)
           setPendingAttachments((prev) => [...prev, ...data.attachments].slice(0, 10));
       } finally {
+        setAttachUploads((prev) => prev.filter((item) => !localIds.has(item.id)));
+        setTimeout(() => local.forEach((item) => URL.revokeObjectURL(item.url)), 30000);
         setUploadingAttach(false);
         e.target.value = '';
       }
@@ -595,17 +616,12 @@ export default function AdminChatPage() {
                 onSubmit={handleSendReply}
                 className="shrink-0 p-3 border-t border-gray-200 flex flex-col gap-2"
               >
-                {pendingAttachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {pendingAttachments.map((att, i) => (
-                      <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm">
-                        {att.contentType.startsWith('image/') ? <ImageIcon className="w-4 h-4" /> : <Paperclip className="w-4 h-4" />}
-                        <span className="max-w-[120px] truncate">{att.name}</span>
-                        <button type="button" onClick={() => setPendingAttachments((p) => p.filter((_, j) => j !== i))} className="text-gray-500 hover:text-red-600">×</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <ChatPendingAttachments
+                  className="flex flex-wrap gap-2"
+                  attachments={pendingAttachments}
+                  uploads={attachUploads}
+                  onRemove={(index) => setPendingAttachments((prev) => prev.filter((_, i) => i !== index))}
+                />
                 <p className="text-xs text-gray-500">
                   {agentPaused
                     ? 'You have this chat. ProAgent stays paused until you hand it back.'

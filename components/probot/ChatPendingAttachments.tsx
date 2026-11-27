@@ -4,6 +4,44 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, FileText, FolderInput, Loader2, Mic, X } from 'lucide-react';
 import type { ChatAttachment } from '@/lib/types/chat';
 
+/** A file still uploading: shown from the device right away, with its progress. */
+export interface UploadingAttachment {
+  id: string;
+  /** Local preview (object URL). */
+  url: string;
+  name: string;
+  contentType: string;
+  percent: number;
+}
+
+/** WhatsApp-style ring that closes as the file uploads, with the percentage inside. */
+export function UploadProgressRing({ percent, size = 40 }: { percent: number; size?: number }) {
+  const stroke = 3;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const value = Math.max(0, Math.min(100, Math.round(percent)));
+  return (
+    <span className="relative flex items-center justify-center" style={{ width: size, height: size }} role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
+      <svg width={size} height={size} className="-rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.35)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#fff"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - value / 100)}
+          className="transition-[stroke-dashoffset] duration-200 ease-out"
+        />
+      </svg>
+      <span className="absolute text-[10px] font-bold leading-none text-white">{value}%</span>
+    </span>
+  );
+}
+
 export interface JobProjectOption {
   id: string;
   name: string;
@@ -14,6 +52,8 @@ interface ChatPendingAttachmentsProps {
   onRemove: (index: number) => void;
   /** Files still uploading: shown as spinner tiles after the finished ones. */
   uploading?: boolean;
+  /** Files uploading now, shown from the device with a progress ring (replaces the spinner tile). */
+  uploads?: UploadingAttachment[];
   className?: string;
   projects?: JobProjectOption[];
   savedToProject?: Record<string, string>;
@@ -35,6 +75,7 @@ export function ChatPendingAttachments({
   attachments,
   onRemove,
   uploading = false,
+  uploads = [],
   className = 'flex flex-wrap gap-2 px-1.5 pb-1.5 pt-1',
   projects = [],
   savedToProject = {},
@@ -55,7 +96,7 @@ export function ChatPendingAttachments({
     return () => document.removeEventListener('mousedown', close);
   }, [menuFor]);
 
-  if (attachments.length === 0 && !uploading) return null;
+  if (attachments.length === 0 && !uploading && uploads.length === 0) return null;
   return (
     <div ref={root} className={className}>
       {attachments.map((att, i) => {
@@ -130,7 +171,24 @@ export function ChatPendingAttachments({
           </div>
         );
       })}
-      {uploading ? (
+      {uploads.map((file) => (
+        <div key={file.id} className={TILE} title={file.name}>
+          {file.contentType.startsWith('image/') ? (
+            // eslint-disable-next-line @next/next/no-img-element -- local preview while it uploads
+            <img src={file.url} alt={file.name} className="h-full w-full object-cover opacity-70" />
+          ) : file.contentType.startsWith('video/') ? (
+            <video src={file.url} muted playsInline preload="metadata" className="h-full w-full object-cover opacity-70" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-white px-1">
+              <FileText className="h-5 w-5 text-red-600" />
+            </div>
+          )}
+          <span className="absolute inset-0 flex items-center justify-center">
+            <UploadProgressRing percent={file.percent} />
+          </span>
+        </div>
+      ))}
+      {uploading && uploads.length === 0 ? (
         <div className={`${TILE} flex items-center justify-center`}>
           <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
         </div>
