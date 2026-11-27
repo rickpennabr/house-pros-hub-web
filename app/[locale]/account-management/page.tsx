@@ -22,7 +22,8 @@ import {
   CreditCard,
   QrCode,
   Settings,
-  GripVertical
+  GripVertical,
+  Megaphone
 } from 'lucide-react';
 import {
   applyQuickActionMove,
@@ -151,6 +152,16 @@ function AccountManagementContent() {
       path: `/${locale}/businesslist`,
     },
     {
+      id: 'pro-billboard',
+      title: t('actions.business.proBillboard.title'),
+      description: t('actions.business.proBillboard.description'),
+      icon: Megaphone,
+      iconBg: 'bg-black',
+      iconColor: 'text-white',
+      borderColor: 'border-black',
+      path: `/${locale}/probillboard`,
+    },
+    {
       id: '2',
       title: t('actions.business.addBusiness.title'),
       description: t('actions.business.addBusiness.description'),
@@ -276,6 +287,12 @@ function AccountManagementContent() {
               return {
                 ...action,
                 path: `/${locale}/business/edit/${selectedAccount?.slug || effectiveSelectedAccountId}`,
+              };
+            }
+            if (action.id === 'pro-billboard') {
+              return {
+                ...action,
+                path: `/${locale}/probillboard?businessId=${effectiveSelectedAccountId}`,
               };
             }
             return action;

@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -87,7 +88,7 @@ export default function ProResumeClient() {
     const form = new FormData();
     form.set('file', file);
     form.set('resume', JSON.stringify(withSkills(resume, skillsText)));
-    const response = await fetch('/api/proresume/import', { method: 'POST', body: form });
+    const response = await uploadWithProgress('/api/proresume/import', { method: 'POST', body: form });
     const body = await response.json().catch(() => null);
     setBusy(false);
     if (!response.ok || !body?.resume) {

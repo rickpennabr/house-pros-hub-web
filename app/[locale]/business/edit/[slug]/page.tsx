@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
@@ -578,7 +579,7 @@ export default function EditBusinessPage() {
       formDataObj.append('file', resizedFile);
       formDataObj.append('businessId', businessId);
 
-      const response = await fetch('/api/storage/upload-business-logo', {
+      const response = await uploadWithProgress('/api/storage/upload-business-logo', {
         method: 'POST',
         body: formDataObj,
       });
@@ -682,7 +683,7 @@ export default function EditBusinessPage() {
       formDataObj.append('file', resizedFile);
       formDataObj.append('businessId', businessId);
 
-      const response = await fetch('/api/storage/upload-business-background', {
+      const response = await uploadWithProgress('/api/storage/upload-business-background', {
         method: 'POST',
         credentials: 'include',
         body: formDataObj,
@@ -754,7 +755,7 @@ export default function EditBusinessPage() {
         formDataObj.append('file', file);
         formDataObj.append('businessId', businessId);
 
-        const response = await fetch('/api/storage/upload-business-image', {
+        const response = await uploadWithProgress('/api/storage/upload-business-image', {
           method: 'POST',
           credentials: 'include',
           body: formDataObj,

@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useState } from 'react';
 import { Paperclip, Trash2, FileText, Image } from 'lucide-react';
@@ -171,7 +172,7 @@ export async function uploadPendingAttachments(
   for (const p of pending) {
     const form = new FormData();
     form.append('file', p.file);
-    const res = await fetch(`/api/crm/invoices/${invoiceId}/attachments`, {
+    const res = await uploadWithProgress(`/api/crm/invoices/${invoiceId}/attachments`, {
       method: 'POST',
       credentials: 'include',
       body: form,

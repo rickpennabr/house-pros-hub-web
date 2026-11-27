@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { headers } from 'next/headers';
 import { NextIntlClientProvider } from 'next-intl';
+import { UploadProgressHost } from '@/components/ui/UploadProgressBar';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { getMessages } from 'next-intl/server';
 import Script from 'next/script';
@@ -219,6 +220,7 @@ export default async function RootLayout({
             <GlobalHashHandler />
             <FinishAccountSetupGate />
             <QuickRepairCameraHost />
+            <UploadProgressHost />
             <Suspense fallback={<LoadingOverlay />}>
               {children}
             </Suspense>

@@ -258,8 +258,10 @@ export default function ViewToggle({
   const homeTarget = home.signedIn
     ? `/${locale}${home.href}`
     : `/signup?role=customer&returnUrl=${encodeURIComponent(`/${locale}/myplaces`)}`;
-  const deskItem =
-    'relative flex w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 py-1 text-[11px] font-semibold leading-none text-white cursor-pointer active:scale-95 transition-transform';
+  /** Shared look of a bar item; the width is added per item so the center can be wider. */
+  const deskItemBase =
+    'relative flex shrink-0 flex-col items-center justify-center gap-1 py-1 text-[11px] font-semibold leading-none text-white cursor-pointer active:scale-95 transition-transform';
+  const deskItem = `${deskItemBase} w-[4.75rem]`;
   const deskBox = (children: React.ReactNode, active = false) => (
     <span
       className={`flex h-10 w-10 items-center justify-center rounded-lg border-2 border-white transition-colors ${
@@ -341,11 +343,11 @@ export default function ViewToggle({
     <nav
       aria-label="Main menu"
       // Two equal sides keep the house exactly in the middle, whatever the item count.
-      className="relative hidden grid-cols-[1fr_auto_1fr] items-end gap-1 rounded-lg px-3 pb-1.5 pt-2 shadow-lg md:grid"
+      className="relative hidden grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)] items-end gap-1 rounded-lg px-3 pb-1.5 pt-2 shadow-lg md:grid"
     >
       <NotchedBarBg rounded />
       <div className="flex items-end justify-end gap-1">{deskLeft}</div>
-      <button type="button" onClick={() => router.push(homeTarget)} className={`${deskItem} w-[5.5rem]`} aria-label={home.signedIn ? home.label : t('account.myPlaces')}>
+      <button type="button" onClick={() => router.push(homeTarget)} className={`${deskItemBase} w-[6rem]`} aria-label={home.signedIn ? home.label : t('account.myPlaces')}>
         <span className="relative z-10 -mt-[46px] -translate-y-3 flex h-[53px] w-[53px] items-center justify-center rounded-lg bg-black">
           <HouseMark variant="plain" tone="light" className="h-10 w-10" />
           {home.signedIn ? <NotificationCount count={home.count} className="pointer-events-none absolute -right-3 -top-3 z-10" /> : null}

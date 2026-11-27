@@ -9,6 +9,7 @@ const STORAGE_BUCKETS = [
   { id: 'business-logos', name: 'Business Logos', icon: '🏢' },
   { id: 'business-backgrounds', name: 'Business Backgrounds', icon: '🖼️' },
   { id: 'estimate-images', name: 'Estimate Images', icon: '📋' },
+  { id: 'pro-billboard', name: 'Pro Billboard', icon: '📣' },
 ];
 
 interface StorageFile {

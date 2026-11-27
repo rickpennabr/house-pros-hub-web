@@ -39,3 +39,7 @@ Every place a user uploads a file accepts drag and drop, using one of two compon
 - Nested targets (a logo on a banner) work: the inner one takes the drop.
 
 For custom layouts use the hook behind both: `useFileDrop` (`hooks/useFileDrop.ts`).
+
+## Upload progress (standard)
+
+Every upload sends the file with `uploadWithProgress` (`lib/upload/uploadWithProgress.ts`), not `fetch`. Same call as `fetch(url, { method: 'POST', body })`, returns a real `Response`. The global `UploadProgressHost` (mounted in `app/[locale]/layout.tsx`) then shows "Uploading <file> 42%" with a red bar. For a bar inside a form, pass `onProgress` and render `UploadProgressBar` (`components/ui/UploadProgressBar.tsx`).

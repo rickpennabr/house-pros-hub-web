@@ -7,6 +7,8 @@
  * For now, we'll define the types manually based on the database schema
  */
 
+export type BillboardSlideKind = 'image' | 'video' | 'promotion';
+
 export type HubFeedKind =
   | 'member_joined'
   | 'pro_joined'
@@ -514,6 +516,63 @@ export interface Database {
         };
         Update: {
           visibility?: 'public' | 'pending' | 'hidden';
+        };
+        Relationships: [];
+      };
+      pro_billboard_slides: {
+        Row: {
+          id: string;
+          business_id: string;
+          kind: BillboardSlideKind;
+          media_url: string | null;
+          headline: string | null;
+          body: string | null;
+          badge: string | null;
+          cta_label: string | null;
+          cta_url: string | null;
+          sort_order: number;
+          is_active: boolean;
+          duration_seconds: number;
+          starts_on: string | null;
+          ends_on: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          kind: BillboardSlideKind;
+          media_url?: string | null;
+          headline?: string | null;
+          body?: string | null;
+          badge?: string | null;
+          cta_label?: string | null;
+          cta_url?: string | null;
+          sort_order?: number;
+          is_active?: boolean;
+          duration_seconds?: number;
+          starts_on?: string | null;
+          ends_on?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          kind?: BillboardSlideKind;
+          media_url?: string | null;
+          headline?: string | null;
+          body?: string | null;
+          badge?: string | null;
+          cta_label?: string | null;
+          cta_url?: string | null;
+          sort_order?: number;
+          is_active?: boolean;
+          duration_seconds?: number;
+          starts_on?: string | null;
+          ends_on?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };

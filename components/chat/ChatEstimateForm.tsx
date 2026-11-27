@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale } from 'next-intl';
@@ -467,7 +468,7 @@ export default function ChatEstimateForm({
           if (file.size > 5 * 1024 * 1024) throw new Error(tFields('imageSizeError'));
           const formData = new FormData();
           formData.append('file', file);
-          const res = await fetch('/api/storage/upload-estimate-image', { method: 'POST', body: formData, credentials: 'include' });
+          const res = await uploadWithProgress('/api/storage/upload-estimate-image', { method: 'POST', body: formData, credentials: 'include' });
           if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             throw new Error((data.error as string) || tFields('uploadError'));

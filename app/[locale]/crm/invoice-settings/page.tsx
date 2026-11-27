@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
@@ -170,7 +171,7 @@ export default function CRMInvoiceSettingsPage() {
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch('/api/crm/invoice-settings/logo', { method: 'POST', credentials: 'include', body: form });
+      const res = await uploadWithProgress('/api/crm/invoice-settings/logo', { method: 'POST', credentials: 'include', body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not upload the logo');
       setLogoUrl(data.logoUrl);

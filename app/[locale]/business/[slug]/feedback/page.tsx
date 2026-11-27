@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -105,7 +106,7 @@ export default function BusinessFeedbackPage() {
       for (const file of files) {
         const form = new FormData();
         form.append('file', file);
-        const uploaded = await fetch(`/api/businesses/${encodeURIComponent(slug)}/feedback/images`, {
+        const uploaded = await uploadWithProgress(`/api/businesses/${encodeURIComponent(slug)}/feedback/images`, {
           method: 'POST',
           body: form,
           credentials: 'include',
@@ -299,7 +300,7 @@ function FeedbackCard({
       for (const file of files) {
         const form = new FormData();
         form.append('file', file);
-        const upload = await fetch(`/api/businesses/${encodeURIComponent(slug)}/feedback/images`, {
+        const upload = await uploadWithProgress(`/api/businesses/${encodeURIComponent(slug)}/feedback/images`, {
           method: 'POST',
           body: form,
           credentials: 'include',

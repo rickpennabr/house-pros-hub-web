@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useEffect, useState } from 'react';
 import { FileText, Image as ImageIcon, Paperclip, Trash2 } from 'lucide-react';
@@ -27,7 +28,7 @@ export async function uploadContactAttachments(customerId: string, files: File[]
   for (const file of files) {
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch(`/api/crm/customers/${encodeURIComponent(customerId)}/attachments`, {
+    const res = await uploadWithProgress(`/api/crm/customers/${encodeURIComponent(customerId)}/attachments`, {
       method: 'POST',
       credentials: 'include',
       body: form,
@@ -82,7 +83,7 @@ export function ContactAttachments({ customerId, pending, onPendingChange, disab
       for (const file of files) {
         const form = new FormData();
         form.append('file', file);
-        const res = await fetch(`/api/crm/customers/${encodeURIComponent(customerId)}/attachments`, {
+        const res = await uploadWithProgress(`/api/crm/customers/${encodeURIComponent(customerId)}/attachments`, {
           method: 'POST',
           credentials: 'include',
           body: form,

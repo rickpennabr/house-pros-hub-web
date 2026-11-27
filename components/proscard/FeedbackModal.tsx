@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
@@ -167,7 +168,7 @@ export default function FeedbackModal({
     for (const file of list) {
       const form = new FormData();
       form.append('file', file);
-      const uploaded = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/feedback/images`, {
+      const uploaded = await uploadWithProgress(`/api/businesses/${encodeURIComponent(businessId)}/feedback/images`, {
         method: 'POST',
         body: form,
         credentials: 'include',

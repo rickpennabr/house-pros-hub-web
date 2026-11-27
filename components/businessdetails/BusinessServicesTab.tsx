@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
@@ -151,7 +152,7 @@ export default function BusinessServicesTab({
     const body = new FormData();
     body.append('file', file);
     body.append('businessId', businessId);
-    const res = await fetch('/api/storage/upload-business-image', {
+    const res = await uploadWithProgress('/api/storage/upload-business-image', {
       method: 'POST',
       credentials: 'include',
       body,

@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
         business_id: businessId,
         payload: { forwarded: true },
         ...(sender === 'admin' ? { admin_sent_as: 'business' } : {}),
-        ...(allowedAttachments?.length ? { attachments: allowedAttachments } : {}),
+        ...(allowedAttachments?.length ? { attachments: allowedAttachments as unknown as Database['public']['Tables']['probot_messages']['Insert']['attachments'] } : {}),
       };
       const { error } = await supabase.from('probot_messages').insert(row);
       if (!error) forwarded += 1;

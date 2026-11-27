@@ -14,7 +14,7 @@ Every new search bar uses the standard component: `TypingSearchInput` (`componen
 
 ## Uploads
 
-Every upload area takes drag and drop. A plain upload box uses `FileDropZone` (`components/ui/FileDropZone.tsx`): dashed border, drag highlight, click or Enter to browse, type and size checks. A tile that opens a file picker (logo, avatar, photo square, upload button) keeps its look and goes inside `FileDropTarget` (`components/ui/FileDropTarget.tsx`), with `inputRef` of its hidden input (or with the input inside it) so drops run the same onChange code. Never ship a bare `<input type="file">` or an "Add attachment" link without one of these. Full rule: `.cursor/rules/component-styling/uploads.md`.
+Every upload area takes drag and drop. A plain upload box uses `FileDropZone` (`components/ui/FileDropZone.tsx`): dashed border, drag highlight, click or Enter to browse, type and size checks. A tile that opens a file picker (logo, avatar, photo square, upload button) keeps its look and goes inside `FileDropTarget` (`components/ui/FileDropTarget.tsx`), with `inputRef` of its hidden input (or with the input inside it) so drops run the same onChange code. Never ship a bare `<input type="file">` or an "Add attachment" link without one of these. Send the file with `uploadWithProgress` (`lib/upload/uploadWithProgress.ts`), never `fetch`, so the standard percentage bar shows. Full rule: `.cursor/rules/component-styling/uploads.md`.
 
 ## Shapes
 

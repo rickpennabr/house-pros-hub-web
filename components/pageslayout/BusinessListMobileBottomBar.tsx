@@ -47,40 +47,25 @@ interface BusinessListMobileBottomBarProps {
  */
 /** The notch: 63px opening (53px house + 5px gap each side), 44px deep (5px under the house); corners follow the house (8px + 5px gap = 13px) and the top edges curve in smoothly. */
 const NOTCH_PATH = 'M0 0H75A6 6 0 0 0 69 6V31A13 13 0 0 1 56 44H19A13 13 0 0 1 6 31V6A6 6 0 0 0 0 0Z';
-const NOTCH_SVG = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="75" height="44"><path d="${NOTCH_PATH}"/></svg>`);
-const NOTCHED_BAR_MASK: import('react').CSSProperties = {
-  WebkitMaskImage: `url("data:image/svg+xml,${NOTCH_SVG}"), linear-gradient(#000, #000)`,
-  maskImage: `url("data:image/svg+xml,${NOTCH_SVG}"), linear-gradient(#000, #000)`,
-  WebkitMaskRepeat: 'no-repeat',
-  maskRepeat: 'no-repeat',
-  WebkitMaskPosition: 'center top, 0 0',
-  maskPosition: 'center top, 0 0',
-  WebkitMaskSize: '75px 44px, 100% 100%',
-  maskSize: '75px 44px, 100% 100%',
-  WebkitMaskComposite: 'xor',
-  maskComposite: 'exclude',
-};
 
 /**
- * Black bar whose top-center notch hugs the raised house.
- * The cutout is filled white so the page never shows through the gap around the center button.
+ * Solid black bar with a white notch painted on top.
+ * No mask cutout: a hole always leaves a see-through fringe where the curve meets the page.
  */
 export function NotchedBarBg({ rounded = false }: { rounded?: boolean }) {
   return (
-    <>
+    <div
+      aria-hidden
+      className={`pointer-events-none absolute inset-0 -z-10 bg-black ${rounded ? 'rounded-lg' : ''}`}
+    >
+      {/* A couple of pixels past the curve so the corner fringe stays white, not the page. */}
       <svg
-        aria-hidden
         viewBox="0 0 75 44"
-        className="pointer-events-none absolute left-1/2 top-0 -z-20 h-[44px] w-[75px] -translate-x-1/2"
+        className="absolute left-1/2 -top-0.5 h-[46px] w-[79px] -translate-x-1/2"
       >
         <path fill="#ffffff" d={NOTCH_PATH} />
       </svg>
-      <div
-        aria-hidden
-        className={`pointer-events-none absolute inset-0 -z-10 bg-black ${rounded ? 'rounded-lg' : ''}`}
-        style={NOTCHED_BAR_MASK}
-      />
-    </>
+    </div>
   );
 }
 
@@ -114,8 +99,25 @@ export default function BusinessListMobileBottomBar({
 
   const go = (path: string) => router.push(`/${locale}${path}`);
 
+  // Load the next pages in the background once the screen is idle, so a tap opens them right away.
+  const estimateUrl = `${createSignUpUrl(locale as 'en' | 'es', 'estimate')}&role=customer`;
+  useEffect(() => {
+    if (!mounted) return;
+    const targets = signedIn
+      ? [home.href, '/' + locale + '/account-management', '/' + locale + '/probot']
+      : ['/' + locale + '/signin', '/' + locale + '/probot', estimateUrl];
+    const run = () => targets.forEach((url) => url && router.prefetch(url));
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(run);
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(run, 1500);
+    return () => window.clearTimeout(id);
+  }, [mounted, signedIn, home.href, locale, router, estimateUrl]);
+
   const item =
-    'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-semibold leading-none text-white active:scale-95 transition-transform';
+    'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-semibold leading-none text-white outline-none transition-[transform,opacity] active:scale-95 hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded-lg';
   const beta = (
     <span className="beta-badge-dynamic absolute -top-1 left-1/2 z-10 ml-1 rounded border border-black px-0.5 text-[8px] font-bold text-black" aria-hidden>
       Beta
@@ -207,7 +209,7 @@ export default function BusinessListMobileBottomBar({
     <button
       type="button"
       // Same link as the header's Estimate button: customer sign-up, then the estimate form.
-      onClick={() => router.push(`${createSignUpUrl(locale as 'en' | 'es', 'estimate')}&role=customer`)}
+      onClick={() => router.push(estimateUrl)}
       className={item} aria-label={tBot('proAdd.requestEstimate')}>
       {box(<FileText className="h-[22px] w-[22px] text-white" />)}
       <span className="max-w-full truncate">{tAccount('estimateShort')}</span>

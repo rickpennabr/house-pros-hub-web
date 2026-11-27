@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
@@ -195,7 +196,7 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
       const formData = new FormData();
       formData.set('file', file);
       formData.set('businessId', businessId);
-      const res = await fetch('/api/storage/upload-business-logo', { method: 'POST', credentials: 'include', body: formData });
+      const res = await uploadWithProgress('/api/storage/upload-business-logo', { method: 'POST', credentials: 'include', body: formData });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Upload failed');
       update('businessLogo', data.url);
@@ -223,7 +224,7 @@ export function AdminBusinessForm({ businessId, initial, onCancel, onSuccess }: 
       const formData = new FormData();
       formData.set('file', file);
       formData.set('businessId', businessId);
-      const res = await fetch('/api/storage/upload-business-background', { method: 'POST', credentials: 'include', body: formData });
+      const res = await uploadWithProgress('/api/storage/upload-business-background', { method: 'POST', credentials: 'include', body: formData });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Upload failed');
       update('businessBackground', data.url);

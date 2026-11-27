@@ -10,6 +10,7 @@ export const ALLOWED_STORAGE_BUCKETS = [
   'business-backgrounds',
   'business-images',
   'estimate-images',
+  'pro-billboard',
 ] as const;
 
 const ALLOWED_SET = new Set<string>(ALLOWED_STORAGE_BUCKETS);

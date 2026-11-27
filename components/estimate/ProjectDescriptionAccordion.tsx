@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useState, useRef } from 'react';
 import { UseFormReturn } from 'react-hook-form';
@@ -73,7 +74,7 @@ export default function ProjectDescriptionAccordion({
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch('/api/storage/upload-estimate-image', {
+        const response = await uploadWithProgress('/api/storage/upload-estimate-image', {
           method: 'POST',
           body: formData,
         });

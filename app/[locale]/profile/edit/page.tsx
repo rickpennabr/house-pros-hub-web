@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -356,7 +357,7 @@ export default function EditProfilePage() {
       formDataObj.append('file', resizedFile);
       formDataObj.append('userId', user.id);
 
-      const response = await fetch('/api/storage/upload-profile-picture', {
+      const response = await uploadWithProgress('/api/storage/upload-profile-picture', {
         method: 'POST',
         body: formDataObj,
       });

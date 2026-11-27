@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useEffect, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -59,7 +60,7 @@ export function PlantIdentifierModal({
       const form = new FormData();
       form.append('file', photo);
       form.append('locale', locale);
-      const res = await fetch('/api/ai/identify-plant', { method: 'POST', credentials: 'include', body: form });
+      const res = await uploadWithProgress('/api/ai/identify-plant', { method: 'POST', credentials: 'include', body: form });
       const data = await res.json().catch(() => ({}));
       if (id !== request.current) return;
       if (!res.ok) throw new Error(data.error || t('failed'));

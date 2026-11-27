@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { currentProbotVoice } from '@/lib/chat/probot-voice-store';
 import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
@@ -1302,7 +1303,7 @@ export default function ProBotChatArea({
         formData.set('conversationId', cid);
         formData.set('visitorId', visitorId);
         for (let i = 0; i < files.length; i++) formData.append('file', files[i]);
-        const res = await fetch('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
+        const res = await uploadWithProgress('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           const errMsg = typeof data.error === 'string' ? data.error : 'Upload failed';
@@ -1380,7 +1381,7 @@ export default function ProBotChatArea({
         formData.set('conversationId', cid);
         formData.set('visitorId', visitorId);
         formData.append('file', file);
-        const res = await fetch('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
+        const res = await uploadWithProgress('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           setError(typeof data.error === 'string' ? data.error : 'Upload failed');

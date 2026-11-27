@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Download, Pencil, Plus, Trash2, X } from 'lucide-react';
@@ -85,7 +86,7 @@ function ItemEditor({ item, onClose, onSaved }: { item: Item; onClose: () => voi
       const form = new FormData();
       form.append('file', file);
       form.append('trade', draft.trade);
-      const res = await fetch('/api/admin/protrades/upload', { method: 'POST', credentials: 'include', body: form });
+      const res = await uploadWithProgress('/api/admin/protrades/upload', { method: 'POST', credentials: 'include', body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not upload the photo');
       set('image_url', data.image_url);

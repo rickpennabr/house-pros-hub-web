@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -39,6 +40,7 @@ import { ImagePlus, Loader2, X } from 'lucide-react';
 import MakeAppointmentCard from '@/components/businessdetails/MakeAppointmentCard';
 import type { WeekSchedule } from '@/lib/booking/businessHours';
 import { FileDropTarget } from '@/components/ui/FileDropTarget';
+import { ProBillboardStage } from '@/components/billboard/ProBillboardPlayer';
 
 type TabType = BusinessDetailsTab;
 
@@ -533,7 +535,7 @@ export default function BusinessDetailsPage() {
       const formData = new FormData();
       formData.set('file', file);
       formData.set('businessId', business.id);
-      const uploadRes = await fetch('/api/storage/upload-business-background', {
+      const uploadRes = await uploadWithProgress('/api/storage/upload-business-background', {
         method: 'POST',
         credentials: 'include',
         body: formData,
@@ -621,6 +623,12 @@ export default function BusinessDetailsPage() {
       />
       
       <div ref={heroContainerRef} className="relative overflow-hidden shrink-0">
+        <ProBillboardStage
+          businessId={business.id}
+          businessName={business.businessName}
+          isOwner={isOwner}
+          manageHref={`/${locale}/probillboard?businessId=${business.id}`}
+        >
         <BusinessHeroImage 
           key={business.businessBackground ?? 'no-bg'}
           imageUrl={business.businessBackground} 
@@ -722,6 +730,7 @@ export default function BusinessDetailsPage() {
             className="hidden"
           />
         )}
+        </ProBillboardStage>
       </div>
       
       <div className="grid grid-cols-1 items-center border-b-2 border-black bg-white p-2 md:min-h-[60px] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">

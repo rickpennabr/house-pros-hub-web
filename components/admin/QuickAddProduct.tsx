@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useMemo, useRef, useState } from 'react';
 import { Check, ImagePlus, Loader2, Pencil, Plus } from 'lucide-react';
@@ -82,7 +83,7 @@ export function QuickAddProduct({
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch('/api/admin/products/image', { method: 'POST', credentials: 'include', body: form });
+      const res = await uploadWithProgress('/api/admin/products/image', { method: 'POST', credentials: 'include', body: form });
       const body = (await res.json().catch(() => ({}))) as { image_url?: string; error?: string };
       if (!res.ok || !body.image_url) throw new Error(body.error || 'Could not upload the logo');
       setBrandLogo(body.image_url);

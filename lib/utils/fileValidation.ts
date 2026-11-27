@@ -25,7 +25,19 @@ export const MAX_FILE_SIZES = {
   chat: 10 * 1024 * 1024, // 10MB per chat photo, PDF, or voice note
   chatVideo: 25 * 1024 * 1024, // 25MB per chat video
   invoiceAttachment: 20 * 1024 * 1024, // 20MB per invoice attachment (QuickBooks-style)
+  billboardImage: 5 * 1024 * 1024, // 5MB per billboard photo
+  billboardVideo: 25 * 1024 * 1024, // 25MB per billboard video
 } as const;
+
+/** Photos and short videos a pro can put on the Pro Billboard. */
+export const ALLOWED_BILLBOARD_MEDIA_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+] as const;
 
 /**
  * Allowed chat attachment MIME types, as sniffed from the file's bytes (never its name or the
@@ -109,6 +121,24 @@ export async function validateFileMagicBytes(
  */
 export function validateFileSize(size: number, type: FileType): boolean {
   return size <= MAX_FILE_SIZES[type];
+}
+
+/**
+ * Sniff a Pro Billboard upload. Images stay small; video is MP4, WebM, or MOV only.
+ */
+export async function validateBillboardMedia(
+  buffer: Buffer | ArrayBuffer | Uint8Array
+): Promise<{ isValid: boolean; mimeType: string | null; kind: 'image' | 'video' | null }> {
+  try {
+    const fileType = await fileTypeFromBuffer(buffer);
+    if (!fileType) return { isValid: false, mimeType: null, kind: null };
+    const allowed = (ALLOWED_BILLBOARD_MEDIA_TYPES as readonly string[]).includes(fileType.mime);
+    if (!allowed) return { isValid: false, mimeType: fileType.mime, kind: null };
+    const kind = fileType.mime.startsWith('video/') ? 'video' : 'image';
+    return { isValid: true, mimeType: fileType.mime, kind };
+  } catch {
+    return { isValid: false, mimeType: null, kind: null };
+  }
 }
 
 /**

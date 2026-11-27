@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -356,7 +357,7 @@ export default function AdminChatPage() {
         formData.set('conversationId', selectedId);
         formData.set('visitorId', 'admin');
         for (let i = 0; i < files.length; i++) formData.append('file', files[i]);
-        const res = await fetch('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
+        const res = await uploadWithProgress('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.attachments?.length)
           setPendingAttachments((prev) => [...prev, ...data.attachments].slice(0, 10));

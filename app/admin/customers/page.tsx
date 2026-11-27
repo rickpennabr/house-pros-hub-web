@@ -1,4 +1,5 @@
 'use client';
+import { uploadWithProgress } from '@/lib/upload/uploadWithProgress';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -177,7 +178,7 @@ function CustomerForm({
         const formData = new FormData();
         formData.append('file', blob, file.name);
         formData.append('userId', customerId);
-        const res = await fetch('/api/admin/upload-profile-picture', {
+        const res = await uploadWithProgress('/api/admin/upload-profile-picture', {
           method: 'POST',
           credentials: 'include',
           body: formData,
@@ -248,7 +249,7 @@ function CustomerForm({
             const formData = new FormData();
             formData.append('file', blob, pendingPictureFile.name);
             formData.append('userId', newId);
-            const upRes = await fetch('/api/admin/upload-profile-picture', {
+            const upRes = await uploadWithProgress('/api/admin/upload-profile-picture', {
               method: 'POST',
               credentials: 'include',
               body: formData,
