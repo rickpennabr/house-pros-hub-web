@@ -11,7 +11,9 @@ import { DAY_CYCLE_SKY_ENABLED } from '@/lib/constants/probot';
 import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import { HouseMark } from '@/components/icons/HouseMark';
-import { HomeShortcutButton } from '@/components/pageslayout/HomeShortcutButton';
+import { HomeShortcutButton, useHomeShortcut } from '@/components/pageslayout/HomeShortcutButton';
+import { NOTCHED_BAR_MASK } from '@/components/pageslayout/BusinessListMobileBottomBar';
+import { NotificationCount } from '@/components/ui/NotificationCount';
 
 export type ViewType = 'card' | 'list' | 'table' | 'map' | 'chart';
 
@@ -81,6 +83,7 @@ export default function ViewToggle({
   const { mode, setMode } = useBackgroundMode();
   // In the CRM the 256px sidebar (md and up) takes the left side: center on the content beside it.
   const inCrm = useCRMChrome() !== null;
+  const home = useHomeShortcut();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -160,17 +163,22 @@ export default function ViewToggle({
           <button
             type="button"
             onClick={onJobCamera}
-            className="flex h-10 w-[3.25rem] shrink-0 items-center justify-center rounded-lg bg-white text-black"
+            className="flex h-10 w-[3.25rem] shrink-0 items-center justify-center rounded-lg text-white hover:bg-gray-800"
             aria-label={jobCameraLabel}
           >
             <span className="relative block h-8 w-[2.6rem] overflow-hidden">
-              <RepairCameraMark label="JOB" />
+              {/* No white tile: the camera is drawn in white on the black bar, with its animated red border. */}
+              <RepairCameraMark label="JOB" line="white" />
             </span>
           </button>
         </div>
       )}
-      {/* House in the middle: Customer portal or My Places, following the active profile. */}
-      {showAccount && <HomeShortcutButton withLabel={!embedded} />}
+      {/* Phones: Customer portal or My Places before CRM. PC: after CRM, so it sits in the middle. */}
+      {showAccount && (
+        <span className={showCrm ? 'contents md:hidden' : 'contents'}>
+          <HomeShortcutButton withLabel={!embedded} />
+        </span>
+      )}
       {showCrm && (
         <button
           type="button"
@@ -186,6 +194,11 @@ export default function ViewToggle({
           <HouseMark variant="business" tone="light" className="h-7 w-7 shrink-0" />
           {!embedded && <span className="hidden md:inline whitespace-nowrap tracking-wider">CRM</span>}
         </button>
+      )}
+      {showAccount && showCrm && (
+        <span className="hidden md:contents">
+          <HomeShortcutButton withLabel={!embedded} />
+        </span>
       )}
       {showAccount && (
         <button
@@ -239,6 +252,110 @@ export default function ViewToggle({
     return toggleContent;
   }
 
+  /* PC: the same look as the phone bar. Each item is an icon in a square with its label under it,
+     the house raised in the center (My Places, or Customer portal on a business profile) in a
+     notch, views on the left, account actions on the right. ProBot stays the floating bot on PC. */
+  const homeTarget = home.signedIn
+    ? `/${locale}${home.href}`
+    : `/signup?role=customer&returnUrl=${encodeURIComponent(`/${locale}/myplaces`)}`;
+  const deskItem =
+    'relative flex w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 py-1 text-[11px] font-semibold leading-none text-white cursor-pointer active:scale-95 transition-transform';
+  const deskBox = (children: React.ReactNode, active = false) => (
+    <span
+      className={`flex h-10 w-10 items-center justify-center rounded-lg border-2 border-white transition-colors ${
+        active ? 'bg-white text-black' : 'text-white hover:bg-gray-800'
+      }`}
+    >
+      {children}
+    </span>
+  );
+  const deskLabel = (text: string) => <span className="max-w-full truncate whitespace-nowrap">{text}</span>;
+
+  const deskLeft = (
+    <>
+      {views.map((view) => {
+        const Icon = view.icon;
+        const isActive = currentView === view.type;
+        return (
+          <button key={view.type} type="button" onClick={() => onViewChange(view.type)} className={deskItem} aria-label={t(view.labelKey)} aria-pressed={isActive}>
+            {deskBox(<Icon className="h-5 w-5" />, isActive)}
+            {deskLabel(t(view.labelKey))}
+          </button>
+        );
+      })}
+      {DAY_CYCLE_SKY_ENABLED && !hideBackgroundToggle && (
+        <button
+          type="button"
+          onClick={() => setMode(isDynamic ? 'regular' : 'dynamic')}
+          className={deskItem}
+          aria-label={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
+        >
+          <span className={`h-10 w-10 rounded-lg border-2 border-white ${isDynamic ? 'bg-white' : 'bg-toggle-sky-preview'}`} />
+          {deskLabel('Sky')}
+        </button>
+      )}
+      {onJobCamera && (
+        <button type="button" onClick={onJobCamera} className={deskItem} aria-label={jobCameraLabel}>
+          <span className="beta-badge-dynamic absolute -top-2 right-1 z-10 rounded border border-black px-0.5 text-[8px] font-bold text-black" aria-hidden>
+            Beta
+          </span>
+          <span className="relative block h-10 w-[3.25rem] overflow-hidden">
+            <RepairCameraMark label="JOB" line="white" />
+          </span>
+          {deskLabel(jobCameraLabel)}
+        </button>
+      )}
+    </>
+  );
+
+  const deskRight = (
+    <>
+      {showCrm && (
+        <button type="button" onClick={() => router.push(`/${locale}/crm`)} className={deskItem} aria-label="CRM">
+          {deskBox(<HouseMark variant="business" tone="light" className="h-[26px] w-[26px]" />)}
+          {deskLabel('CRM')}
+        </button>
+      )}
+      {showAccount && (
+        <button type="button" onClick={() => router.push(`/${locale}/account-management`)} className={deskItem} aria-label={t('account.manageAccounts')}>
+          {deskBox(<HouseMark variant="gear" tone="light" className="h-[26px] w-[26px]" />)}
+          {deskLabel(t('account.accountsShort'))}
+        </button>
+      )}
+      {onAdd && showAddOnDesktop && (
+        <button type="button" onClick={onAdd} className={deskItem} aria-label={addLabel} aria-expanded={addOpen}>
+          {deskBox(
+            addOpen ? (
+              <Plus className="h-5 w-5 rotate-45 transition-transform duration-200" />
+            ) : (
+              <HouseMark variant="plus" tone="light" className="h-6 w-6" />
+            )
+          )}
+          {deskLabel(addLabel)}
+        </button>
+      )}
+    </>
+  );
+
+  const deskBar = (
+    <nav
+      aria-label="Main menu"
+      // Two equal sides keep the house exactly in the middle, whatever the item count.
+      className="relative hidden grid-cols-[1fr_auto_1fr] items-end gap-1 rounded-lg px-3 pb-1.5 pt-2 shadow-lg md:grid"
+    >
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 rounded-lg bg-black" style={NOTCHED_BAR_MASK} />
+      <div className="flex items-end justify-end gap-1">{deskLeft}</div>
+      <button type="button" onClick={() => router.push(homeTarget)} className={`${deskItem} w-[5.5rem]`} aria-label={home.signedIn ? home.label : t('account.myPlaces')}>
+        <span className="relative z-10 -mt-[46px] -translate-y-3 flex h-[53px] w-[53px] items-center justify-center rounded-lg bg-black">
+          <HouseMark variant="plain" tone="light" className="h-10 w-10" />
+          {home.signedIn ? <NotificationCount count={home.count} className="pointer-events-none absolute -right-3 -top-3 z-10" /> : null}
+        </span>
+        <span className="max-w-full -translate-y-1 truncate whitespace-nowrap">{home.signedIn ? home.label : t('account.myPlaces')}</span>
+      </button>
+      <div className="flex items-end justify-start gap-1">{deskRight}</div>
+    </nav>
+  );
+
   const toggleEl = (
     <div
       className={`fixed left-1/2 ${inCrm ? 'md:left-[calc(50%+8rem)]' : ''} -translate-x-1/2 z-50 bottom-[35px] md:bottom-[75px] transition-all duration-300 ease-out ${
@@ -247,7 +364,8 @@ export default function ViewToggle({
           : 'opacity-100 translate-y-0 pointer-events-auto'
       }`}
     >
-      {toggleContent}
+      <div className="md:hidden">{toggleContent}</div>
+      {deskBar}
     </div>
   );
 

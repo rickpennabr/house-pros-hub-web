@@ -30,6 +30,8 @@ interface CustomerInfoAccordionProps {
   personalInfoFromProfile?: boolean;
   /** The customer's My Places with a full address. When there are any, the address is picked from them. */
   places?: EstimatePlaceOption[];
+  /** Still finding out whether the customer has places: show a placeholder, not the empty address form. */
+  placesLoading?: boolean;
   selectedPlaceId?: string | null;
   onSelectPlace?: (place: EstimatePlaceOption) => void;
 }
@@ -68,6 +70,7 @@ export default function CustomerInfoAccordion({
   addressPrefilledFromProfile = false,
   personalInfoFromProfile = false,
   places = [],
+  placesLoading = false,
   selectedPlaceId = null,
   onSelectPlace,
 }: CustomerInfoAccordionProps) {
@@ -183,7 +186,19 @@ export default function CustomerInfoAccordion({
         title={tAccordion('projectAddress')}
         icon={<MapPin className="w-5 h-5" />}
       >
-        {showPlacePicker ? (
+        {placesLoading ? (
+          <div className="space-y-3" aria-busy="true" aria-live="polite">
+            <div className="h-4 w-64 max-w-full animate-pulse rounded-md bg-gray-200" />
+            <div className="flex h-[84px] w-full max-w-[290px] items-center gap-3 rounded-lg border-2 border-gray-200 p-2">
+              <div className="h-16 w-16 shrink-0 animate-pulse rounded-lg bg-gray-200" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-32 animate-pulse rounded-md bg-gray-200" />
+                <div className="h-3 w-24 animate-pulse rounded-md bg-gray-200" />
+                <div className="h-3 w-28 animate-pulse rounded-md bg-gray-200" />
+              </div>
+            </div>
+          </div>
+        ) : showPlacePicker ? (
           <div className="space-y-3">
             <p className="text-sm text-gray-700">{tAccordion('pickPlaceHint')}</p>
             {addressHasErrors ? (

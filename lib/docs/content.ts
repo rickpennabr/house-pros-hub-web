@@ -1,31 +1,36 @@
 import type { DocsPage } from './types';
 
-/** English guide bodies for Hub Docs v1. */
+/** Story-style Hub Docs: ProBot plays each part. */
 export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'get-started/overview',
     title: 'Overview',
-    lead: 'House Pros Hub helps pros run the business and helps homeowners find trusted local pros. This guide shows you how to use the Hub day to day.',
+    lead: 'Meet ProBot. In these guides he tries on every hat — owner, customer, plumber, crew — so you can see how the Hub fits your day.',
+    heroRole: 'guide',
     sections: [
       {
-        id: 'what-is-the-hub',
-        title: 'What is the Hub',
-        paragraphs: [
-          'Pros use the CRM for contacts, estimates, invoices, projects, calendar, and expenses. ProBot answers questions from that data and opens the right screens.',
-          'Homeowners browse pros, request estimates, message businesses, and keep home records in My Places.',
+        id: 'two-sides',
+        title: 'Two sides of the Hub',
+        role: 'guide',
+        roleLabel: 'ProBot the guide',
+        story:
+          '“Think of me as the office kid who also walks the job. On one side I help pros run Contacts, Estimates, Invoices, Projects, Calendar, and Expenses. On the other I help homeowners find a pro, request an estimate, and keep My Places tidy. Same Hub — different hats.”',
+        links: [
+          { label: 'Open ProBot', href: '/probot' },
+          { label: 'Browse pros', href: '/businesslist' },
         ],
       },
       {
         id: 'where-to-start',
         title: 'Where to start',
+        role: 'crew',
+        roleLabel: 'ProBot on day one',
+        story:
+          '“Day one is simple. Make an account. If you run a trade, switch to your business profile and say hi to me in ProBot. If you own a home, stay on personal, peek at My Places, or ask for a free estimate. I’ll meet you where you are.”',
         steps: [
-          'Create an account and choose a personal or business profile.',
-          'Pros: open ProBot or CRM and add your first contact.',
-          'Homeowners: search the directory or request a free estimate.',
-        ],
-        links: [
-          { label: 'Open ProBot', href: '/probot' },
-          { label: 'Browse pros', href: '/businesslist' },
+          'Create an account (email or Google).',
+          'Pros: open ProBot or CRM and add a contact.',
+          'Homeowners: browse pros or request an estimate.',
         ],
       },
     ],
@@ -33,48 +38,57 @@ export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'get-started/create-account',
     title: 'Create your account',
-    lead: 'Sign up once. You can add a business profile later without making a second login.',
+    lead: 'ProBot walks you through the front door — one login, then personal or business when you need it.',
+    heroRole: 'guide',
     sections: [
       {
         id: 'sign-up',
-        title: 'Sign up',
+        title: 'Walk in and sign up',
+        role: 'customer',
+        roleLabel: 'ProBot at the door',
+        story:
+          '“I hold the door. Tap Sign in, pick email or Google, and tell the Hub your name and where you work from. You only do this once — after that I’m waiting in the chat.”',
         steps: [
           'Open Sign in from the account menu.',
           'Create an account with email or Google.',
-          'Finish your name and location when the Hub asks for them.',
+          'Finish name and location when asked.',
         ],
         links: [{ label: 'Sign in', href: '/signin' }],
       },
       {
         id: 'after-you-join',
         title: 'After you join',
-        paragraphs: [
-          'Personal profiles are for homeowners. Business profiles unlock ProsCRM, ProBot business tools, and your public pro card.',
-        ],
+        role: 'business',
+        roleLabel: 'ProBot with two badges',
+        story:
+          '“Personal is for home stuff. Business unlocks ProsCRM, my business tools, and your public pro card. Flip between them in the account menu — I change hats with you.”',
       },
     ],
   },
   {
     slug: 'get-started/business-vs-personal',
     title: 'Business vs personal',
-    lead: 'Switch profiles from the account menu when you need homeowner tools or pro tools.',
+    lead: 'Same ProBot. Different jobs. Here’s how he shows up on each profile.',
+    heroRole: 'business',
     sections: [
       {
         id: 'personal',
-        title: 'Personal',
-        paragraphs: [
-          'Use personal for My Places, finding pros, estimates as a homeowner, and chatting with businesses.',
-        ],
+        title: 'Personal profile',
+        role: 'customer',
+        roleLabel: 'ProBot the homeowner',
+        story:
+          '“On personal I’m in jeans with a house key. I talk My Places, finding pros, estimates for your home, and chats with businesses. Bills on your house live on your places — ask me there.”',
         links: [{ label: 'My Places', href: '/myplaces' }],
       },
       {
         id: 'business',
-        title: 'Business',
-        paragraphs: [
-          'Use business for CRM, ProBot with your books, estimates and invoices you send, and your public listing.',
-        ],
+        title: 'Business profile',
+        role: 'business',
+        roleLabel: 'ProBot the owner',
+        story:
+          '“On business I’ve got the clipboard. Jobs, customers, estimates you send, invoices, schedule, crew. Ask who owes you money or what’s on the calendar — I’ll look it up for real.”',
         links: [
-          { label: 'ProsCRM contacts', href: '/crm/customers' },
+          { label: 'Contacts', href: '/crm/customers' },
           { label: 'ProBot', href: '/probot' },
         ],
       },
@@ -83,65 +97,79 @@ export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'probot/chat',
     title: 'Chat with ProBot',
-    lead: 'ProBot is your Hub assistant. Ask about customers, money, schedule, or projects in plain language.',
+    lead: 'ProBot as office manager: plain questions, real CRM answers, and a button to the right page.',
+    heroRole: 'guide',
     sections: [
       {
         id: 'ask-a-question',
-        title: 'Ask a question',
+        title: 'Ask like you’re on the phone',
+        role: 'business',
+        roleLabel: 'ProBot at the desk',
+        story:
+          '“Open me from the account menu. Type in Ask ProBot — ‘who owes me money?’, ‘how many customers?’, ‘what’s today look like?’ I answer from your books, then drop a page button (Contacts, Invoices…) so you can walk into the full list.”',
         steps: [
-          'Open ProBot from the account menu or the ProBot chat.',
-          'Type in Ask ProBot, or pick a CRM shortcut on the welcome screen.',
-          'Read the answer and use the page button under it (Contacts, Invoices, and so on) to open the full list.',
+          'Open ProBot.',
+          'Type a short question, or use a welcome shortcut.',
+          'Use the page button under the reply to open the list.',
         ],
         links: [{ label: 'Open ProBot', href: '/probot' }],
       },
       {
         id: 'what-probot-uses',
-        title: 'What ProBot uses',
-        paragraphs: [
-          'Answers come from your CRM data for the active business profile. Counts and names match Contacts, Invoices, Estimates, Projects, Calendar, and Maintenance.',
-        ],
+        title: 'What I look up',
+        role: 'crew',
+        roleLabel: 'ProBot with the books',
+        story:
+          '“I don’t guess. Contacts, Invoices, Estimates, Projects, Calendar, Maintenance — if it’s in your CRM for this business profile, that’s what I read. Counts and names match the screens you already use.”',
       },
     ],
   },
   {
     slug: 'probot/voice',
     title: 'Voice notes',
-    lead: 'Talk to ProBot when your hands are busy. The reply shows when the voice note is ready.',
+    lead: 'Hands full of pipe? ProBot listens, then answers out loud when the voice note is ready.',
+    heroRole: 'plumber',
     sections: [
       {
         id: 'send-a-voice-note',
-        title: 'Send a voice note',
+        title: 'Talk from the truck',
+        role: 'plumber',
+        roleLabel: 'ProBot the plumber',
+        story:
+          '“Hard hat on, wrench in hand — I still pick up. Tap the mic on Ask ProBot, say something short like ‘any invoices open?’, and send. The text and the voice reply show up together when I’m done recording.”',
         steps: [
-          'Tap the microphone on the Ask ProBot bar.',
-          'Speak your question, then send.',
-          'Wait for the reply bubble and player together — text and audio arrive at the same time.',
+          'Tap the microphone on Ask ProBot.',
+          'Speak, then send.',
+          'Wait for the bubble and player together.',
         ],
       },
       {
         id: 'tips',
-        title: 'Tips',
-        paragraphs: [
-          'Keep questions short. Ask for a count, who owes money, or what is on the schedule today.',
-        ],
+        title: 'Keep it short',
+        role: 'electrician',
+        roleLabel: 'ProBot the electrician',
+        story:
+          '“One question at a time. Counts, who owes money, what’s on the schedule — that’s my sweet spot when you’re on a ladder.”',
       },
     ],
   },
   {
     slug: 'probot/welcome-shortcuts',
     title: 'CRM shortcuts on welcome',
-    lead: 'On an empty ProBot chat, shortcut boxes open CRM tools without typing a question.',
+    lead: 'Empty ProBot chat: ProBot lays out the shop tools before you even type.',
+    heroRole: 'guide',
     sections: [
       {
         id: 'available-shortcuts',
-        title: 'Available shortcuts',
-        paragraphs: [
-          'Calendar, Contacts, Estimates, Invoices, Projects, Expenses, Add Task, and Add a customer sit under the greeting when you use a business profile.',
-        ],
+        title: 'Tap a box, open the shop',
+        role: 'business',
+        roleLabel: 'ProBot opening the shop',
+        story:
+          '“No messages yet? I put Calendar, Contacts, Estimates, Invoices, Projects, Expenses, Add Task, and Add a customer under the greeting. Tap one and that CRM view opens — Back brings you to me again.”',
         steps: [
-          'Open ProBot with no messages in the thread.',
-          'Tap a shortcut box to open that CRM view.',
-          'Use Back to return to the welcome screen, or ask ProBot in the bar below.',
+          'Open ProBot with an empty thread (business profile).',
+          'Tap a shortcut box.',
+          'Use Back, or ask me in the bar below.',
         ],
         links: [{ label: 'Open ProBot', href: '/probot' }],
       },
@@ -150,40 +178,50 @@ export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'crm/contacts',
     title: 'Contacts',
-    lead: 'Contacts are the people and companies in your CRM. Customers are contacts with the Customer role.',
+    lead: 'ProBot the owner keeps the customer list honest — Customer role means customer.',
+    heroRole: 'business',
     sections: [
       {
         id: 'open-contacts',
-        title: 'Open Contacts',
+        title: 'Meet your people',
+        role: 'business',
+        roleLabel: 'ProBot with the rolodex',
+        story:
+          '“Contacts are everyone in your CRM. Customers are the ones wearing the Customer role. Open ProsCRM → Contacts, or ask me ‘how many customers?’ and hit the Contacts button under my answer.”',
         steps: [
-          'Go to ProsCRM → Contacts, or ask ProBot how many customers you have and open the Contacts button.',
-          'Search or filter the list.',
-          'Open a card to edit details, roles, and linked work.',
+          'Open Contacts (or ask ProBot for the count).',
+          'Search or filter.',
+          'Open a card to edit details and roles.',
         ],
         links: [{ label: 'Contacts', href: '/crm/customers' }],
       },
       {
         id: 'add-a-contact',
-        title: 'Add a contact',
-        steps: [
-          'Use Add a customer from ProBot welcome, or add from Contacts.',
-          'Enter name and details, then save.',
-        ],
+        title: 'Add someone new',
+        role: 'crew',
+        roleLabel: 'ProBot taking a name',
+        story:
+          '“New neighbor on the job? Use Add a customer from my welcome screen or from Contacts. Name, details, save — I’ll remember them next time you ask.”',
       },
     ],
   },
   {
     slug: 'crm/estimates',
     title: 'Estimates',
-    lead: 'Build estimates, send them to customers, and track which ones are still waiting.',
+    lead: 'ProBot walks a quote from draft to “still waiting.”',
+    heroRole: 'business',
     sections: [
       {
         id: 'work-with-estimates',
-        title: 'Work with estimates',
+        title: 'Send the quote',
+        role: 'landscaper',
+        roleLabel: 'ProBot the landscaper',
+        story:
+          '“I sketch the yard, then the estimate. Open Estimates, build or edit a draft, send it. Ask me which estimates are waiting when you want the cold ones without digging.”',
         steps: [
           'Open Estimates in ProsCRM.',
-          'Create or edit a draft, then send it.',
-          'Ask ProBot which estimates are waiting for an answer when you need a quick list.',
+          'Create or edit, then send.',
+          'Ask ProBot what’s still waiting.',
         ],
         links: [{ label: 'Estimates', href: '/crm/estimates' }],
       },
@@ -192,15 +230,20 @@ export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'crm/invoices',
     title: 'Invoices',
-    lead: 'Send invoices, track balances, and see who still owes you.',
+    lead: 'ProBot chases the balance — politely, with real numbers.',
+    heroRole: 'business',
     sections: [
       {
         id: 'open-invoices',
-        title: 'Open invoices',
+        title: 'Who still owes',
+        role: 'business',
+        roleLabel: 'ProBot with the ledger',
+        story:
+          '“I don’t invent balances. Open Invoices, or ask me who owes you money. I’ll say what’s open, then hand you the Invoices button for the full list.”',
         steps: [
           'Open Invoices in ProsCRM.',
-          'Create an invoice from a job or from scratch.',
-          'Ask ProBot who owes you money to hear open balances, then open the Invoices page button.',
+          'Create from a job or from scratch.',
+          'Ask ProBot who owes money when you need a quick read.',
         ],
         links: [{ label: 'Invoices', href: '/crm/invoices' }],
       },
@@ -209,15 +252,20 @@ export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'crm/projects',
     title: 'Projects',
-    lead: 'Projects track jobs from start date through finish.',
+    lead: 'From first stake to last paver — ProBot keeps the dates straight.',
+    heroRole: 'crew',
     sections: [
       {
         id: 'track-projects',
-        title: 'Track projects',
+        title: 'Jobs on the board',
+        role: 'painter',
+        roleLabel: 'ProBot the painter',
+        story:
+          '“Start date, finish date, customer on the job. That’s how I answer ‘what finishes this week.’ Open Projects, set the dates, link the contact — then ask me anytime.”',
         steps: [
           'Open Projects in ProsCRM.',
-          'Set start and end dates so the schedule and ProBot can answer “what finishes this week.”',
-          'Link the customer so invoices and visits stay tied to the right job.',
+          'Set start and end dates.',
+          'Link the customer.',
         ],
         links: [{ label: 'Projects', href: '/crm/projects' }],
       },
@@ -226,15 +274,19 @@ export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'crm/calendar',
     title: 'Calendar & schedule',
-    lead: 'See appointments, estimate visits, maintenance, and project days in one place.',
+    lead: 'ProBot on the crew checks the day before the truck rolls.',
+    heroRole: 'crew',
     sections: [
       {
         id: 'use-the-calendar',
-        title: 'Use the calendar',
+        title: 'What’s today',
+        role: 'crew',
+        roleLabel: 'ProBot with the day board',
+        story:
+          '“Appointments, estimate visits, maintenance, project days — I read the same Calendar you do. Open it from ProsCRM or my shortcuts, or just ask ‘what’s on my schedule today?’”',
         steps: [
-          'Open Calendar in ProsCRM or from ProBot shortcuts.',
-          'Ask ProBot what is on your schedule today or tomorrow.',
-          'Add visits and tasks so the day board stays current.',
+          'Open Calendar or ask ProBot about today/tomorrow.',
+          'Add visits and tasks so the board stays true.',
         ],
         links: [{ label: 'Calendar', href: '/crm/calendar' }],
       },
@@ -243,15 +295,20 @@ export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'crm/expenses',
     title: 'Expenses',
-    lead: 'Log materials and job costs so your books stay close to the field.',
+    lead: 'Materials run? ProBot logs it before the receipt gets lost in the truck.',
+    heroRole: 'plumber',
     sections: [
       {
         id: 'log-expenses',
-        title: 'Log expenses',
+        title: 'Capture the cost',
+        role: 'plumber',
+        roleLabel: 'ProBot with a receipt',
+        story:
+          '“Supply house run. I open Expenses, type vendor, amount, date, category, snap the receipt if I’ve got it. Ask me later and the books still match the field.”',
         steps: [
-          'Open Expenses from ProsCRM or ProBot shortcuts.',
-          'Add vendor, amount, date, and category.',
-          'Attach a receipt when you have one.',
+          'Open Expenses from ProsCRM or ProBot.',
+          'Add vendor, amount, date, category.',
+          'Attach a receipt when you can.',
         ],
         links: [{ label: 'Expenses', href: '/crm/expenses' }],
       },
@@ -260,15 +317,20 @@ export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'homeowners/find-a-pro',
     title: 'Find a pro',
-    lead: 'Browse local pros by trade, search, or category.',
+    lead: 'ProBot as the neighbor who knows everyone on the block.',
+    heroRole: 'customer',
     sections: [
       {
         id: 'browse-the-directory',
-        title: 'Browse the directory',
+        title: 'Browse the block',
+        role: 'customer',
+        roleLabel: 'ProBot the neighbor',
+        story:
+          '“Need a plumber, landscaper, painter? I walk the directory with you — category, search, open a card, message or request an estimate. No hard sell, just the right door.”',
         steps: [
-          'Open the business list from the Hub home.',
+          'Open the business list.',
           'Filter by category or search by name.',
-          'Open a pro card to message them or request an estimate.',
+          'Open a card to message or request an estimate.',
         ],
         links: [{ label: 'Find pros', href: '/businesslist' }],
       },
@@ -277,14 +339,19 @@ export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'homeowners/request-estimate',
     title: 'Request an estimate',
-    lead: 'Tell pros what you need. They reply with pricing and next steps.',
+    lead: 'ProBot helps you tell the story of the job so pros can answer.',
+    heroRole: 'customer',
     sections: [
       {
         id: 'request-steps',
-        title: 'Request an estimate',
+        title: 'Tell them what you need',
+        role: 'customer',
+        roleLabel: 'ProBot writing it down',
+        story:
+          '“Free Estimate in the menu or on a pro card. Describe the project, where, and when. Submit — then watch chat for replies. I’ll keep you company while you wait.”',
         steps: [
-          'Tap Free Estimate in the menu or on a pro card.',
-          'Describe the project, location, and timeline.',
+          'Tap Free Estimate.',
+          'Describe project, location, timeline.',
           'Submit and watch for replies in chat.',
         ],
         links: [{ label: 'Free estimate', href: '/estimate' }],
@@ -294,15 +361,20 @@ export const DOCS_PAGES: DocsPage[] = [
   {
     slug: 'homeowners/my-places',
     title: 'My Places',
-    lead: 'Keep each property’s plans, documents, and history in one spot.',
+    lead: 'Every house gets a folder. ProBot helps you keep the plans in one spot.',
+    heroRole: 'customer',
     sections: [
       {
         id: 'use-my-places',
-        title: 'Use My Places',
+        title: 'One home, one place',
+        role: 'customer',
+        roleLabel: 'ProBot with the house keys',
+        story:
+          '“My Places is your stack of house folders. Add a property, drop photos and files, share a place into chat when you message a pro. Personal profile unlocks it.”',
         steps: [
-          'Open My Places from the account menu (personal profile).',
-          'Add a property and upload photos or files as you collect them.',
-          'Share a place into chat when you message a pro.',
+          'Open My Places (personal profile).',
+          'Add a property; upload photos or files.',
+          'Share a place into chat when you talk to a pro.',
         ],
         links: [{ label: 'My Places', href: '/myplaces' }],
       },

@@ -2,6 +2,7 @@ import fs from "fs"
 import path from "path"
 import { probotAutoReply } from "@/lib/chat/probot-reply"
 import { redactForModel } from "@/lib/chat/probot-redact"
+import { hubDocsBrief } from "@/lib/docs/for-probot"
 
 type ProviderName = "groq" | "gemini" | "openai"
 
@@ -142,6 +143,11 @@ The visitor is asking about a job. Use the House Pros Hub playbook below for har
 
 ${playbook}`
     : ""
+  const docsLang = locale === "es" || locale === "pt" ? locale : "en"
+  const docs = `
+
+If they ask how to use the Hub, ProBot, CRM, or My Places, answer from Hub Docs and mention /docs. Product how-to only — not their account data.
+${hubDocsBrief(docsLang)}`
   return `You are ProBot, the assistant on House Pros Hub (houseproshub.com).
 House Pros Hub helps people find local home-service pros, message them, and request a free estimate.
 
@@ -155,7 +161,7 @@ How to answer:
 - Never state a dollar amount, a rebate amount, or a date the work will start. Never say another company is a better choice. If you do not have a fact, say you do not have that detail.
 - Reply in ${language} unless the user clearly wrote in another language.
 - 2 to 5 sentences. No markdown headings.
-- Return only JSON: {"kind":"general"|"construction","reply":"..."}${notes}`
+- Return only JSON: {"kind":"general"|"construction","reply":"..."}${notes}${docs}`
 }
 
 export function parseModelReply(raw: string): string | null {

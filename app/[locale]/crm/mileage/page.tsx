@@ -22,6 +22,7 @@ import {
 import { TitleCount } from '@/components/crm/TitleCount';
 import { PickerSelect } from '@/components/ui/PickerSelect';
 import { TripTracker } from '@/components/crm/mileage/TripTracker';
+import { TripCostReport } from '@/components/crm/mileage/TripCostReport';
 
 interface VehicleView {
   id: string;
@@ -44,6 +45,7 @@ interface VehicleView {
 interface TripView {
   /** Recorded live with GPS: has a route map. */
   tracked?: boolean;
+  tripTypeId?: string | null;
   id: string;
   vehicleId: string | null;
   vehicleName: string;
@@ -301,6 +303,8 @@ function emptyTrip(vehicle?: VehicleView): TripDraft {
 
 export default function CRMMileagePage() {
   const searchParams = useSearchParams();
+  /** Two tabs: ProTrips (track and see trips) and Vehicles (cars and their costs). */
+  const [tab, setTab] = useState<'trips' | 'vehicles'>(searchParams.get('tab') === 'vehicles' ? 'vehicles' : 'trips');
   const [vehicles, setVehicles] = useState<VehicleView[]>([]);
   const [trips, setTrips] = useState<TripView[]>([]);
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
@@ -508,23 +512,44 @@ export default function CRMMileagePage() {
             Enter the vehicle, gas, and yearly costs. An average trip and each logged drive are priced from those numbers.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => {
-            setSelectedId('new');
-            setDraft(EMPTY_DRAFT);
-            setConfirmDelete(false);
-          }}
-        >
-          <Plus className="mr-1 inline h-4 w-4" />
-          Add vehicle
-        </Button>
+        {tab === 'vehicles' ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setSelectedId('new');
+              setDraft(EMPTY_DRAFT);
+              setConfirmDelete(false);
+            }}
+          >
+            <Plus className="mr-1 inline h-4 w-4" />
+            Add vehicle
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="flex gap-2" role="tablist">
+        {([
+          { id: 'trips', label: 'ProTrips' },
+          { id: 'vehicles', label: 'Vehicles and settings' },
+        ] as const).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            onClick={() => setTab(item.id)}
+            className={`rounded-lg border-2 border-black px-4 py-2 text-sm font-medium ${tab === item.id ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
-      {!loading ? (
+      {!loading && tab === 'trips' ? (
         <TripTracker
+          autoOpen={searchParams.get('track') === '1'}
           vehicles={vehicles.map((vehicle) => ({ id: vehicle.id, name: vehicle.name }))}
           customers={customers.map((customer) => ({ id: customer.id, name: customer.name }))}
           costPerMileCents={(id) => vehicles.find((vehicle) => vehicle.id === id)?.cost.costPerMileCents ?? null}
@@ -535,6 +560,8 @@ export default function CRMMileagePage() {
         <div className="p-12 text-center text-sm text-gray-500">Loading mileage…</div>
       ) : (
         <>
+          {tab === 'vehicles' ? (
+          <>
           <div className="flex gap-2 overflow-x-auto">
             {vehicles.map((vehicle) => (
               <button
@@ -640,7 +667,12 @@ export default function CRMMileagePage() {
               expenseCents={selected?.actual.expenseCents ?? null}
             />
           </div>
+          </>
+          ) : null}
 
+          {tab === 'trips' ? <TripCostReport trips={trips} customers={customers} /> : null}
+
+          {tab === 'trips' ? (
           <section className="rounded-lg border-2 border-black bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-semibold text-gray-900">Trips</h2>
@@ -829,6 +861,7 @@ export default function CRMMileagePage() {
               </table>
             </div>
           </section>
+          ) : null}
         </>
       )}
     </div>

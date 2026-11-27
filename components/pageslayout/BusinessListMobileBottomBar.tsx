@@ -43,7 +43,7 @@ interface BusinessListMobileBottomBarProps {
  */
 /** The notch: 63px opening (53px house + 5px gap each side), 44px deep (5px under the house); corners follow the house (8px + 5px gap = 13px) and the top edges curve in smoothly. */
 const NOTCH_SVG = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="75" height="44"><path d="M0 0H75A6 6 0 0 0 69 6V31A13 13 0 0 1 56 44H19A13 13 0 0 1 6 31V6A6 6 0 0 0 0 0Z"/></svg>');
-const NOTCHED_BAR_MASK: import('react').CSSProperties = {
+export const NOTCHED_BAR_MASK: import('react').CSSProperties = {
   WebkitMaskImage: `url("data:image/svg+xml,${NOTCH_SVG}"), linear-gradient(#000, #000)`,
   maskImage: `url("data:image/svg+xml,${NOTCH_SVG}"), linear-gradient(#000, #000)`,
   WebkitMaskRepeat: 'no-repeat',

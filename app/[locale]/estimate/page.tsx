@@ -578,6 +578,7 @@ export default function EstimatePage() {
                 user?.firstName?.trim() && user?.lastName?.trim() && user?.email?.trim() && user?.phone?.trim()
               )}
               places={placeOptions}
+              placesLoading={isLoading || (isAuthenticated && !addressChecked)}
               selectedPlaceId={selectedPlaceId}
               onSelectPlace={(place) => fillFromPlace(place)}
             />

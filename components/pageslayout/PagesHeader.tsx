@@ -157,7 +157,17 @@ export default function PageHeader({ children }: PageHeaderProps) {
         ) : (
           <div className="flex h-10 min-w-0 items-center justify-center overflow-hidden">
             <Link href={`/${locale}/businesslist`} className="flex h-10 w-full min-w-0 max-w-full cursor-pointer items-center justify-center">
-              <Logo width={160} height={40} className="h-[40px] w-auto object-contain logo-header" mobileSrc={mobileLogoSrc} />
+              {/* Phones: the logo as before. */}
+              <span className="flex h-10 w-full min-w-0 items-center justify-center md:hidden">
+                <Logo width={160} height={40} className="h-[40px] w-auto object-contain logo-header" mobileSrc={mobileLogoSrc} />
+              </span>
+              {/* PC: the HPH + ProBot logo with the tagline under it. */}
+              <span className="hidden h-10 flex-col items-center justify-center md:flex">
+                <Logo src={mobileLogoSrc} className="h-[26px] w-auto object-contain" />
+                <span className="mt-0.5 whitespace-nowrap text-[11px] font-semibold leading-none tracking-wide text-red-600">
+                  One mind for all your house needs.
+                </span>
+              </span>
             </Link>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
 import { AGENT_RULE, PROAGENT_MAX_STEPS, PROAGENT_POLICY, siteOrigin } from '@/lib/agent/constants'
+import { hubDocsBrief } from '@/lib/docs/for-probot'
 import { prosFromToolData, proAgentOpenAiTools, runDirectoryTool } from '@/lib/agent/tools'
 import { isPlaceTool, placeOpenAiTools, runPlaceTool } from '@/lib/agent/place-tools'
 import { DEFAULT_PRO_TIME_ZONE, isProTool, pagesForTools, proOpenAiTools, runProTool, todayIn } from '@/lib/agent/pro-tools'
@@ -196,6 +197,8 @@ function agentPrompt(locale: string | undefined, playbook: string, portalBrief: 
   const moneyRule = portalBrief || signedIn
     ? '- Never state a dollar amount, a rebate amount, or a start date unless that figure is written in their place record.'
     : '- Never state a dollar amount, a rebate amount, or a date the work will start.'
+  const docsLang = locale === 'es' || locale === 'pt' ? locale : 'en'
+  const docs = `\n\nWhen they ask how to use the Hub, ProBot, CRM, estimates, invoices, calendar, expenses, or My Places, answer from Hub Docs below and point them to the matching /docs link. This is product how-to only — never treat it as their CRM data.\n\n${hubDocsBrief(docsLang)}`
   // Fixed rules first, the same text on every turn, so the provider can cache that part of the
   // prompt (cheaper input). Everything about this person and this turn comes after it.
   return `You are ProAgent, the assistant on House Pros Hub (houseproshub.com).
@@ -212,7 +215,7 @@ How to work:
 
 For this person:
 ${moneyRule}
-- Reply in ${language} unless the user clearly wrote in another language.${placeTools}${pro}${places}`
+- Reply in ${language} unless the user clearly wrote in another language.${placeTools}${pro}${places}${docs}`
 }
 
 function rememberPros(found: ProAgentProCard[], data: unknown, locale: string): ProAgentProCard[] {

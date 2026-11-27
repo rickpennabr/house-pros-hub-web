@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { BookOpen, ChevronDown, HelpCircle } from 'lucide-react';
+import { BsGrid3X3Gap } from 'react-icons/bs';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
-import { docsPath, filterDocsNav } from '@/lib/docs/nav';
+import { MobileGridActionsModal } from '@/components/crm/MobileGridActionsModal';
+import { DOCS_NAV, docsPath, filterDocsNav } from '@/lib/docs/nav';
 
 interface DocsSidebarProps {
   locale: string;
@@ -20,109 +22,154 @@ interface DocsSidebarProps {
 
 export function DocsSidebar({ locale, activeSlug, labels }: DocsSidebarProps) {
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const activeSection = DOCS_NAV.find((section) => section.pages.some((page) => page.slug === activeSlug));
+    return activeSection ? { [activeSection.id]: true } : {};
+  });
   const sections = useMemo(() => filterDocsNav(query), [query]);
 
-  const nav = (
-    <nav aria-label="Docs" className="space-y-6">
-      {sections.map((section) => (
-        <div key={section.id}>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{section.label}</p>
-          <ul className="space-y-1">
-            {section.pages.map((page) => {
-              const active = page.slug === activeSlug;
-              return (
-                <li key={page.slug}>
-                  <Link
-                    href={docsPath(locale, page.slug)}
-                    onClick={() => setOpen(false)}
-                    className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
-                      active
-                        ? 'border-2 border-black bg-black font-medium text-white'
-                        : 'border-2 border-transparent text-gray-800 hover:bg-gray-100'
-                    }`}
-                  >
-                    {page.title}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Help</p>
-        <Link
-          href={`/${locale}/help`}
-          onClick={() => setOpen(false)}
-          className="block rounded-lg border-2 border-transparent px-3 py-2 text-sm text-gray-800 hover:bg-gray-100"
-        >
-          {labels.help}
-        </Link>
-      </div>
-      {sections.length === 0 ? (
-        <p className="px-3 text-sm text-gray-500">No guides match “{query}”.</p>
-      ) : null}
-    </nav>
+  const flatPages = useMemo(
+    () =>
+      DOCS_NAV.flatMap((section) =>
+        section.pages.map((page) => ({
+          id: page.slug,
+          href: docsPath(locale, page.slug),
+          label: page.title,
+          icon: BookOpen,
+          isActive: page.slug === activeSlug,
+        }))
+      ),
+    [locale, activeSlug]
   );
+
+  const mobileStrip = useMemo(() => {
+    const section = DOCS_NAV.find((item) => item.pages.some((page) => page.slug === activeSlug)) ?? DOCS_NAV[0];
+    return section?.pages ?? [];
+  }, [activeSlug]);
 
   return (
     <>
-      <div className="mb-3 flex items-center gap-2 lg:hidden">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border-2 border-black bg-white px-3 py-2 text-sm font-medium text-black"
-        >
-          <Menu className="h-4 w-4" aria-hidden />
-          {labels.menu}
-        </button>
+      {/* Mobile: horizontal strip + grid menu, same pattern as CRM/Admin. */}
+      <div className="z-40 w-full shrink-0 border-b-2 border-black bg-white md:hidden">
+        <div className="relative flex h-[60px] items-center px-2 py-2">
+          <nav className="scrollbar-custom flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pr-12">
+            {mobileStrip.map((page) => {
+              const active = page.slug === activeSlug;
+              return (
+                <Link
+                  key={page.slug}
+                  href={docsPath(locale, page.slug)}
+                  className={`flex h-10 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg border-2 px-3 text-sm font-medium transition-all hover:scale-[1.02] ${
+                    active
+                      ? 'border-black bg-black text-white'
+                      : 'border-transparent bg-transparent text-black hover:border-gray-400'
+                  }`}
+                >
+                  <BookOpen className={`h-4 w-4 ${active ? 'text-white' : 'text-red-600'}`} aria-hidden />
+                  {page.title}
+                </Link>
+              );
+            })}
+          </nav>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg border-2 border-black bg-black hover:bg-gray-800"
+            aria-label={labels.menu}
+          >
+            <BsGrid3X3Gap className="h-5 w-5 text-white" />
+          </button>
+        </div>
       </div>
 
-      <aside className="hidden w-60 shrink-0 border-r-2 border-black lg:block">
-        <div className="sticky top-16 space-y-4 px-3 py-6">
+      <MobileGridActionsModal
+        isOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title={labels.menu}
+        items={[
+          ...flatPages,
+          {
+            id: 'help',
+            href: `/${locale}/help`,
+            label: labels.help,
+            icon: HelpCircle,
+            isActive: false,
+          },
+        ]}
+      />
+
+      {/* Desktop: full-height sidebar like ProsCRM / Admin Dash. */}
+      <aside className="hidden h-full min-h-0 w-64 shrink-0 overflow-y-auto overscroll-contain border-r-2 border-black bg-white md:block">
+        <div className="space-y-4 p-4 pb-24">
           <TypingSearchInput
             value={query}
             onChange={setQuery}
             placeholder={labels.search}
             clearLabel={labels.clear}
           />
-          {nav}
+
+          <nav aria-label="Docs" className="space-y-2">
+            {sections.map((section) => {
+              const childActive = section.pages.some((page) => page.slug === activeSlug);
+              const open = Boolean(query.trim()) || (openGroups[section.id] ?? childActive);
+              return (
+                <div key={section.id}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenGroups((current) => {
+                        const currentlyOpen = current[section.id] ?? childActive;
+                        return { ...current, [section.id]: !currentlyOpen };
+                      })
+                    }
+                    aria-expanded={open}
+                    className={`flex w-full cursor-pointer items-center rounded-lg border-2 px-4 py-3 text-left transition-all hover:border-gray-400 ${
+                      childActive && !open ? 'border-black font-medium' : 'border-transparent'
+                    }`}
+                  >
+                    <BookOpen className="mr-3 h-5 w-5 text-red-600" aria-hidden />
+                    <span className="flex-1 font-semibold text-black">{section.label}</span>
+                    <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+                  </button>
+                  {open ? (
+                    <div className="mt-1 space-y-1">
+                      {section.pages.map((page) => {
+                        const active = page.slug === activeSlug;
+                        return (
+                          <Link
+                            key={page.slug}
+                            href={docsPath(locale, page.slug)}
+                            className={`flex items-center rounded-lg border-2 py-2 pl-8 pr-4 text-sm transition-all hover:scale-[1.02] ${
+                              active
+                                ? 'border-black bg-white font-medium text-black'
+                                : 'border-transparent text-black hover:border-gray-400'
+                            }`}
+                          >
+                            {page.title}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+
+            <Link
+              href={`/${locale}/help`}
+              className="flex items-center rounded-lg border-2 border-transparent px-4 py-3 text-black transition-all hover:scale-[1.02] hover:border-gray-400"
+            >
+              <HelpCircle className="mr-3 h-5 w-5 text-red-600" aria-hidden />
+              {labels.help}
+            </Link>
+
+            {sections.length === 0 ? (
+              <p className="px-3 text-sm text-gray-500">No guides match “{query}”.</p>
+            ) : null}
+          </nav>
         </div>
       </aside>
-
-      {open ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            aria-label={labels.close}
-            className="absolute inset-0 cursor-pointer bg-black/40"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute inset-y-0 left-0 flex w-[min(100%,20rem)] flex-col border-r-2 border-black bg-white shadow-lg">
-            <div className="flex items-center justify-between border-b-2 border-black px-3 py-3">
-              <p className="font-semibold text-black">Hub Docs</p>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="cursor-pointer rounded-lg border-2 border-black p-1.5"
-                aria-label={labels.close}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-4 overflow-y-auto px-3 py-4">
-              <TypingSearchInput
-                value={query}
-                onChange={setQuery}
-                placeholder={labels.search}
-                clearLabel={labels.clear}
-              />
-              {nav}
-            </div>
-          </div>
-        </div>
-      ) : null}
     </>
   );
 }

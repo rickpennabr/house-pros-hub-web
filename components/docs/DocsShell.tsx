@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import type { ReactNode } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import ProfileIcon from '@/components/pageslayout/ProfileIcon';
 import { DocsSidebar } from '@/components/docs/DocsSidebar';
 import { DocsToc } from '@/components/docs/DocsToc';
 import type { DocsHeading } from '@/lib/docs/types';
@@ -10,6 +11,7 @@ import type { DocsHeading } from '@/lib/docs/types';
 interface DocsShellProps {
   locale: string;
   activeSlug: string;
+  pageTitle: string;
   headings: DocsHeading[];
   labels: {
     brand: string;
@@ -24,33 +26,54 @@ interface DocsShellProps {
   children: ReactNode;
 }
 
-export function DocsShell({ locale, activeSlug, headings, labels, children }: DocsShellProps) {
+export function DocsShell({
+  locale,
+  activeSlug,
+  pageTitle,
+  headings,
+  labels,
+  children,
+}: DocsShellProps) {
   return (
-    <div className="min-h-screen w-full bg-white text-black">
-      <header className="sticky top-0 z-40 border-b-2 border-black bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-3 md:px-4">
-          <div className="flex min-w-0 items-center gap-3">
+    <div className="flex min-h-screen w-full flex-col overflow-y-auto bg-white text-black md:h-screen md:overflow-hidden">
+      <header className="sticky top-0 z-50 h-[60px] w-full shrink-0 border-b-2 border-black bg-white px-2 py-2">
+        <div className="flex h-full w-full items-center justify-between gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Link
               href={`/${locale}`}
-              className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border-2 border-transparent px-2 py-1 text-sm text-gray-700 hover:border-black hover:bg-gray-50"
+              className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 border-black bg-white transition-colors hover:bg-gray-50"
+              aria-label={labels.backToHub}
             >
-              <ArrowLeft className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">{labels.backToHub}</span>
+              <Image
+                src="/house-pros-hub-logo-simble-bot.png"
+                alt="House Pros Hub"
+                width={40}
+                height={40}
+                className="h-full w-full object-contain"
+              />
             </Link>
-            <Link href={`/${locale}/docs`} className="truncate text-lg font-bold tracking-tight text-black">
+            <h1 className="whitespace-nowrap text-xl font-bold text-black max-md:absolute max-md:left-1/2 max-md:top-1/2 max-md:-translate-x-1/2 max-md:-translate-y-1/2 md:text-2xl">
               {labels.brand}
-            </Link>
+            </h1>
           </div>
-          <Link
-            href={`/${locale}/help`}
-            className="shrink-0 cursor-pointer rounded-lg border-2 border-black bg-white px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
-          >
-            {labels.help}
-          </Link>
+
+          <p className="pointer-events-none absolute left-1/2 top-1/2 hidden max-w-[calc(100%-28rem)] -translate-x-1/2 -translate-y-1/2 truncate text-xl font-bold text-black md:block">
+            {pageTitle}
+          </p>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href={`/${locale}/help`}
+              className="hidden cursor-pointer rounded-lg border-2 border-black bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50 sm:inline-flex"
+            >
+              {labels.help}
+            </Link>
+            <ProfileIcon />
+          </div>
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-7xl flex-col lg:flex-row">
+      <div className="flex flex-col md:min-h-0 md:flex-1 md:flex-row md:overflow-hidden">
         <DocsSidebar
           locale={locale}
           activeSlug={activeSlug}
@@ -62,10 +85,14 @@ export function DocsShell({ locale, activeSlug, headings, labels, children }: Do
             help: labels.help,
           }}
         />
-        <div className="flex min-w-0 flex-1">
-          {children}
-          <DocsToc headings={headings} title={labels.onThisPage} />
-        </div>
+        <main className="flex min-w-0 flex-1 flex-col bg-white md:overflow-y-auto">
+          <div className="flex flex-1 px-2 pb-10 md:px-[100px] md:pt-3">
+            <div className="flex min-w-0 flex-1 gap-8">
+              <div className="min-w-0 flex-1">{children}</div>
+              <DocsToc headings={headings} title={labels.onThisPage} />
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

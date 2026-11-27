@@ -54,11 +54,14 @@ function elapsed(fromIso: string, now: number): string {
 }
 
 export function TripTracker({
+  autoOpen = false,
   vehicles,
   customers,
   costPerMileCents,
   onSaved,
 }: {
+  /** Opened from the Add menu (ProTrips): go straight to picking the trip. */
+  autoOpen?: boolean;
   vehicles: Option[];
   customers: Option[];
   /** The vehicle's cost per mile, for the running cost (cents). */
@@ -221,6 +224,18 @@ export function TripTracker({
 
   useEffect(() => () => stopWatching(), [stopWatching]);
 
+  // ProTrips from the Add menu: open the trip setup right away (unless a trip is in progress).
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || autoOpened.current) return;
+    autoOpened.current = true;
+    const id = setTimeout(() => {
+      if (!live) openSetup();
+    }, 400);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, after the in-progress check
+  }, [autoOpen]);
+
   const start = async () => {
     if (!vehicleId) {
       setError('Add a vehicle first (Add vehicle, above).');
@@ -326,7 +341,7 @@ export function TripTracker({
         onClick={openSetup}
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-black px-4 py-4 text-base font-semibold text-white hover:bg-gray-800"
       >
-        <Navigation className="h-5 w-5" aria-hidden /> Track a trip
+        <Navigation className="h-5 w-5" aria-hidden /> Start a ProTrip
       </button>
     );
   }
@@ -428,7 +443,7 @@ export function TripTracker({
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Track a trip</h2>
+            <h2 className="text-lg font-semibold">New ProTrip</h2>
             <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1 hover:bg-gray-100" aria-label="Close">
               <X className="h-5 w-5" />
             </button>
@@ -461,13 +476,13 @@ export function TripTracker({
             </div>
           </div>
           <label className="block text-sm font-medium">
-            Customer
+            Related to (customer, supplier or other contact)
             <div className="mt-1">
               <PickerSelect
                 value={customerId}
                 onChange={setCustomerId}
-                noneLabel="No customer"
-                placeholder="Pick a customer"
+                noneLabel="Nobody (not related to a contact)"
+                placeholder="Pick a contact"
                 options={customers.map((c) => ({ value: c.id, label: c.name }))}
               />
             </div>

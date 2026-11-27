@@ -14,6 +14,7 @@ export default async function DocsHomePage() {
     <DocsShell
       locale={locale}
       activeSlug={page.slug}
+      pageTitle={page.title}
       headings={page.sections.map((section) => ({ id: section.id, title: section.title }))}
       labels={{
         brand: t('brand'),

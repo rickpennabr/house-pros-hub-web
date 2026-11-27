@@ -57,7 +57,7 @@ export function ProAddModal({ isOpen, onClose }: ProAddModalProps) {
       { id: 'invoice', href: `${crm}/invoices/new`, label: t('proAdd.invoice'), icon: FileCheck },
       { id: 'project', href: `${crm}/projects?new=1`, label: t('proAdd.project'), icon: FolderKanban },
       { id: 'expense', href: `${crm}/expenses?new=1`, label: t('proAdd.expense'), icon: Receipt },
-      { id: 'trip', href: `${crm}/mileage?new=1`, label: t('proAdd.trip'), icon: Car },
+      { id: 'trip', href: `${crm}/mileage?tab=trips&track=1`, label: 'ProTrips', icon: Car },
       { id: 'estimate', href: `${crm}/estimates?new=1`, label: t('proAdd.estimate'), icon: FileText },
       ...(hardscapeOn ? [{ id: 'proquote', href: `${crm}/protrades/hardscape/quote`, label: 'ProQuote', icon: Calculator }] : []),
       { id: 'task', href: `${crm}/calendar?new=task`, label: t('proAdd.task'), icon: CalendarDays },
