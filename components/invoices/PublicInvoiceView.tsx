@@ -68,6 +68,7 @@ export function PublicInvoiceView({
             invoice_date: res.invoiceDate,
             due_date: res.dueDate,
             payment_terms: res.paymentTerms,
+            po_number: res.poNumber ?? null,
             note: res.note,
           },
           customer: res.customer,

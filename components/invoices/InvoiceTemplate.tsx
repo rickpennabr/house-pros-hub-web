@@ -24,6 +24,7 @@ export interface InvoiceTemplateInvoice {
   invoice_date: string;
   due_date: string | null;
   payment_terms?: string | null;
+  po_number?: string | null;
   note?: string | null;
 }
 
@@ -158,6 +159,12 @@ export function InvoiceTemplate({
                   <span>{termsLabel}</span>
                 </>
               )}
+              {invoice.po_number ? (
+                <>
+                  <span className="text-gray-600">P.O. number</span>
+                  <span>{invoice.po_number}</span>
+                </>
+              ) : null}
               <span className="text-gray-600">Due date</span>
               <span className={dueLate ? 'font-semibold text-red-600 md:whitespace-nowrap' : undefined}>
                 {formatDate(dueDateIso)}

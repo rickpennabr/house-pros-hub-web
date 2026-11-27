@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { summarizeExpenses } from '@/lib/crm/list-summaries';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient } from '@/lib/supabase/server';
 import { categoryNeedsSupplier, cleanExpenseText, parseExpenseOrderFields, resolveOwnedSupplierId, supplierNamesById } from '@/lib/crm/expense-supplier';
@@ -111,7 +112,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ expenses: rows, total: count ?? 0, page, pageSize, chart });
+    // Indicator cards: totals over all of this pro's expenses.
+    const { data: summaryRows } = await supabase
+      .from('pro_crm_expenses')
+      .select('amount_cents, expense_date, project_id, billed_invoice_id')
+      .eq('owner_id', user.id)
+      .limit(10000);
+    const statusSummary = summarizeExpenses(summaryRows ?? [], new Date().toISOString().slice(0, 10));
+    return NextResponse.json({ expenses: rows, total: count ?? 0, page, pageSize, chart, statusSummary });
   } catch (err) {
     console.error('GET /api/crm/expenses', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

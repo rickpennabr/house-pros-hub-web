@@ -68,7 +68,7 @@ export async function PUT(
       'billing_address_state', 'billing_address_zip_code', 'billing_address_country', 'shipping_address_street_1',
       'shipping_address_street_2', 'shipping_address_city', 'shipping_address_state', 'shipping_address_zip_code',
       'shipping_address_country', 'notes', 'primary_payment_method', 'payment_terms',
-      'invoice_language', 'address_nickname',
+      'invoice_language', 'address_nickname', 'billing_email', 'w9_received_at',
     ] as const;
     for (const key of stringFields) {
       const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
@@ -77,6 +77,13 @@ export async function PUT(
         const val = trim(raw);
         updatePayload[key] = typeof val === 'string' ? (val || null) : null;
       }
+    }
+    if (body.tax_id_last4 !== undefined) {
+      updatePayload.tax_id_last4 = typeof body.tax_id_last4 === 'string' && /^\d{4}$/.test(body.tax_id_last4) ? body.tax_id_last4 : null;
+    }
+    // Names are NOT NULL: a company with no contact person keeps empty names.
+    for (const key of ['first_name', 'last_name'] as const) {
+      if (key in updatePayload && updatePayload[key] === null) updatePayload[key] = '';
     }
     // Type of the contact's own address (house, business, building), like My Places.
     if (body.portal_kind !== undefined) {

@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { CrmStatCards, type CrmStatCard } from '@/components/crm/CrmStatCards';
+import type { ExpenseSummary } from '@/lib/crm/list-summaries';
 import { useSearchParams } from 'next/navigation';
 import { Plus, Pencil, Trash2, ArrowLeft, AlertTriangle, ChevronDown, Printer } from 'lucide-react';
 import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin/AdminDataTable';
@@ -305,6 +307,7 @@ export default function CRMExpensesPage() {
     handleSearchSubmit,
     chart,
     search,
+    statusSummary,
   } = useCrmListQuery<ExpenseRow>({
     endpoint: '/api/crm/expenses',
     rowsKey: 'expenses',
@@ -313,6 +316,17 @@ export default function CRMExpensesPage() {
     extraParams: listView === 'chart' ? { chart: '1', timeZone } : undefined,
   });
   const rowActions = useCrmRowActions();
+  const expenseCards = useMemo<CrmStatCard[]>(() => {
+    const sum = statusSummary as ExpenseSummary | null;
+    if (!sum) return [];
+    const n = (count: number) => `${count} ${count === 1 ? 'expense' : 'expenses'}`;
+    return [
+      { key: 'month', label: 'This month', value: formatAmount(sum.thisMonth.cents), sub: n(sum.thisMonth.count) },
+      { key: 'last', label: 'Last month', value: formatAmount(sum.lastMonth.cents), sub: n(sum.lastMonth.count) },
+      { key: 'year', label: 'This year', value: formatAmount(sum.thisYear.cents), sub: n(sum.thisYear.count) },
+      { key: 'unbilled', label: 'Job costs not billed', value: formatAmount(sum.notBilled.cents), sub: n(sum.notBilled.count), alert: sum.notBilled.count > 0 },
+    ];
+  }, [statusSummary]);
 
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -836,6 +850,11 @@ export default function CRMExpensesPage() {
               </Button>
             </div>
           </div>
+          {expenseCards.length ? (
+            <div className="mt-2">
+              <CrmStatCards cards={expenseCards} />
+            </div>
+          ) : null}
           <AdminDataTable
             searchRowClassName="max-md:pt-2"
             columnOrderKey="crm-expenses-v2"

@@ -83,18 +83,23 @@ export async function answerHubThread(input: {
   overLimit?: ProbotLimit
   /** Cards from before the AI turn (a receipt's expense draft), saved on the reply. */
   extraPayload?: ProAgentPayload
+  /** Voice turn: short spoken answer from the fast model. */
+  spoken?: boolean
+  /** From the plan: smart model allowed, and the upgrade line on the limit message. */
+  smartModel?: boolean
+  upgradeHint?: boolean
 }): Promise<HubBotMessage | null> {
-  if (await conversationPaused(input.conversationId)) return null
+  const [paused, portalBrief] = await Promise.all([
+    conversationPaused(input.conversationId),
+    input.userId
+      ? portalBriefForUser(input.userId).catch((err: unknown) => {
+          console.error('Portal brief failed:', err)
+          return ''
+        })
+      : Promise.resolve(''),
+  ])
+  if (paused) return null
   await supersedePendingDrafts(input.conversationId)
-
-  let portalBrief = ''
-  if (input.userId) {
-    try {
-      portalBrief = await portalBriefForUser(input.userId)
-    } catch (err) {
-      console.error('Portal brief failed:', err)
-    }
-  }
 
   const turn = await runProAgentTurn({
     body: input.body,
@@ -105,6 +110,9 @@ export async function answerHubThread(input: {
     onProgress: input.onProgress,
     persona: input.persona,
     overLimit: input.overLimit,
+    spoken: input.spoken,
+    smartModel: input.smartModel,
+    upgradeHint: input.upgradeHint,
   })
 
   const supabase = createServiceRoleClient()
@@ -155,9 +163,10 @@ export async function answerHubThread(input: {
   }
 
   const row = inserted.data
-  await saveSteps(input.conversationId, row.id, turn.steps)
+  // Speech (and the response) must not wait on step logs or the trace row.
+  void saveSteps(input.conversationId, row.id, turn.steps)
   if (turn.provider !== 'script' && turn.provider !== 'none') {
-    await recordProbotTrace({
+    void recordProbotTrace({
       conversationId: input.conversationId,
       provider: turn.provider,
       model: turn.model,

@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { todayDateKey } from '@/lib/crm/invoice-books';
 import { ProfitAndLossReport } from '@/components/crm/ProfitAndLossReport';
+import { TaxSummaryReport } from '@/components/crm/TaxSummaryReport';
 
-type ReportTab = 'overview' | 'pl';
+type ReportTab = 'overview' | 'pl' | 'tax';
 
 interface Aging {
   current: number;
@@ -59,7 +60,9 @@ export default function CRMReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
   // Links like "set it" on a job report open the profit and loss tab.
-  const [tab, setTab] = useState<ReportTab>(searchParams.get('tab') === 'pl' ? 'pl' : 'overview');
+  const [tab, setTab] = useState<ReportTab>(
+    searchParams.get('tab') === 'pl' ? 'pl' : searchParams.get('tab') === 'tax' ? 'tax' : 'overview'
+  );
   /** Range the profit and loss shows; changes when Apply is pressed. */
   const [applied, setApplied] = useState({ from: `${today.slice(0, 4)}-01-01`, to: today });
 
@@ -116,6 +119,7 @@ export default function CRMReportsPage() {
         {([
           { id: 'overview', label: 'Overview' },
           { id: 'pl', label: 'Profit and loss' },
+          { id: 'tax', label: 'Tax summary' },
         ] as const).map((item) => (
           <button
             key={item.id}
@@ -131,6 +135,7 @@ export default function CRMReportsPage() {
       </div>
 
       {tab === 'pl' ? <ProfitAndLossReport from={applied.from} to={applied.to} /> : null}
+      {tab === 'tax' ? <TaxSummaryReport /> : null}
 
       {tab === 'overview' && error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{error}</div>}
       {tab !== 'overview' ? null : loading && !report ? (

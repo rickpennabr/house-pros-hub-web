@@ -21,7 +21,13 @@ export function probotDailyLimits() {
 }
 
 /** Which limit today's messages (including the one just sent) went over, if any. */
-export async function probotLimitReached(supabase: Service, conversationId: string, voiceTurn: boolean): Promise<ProbotLimit | undefined> {
+/** `limits` comes from the person's plan (lib/billing/probot-tiers.ts); without it, the env defaults. */
+export async function probotLimitReached(
+  supabase: Service,
+  conversationId: string,
+  voiceTurn: boolean,
+  planLimits?: { turns: number; voice: number }
+): Promise<ProbotLimit | undefined> {
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
   const { data, error } = await supabase
@@ -34,7 +40,7 @@ export async function probotLimitReached(supabase: Service, conversationId: stri
     .limit(1000);
   if (error) return undefined;
   const rows = (data ?? []) as { attachments?: unknown }[];
-  const limits = probotDailyLimits();
+  const limits = planLimits ?? probotDailyLimits();
   if (rows.length > limits.turns) return 'turns';
   if (voiceTurn) {
     const voices = rows.filter(
@@ -44,6 +50,13 @@ export async function probotLimitReached(supabase: Service, conversationId: stri
   }
   return undefined;
 }
+
+/** Added after the limit message on the Free plan. */
+export const UPGRADE_COPY: Record<'en' | 'es' | 'pt', string> = {
+  en: 'Want more? Pro gives ProBot 300 answers and 60 voice replies a day, plus ProBot Smart. See plans on the Subscription page.',
+  es: '¿Quieres más? Pro le da a ProBot 300 respuestas y 60 respuestas de voz al día, más ProBot Smart. Mira los planes en Suscripción.',
+  pt: 'Quer mais? O Pro dá ao ProBot 300 respostas e 60 respostas por voz por dia, além do ProBot Smart. Veja os planos em Assinatura.',
+};
 
 export const LIMIT_COPY: Record<'en' | 'es' | 'pt', Record<ProbotLimit, string>> = {
   en: {

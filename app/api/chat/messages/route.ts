@@ -8,8 +8,11 @@ import { filterAllowedAttachments } from '@/lib/utils/chatAttachmentAllowlist';
 import { chatPushUrl, sendAdminPushNotification, sendBusinessPushNotification } from '@/lib/services/pushNotificationService';
 import { answerHubThread } from '@/lib/chat/hub-agent-reply';
 import { photoContext } from '@/lib/chat/photo-context';
-import { transcribeVoiceNote } from '@/lib/ai/read-attachment';
+import { chatAttachmentObjectPath, transcribeVoiceNote } from '@/lib/ai/read-attachment';
 import { attachSpokenReply } from '@/lib/ai/speech';
+import { DEFAULT_PROBOT_VOICE, isProbotVoiceId } from '@/lib/ai/voices';
+import { currentPlanForUser } from '@/lib/billing/plans';
+import { PROBOT_TIERS, probotTier, voiceAllowed } from '@/lib/billing/probot-tiers';
 import { probotLimitReached, type ProbotLimit } from '@/lib/chat/probot-usage';
 import { readReceipt } from '@/lib/ai/read-receipt';
 import { userOwnsCrm } from '@/lib/crm/require-contractor';
@@ -23,6 +26,10 @@ import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 import { visitorCookieDenied } from '@/lib/utils/chatVisitorCookie';
 import { parseStoredReply, snapshotFromRow } from '@/lib/chat/reply-snapshot';
 import { resolveVisitorConversation, visitorOwnsConversation } from '@/lib/chat/resolveConversation';
+
+/** Columns that succeeded last time, so a missing chat_id is not queried and logged on every poll. */
+let messageSelectColumns: string | null = null;
+let loggedMissingMessageColumn = false;
 
 /** The signed-in admin is never held to ProBot's daily limit. */
 async function isAdminSession(): Promise<boolean> {
@@ -64,7 +71,8 @@ export async function POST(request: NextRequest) {
       const msg = parsed.error.flatten().fieldErrors?.body?.[0] ?? 'Invalid request';
       return NextResponse.json({ error: msg }, { status: 400 });
     }
-    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments, replyToId, placeShareId, locale, actingAs, actingFirstName, actingBusinessName, chatId: rawChatId } = parsed.data;
+    const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments, replyToId, placeShareId, locale, actingAs, actingFirstName, actingBusinessName, chatId: rawChatId, voice: rawVoice } = parsed.data;
+    const pickedVoice = isProbotVoiceId(rawVoice) ? rawVoice : null;
     // The business profile only for someone who owns a business; anyone else talks to ProBot as personal.
     const signedInId = actingAs === 'business' ? await sessionUserId() : null;
     const ownsBusiness = signedInId ? Boolean(await getOwnedBusinessId(signedInId)) : false;
@@ -206,9 +214,19 @@ export async function POST(request: NextRequest) {
     const voiceNote =
       !businessId && !spokenBody.trim() ? attachments?.find((att) => att.name.startsWith('voice-note')) : undefined;
     // Daily ProBot limit (hub only; the admin is never limited). Over it: no listening, no AI, no voice.
+    // What ProBot may do comes from the person's plan (Free, Pro, Team, Business). Guests get Free.
+    const planUserId = !businessId ? await sessionUserId() : undefined;
+    const planSlug = planUserId ? await currentPlanForUser(planUserId).then((row) => row.plan.slug).catch(() => 'free') : 'free';
+    const tier = planUserId ? probotTier(planSlug) : PROBOT_TIERS.free;
+    const onFreePlan = planSlug === 'free';
+    // A voice the plan does not include falls back to the default (Max).
+    const voiceId = pickedVoice && !voiceAllowed(tier, pickedVoice) ? DEFAULT_PROBOT_VOICE : pickedVoice;
     let overLimit: ProbotLimit | undefined;
     if (!businessId && conversationId && !(await isAdminSession())) {
-      overLimit = await probotLimitReached(supabase, conversationId, Boolean(voiceNote)).catch(() => undefined);
+      overLimit = await probotLimitReached(supabase, conversationId, Boolean(voiceNote), {
+        turns: tier.dailyAnswers,
+        voice: tier.dailyVoice,
+      }).catch(() => undefined);
     }
 
     /**
@@ -229,9 +247,23 @@ export async function POST(request: NextRequest) {
       };
     };
 
+    const loadVoiceBytes = async () => {
+      if (!voiceNote) return null;
+      const path = chatAttachmentObjectPath(voiceNote.url);
+      if (!path) return null;
+      const { data, error } = await supabase.storage.from('chat-attachments').download(path);
+      if (error || !data) return null;
+      const bytes = Buffer.from(await data.arrayBuffer());
+      if (!bytes.length) return null;
+      const mime = (data.type || voiceNote.contentType || 'audio/webm').split(';')[0].trim();
+      return { bytes, mime };
+    };
+
     const hear = async () => {
       if (!voiceNote || overLimit) return;
-      const heard = await transcribeVoiceNote(voiceNote).catch(() => null);
+      const started = Date.now();
+      const heard = await transcribeVoiceNote(voiceNote, loadVoiceBytes).catch(() => null);
+      console.info(`[probot-voice] stt ${Date.now() - started}ms`);
       if (!heard) return;
       spokenBody = heard;
       await supabase.from('probot_messages').update({ body: heard }).eq('id', (message as unknown as { id: string }).id);
@@ -326,16 +358,20 @@ export async function POST(request: NextRequest) {
           };
           try {
             send('message', visitorMessage);
+            const voiceStarted = Date.now();
+            // History, the signed-in user, and a receipt read do not need the transcript.
+            const historyPromise = recentHubTurns(supabase, conversationId, chatId);
+            const userPromise = sessionUserId();
+            const receiptPromise = receiptContext();
             if (voiceNote && !overLimit) {
               send('status', { label: 'listening' });
               await hear();
               // Show the words under the voice note right away.
               if (spokenBody) send('transcript', { id: (message as unknown as { id: string }).id, text: spokenBody });
             }
-            const history = await recentHubTurns(supabase, conversationId, chatId);
+            const [history, userId, receipt] = await Promise.all([historyPromise, userPromise, receiptPromise]);
             if (attachments?.some((att) => att.contentType.startsWith('image/'))) send('status', { label: 'reading_photo' });
             if (attachments?.some((att) => att.contentType.startsWith('image/')) && actingAsChecked === 'business') send('status', { label: 'reading_receipt' });
-            const receipt = await receiptContext();
             const photo = receipt ? { body: receipt.body, plantId: undefined } : await photoContext(spokenBody, attachments, locale);
             const answered = await answerHubThread({
               extraPayload: receipt?.extraPayload,
@@ -344,21 +380,26 @@ export async function POST(request: NextRequest) {
               history: history.slice(0, -1),
               body: photo.body,
               plantId: photo.plantId,
-              userId: await sessionUserId(),
+              userId,
               persona,
               chatId,
               overLimit,
+              spoken: Boolean(voiceNote && !overLimit),
+              smartModel: tier.smartModel,
+              upgradeHint: onFreePlan,
               onProgress: (progress) => {
                 if (progress.type === 'status') send('status', { label: progress.label });
                 if (progress.type === 'token') send('token', { text: progress.text });
               },
             });
+            if (voiceNote) console.info(`[probot-voice] reply ${Date.now() - voiceStarted}ms`);
             if (answered) {
-              // The text first (already streamed word by word), then the spoken version joins it.
+              // The text first (already streamed word by word), then speech starts as PCM chunks.
               send('bot', answered);
               if (voiceNote && !overLimit) {
                 send('status', { label: 'recording' });
-                const spoken = await attachSpokenReply(supabase, answered, locale).catch(() => null);
+                // The bubble waits for the finished file. Chunks are not sent ahead of it.
+                const spoken = await attachSpokenReply(supabase, answered, locale, undefined, voiceId).catch(() => null);
                 if (spoken) send('voice', { id: answered.id, attachment: spoken });
               }
             }
@@ -385,9 +426,11 @@ export async function POST(request: NextRequest) {
 
     if (!businessId && conversationId && (await claimHubReply(conversationId))) {
       try {
+        const historyPromise = recentHubTurns(supabase, conversationId, chatId);
+        const userPromise = sessionUserId();
+        const receiptPromise = receiptContext();
         await hear();
-        const history = await recentHubTurns(supabase, conversationId, chatId);
-        const receipt = await receiptContext();
+        const [history, userId, receipt] = await Promise.all([historyPromise, userPromise, receiptPromise]);
         const photo = receipt ? { body: receipt.body, plantId: undefined } : await photoContext(spokenBody, attachments, locale);
         const answered = await answerHubThread({
           extraPayload: receipt?.extraPayload,
@@ -396,13 +439,16 @@ export async function POST(request: NextRequest) {
           history: history.slice(0, -1),
           body: photo.body,
           plantId: photo.plantId,
-          userId: await sessionUserId(),
+          userId,
           persona,
           chatId,
           overLimit,
+          spoken: Boolean(voiceNote && !overLimit),
+          smartModel: tier.smartModel,
+          upgradeHint: onFreePlan,
         });
         if (answered && voiceNote && !overLimit) {
-          const spoken = await attachSpokenReply(supabase, answered, locale).catch(() => null);
+          const spoken = await attachSpokenReply(supabase, answered, locale, undefined, voiceId).catch(() => null);
           if (spoken) answered.attachments = [spoken];
         }
         if (answered) botMessage = answered;
@@ -584,8 +630,11 @@ export async function GET(request: NextRequest) {
       'id, sender, body, created_at, business_id, read_at',
       'id, sender, body, created_at, business_id',
     ];
+    const selectOrder = messageSelectColumns
+      ? [messageSelectColumns, ...columnSets.filter((cols) => cols !== messageSelectColumns)]
+      : columnSets;
     let lastSelectError: { code?: string; message?: string } | null = null;
-    for (const cols of columnSets) {
+    for (const cols of selectOrder) {
       const result = await supabase
         .from('probot_messages')
         .select(cols)
@@ -594,7 +643,11 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false })
         .limit(300);
       if (!result.error) {
-        if (lastSelectError) console.warn('ProBot messages GET fallback columns:', cols, '-', lastSelectError.message);
+        if (lastSelectError && !loggedMissingMessageColumn) {
+          loggedMissingMessageColumn = true;
+          console.warn('ProBot messages GET fallback columns:', cols, '-', lastSelectError.message);
+        }
+        messageSelectColumns = cols;
         rawMessages = ((result.data ?? []) as unknown as Partial<MessageRow>[]).reverse().map((m) => ({
           read_at: null,
           attachments: [],
@@ -604,6 +657,7 @@ export async function GET(request: NextRequest) {
         break;
       }
       lastSelectError = result.error;
+      if (messageSelectColumns === cols) messageSelectColumns = null;
       const isColumnError = result.error.code === '42703' || String(result.error.message).includes('does not exist');
       if (!isColumnError) break;
     }

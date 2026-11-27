@@ -9,6 +9,7 @@ import { MaintenanceVisitFlow } from '@/components/maintenance/MaintenanceVisitF
 import { MaintenanceHousesView } from '@/components/maintenance/MaintenanceHousesView';
 import { NextVisitsView } from '@/components/maintenance/NextVisitsView';
 import { ImportHouseFromEstimateModal } from '@/components/maintenance/ImportHouseFromEstimateModal';
+import { MaintenanceStatCards } from '@/components/maintenance/MaintenanceStatCards';
 
 type Tab = 'houses' | 'next' | 'visits';
 
@@ -88,6 +89,8 @@ export default function MaintenancePage() {
           </div>
         )}
       </div>
+
+      <MaintenanceStatCards onOpenNext={() => go({ tab: 'next' })} />
 
       {tab === 'visits' ? (
         // Remount when ?new=1 toggles so the Add menu can reopen the start form.

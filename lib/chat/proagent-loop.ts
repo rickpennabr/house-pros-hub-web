@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { AGENT_RULE, PROAGENT_MAX_STEPS, PROAGENT_POLICY, siteOrigin } from '@/lib/agent/constants'
 import { prosFromToolData, proAgentOpenAiTools, runDirectoryTool } from '@/lib/agent/tools'
 import { isPlaceTool, placeOpenAiTools, runPlaceTool } from '@/lib/agent/place-tools'
-import { DEFAULT_PRO_TIME_ZONE, isProTool, proOpenAiTools, runProTool, todayIn } from '@/lib/agent/pro-tools'
+import { DEFAULT_PRO_TIME_ZONE, isProTool, pagesForTools, proOpenAiTools, runProTool, todayIn } from '@/lib/agent/pro-tools'
 import { userOwnsCrm } from '@/lib/crm/require-contractor'
 import { estimateSchema } from '@/lib/schemas/estimate'
 import {
@@ -18,7 +18,7 @@ import { isSmallTalk } from '@/lib/chat/small-talk'
 import { isMemoryTool, loadMemories, memoryOpenAiTools, memoryPrompt, runMemoryTool } from '@/lib/chat/probot-memory'
 import { nextSteps } from '@/lib/chat/probot-suggestions'
 import { isProActionTool, prepareProAction, proActionOpenAiTools } from '@/lib/agent/pro-actions'
-import { LIMIT_COPY, type ProbotLimit } from '@/lib/chat/probot-usage'
+import { LIMIT_COPY, UPGRADE_COPY, type ProbotLimit } from '@/lib/chat/probot-usage'
 import { redactForModel } from '@/lib/chat/probot-redact'
 import {
   completeChat,
@@ -31,6 +31,25 @@ import {
   type ProbotTurn,
 } from '@/lib/chat/probot-ai'
 import type { ChatCrmEstimateShare, ProAgentPayload, ProAgentProCard } from '@/lib/types/chat'
+
+
+/** Models that just failed (timeout, 503, 429) are skipped for a few minutes. Per server instance. */
+const MODEL_COOLDOWN_MS = 3 * 60_000
+const coolingUntil = new Map<string, number>()
+const modelKey = (endpoint: { name: string; model: string }) => `${endpoint.name}:${endpoint.model}`
+
+function coolDown(endpoint: { name: string; model: string }) {
+  coolingUntil.set(modelKey(endpoint), Date.now() + MODEL_COOLDOWN_MS)
+}
+
+/** The models to try, in order: the one that worked last first, cooling ones last (never none). */
+function modelOrder<T extends { name: string; model: string }>(endpoints: T[], preferred: T): T[] {
+  const now = Date.now()
+  const ready = endpoints.filter((e) => (coolingUntil.get(modelKey(e)) ?? 0) <= now)
+  const cooling = endpoints.filter((e) => !ready.includes(e))
+  const first = ready.includes(preferred) ? [preferred] : []
+  return [...first, ...ready.filter((e) => e !== preferred), ...cooling]
+}
 
 export interface AgentStepDraft {
   id: string
@@ -55,11 +74,13 @@ const TOOL_STATUS: Record<string, string> = {
   get_place_timeline: 'reading_places',
   search_my_places: 'searching_places',
   approve_estimate: 'opening_estimate',
+  get_customers: 'reading_books',
   get_open_invoices: 'reading_books',
   get_estimates_waiting: 'reading_books',
   get_projects: 'reading_books',
   get_maintenance_on: 'reading_schedule',
   get_day_schedule: 'reading_schedule',
+  get_tax_summary: 'reading_books',
 }
 
 export interface ProAgentTurnResult {
@@ -116,22 +137,15 @@ This person is a pro who runs their business on House Pros Hub. Today is ${dayNa
 
 Who you are for them: their office manager. You know the books, you think one step ahead, and you talk like a person on their crew, not like a report. Warm, quick, a little personality. Lead with what matters, then stop. If you notice something useful next to the answer (an estimate going cold, a job starting tomorrow, someone who owes money), mention it in one line and offer to help with it.
 
-How you get facts: look them up with your tools before you answer: get_open_invoices (who owes them), get_estimates_waiting (quotes sent, no answer yet), get_projects (set "when" from the question: upcoming, in_progress, finishing or all), get_maintenance_on, get_day_schedule (pass their words for the day, like "tomorrow" or "the 26th"). You may call several tools for one question and put the answer together. "Invoice", "estimate", "project" and "customer" mean their business records unless they say "my house" or "my place". Voice questions get misheard: "any voice open" means "any invoice open".
+How you get facts: look them up with your tools before you answer: get_customers (who their customers are, and how many — use its count), get_open_invoices (who owes them), get_estimates_waiting (quotes sent, no answer yet), get_projects (set "when" from the question: upcoming, in_progress, finishing or all), get_maintenance_on, get_day_schedule (pass their words for the day, like "tomorrow" or "the 26th"), get_tax_summary (income, expenses, profit, mileage, taxes, 1099s for a year; for "prepare my taxes" walk them through it and explain why each choice gives the lower tax, and say to review it with their tax professional). You may call several tools for one question and put the answer together. "Invoice", "estimate", "project" and "customer" mean their business records unless they say "my house" or "my place". A project or an invoice is not the customer list. Voice questions get misheard: "any voice open" means "any invoice open".
 
 Three rules you never break:
-1. Facts only from tool results. Never make up a name, date, project or amount, and never add amounts yourself (use totalOwed). If a tool returns nothing, say so plainly.
+1. Facts only from tool results. Never make up a name, date, project or amount, and never add amounts yourself (use totalOwed). If a tool returns nothing, say so plainly. For how many customers they have, say the count from get_customers.
 2. Answer the question they asked. "Coming up" means not started yet; do not pad it with jobs already running.
 3. Actions (remind_invoice, mark_invoice_paid, schedule_visit, log_hours) only show a Confirm card; say they can review and tap Confirm.
 
-How it should sound (examples of tone only; the facts always come from the tools):
-Pro: projects coming up?
-You: Just one on deck: Phill Doctor starts Tuesday, December 1. Want me to put it on your schedule reminders?
-Pro: any invoice open?
-You: Yep, two still out, $1,850 total. Denise Gray's $700.50 is the oldest, 12 days now. Want me to nudge her?
-Pro: how's my week?
-You: Pretty full. Rick Penna's residence wraps up today, Phill Doctor kicks off Tuesday, and Denise still hasn't answered your estimate from last week.
-Pro: thanks!
-You: Anytime, go get 'em.`
+How you sound: like a person on their crew, on the phone. Short. Lead with the answer in their words. One offer to help at the end, and only when a tool result gives you something real to offer.
+Nothing in these instructions is a fact about their business. Do not repeat a count, a day, a dollar amount, or a name from here. If it is not in a tool result or in what they just said, leave it out.`
 }
 
 export interface ProAgentPersona {
@@ -165,7 +179,7 @@ function personaPromptFor(persona: ProAgentPersona): string {
   return `\n\nThey are on their personal profile, as a homeowner. Talk about their home, their places, and finding or hiring a pro. Do not bring up their business unprompted; but if they ask about it (customers who owe them, their jobs, estimates, schedule), check it with the business tools when you have them. Bills they owe as a homeowner are on their places.${greet}`
 }
 
-function agentPrompt(locale: string | undefined, playbook: string, portalBrief: string, signedIn: boolean, pro: string = ''): string {
+function agentPrompt(locale: string | undefined, playbook: string, portalBrief: string, signedIn: boolean, pro: string = '', spoken = false): string {
   const language = locale === 'pt' ? 'Portuguese' : locale === 'es' ? 'Spanish' : 'English'
   const notes = playbook
     ? `\n\nThe visitor is asking about a job. Use the playbook for hardscape and landscape in Las Vegas. Follow its rules. Do not invent anything it does not say.\n\n${playbook}`
@@ -191,7 +205,9 @@ How to work:
 - Greetings and general questions: answer in a few sentences. Do not call tools.
 - A homeowner who wants a pro or a local job: call search_pros or list_categories. Use get_pro when they ask about one pro. Put the city in city, not in search.
 - create_estimate only when every required field came from the homeowner in this chat. If a field is missing, ask for it. Do not invent contact details, an address, a budget, or a timeline.
-- Keep it short. A simple answer is 2 to 5 sentences. When the answer has several facts, steps, or options (a plant, its care, how to do something, things to check), write one lead sentence, then short "- " bullets that start with a **bold** label, e.g. "- **Water:** Deep, infrequent watering." Use **bold** for key names and *italic* for scientific names. No markdown headings, no tables.${notes}
+- ${spoken
+    ? 'They are listening, not reading. Answer in one or two short sentences you would say on the phone. No markdown, no bullets, no lists, no links, no emoji.'
+    : 'Keep it short. A simple answer is 2 to 5 sentences. When the answer has two or more items (activities, jobs, visits, invoices, customers, dates, steps, options, a plant and its care), never pack them into one long sentence: write one short lead sentence, then one "- " bullet per item that starts with a **bold** label (a date, a name, or a topic), e.g. "- **Label from the result:** one short fact from that same result." Put items in date order when they have dates. Keep each bullet to one line. Use **bold** for key names and *italic* for scientific names. No markdown headings, no tables. Names come only from tool results.'}${notes}
 
 For this person:
 ${moneyRule}
@@ -266,10 +282,14 @@ function finish(input: {
  */
 export async function runProAgentTurn(input: Parameters<typeof runProAgentTurnInner>[0]): Promise<ProAgentTurnResult> {
   const raw = await runProAgentTurnInner(input)
-  const links = turnLinks.get(input)
-  const result = links?.length ? { ...raw, payload: { ...(raw.payload ?? {}), links: links.slice(-3) } } : raw
+  const ran = raw.steps.filter((step) => step.status === 'ok').map((step) => step.toolName)
+  const pages = pagesForTools(ran, input.locale)
+  let body = raw.body.trim()
+  for (const line of pages.lines) {
+    if (!body.toLowerCase().includes(line.replace(/\.$/, '').toLowerCase())) body = `${body}\n\n${line}`
+  }
+  const result = pages.links.length ? { ...raw, body, payload: { ...(raw.payload ?? {}), links: pages.links } } : { ...raw, body }
   if (result.outcome !== 'model' || result.payload?.confirm || result.payload?.proAction) return result
-  const ran = result.steps.filter((step) => step.status === 'ok').map((step) => step.toolName)
   const suggestions = nextSteps(ran, input.locale)
   if (suggestions.length === 0) return result
   return { ...result, payload: { ...(result.payload ?? {}), suggestions } }
@@ -279,9 +299,6 @@ export async function runProAgentTurn(input: Parameters<typeof runProAgentTurnIn
  * One homeowner turn. Read tools run here. create_estimate stops the loop and waits for Confirm.
  * If every provider rejects tools, the single-shot reply is the fallback.
  */
-/** Open links from the CRM tools of the current turn (set while the loop runs). */
-const turnLinks = new WeakMap<object, { label: string; href: string }[]>()
-
 async function runProAgentTurnInner(input: {
   body: string
   locale?: string
@@ -296,6 +313,12 @@ async function runProAgentTurnInner(input: {
   persona?: ProAgentPersona
   /** Over today's limit: a fixed answer, no AI call. */
   overLimit?: ProbotLimit
+  /** Voice turn: a short spoken answer from the fast model, so speech can start sooner. */
+  spoken?: boolean
+  /** The plan allows the smart model (lib/billing/probot-tiers.ts). Default true. */
+  smartModel?: boolean
+  /** On the Free plan: the limit message also points to the paid plans. */
+  upgradeHint?: boolean
 }): Promise<ProAgentTurnResult> {
   const scripted = probotAutoReply(input.body, input.locale)
   const fallback = probotAutoReply(' ', input.locale)
@@ -317,7 +340,8 @@ async function runProAgentTurnInner(input: {
   }
 
   if (input.overLimit) {
-    const body = LIMIT_COPY[localeOf(input.locale)][input.overLimit]
+    const lang = localeOf(input.locale)
+    const body = input.upgradeHint ? `${LIMIT_COPY[lang][input.overLimit]}\n\n${UPGRADE_COPY[lang]}` : LIMIT_COPY[lang][input.overLimit]
     progress?.({ type: 'token', text: body })
     return {
       body,
@@ -358,7 +382,11 @@ async function runProAgentTurnInner(input: {
   const signedIn = Boolean(input.userId)
   // CRM tools only for the CRM owner (crew members do not see the books), on either profile:
   // a pro on the personal side who asks "who owes me?" gets a real answer, not "no access".
-  const isPro = !smallTalk && input.userId ? await userOwnsCrm(input.userId).catch(() => false) : false
+  const memoryMode = input.persona?.mode === 'business' ? 'business' : 'personal'
+  const [isPro, memories] = await Promise.all([
+    !smallTalk && input.userId ? userOwnsCrm(input.userId).catch(() => false) : Promise.resolve(false),
+    input.userId ? loadMemories(input.userId, memoryMode).catch(() => []) : Promise.resolve([]),
+  ])
   const timeZone = validTimeZone(input.timeZone) ?? DEFAULT_PRO_TIME_ZONE
   const tools = smallTalk
     ? []
@@ -370,14 +398,12 @@ async function runProAgentTurnInner(input: {
       ]
   const brief = smallTalk ? '' : input.portalBrief?.trim() ?? ''
   // Memory: what they told ProBot before, per side (personal or business). Signed-in only.
-  const memoryMode = input.persona?.mode === 'business' ? 'business' : 'personal'
-  const memories = input.userId ? await loadMemories(input.userId, memoryMode).catch(() => []) : []
   if (input.userId && !smallTalk) tools.push(...memoryOpenAiTools())
   const origin = siteOrigin()
   const messages: ChatCompletionMessage[] = [
     {
       role: 'system',
-      content: agentPrompt(input.locale, playbook, brief, signedIn, (isPro ? proPrompt(todayIn(timeZone), timeZone) : '') + personaPrompt(input.persona, signedIn) + memoryPrompt(memories)),
+      content: agentPrompt(input.locale, playbook, brief, signedIn, (isPro ? proPrompt(todayIn(timeZone), timeZone) : '') + personaPrompt(input.persona, signedIn) + memoryPrompt(memories), input.spoken),
     },
     ...safeHistory
       .map((turn) => ({
@@ -394,8 +420,10 @@ async function runProAgentTurnInner(input: {
   let crmEstimate: ChatCrmEstimateShare | undefined
   // Figures the model may repeat: the place summary plus what place tools returned.
   let grounding = input.portalBrief ?? ''
-  // A pro on their business side gets the smart model; everyone else the quick one.
-  const endpoints = isPro && input.persona?.mode !== 'personal' ? smartChatEndpoints() : configured
+  // Voice uses the quick model so the first sentence is not waiting on a thinking pass.
+  // A pro on their business side otherwise gets the smart model; everyone else the quick one.
+  const endpoints =
+    input.spoken || input.smartModel === false || !(isPro && input.persona?.mode !== 'personal') ? configured : smartChatEndpoints()
   let lastEndpoint = endpoints[0]
   progress?.({ type: 'status', label: 'thinking' })
 
@@ -403,7 +431,9 @@ async function runProAgentTurnInner(input: {
     for (let step = 0; step < PROAGENT_MAX_STEPS; step += 1) {
       let completion: Awaited<ReturnType<typeof completeChat>> | null = null
       let streamedText = ''
-      for (const endpoint of endpoints) {
+      // Start from the model that worked last step, and skip models that just failed (busy or slow),
+      // so one slow model is not waited on again at every step of every turn.
+      for (const endpoint of modelOrder(endpoints, lastEndpoint)) {
         try {
           streamedText = ''
           completion = await completeChat(endpoint, messages, tools, {
@@ -417,7 +447,8 @@ async function runProAgentTurnInner(input: {
           lastEndpoint = endpoint
           break
         } catch (error) {
-          console.error('ProAgent provider failed:', endpoint.name, error instanceof Error ? error.message : error)
+          coolDown(endpoint)
+          console.error('ProAgent provider failed:', endpoint.name, endpoint.model, error instanceof Error ? error.message : error)
         }
       }
       if (!completion) break
@@ -427,7 +458,12 @@ async function runProAgentTurnInner(input: {
         if (!reply && steps.some((item) => item.status === 'ok')) {
           const again = await completeChat(lastEndpoint, [
             ...messages,
-            { role: 'user', content: 'Answer my last question now, from the tool results above, in one to three short sentences.' },
+            {
+              role: 'user',
+              content: input.spoken
+                ? 'Answer my last question now, from the tool results above, in one or two short spoken sentences. No markdown and no bullets.'
+                : 'Answer my last question now, from the tool results above: one short lead sentence, then a "- " bullet with a **bold** label for each item when there are two or more.',
+            },
           ]).catch(() => null)
           reply = again?.content ? parseModelReply(again.content) : null
           if (reply && progress) {
@@ -561,7 +597,6 @@ async function runProAgentTurnInner(input: {
           const result = isPro && input.userId
             ? await runProTool(call.name, args, { userId: input.userId, timeZone })
             : { data: { error: 'Only the CRM owner can read this.' }, isError: true }
-          if ('links' in result && result.links?.length) turnLinks.set(input, result.links)
           const output = JSON.stringify(result.data).slice(0, 6000)
           // Amounts in the result are allowed in the reply (price guard).
           if (!result.isError) grounding += `

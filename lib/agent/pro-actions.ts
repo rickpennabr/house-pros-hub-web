@@ -19,7 +19,7 @@ export function isProActionTool(name: string): name is ProActionName {
 
 const invoiceParams = {
   invoice: { type: 'string', description: 'The invoice number if the pro said one, e.g. "INV-1042".' },
-  customer: { type: 'string', description: 'Part of the customer\'s name, e.g. "Daniel".' },
+  customer: { type: 'string', description: 'Part of a customer name they just said.' },
 };
 
 export function proActionOpenAiTools(): OpenAiTool[] {

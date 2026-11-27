@@ -3,7 +3,8 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Check, CreditCard, Loader2 } from 'lucide-react';
+import { Bot, Check, CreditCard, Loader2 } from 'lucide-react';
+import { probotTier } from '@/lib/billing/probot-tiers';
 import { useAuth } from '@/contexts/AuthContext';
 import { ToolPage } from '@/components/pageslayout/ToolPage';
 import { ProDriveMeter } from '@/components/drive/ProDriveMeter';
@@ -202,6 +203,12 @@ function SubscriptionBody() {
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex gap-2">
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-700" />
+                      {feature}
+                    </li>
+                  ))}
+                  {probotTier(plan.slug).features.map((feature) => (
+                    <li key={`probot-${feature}`} className="flex gap-2">
+                      <Bot className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden />
                       {feature}
                     </li>
                   ))}

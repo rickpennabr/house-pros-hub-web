@@ -1,5 +1,6 @@
 import { recordCustomerPlaceEvent } from '@/lib/places/timeline';
 import { NextRequest, NextResponse } from 'next/server';
+import { summarizeProjects } from '@/lib/crm/list-summaries';
 import { requireContractor } from '@/lib/crm/require-contractor';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { contactHasPlace } from '@/lib/places/contact-places';
@@ -276,7 +277,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ projects: withCustomer, total: count ?? 0, page, pageSize, chart });
+    // Indicator cards: counts over all of this pro's projects, not just this page.
+    const { data: summaryRows } = await supabase
+      .from('pro_crm_projects')
+      .select('status, start_date, end_date')
+      .eq('owner_id', user.id)
+      .limit(5000);
+    const statusSummary = summarizeProjects(summaryRows ?? [], new Date().toISOString().slice(0, 10));
+    return NextResponse.json({ projects: withCustomer, total: count ?? 0, page, pageSize, chart, statusSummary });
   } catch (err) {
     console.error('GET /api/crm/projects', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

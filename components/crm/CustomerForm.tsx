@@ -11,6 +11,8 @@ import { useSingleOpenAccordion } from '@/hooks/useSingleOpenAccordion';
 import AddressAutocomplete, { type AddressData } from '@/components/AddressAutocomplete';
 import { formatPhoneNumber } from '@/lib/utils/phoneFormat';
 import { validateCustomerEmail, validateCustomerPhone } from '@/lib/schemas/crm';
+import { Select } from '@/components/ui/Select';
+import { PAYMENT_TERM_OPTIONS } from '@/lib/invoices/invoice-brand';
 import { ContactRolesField } from '@/components/crm/ContactRolesField';
 import { ContactAttachments, uploadContactAttachments } from '@/components/crm/ContactAttachments';
 import { ContactPropertiesEditor, PropertyKindPicker, saveDraftProperties, type PropertyDraft } from '@/components/crm/ContactPropertiesEditor';
@@ -58,6 +60,11 @@ export type CRMCustomerFormData = {
   notes: string;
   primaryPaymentMethod: string;
   paymentTerms: string;
+  /** Accounts payable email: invoices go here when set. */
+  billingEmail?: string;
+  /** Subcontractors: the date their W-9 came in, and the last 4 of its tax ID (never the full number). */
+  w9ReceivedAt?: string;
+  taxIdLast4?: string;
   invoiceLanguage: 'en' | 'es';
   openingBalance: string;
   /** Dollars per hour this person costs you (employees, subs). Feeds job labor cost. */
@@ -123,6 +130,13 @@ export function CustomerForm({
 }) {
   const [form, setForm] = useState<CRMCustomerFormData>({ ...emptyForm, ...initial });
   const [roleIds, setRoleIds] = useState<string[]>(initial.roleIds ?? []);
+  /** Company (an LLC, a property manager): the company name is the contact; a person's name is optional. */
+  const [isCompany, setIsCompany] = useState<boolean>(() => {
+    const company = (initial.companyName ?? '').trim();
+    if (!company) return false;
+    const person = combinedPersonName(initial.firstName ?? '', initial.lastName ?? '');
+    return !person || (initial.displayName ?? '').trim() === company;
+  });
   const [saving, setSaving] = useState(false);
   const [filling, setFilling] = useState(false);
   const [hubNote, setHubNote] = useState<string | null>(null);
@@ -250,10 +264,49 @@ export function CustomerForm({
     setError(null);
   };
 
+  /** Company name typed: on a company the display name follows it (unless the pro typed their own). */
+  const updateCompanyName = (value: string) => {
+    setForm((prev) => {
+      const next = { ...prev, companyName: value };
+      if (!isCompany) return next;
+      const custom = prev.displayName.trim() !== '' && prev.displayName.trim() !== prev.companyName.trim();
+      return custom ? next : { ...next, displayName: value };
+    });
+    setError(null);
+  };
+
+  const chooseKind = (company: boolean) => {
+    setIsCompany(company);
+    setForm((prev) => {
+      const person = combinedPersonName(prev.firstName, prev.lastName);
+      const shown = prev.displayName.trim();
+      if (company && prev.companyName.trim() && (!shown || shown === person)) return { ...prev, displayName: prev.companyName };
+      if (!company && person && (!shown || shown === prev.companyName.trim())) return { ...prev, displayName: person };
+      return prev;
+    });
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     const trim = (s: string) => s.trim();
+    if (isCompany && !trim(form.companyName)) {
+      setError('Company name is required.');
+      return;
+    }
+    if (!isCompany && (!trim(form.firstName) || !trim(form.lastName))) {
+      setError('First name and last name are required.');
+      return;
+    }
+    const billingEmail = trim(form.billingEmail ?? '');
+    if (billingEmail) {
+      const billingErr = validateCustomerEmail(billingEmail);
+      if (billingErr) {
+        setError(tValidation(billingErr) as string);
+        return;
+      }
+    }
     const emailErr = validateCustomerEmail(trim(form.email));
     if (emailErr) {
       setError(tValidation(emailErr) as string);
@@ -269,7 +322,8 @@ export function CustomerForm({
       setError(tValidation(mobileErr) as string);
       return;
     }
-    const displayName = trim(form.displayName) || combinedPersonName(form.firstName, form.lastName);
+    const displayName =
+      trim(form.displayName) || (isCompany ? trim(form.companyName) : combinedPersonName(form.firstName, form.lastName));
     if (!displayName) {
       setError('Display name is required.');
       return;
@@ -285,43 +339,7 @@ export function CustomerForm({
       const method = id ? 'PUT' : 'POST';
       const body: Record<string, unknown> = id
         ? {
-            first_name: trim(form.firstName) || null,
-            last_name: trim(form.lastName) || null,
-            company_name: trim(form.companyName) || null,
-            display_name: displayName,
-            email: trim(form.email) || null,
-            phone: trim(form.phone) || null,
-            mobile_number: trim(form.mobileNumber) || null,
-            website: trim(form.website) || null,
-            address_nickname: trim(form.addressNickname) || null,
-            portal_kind: form.addressKind,
-            street_address: trim(form.streetAddress) || null,
-            apartment: trim(form.apartment) || null,
-            city: trim(form.city) || null,
-            state: trim(form.state) || null,
-            zip_code: trim(form.zipCode) || null,
-            billing_address_street_1: trim(form.billingStreet1) || null,
-            billing_address_street_2: trim(form.billingStreet2) || null,
-            billing_address_city: trim(form.billingCity) || null,
-            billing_address_state: trim(form.billingState) || null,
-            billing_address_zip_code: trim(form.billingZipCode) || null,
-            billing_address_country: trim(form.billingCountry) || null,
-            shipping_same_as_billing: form.shippingSameAsBilling,
-            shipping_address_street_1: trim(form.shippingStreet1) || null,
-            shipping_address_street_2: trim(form.shippingStreet2) || null,
-            shipping_address_city: trim(form.shippingCity) || null,
-            shipping_address_state: trim(form.shippingState) || null,
-            shipping_address_zip_code: trim(form.shippingZipCode) || null,
-            shipping_address_country: trim(form.shippingCountry) || null,
-            notes: trim(form.notes) || null,
-            primary_payment_method: trim(form.primaryPaymentMethod) || null,
-            payment_terms: trim(form.paymentTerms) || null,
-            invoice_language: form.invoiceLanguage,
-            opening_balance: form.openingBalance === '' ? null : parseFloat(form.openingBalance) || 0,
-            labor_cost_cents_per_hour: laborCostCents(form.laborCost),
-            role_ids: roleIds,
-          }
-        : {
+            kind: isCompany ? 'company' : 'person',
             first_name: trim(form.firstName),
             last_name: trim(form.lastName),
             company_name: trim(form.companyName) || null,
@@ -353,6 +371,52 @@ export function CustomerForm({
             notes: trim(form.notes) || null,
             primary_payment_method: trim(form.primaryPaymentMethod) || null,
             payment_terms: trim(form.paymentTerms) || null,
+            ...(billingEmail || (initial.billingEmail ?? '') ? { billing_email: billingEmail || null } : {}),
+            // Sent only when set or changed, so saving works before migration 187.
+            ...((form.w9ReceivedAt ?? '') !== (initial.w9ReceivedAt ?? '') ? { w9_received_at: form.w9ReceivedAt || null } : {}),
+            ...((form.taxIdLast4 ?? '') !== (initial.taxIdLast4 ?? '') ? { tax_id_last4: /^\d{4}$/.test(form.taxIdLast4 ?? '') ? form.taxIdLast4 : null } : {}),
+            invoice_language: form.invoiceLanguage,
+            opening_balance: form.openingBalance === '' ? null : parseFloat(form.openingBalance) || 0,
+            labor_cost_cents_per_hour: laborCostCents(form.laborCost),
+            role_ids: roleIds,
+          }
+        : {
+            kind: isCompany ? 'company' : 'person',
+            first_name: trim(form.firstName),
+            last_name: trim(form.lastName),
+            company_name: trim(form.companyName) || null,
+            display_name: displayName,
+            email: trim(form.email) || null,
+            phone: trim(form.phone) || null,
+            mobile_number: trim(form.mobileNumber) || null,
+            website: trim(form.website) || null,
+            address_nickname: trim(form.addressNickname) || null,
+            portal_kind: form.addressKind,
+            street_address: trim(form.streetAddress) || null,
+            apartment: trim(form.apartment) || null,
+            city: trim(form.city) || null,
+            state: trim(form.state) || null,
+            zip_code: trim(form.zipCode) || null,
+            billing_address_street_1: trim(form.billingStreet1) || null,
+            billing_address_street_2: trim(form.billingStreet2) || null,
+            billing_address_city: trim(form.billingCity) || null,
+            billing_address_state: trim(form.billingState) || null,
+            billing_address_zip_code: trim(form.billingZipCode) || null,
+            billing_address_country: trim(form.billingCountry) || null,
+            shipping_same_as_billing: form.shippingSameAsBilling,
+            shipping_address_street_1: trim(form.shippingStreet1) || null,
+            shipping_address_street_2: trim(form.shippingStreet2) || null,
+            shipping_address_city: trim(form.shippingCity) || null,
+            shipping_address_state: trim(form.shippingState) || null,
+            shipping_address_zip_code: trim(form.shippingZipCode) || null,
+            shipping_address_country: trim(form.shippingCountry) || null,
+            notes: trim(form.notes) || null,
+            primary_payment_method: trim(form.primaryPaymentMethod) || null,
+            payment_terms: trim(form.paymentTerms) || null,
+            ...(billingEmail || (initial.billingEmail ?? '') ? { billing_email: billingEmail || null } : {}),
+            // Sent only when set or changed, so saving works before migration 187.
+            ...((form.w9ReceivedAt ?? '') !== (initial.w9ReceivedAt ?? '') ? { w9_received_at: form.w9ReceivedAt || null } : {}),
+            ...((form.taxIdLast4 ?? '') !== (initial.taxIdLast4 ?? '') ? { tax_id_last4: /^\d{4}$/.test(form.taxIdLast4 ?? '') ? form.taxIdLast4 : null } : {}),
             invoice_language: form.invoiceLanguage,
             opening_balance: form.openingBalance === '' ? null : parseFloat(form.openingBalance) || 0,
             labor_cost_cents_per_hour: laborCostCents(form.laborCost),
@@ -400,25 +464,54 @@ export function CustomerForm({
         isOpen={isOpen('nameAndContact')}
         onToggle={() => toggleAccordion('nameAndContact')}
         required
-        isComplete={Boolean(form.firstName.trim() && form.lastName.trim() && form.displayName.trim())}
+        isComplete={Boolean(
+          (isCompany ? form.companyName.trim() : form.firstName.trim() && form.lastName.trim()) && form.displayName.trim()
+        )}
         showCompleteStyle={false}
         icon={<User className="w-5 h-5" />}
       >
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <ContactRolesField selectedIds={roleIds} onChange={setRoleIds} lockedRoleSlug={lockedRoleSlug} />
-          {/* Row 1: First name, Last name, Company name */}
-          <FormField label="First name" required>
-            <Input ref={firstInputRef} value={form.firstName} onChange={(e) => updatePersonName('firstName', e.target.value)} placeholder="First name" required />
+          {/* Person or company: a company bills by its name; the person is only a contact. */}
+          <div className="col-span-2 md:col-span-3">
+            <span className="mb-1 block text-sm text-gray-700">This contact is a</span>
+            <div className="inline-flex gap-2" role="radiogroup" aria-label="Person or company">
+              {([false, true] as const).map((company) => (
+                <button
+                  key={company ? 'company' : 'person'}
+                  type="button"
+                  role="radio"
+                  aria-checked={isCompany === company}
+                  onClick={() => chooseKind(company)}
+                  className={`rounded-lg border-2 border-black px-4 py-1.5 text-sm font-medium ${
+                    isCompany === company ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-100'
+                  }`}
+                >
+                  {company ? 'Company' : 'Person'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Row 1: First name, Last name, Company name (company first for a company) */}
+          {isCompany ? (
+            <FormField label="Company name" required className="sm:col-span-2 md:col-span-1">
+              <Input value={form.companyName} onChange={(e) => updateCompanyName(e.target.value)} placeholder="Company name" required />
+            </FormField>
+          ) : null}
+          <FormField label={isCompany ? 'Contact first name' : 'First name'} required={!isCompany}>
+            <Input ref={firstInputRef} value={form.firstName} onChange={(e) => updatePersonName('firstName', e.target.value)} placeholder={isCompany ? 'Optional' : 'First name'} required={!isCompany} />
           </FormField>
-          <FormField label="Last name" required>
-            <Input value={form.lastName} onChange={(e) => updatePersonName('lastName', e.target.value)} placeholder="Last name" required />
+          <FormField label={isCompany ? 'Contact last name' : 'Last name'} required={!isCompany}>
+            <Input value={form.lastName} onChange={(e) => updatePersonName('lastName', e.target.value)} placeholder={isCompany ? 'Optional' : 'Last name'} required={!isCompany} />
           </FormField>
-          <FormField label="Company name" className="sm:col-span-2 md:col-span-1">
-            <Input value={form.companyName} onChange={(e) => update('companyName', e.target.value)} placeholder="Company name" />
-          </FormField>
+          {isCompany ? null : (
+            <FormField label="Company name" className="sm:col-span-2 md:col-span-1">
+              <Input value={form.companyName} onChange={(e) => updateCompanyName(e.target.value)} placeholder="Company name" />
+            </FormField>
+          )}
           {/* Row 2: Customer display name, Phone, Mobile number */}
-          <FormField label="Display name" required tip="Filled from the first and last name. This name is required, must be unique, and is what lists, dropdowns, reports, and invoices show." className="sm:col-span-2 md:col-span-1">
-            <Input value={form.displayName} onChange={(e) => update('displayName', e.target.value)} placeholder="First and last name" required />
+          <FormField label="Display name" required tip={isCompany ? 'Filled from the company name. This name is required, must be unique, and is what lists, dropdowns, reports, and invoices show.' : 'Filled from the first and last name. This name is required, must be unique, and is what lists, dropdowns, reports, and invoices show.'} className="sm:col-span-2 md:col-span-1">
+            <Input value={form.displayName} onChange={(e) => update('displayName', e.target.value)} placeholder={isCompany ? 'Company name' : 'First and last name'} required />
           </FormField>
           <FormField label="Phone">
             <Input type="tel" value={form.phone} onChange={(e) => update('phone', formatPhoneNumber(e.target.value))} placeholder="(702) 555-0123" />
@@ -429,6 +522,9 @@ export function CustomerForm({
           {/* Row 3: Email, Website */}
           <FormField label="Email">
             <Input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="email@example.com" />
+          </FormField>
+          <FormField label="Billing email" tip="Accounts payable. Invoices, reminders and statements go here; the main email gets a copy.">
+            <Input type="email" value={form.billingEmail ?? ''} onChange={(e) => update('billingEmail', e.target.value)} placeholder="ap@company.com" />
           </FormField>
           {mode === 'add' ? (
             <div className="col-span-2 md:col-span-3 space-y-2">
@@ -633,31 +729,33 @@ export function CustomerForm({
       >
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <FormField label="Primary payment method">
-            <select
-              value={form.primaryPaymentMethod}
-              onChange={(e) => update('primaryPaymentMethod', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-black focus:outline-none focus:ring-2 focus:ring-black"
-            >
+            <Select value={form.primaryPaymentMethod} onChange={(e) => update('primaryPaymentMethod', e.target.value)}>
               <option value="">Select a primary payment method</option>
               <option value="cash">Cash</option>
               <option value="check">Check</option>
               <option value="credit_card">Credit Card</option>
               <option value="ach">ACH</option>
               <option value="other">Other</option>
-            </select>
+            </Select>
           </FormField>
-          <FormField label="Terms">
-            <select
-              value={form.paymentTerms}
-              onChange={(e) => update('paymentTerms', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-black focus:outline-none focus:ring-2 focus:ring-black"
-            >
+          <FormField label="Terms" tip="New invoices for this contact use these terms and set the due date from them.">
+            <Select value={form.paymentTerms} onChange={(e) => update('paymentTerms', e.target.value)}>
               <option value="">Select terms</option>
-              <option value="Due on receipt">Due on receipt</option>
-              <option value="Net 15">Net 15</option>
-              <option value="Net 30">Net 30</option>
-              <option value="Net 60">Net 60</option>
-            </select>
+              {PAYMENT_TERM_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField label="W-9 received on" tip="For subcontractors you pay $600 or more in a year: you send them a 1099-NEC. Keep the W-9 file in Notes and attachments.">
+            <Input type="date" value={form.w9ReceivedAt ?? ''} onChange={(e) => update('w9ReceivedAt', e.target.value)} />
+          </FormField>
+          <FormField label="Tax ID, last 4 digits" tip="Only the last 4 digits. The full SSN or EIN stays on the W-9 itself.">
+            <Input
+              inputMode="numeric"
+              value={form.taxIdLast4 ?? ''}
+              onChange={(e) => update('taxIdLast4', e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="1234"
+            />
           </FormField>
           <FormField label="Language to use when you send invoices">
             <select

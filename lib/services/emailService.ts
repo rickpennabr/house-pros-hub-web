@@ -596,7 +596,9 @@ export async function sendProEstimateBookingEmails(
  */
 export async function sendInvoiceEmail(
   data: InvoiceEmailData,
-  toEmail: string
+  toEmail: string,
+  /** A copy (a company's main email when the invoice goes to accounts payable). */
+  ccEmail?: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const resend = getResendClient();
@@ -605,6 +607,7 @@ export async function sendInvoiceEmail(
     const { data: res, error } = await resend.emails.send({
       from: fromEmail,
       to: toEmail,
+      ...(ccEmail ? { cc: ccEmail } : {}),
       subject: `Invoice #${data.invoiceNumber} from ${data.businessName}`,
       html,
     });

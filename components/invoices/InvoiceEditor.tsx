@@ -114,6 +114,7 @@ export function InvoiceEditor({
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(initialDraft.lineItems);
   const [invoiceDate, setInvoiceDate] = useState(initialDraft.invoiceDate);
   const [dueDate, setDueDate] = useState(initialDraft.dueDate);
+  const [poNumber, setPoNumber] = useState(initialDraft.poNumber ?? '');
   const [paymentTerms, setPaymentTerms] = useState(initialDraft.paymentTerms);
   const [note, setNote] = useState(initialDraft.note);
   const [companyOverride, setCompanyOverride] = useState<CompanyDisplayOverride | null>(initialDraft.companyOverride);
@@ -165,9 +166,10 @@ export function InvoiceEditor({
       invoice_date: invoiceDate,
       due_date: dueDate || null,
       payment_terms: paymentTerms || null,
+      po_number: poNumber.trim() || null,
       note: note || null,
     }),
-    [invoiceNumber, totalAmountCents, lineItems, invoiceDate, dueDate, paymentTerms, note]
+    [invoiceNumber, totalAmountCents, lineItems, invoiceDate, dueDate, paymentTerms, poNumber, note]
   );
   const previewCustomer = useMemo<InvoiceTemplateCustomer>(() => {
     const picked = customerOptions.find((customer) => customer.id === customerId);
@@ -187,6 +189,7 @@ export function InvoiceEditor({
     invoiceDate,
     dueDate,
     paymentTerms,
+    poNumber,
     note,
     companyOverride,
     pendingAttachments,
@@ -331,6 +334,13 @@ export function InvoiceEditor({
                     onChange={(value) => {
                       setCustomerId(value);
                       setPlaceId('');
+                      // The contact's own terms (Net 30 for a company) set the terms and due date.
+                      const terms = customerOptions.find((customer) => customer.id === value)?.payment_terms?.trim();
+                      if (terms) {
+                        setPaymentTerms(terms);
+                        const due = dueDateForTerms(invoiceDate, terms);
+                        if (due) setDueDate(due);
+                      }
                       setLineItems((current) => {
                         const kept = current.filter((line) => !line.expense_id);
                         return kept.length > 0 ? kept : [emptyInvoiceLine()];
@@ -391,6 +401,16 @@ export function InvoiceEditor({
                         <option key={option} value={option} />
                       ))}
                     </datalist>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    <label className="text-gray-600 pt-1" htmlFor="invoice-po-number">P.O. number</label>
+                    <Input
+                      id="invoice-po-number"
+                      value={poNumber}
+                      onChange={(e) => setPoNumber(e.target.value.slice(0, 40))}
+                      placeholder="Optional"
+                      className="py-1.5 text-sm"
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                     <label className="text-gray-600 pt-1">Invoice date</label>

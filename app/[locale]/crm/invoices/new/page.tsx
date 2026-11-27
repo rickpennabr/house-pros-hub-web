@@ -105,6 +105,7 @@ export default function CRMNewInvoicePage() {
         invoiceDate: form.invoiceDate || todayISO(),
         dueDate: form.dueDate.trim() || form.invoiceDate || todayISO(),
         paymentTerms: form.paymentTerms.trim() || null,
+        poNumber: form.poNumber?.trim() || null,
         note: form.note.trim() || null,
         companyDisplay: form.companyOverride ?? undefined,
         paidNow: form.paidNow,

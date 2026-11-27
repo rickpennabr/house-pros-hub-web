@@ -74,6 +74,8 @@ export interface SendMessagePayload {
   actingBusinessName?: string;
   /** The ProBot chat (Gemini-style chats). */
   chatId?: string;
+  /** The ProBot voice the person picked. */
+  voice?: string;
 }
 
 export type SendMessageBot = {
@@ -102,6 +104,8 @@ export type SendMessageStreamHandlers = {
   onTranscript?: (id: string, text: string) => void;
   /** ProBot's spoken reply, ready after its text. */
   onVoice?: (id: string, attachment: ChatAttachment) => void;
+  /** A piece of the spoken reply (16-bit mono PCM at 24 kHz), before the file is saved. */
+  onAudio?: (id: string, pcmBase64: string) => void;
 };
 
 async function readSendMessageSse(
@@ -153,6 +157,11 @@ async function readSendMessageSse(
         if (result.botMessage?.id === row.id) result.botMessage = { ...result.botMessage, attachments: [row.attachment] };
         handlers.onVoice?.(row.id, row.attachment);
       }
+      return;
+    }
+    if (event === 'audio' && data && typeof data === 'object') {
+      const row = data as { id?: unknown; pcm?: unknown };
+      if (typeof row.id === 'string' && typeof row.pcm === 'string' && row.pcm) handlers.onAudio?.(row.id, row.pcm);
       return;
     }
     if (event === 'error' && data && typeof data === 'object' && 'error' in data) {

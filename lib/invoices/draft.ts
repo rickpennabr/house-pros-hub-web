@@ -38,6 +38,8 @@ export interface InvoiceCustomerOption {
   last_name: string;
   display_name?: string | null;
   company_name?: string | null;
+  /** The contact's terms: a new invoice starts with them. */
+  payment_terms?: string | null;
 }
 
 export interface InvoiceLinePayload {
@@ -60,6 +62,8 @@ export interface InvoiceEditorDraft {
   invoiceDate: string;
   dueDate: string;
   paymentTerms: string;
+  /** The customer's purchase order number (companies often require it). */
+  poNumber?: string;
   note: string;
   companyOverride: CompanyDisplayOverride | null;
   pendingAttachments: InvoicePendingAttachment[];

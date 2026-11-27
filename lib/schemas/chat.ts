@@ -32,6 +32,8 @@ export const sendMessageSchema = z.object({
   actingBusinessName: z.string().trim().max(120).optional(),
   /** The ProBot chat this hub message belongs to (Gemini-style chats). */
   chatId: z.string().uuid().optional(),
+  /** The ProBot voice the person picked (lib/ai/voices.ts id). */
+  voice: z.string().trim().max(20).optional(),
 }).refine((data) => (data.body?.trim()?.length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0, {
   message: 'Message cannot be empty',
   path: ['body'],

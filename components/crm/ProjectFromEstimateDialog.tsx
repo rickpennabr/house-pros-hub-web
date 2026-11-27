@@ -136,7 +136,7 @@ export function ProjectFromEstimateDialog({ estimateId, customerName, onClose, o
 
         <label className="block text-sm font-medium text-gray-900">
           Project name
-          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Rick Penna - Backyard pavers" className="mt-1" />
+          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Backyard pavers" className="mt-1" />
         </label>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

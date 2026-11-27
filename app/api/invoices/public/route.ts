@@ -152,6 +152,7 @@ export async function GET(request: NextRequest) {
       invoiceDate: row.invoice_date,
       dueDate: resolveInvoiceDueDate(row.invoice_date, row.due_date, row.payment_terms),
       paymentTerms: row.payment_terms,
+      poNumber: (row as { po_number?: string | null }).po_number ?? null,
       note: row.note,
       themeColorHex,
       customer: customer

@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { CrmStatCards, type CrmStatCard } from '@/components/crm/CrmStatCards';
+import type { InvoiceSummary } from '@/lib/crm/list-summaries';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { Plus, Pencil, Trash2, AlertTriangle, Settings, Filter, LayoutGrid, FileText, Send, CircleDollarSign, CircleCheck, Clock, Ban, BellRing } from 'lucide-react';
@@ -131,6 +133,7 @@ export default function CRMInvoicesPage() {
     handleSearchSubmit,
     chart,
     search,
+    statusSummary,
   } = useCrmListQuery<InvoiceRow>({
     endpoint: '/api/crm/invoices',
     rowsKey: 'invoices',
@@ -142,6 +145,17 @@ export default function CRMInvoicesPage() {
     loadError: 'Failed to load invoices',
   });
   const rowActions = useCrmRowActions();
+  const invoiceCards = useMemo<CrmStatCard[]>(() => {
+    const sum = statusSummary as InvoiceSummary | null;
+    if (!sum) return [];
+    const n = (count: number) => `${count} ${count === 1 ? 'invoice' : 'invoices'}`;
+    return [
+      { key: 'draft', label: 'Draft', value: formatAmount(sum.draft.cents), sub: n(sum.draft.count) },
+      { key: 'sent', label: 'Waiting payment', value: formatAmount(sum.sent.cents), sub: n(sum.sent.count) },
+      { key: 'overdue', label: 'Overdue', value: formatAmount(sum.overdue.cents), sub: n(sum.overdue.count), alert: sum.overdue.count > 0 },
+      { key: 'paid', label: 'Paid', value: formatAmount(sum.paid.cents), sub: n(sum.paid.count) },
+    ];
+  }, [statusSummary]);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -243,6 +257,11 @@ export default function CRMInvoicesPage() {
         </div>
         {invoiceActions}
       </div>
+      {invoiceCards.length ? (
+        <div className={`mt-2 ${crmChrome?.searchOpen ? 'max-md:hidden' : ''}`}>
+          <CrmStatCards cards={invoiceCards} active={statusFilter} onSelect={applyStatusFilter} />
+        </div>
+      ) : null}
       <MobileGridActionsModal
         isOpen={filtersOpen}
         onClose={() => setFiltersOpen(false)}

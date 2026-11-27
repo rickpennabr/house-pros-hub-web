@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { summarizeInvoices } from '@/lib/crm/list-summaries';
 import { linkInvoiceToJob } from '@/lib/crm/job-links';
 import { rememberLineDescriptions } from '@/lib/crm/line-descriptions';
 import type { CrmDb } from '@/lib/crm/crm-scope';
@@ -185,7 +186,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ invoices: withCustomers, total: count ?? 0, page, pageSize, chart });
+    // Indicator cards: totals over all of this pro's invoices, not just this page.
+    const { data: summaryRows } = await supabase
+      .from('pro_crm_invoices')
+      .select('status, amount_cents, payment_applied_cents, due_date, invoice_date')
+      .eq('owner_id', user.id)
+      .limit(5000);
+    const statusSummary = summarizeInvoices(summaryRows ?? [], new Date().toISOString().slice(0, 10));
+    return NextResponse.json({ invoices: withCustomers, total: count ?? 0, page, pageSize, chart, statusSummary });
   } catch (err) {
     console.error('GET /api/crm/invoices', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -362,6 +370,8 @@ export async function POST(request: NextRequest) {
         invoice_date: invoiceDate,
         due_date: dueDate,
         payment_terms: paymentTerms,
+        // Only when typed, so invoices still save before migration 186 adds the column.
+        ...(typeof body.poNumber === 'string' && body.poNumber.trim() ? { po_number: body.poNumber.trim().slice(0, 40) } : {}),
         note,
         company_display: companyDisplay,
         // Only with a discount, so invoices still save before 159_document_discounts is applied.

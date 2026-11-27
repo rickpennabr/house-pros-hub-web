@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { isProTool, planVisitDates, proOpenAiTools, PRO_TOOL_NAMES, resolveDay, todayIn } from './pro-tools';
+import { isProTool, pagesForTools, planVisitDates, proOpenAiTools, PRO_TOOL_NAMES, resolveDay, todayIn } from './pro-tools';
 
 const TODAY = '2026-11-25'; // a Wednesday
 
@@ -64,6 +64,15 @@ describe('pro tools', () => {
     assert.ok(names.every((name) => isProTool(name)));
     assert.ok(names.every((name) => /^get_/.test(name)));
     assert.equal(isProTool('approve_estimate'), false);
+  });
+
+  it('opens the list page for the question, not one chip per record', () => {
+    const pages = pagesForTools(['get_customers', 'get_open_invoices'], 'en');
+    assert.deepEqual(pages.links, [
+      { label: 'Contacts', href: '/crm/customers' },
+      { label: 'Invoices', href: '/crm/invoices' },
+    ]);
+    assert.deepEqual(pages.lines, ['You can see all your contacts here.', 'You can see all your invoices here.']);
   });
 
   it('works out today in the pro time zone', () => {

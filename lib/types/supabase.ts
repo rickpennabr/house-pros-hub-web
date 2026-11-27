@@ -1464,6 +1464,9 @@ export interface Database {
           suffix: string | null;
           company_name: string | null;
           display_name: string | null;
+          billing_email: string | null;
+          w9_received_at: string | null;
+          tax_id_last4: string | null;
           cc: string | null;
           bcc: string | null;
           mobile_number: string | null;
@@ -1516,6 +1519,9 @@ export interface Database {
           suffix?: string | null;
           company_name?: string | null;
           display_name?: string | null;
+          billing_email?: string | null;
+          w9_received_at?: string | null;
+          tax_id_last4?: string | null;
           cc?: string | null;
           bcc?: string | null;
           mobile_number?: string | null;
@@ -1568,6 +1574,9 @@ export interface Database {
           suffix?: string | null;
           company_name?: string | null;
           display_name?: string | null;
+          billing_email?: string | null;
+          w9_received_at?: string | null;
+          tax_id_last4?: string | null;
           cc?: string | null;
           bcc?: string | null;
           mobile_number?: string | null;
@@ -2235,6 +2244,7 @@ export interface Database {
           project_id: string | null;
           amount_cents: number;
           category: string;
+          payment_method: string | null;
           expense_date: string;
           note: string | null;
           description: string | null;
@@ -2257,6 +2267,7 @@ export interface Database {
           project_id?: string | null;
           amount_cents?: number;
           category?: string;
+          payment_method?: string | null;
           expense_date?: string;
           note?: string | null;
           description?: string | null;
@@ -2279,6 +2290,7 @@ export interface Database {
           project_id?: string | null;
           amount_cents?: number;
           category?: string;
+          payment_method?: string | null;
           expense_date?: string;
           note?: string | null;
           description?: string | null;
@@ -2503,6 +2515,7 @@ export interface Database {
           invoice_date: string;
           due_date: string | null;
           payment_terms: string | null;
+          po_number: string | null;
           note: string | null;
           company_display: Json | null;
           last_reminded_at: string | null;
@@ -2532,6 +2545,7 @@ export interface Database {
           invoice_date?: string;
           due_date?: string | null;
           payment_terms?: string | null;
+          po_number?: string | null;
           note?: string | null;
           company_display?: Json | null;
           last_reminded_at?: string | null;
@@ -2561,6 +2575,7 @@ export interface Database {
           invoice_date?: string;
           due_date?: string | null;
           payment_terms?: string | null;
+          po_number?: string | null;
           note?: string | null;
           company_display?: Json | null;
           last_reminded_at?: string | null;

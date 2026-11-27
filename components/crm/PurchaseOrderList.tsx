@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { CRMSearchField } from '@/components/crm/CRMSearchField';
 import { money, PO_STATUS_CLASS, PO_STATUS_LABEL, PurchaseOrderEditor, type PurchaseOrderView } from '@/components/crm/PurchaseOrderEditor';
 import type { PoStatus } from '@/lib/crm/purchase-orders';
+import { CrmStatCards, type CrmStatCard } from '@/components/crm/CrmStatCards';
 
 type Filter = 'all' | 'open' | 'draft' | 'received' | 'cancelled';
 const FILTERS: { key: Filter; label: string }[] = [
@@ -54,8 +55,21 @@ export function PurchaseOrderList({ projectId, compact = false }: { projectId?: 
     if (!q) return true;
     return [po.poNumber, po.supplierName, po.projectName, ...po.lines.map((l) => l.description)].some((v) => v?.toLowerCase().includes(q));
   });
-  const openTotal = orders.filter((po) => OPEN.includes(po.status)).reduce((sum, po) => sum + po.totalCents, 0);
   const toArrive = orders.reduce((sum, po) => sum + po.committedCents, 0);
+  const bucket = (match: (po: PurchaseOrderView) => boolean) => {
+    const list = orders.filter(match);
+    return { count: list.length, cents: list.reduce((sum, po) => sum + po.totalCents, 0) };
+  };
+  const n = (count: number) => `${count} ${count === 1 ? 'order' : 'orders'}`;
+  const drafts = bucket((po) => po.status === 'draft');
+  const openOrders = bucket((po) => OPEN.includes(po.status));
+  const received = bucket((po) => po.status === 'received' || po.status === 'closed');
+  const poCards: CrmStatCard[] = [
+    { key: 'draft', label: 'Drafts', value: money(drafts.cents), sub: n(drafts.count) },
+    { key: 'open', label: 'Open orders', value: money(openOrders.cents), sub: n(openOrders.count) },
+    { key: 'open_arrive', label: 'Still to arrive', value: money(toArrive), sub: 'Ordered, not received' },
+    { key: 'received', label: 'Received', value: money(received.cents), sub: n(received.count) },
+  ];
 
   return (
     <div className="space-y-3">
@@ -79,16 +93,11 @@ export function PurchaseOrderList({ projectId, compact = false }: { projectId?: 
               <Plus className="mr-1 h-4 w-4" /> New PO
             </Button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg border-2 border-black p-3">
-              <p className="text-xs text-gray-500">Open orders</p>
-              <p className="text-lg font-bold">{money(openTotal)}</p>
-            </div>
-            <div className="rounded-lg border-2 border-black p-3">
-              <p className="text-xs text-gray-500">Still to arrive</p>
-              <p className="text-lg font-bold">{money(toArrive)}</p>
-            </div>
-          </div>
+          <CrmStatCards
+            cards={poCards}
+            active={filter === 'all' ? '' : filter}
+            onSelect={(key) => setFilter(key === 'open_arrive' ? 'open' : ((key || 'all') as Filter))}
+          />
         </>
       ) : (
         <div className="flex items-center justify-between gap-2">

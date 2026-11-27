@@ -161,14 +161,20 @@ export async function POST(request: NextRequest) {
     const str = (key: string) => trim(body[key]) || null;
     const firstName = trim(body.first_name ?? body.firstName);
     const lastName = trim(body.last_name ?? body.lastName);
-    if (!firstName || !lastName) {
-      return NextResponse.json({ error: 'First name and last name are required' }, { status: 400 });
+    // A company (an LLC, a property manager) needs only its name; a person needs first and last name.
+    const isCompany = body.kind === 'company';
+    const companyNameIn = trim(body.company_name ?? body.companyName);
+    if (isCompany ? !companyNameIn : !firstName || !lastName) {
+      return NextResponse.json(
+        { error: isCompany ? 'Company name is required' : 'First name and last name are required' },
+        { status: 400 }
+      );
     }
     const displayName = resolveContactDisplayName({
-      displayName: trim(body.display_name ?? body.displayName),
+      displayName: trim(body.display_name ?? body.displayName) || (isCompany ? companyNameIn : ''),
       firstName,
       lastName,
-      companyName: trim(body.company_name ?? body.companyName),
+      companyName: companyNameIn,
     });
     if (!displayName) {
       return NextResponse.json({ error: 'Display name is required' }, { status: 400 });
@@ -185,6 +191,10 @@ export async function POST(request: NextRequest) {
       last_name: lastName,
       company_name: str('company_name'),
       display_name: displayName,
+      // Sent only when typed, so saving works before migration 186 adds the column.
+      ...(str('billing_email') ? { billing_email: str('billing_email') } : {}),
+      ...(str('w9_received_at') ? { w9_received_at: str('w9_received_at') } : {}),
+      ...(/^\d{4}$/.test(trim(body.tax_id_last4)) ? { tax_id_last4: trim(body.tax_id_last4) } : {}),
       email: str('email'),
       phone: str('phone'),
       cc: str('cc'),

@@ -121,6 +121,7 @@ export async function GET(
       invoice_date: row.invoice_date,
       due_date: resolveInvoiceDueDate(row.invoice_date, row.due_date, row.payment_terms),
       payment_terms: row.payment_terms,
+      po_number: (row as { po_number?: string | null }).po_number ?? null,
       note: row.note,
     };
 

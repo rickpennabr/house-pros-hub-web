@@ -38,11 +38,15 @@ export async function POST(
 
     const { data: customerRow } = await supabase
       .from('pro_crm_customers')
-      .select('email')
+      .select('*')
       .eq('id', customerId)
       .single();
 
-    const toEmail = customerRow?.email;
+    // A company's accounts payable email gets the invoice; the main email gets a copy.
+    const billingEmail = (customerRow as { billing_email?: string | null } | null)?.billing_email?.trim() || null;
+    const mainEmail = customerRow?.email?.trim() || null;
+    const toEmail = billingEmail ?? mainEmail;
+    const copyEmail = billingEmail && mainEmail && mainEmail.toLowerCase() !== billingEmail.toLowerCase() ? mainEmail : null;
     if (!toEmail || typeof toEmail !== 'string') {
       return NextResponse.json({ error: 'Customer has no email address' }, { status: 400 });
     }
@@ -75,7 +79,8 @@ export async function POST(
         viewUrl,
         message,
       },
-      toEmail
+      toEmail,
+      copyEmail
     );
 
     if (!emailResult.success) {

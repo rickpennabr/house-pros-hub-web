@@ -151,10 +151,11 @@ export async function buildInvoiceReminder(args: {
 
   const { data: customer } = await supabase
     .from('pro_crm_customers')
-    .select('first_name, last_name, display_name, company_name, email')
+    .select('*')
     .eq('id', row.customer_id)
     .maybeSingle();
-  const to = customer?.email?.trim();
+  // A company's accounts payable email gets reminders when it is set.
+  const to = (customer as { billing_email?: string | null } | null)?.billing_email?.trim() || customer?.email?.trim();
   if (!to) return { ok: false, status: 400, error: 'This customer has no email address. Add one on the contact first.' };
 
   const [{ business, themeColor }, settings, link, card] = await Promise.all([

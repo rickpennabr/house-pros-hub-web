@@ -2246,4 +2246,41 @@ input[type='search']::-webkit-search-decoration {
 @keyframes probot-cloud-drift { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-48%,-52%) scale(1.06); } }
 .probot-cloud { animation: probot-cloud-drift 14s ease-in-out infinite; }
 .probot-cloud-slow { animation: probot-cloud-drift 22s ease-in-out infinite reverse; }
-@media (prefers-reduced-motion: reduce) { .probot-cloud, .probot-cloud-slow { animation: none; } }
+
+/* Start-screen smoke: one rainbow color at a time while it drifts (starts blue). */
+@property --probot-start-smoke {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(96, 165, 250, 0.55);
+}
+@keyframes probot-start-smoke-hue {
+  /* Hold each hue, then step to the next — no muddy blend. */
+  0%, 12% { --probot-start-smoke: rgba(96, 165, 250, 0.55); }   /* blue */
+  14%, 26% { --probot-start-smoke: rgba(167, 139, 250, 0.5); }  /* violet */
+  28%, 40% { --probot-start-smoke: rgba(244, 114, 182, 0.48); } /* pink */
+  42%, 54% { --probot-start-smoke: rgba(248, 113, 113, 0.5); }  /* red */
+  56%, 68% { --probot-start-smoke: rgba(251, 146, 60, 0.5); }   /* orange */
+  70%, 82% { --probot-start-smoke: rgba(250, 204, 21, 0.48); }  /* yellow */
+  84%, 96% { --probot-start-smoke: rgba(74, 222, 128, 0.5); }   /* green */
+  98%, 100% { --probot-start-smoke: rgba(96, 165, 250, 0.55); } /* back to blue */
+}
+.probot-start-smoke {
+  background: radial-gradient(closest-side, var(--probot-start-smoke), rgba(191, 219, 254, 0.28) 45%, rgba(255, 255, 255, 0) 100%);
+  animation:
+    probot-cloud-drift 14s ease-in-out infinite,
+    probot-start-smoke-hue 28s linear infinite;
+}
+.probot-start-smoke-soft {
+  background: radial-gradient(closest-side, var(--probot-start-smoke), rgba(255, 255, 255, 0));
+  animation:
+    probot-cloud-drift 22s ease-in-out infinite reverse,
+    probot-start-smoke-hue 28s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .probot-cloud,
+  .probot-cloud-slow,
+  .probot-start-smoke,
+  .probot-start-smoke-soft {
+    animation: none;
+  }
+}

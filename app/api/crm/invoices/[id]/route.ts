@@ -163,6 +163,7 @@ export async function GET(
       invoiceDate: row.invoice_date,
       dueDate: resolveInvoiceDueDate(row.invoice_date, row.due_date, row.payment_terms),
       paymentTerms: row.payment_terms,
+      poNumber: (row as { po_number?: string | null }).po_number ?? null,
       note: row.note,
       customerId: row.customer_id,
       placeId: row.place_id ?? null,
@@ -230,6 +231,9 @@ export async function PATCH(
     if (body.status === 'draft' || body.status === 'sent' || body.status === 'overdue') updates.status = body.status;
     if (body.invoiceDate !== undefined) updates.invoice_date = body.invoiceDate || new Date().toISOString().slice(0, 10);
     if (body.dueDate !== undefined) updates.due_date = body.dueDate || null;
+    if (body.poNumber !== undefined) {
+      updates.po_number = typeof body.poNumber === 'string' && body.poNumber.trim() ? body.poNumber.trim().slice(0, 40) : null;
+    }
     if (body.paymentTerms !== undefined) updates.payment_terms = body.paymentTerms === null || body.paymentTerms === '' ? null : String(body.paymentTerms);
     if (body.note !== undefined) updates.note = typeof body.note === 'string' ? body.note.trim() || null : null;
     if (body.customerId !== undefined) {
@@ -308,11 +312,16 @@ export async function PATCH(
       updates.place_id = docPlace.placeId;
     }
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from('pro_crm_invoices')
       .update(updates)
       .eq('id', id)
       .eq('owner_id', user.id);
+    // Before migration 186 there is no po_number column: save the rest (a typed PO is kept only after it runs).
+    if (error && /po_number/.test(error.message ?? '') && 'po_number' in updates) {
+      delete updates.po_number;
+      ({ error } = await supabase.from('pro_crm_invoices').update(updates).eq('id', id).eq('owner_id', user.id));
+    }
 
     if (error) {
       const message = isMissingDiscountColumn(error) ? DISCOUNT_MIGRATION_ERROR : error.message || 'Failed to update invoice';

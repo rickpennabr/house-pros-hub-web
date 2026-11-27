@@ -1,75 +1,89 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { CalendarDays, ClipboardList, DollarSign, FolderKanban, Home, Search, Sparkles } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { PROBOT_ASSETS } from '@/lib/constants/probot';
+
+export type ProBotStartCrmButton = {
+  id: string;
+  label: string;
+  onClick: () => void;
+};
 
 /**
- * A new ProBot chat (Gemini-style): greeting, the input in the middle of the screen and a few
- * suggestions under it. Tapping a suggestion sends it. The first message moves the input down.
+ * A new ProBot chat: GIF, greeting and option boxes up top; Ask ProBot lower, as before.
+ * The first message moves the input down.
  */
 export function ProBotStart({
   firstName,
-  business,
-  onPick,
+  crmButtons,
   children,
 }: {
   firstName: string;
-  /** Business profile: business suggestions; personal: homeowner ones. */
-  business: boolean;
-  onPick: (text: string) => void;
+  /** Business CRM shortcuts (Calendar, Invoices, …). Omit for personal profiles. */
+  crmButtons?: ProBotStartCrmButton[];
   /** The message input. */
   children: ReactNode;
 }) {
   const name = firstName.trim();
-  const suggestions = business
-    ? [
-        { icon: DollarSign, text: 'Who owes me money?' },
-        { icon: CalendarDays, text: "What's on my schedule today?" },
-        { icon: ClipboardList, text: 'Which estimates are waiting for an answer?' },
-        { icon: FolderKanban, text: 'Which projects finish this week?' },
-      ]
-    : [
-        { icon: Search, text: 'Find a pro near me' },
-        { icon: Home, text: 'What is going on at my places?' },
-        { icon: Sparkles, text: 'I want a free estimate' },
-      ];
+  const [gifStep, setGifStep] = useState(0);
+  const [showStatic, setShowStatic] = useState(false);
+
+  useEffect(() => {
+    if (showStatic) return;
+    const timer = window.setTimeout(() => {
+      if (gifStep < 3) setGifStep((step) => step + 1);
+      else setShowStatic(true);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [gifStep, showStatic]);
 
   return (
-    <div className="relative flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden bg-[#f8f9fb] px-4 py-10">
-      {/* A soft blue cloud around the input, like Gemini's start screen: a few blurred, slowly drifting layers. */}
+    <div className="relative flex min-h-0 w-full flex-1 flex-col items-center overflow-hidden bg-[#f8f9fb] px-4 pb-10 pt-6">
+      {/* Soft smoke: drifts and holds one rainbow color at a time. */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div
-          className="probot-cloud absolute left-1/2 top-1/2 h-[560px] w-[900px] max-w-[160vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(closest-side, rgba(147,197,253,0.55), rgba(191,219,254,0.35) 45%, rgba(255,255,255,0) 100%)' }}
-        />
-        <div
-          className="probot-cloud-slow absolute left-[58%] top-[56%] h-[360px] w-[520px] max-w-[110vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(closest-side, rgba(96,165,250,0.35), rgba(255,255,255,0))' }}
-        />
-        <div
-          className="probot-cloud-slow absolute left-[40%] top-[44%] h-[300px] w-[460px] max-w-[100vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(closest-side, rgba(255,255,255,0.9), rgba(255,255,255,0))' }}
-        />
+        <div className="probot-cloud probot-start-smoke absolute left-1/2 top-[40%] h-[560px] w-[900px] max-w-[160vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" />
+        <div className="probot-cloud-slow probot-start-smoke-soft absolute left-[58%] top-[48%] h-[360px] w-[520px] max-w-[110vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" />
+        <div className="probot-cloud-slow probot-start-smoke-soft absolute left-[40%] top-[36%] h-[300px] w-[460px] max-w-[100vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" />
       </div>
-      <div className="relative flex w-full max-w-2xl flex-col items-center">
-        <h2 className="mb-6 text-center text-2xl font-normal text-gray-900 sm:text-3xl">
+
+      <div className="relative z-[1] flex w-full max-w-2xl shrink-0 flex-col items-center">
+        <div className="mb-4 flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm">
+          {showStatic ? (
+            <img src="/pro-bot-solo.png" alt="ProBot" width={96} height={96} className="h-full w-full object-contain" />
+          ) : (
+            <img
+              src={gifStep % 2 === 0 ? PROBOT_ASSETS.avatarWelcome : PROBOT_ASSETS.avatarWelcomeSecond}
+              alt="ProBot"
+              width={96}
+              height={96}
+              className="h-full w-full object-contain"
+            />
+          )}
+        </div>
+
+        <h2 className="mb-4 text-center text-2xl font-normal text-gray-900 sm:text-3xl">
           {name ? `Hi ${name}, where should we start?` : 'Where should we start?'}
         </h2>
-        <div className="w-full rounded-lg shadow-[0_8px_40px_rgba(59,130,246,0.18)]">{children}</div>
-        <ul className="mt-5 w-full max-w-md space-y-1 self-center">
-          {suggestions.map(({ icon: Icon, text }) => (
-            <li key={text}>
+
+        {crmButtons && crmButtons.length > 0 ? (
+          <div className="mb-[100px] flex w-full max-w-xl flex-wrap justify-center gap-2">
+            {crmButtons.map((button) => (
               <button
+                key={button.id}
                 type="button"
-                onClick={() => onPick(text)}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-100"
+                onClick={button.onClick}
+                className="probot-sky-btn cursor-pointer rounded-lg border-2 border-black bg-white px-4 py-2.5 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50"
               >
-                <Icon className="h-4 w-4 shrink-0 text-gray-600" aria-hidden />
-                {text}
+                {button.label}
               </button>
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+        ) : (
+          <div className="mb-[100px]" />
+        )}
+
+        {/* Ask ProBot: 100px under the option boxes. */}
+        <div className="w-full rounded-lg shadow-[0_8px_40px_rgba(59,130,246,0.18)]">{children}</div>
       </div>
     </div>
   );

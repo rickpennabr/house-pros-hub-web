@@ -131,6 +131,12 @@ export function InvoicePdfDocument({ invoice, customer, business, themeColor, pa
                 <Text style={styles.metaValue}>{termsLabel}</Text>
               </View>
             ) : null}
+            {invoice.po_number ? (
+              <View style={styles.metaCol}>
+                <Text style={styles.metaLabel}>P.O. number</Text>
+                <Text style={styles.metaValue}>{invoice.po_number}</Text>
+              </View>
+            ) : null}
             <View style={styles.metaCol}>
               <Text style={styles.metaLabel}>Due date</Text>
               <Text style={styles.metaValue}>{formatDate(dueDateIso)}</Text>

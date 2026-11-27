@@ -20,11 +20,13 @@ const TEXT: Record<string, Record<Lang, string>> = {
 };
 
 const AFTER_TOOL: Record<string, string[]> = {
+  get_customers: ['owes', 'estimates', 'today'],
   get_open_invoices: ['overdue', 'estimates', 'today'],
   get_estimates_waiting: ['owes', 'projects'],
   get_projects: ['today', 'owes'],
   get_day_schedule: ['tomorrow', 'owes', 'projects'],
   get_maintenance_on: ['today', 'tomorrow'],
+  get_tax_summary: ['owes', 'projects'],
   search_pros: ['morePros', 'estimate'],
   list_categories: ['findPro', 'estimate'],
   get_pro: ['estimate', 'morePros'],

@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreVertical, Pencil, SquarePen, Trash2 } from 'lucide-react';
+import { AudioLines, MoreVertical, Pencil, SquarePen, Trash2 } from 'lucide-react';
+import { ProBotVoicePicker } from '@/components/probot/ProBotVoicePicker';
+import { useProbotVoice } from '@/lib/chat/probot-voice-store';
+import { probotVoice } from '@/lib/ai/voices';
 import {
   deleteProbotChat,
   renameProbotChat,
@@ -19,6 +22,8 @@ export function ProbotChatList({ onOpen }: { onOpen: () => void }) {
   const [menuId, setMenuId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const voice = probotVoice(useProbotVoice());
 
   if (!ready) return null;
 
@@ -37,6 +42,16 @@ export function ProbotChatList({ onOpen }: { onOpen: () => void }) {
         <SquarePen className="h-4 w-4 shrink-0" aria-hidden />
         New chat
       </button>
+      <button
+        type="button"
+        onClick={() => setVoiceOpen(true)}
+        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium hover:bg-gray-100"
+      >
+        <AudioLines className="h-4 w-4 shrink-0" aria-hidden />
+        Voice
+        <span className="ml-auto text-xs font-normal text-gray-500">{voice.name}</span>
+      </button>
+      <ProBotVoicePicker isOpen={voiceOpen} onClose={() => setVoiceOpen(false)} />
       {elsewhere > 0 ? (
         <p className="mx-1 mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
           New ProBot messages on your other profile. Switch profile at the top to see them.

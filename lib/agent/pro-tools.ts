@@ -1,20 +1,23 @@
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { contactDisplayName } from '@/lib/crm/contact-name';
+import { loadTaxYearSummary } from '@/lib/tax/year-summary';
 import type { OpenAiTool } from '@/lib/agent/tools';
 import type { CrmDb } from '@/lib/crm/crm-scope';
 
 /**
  * Read-only CRM tools for a signed-in pro (the CRM owner) chatting with ProBot.
- * "Who owes me money?", "When does Daniel's project finish?", "Any maintenance on the 26th?"
+ * "Who owes me money?", "When does that project finish?", "Any maintenance on the 26th?"
  * Every query is filtered by the pro's own owner_id. Nothing here writes.
  * Dates are worked out here, in the pro's time zone, never by the model.
  */
 export const PRO_TOOL_NAMES = [
+  'get_customers',
   'get_open_invoices',
   'get_estimates_waiting',
   'get_projects',
   'get_maintenance_on',
   'get_day_schedule',
+  'get_tax_summary',
 ] as const;
 
 export type ProToolName = (typeof PRO_TOOL_NAMES)[number];
@@ -27,7 +30,7 @@ export const DEFAULT_PRO_TIME_ZONE = 'America/Los_Angeles';
 
 const customerParam = {
   type: 'string',
-  description: 'Optional. Part of the customer\'s name, e.g. "Daniel" or "Smith". Leave out for all customers.',
+  description: 'Optional. Part of a customer name they just said. Leave out to include every customer.',
 };
 const dayParam = {
   type: 'string',
@@ -37,6 +40,15 @@ const dayParam = {
 
 export function proOpenAiTools(): OpenAiTool[] {
   return [
+    {
+      type: 'function',
+      function: {
+        name: 'get_customers',
+        description:
+          'Every contact with the Customer role: the count and their names. Use for "how many customers", "who are my customers", "list my customers". Say the count from this tool. Projects, invoices, and sample replies are not a customer list.',
+        parameters: { type: 'object', additionalProperties: false, properties: {} },
+      },
+    },
     {
       type: 'function',
       function: {
@@ -89,6 +101,19 @@ export function proOpenAiTools(): OpenAiTool[] {
         parameters: { type: 'object', additionalProperties: false, required: ['day'], properties: { day: dayParam } },
       },
     },
+    {
+      type: 'function',
+      function: {
+        name: 'get_tax_summary',
+        description:
+          'The pro\'s books for one tax year, Schedule C style: income received, expenses by Schedule C line (meals at 50%), mileage standard vs actual (the larger is used), net profit, self-employment tax estimate and the quarterly estimate, 1099s to send, missing W-9s, missing receipts. Use for "how much did I make", "my profit this year", "my expenses", "prepare my taxes", "do I owe taxes", "1099s".',
+        parameters: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { year: { type: 'integer', description: 'Tax year, e.g. 2026. Default: this year.' } },
+        },
+      },
+    },
   ];
 }
 
@@ -97,6 +122,92 @@ export interface ProToolResult {
   isError: boolean;
   /** Records to open from the answer (never sent to the model). Hub paths without locale. */
   links?: { label: string; href: string }[];
+}
+
+type PageLang = 'en' | 'es' | 'pt';
+
+/** One list page per question, not a chip for each record. */
+const TOOL_PAGE: Partial<Record<ProToolName, { href: string; label: Record<PageLang, string>; line: Record<PageLang, string> }>> = {
+  get_customers: {
+    href: '/crm/customers',
+    label: { en: 'Contacts', es: 'Contactos', pt: 'Contatos' },
+    line: {
+      en: 'You can see all your contacts here.',
+      es: 'Puedes ver todos tus contactos aquí.',
+      pt: 'Você pode ver todos os seus contatos aqui.',
+    },
+  },
+  get_tax_summary: {
+    href: '/crm/reports?tab=tax',
+    label: { en: 'Tax summary', es: 'Resumen de impuestos', pt: 'Resumo de impostos' },
+    line: {
+      en: 'Your full tax summary, with a file for your accountant, is here.',
+      es: 'Tu resumen de impuestos completo, con un archivo para tu contador, está aquí.',
+      pt: 'Seu resumo de impostos completo, com um arquivo para o seu contador, está aqui.',
+    },
+  },
+  get_open_invoices: {
+    href: '/crm/invoices',
+    label: { en: 'Invoices', es: 'Facturas', pt: 'Faturas' },
+    line: {
+      en: 'You can see all your invoices here.',
+      es: 'Puedes ver todas tus facturas aquí.',
+      pt: 'Você pode ver todas as suas faturas aqui.',
+    },
+  },
+  get_estimates_waiting: {
+    href: '/crm/estimates',
+    label: { en: 'Estimates', es: 'Estimados', pt: 'Orçamentos' },
+    line: {
+      en: 'You can see all your estimates here.',
+      es: 'Puedes ver todos tus estimados aquí.',
+      pt: 'Você pode ver todos os seus orçamentos aqui.',
+    },
+  },
+  get_projects: {
+    href: '/crm/projects',
+    label: { en: 'Projects', es: 'Proyectos', pt: 'Projetos' },
+    line: {
+      en: 'You can see all your projects here.',
+      es: 'Puedes ver todos tus proyectos aquí.',
+      pt: 'Você pode ver todos os seus projetos aqui.',
+    },
+  },
+  get_day_schedule: {
+    href: '/crm/calendar',
+    label: { en: 'Calendar', es: 'Calendario', pt: 'Calendário' },
+    line: {
+      en: 'You can see your schedule here.',
+      es: 'Puedes ver tu agenda aquí.',
+      pt: 'Você pode ver sua agenda aqui.',
+    },
+  },
+  get_maintenance_on: {
+    href: '/crm/maintenance',
+    label: { en: 'Maintenance', es: 'Mantenimiento', pt: 'Manutenção' },
+    line: {
+      en: 'You can see your maintenance here.',
+      es: 'Puedes ver tu mantenimiento aquí.',
+      pt: 'Você pode ver sua manutenção aqui.',
+    },
+  },
+};
+
+/** The page button and the line under the answer for the tools that just ran. */
+export function pagesForTools(names: string[], locale: string | undefined): { links: { label: string; href: string }[]; lines: string[] } {
+  const lang: PageLang = locale === 'es' || locale === 'pt' ? locale : 'en';
+  const links: { label: string; href: string }[] = [];
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (!isProTool(name)) continue;
+    const page = TOOL_PAGE[name];
+    if (!page || seen.has(page.href)) continue;
+    seen.add(page.href);
+    links.push({ label: page.label[lang], href: page.href });
+    lines.push(page.line[lang]);
+  }
+  return { links, lines };
 }
 
 /* ---------- dates ---------- */
@@ -344,6 +455,78 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
   const today = todayIn(context.timeZone);
 
   try {
+    if (name === 'get_tax_summary') {
+      const thisYear = Number(today.slice(0, 4));
+      const asked = Number(args.year);
+      const year = Number.isInteger(asked) && asked >= 2000 && asked <= thisYear ? asked : thisYear;
+      const summary = await loadTaxYearSummary(db, ownerId, year);
+      const money = (cents: number) => usd(cents) ?? '$0.00';
+      return {
+        data: {
+          year,
+          throughToday: year === thisYear ? today : null,
+          incomeReceived: money(summary.grossReceiptsCents),
+          expensesByLine: summary.lines.slice(0, 12).map((line) => ({
+            line: line.line,
+            label: line.label,
+            deductible: money(line.deductibleCents),
+            ...(line.spentCents !== line.deductibleCents ? { spent: money(line.spentCents) } : {}),
+          })),
+          vehicle: {
+            businessMiles: summary.mileage.miles,
+            standardMileage: money(summary.mileage.standardCents),
+            irsRatePerMile: `${summary.mileage.rateCents}¢`,
+            actualVehicleCosts: money(summary.mileage.actualCents),
+            using: summary.mileage.best,
+          },
+          totalDeductions: money(summary.totalDeductionsCents),
+          netProfit: money(summary.netProfitCents),
+          selfEmploymentTaxEstimate: money(summary.selfEmploymentTaxCents),
+          quarterlyPaymentEstimate: money(summary.quarterlySeTaxCents),
+          form1099ToSend: summary.form1099.map((row) => ({ name: row.name, paid: money(row.paidCents), w9: row.hasW9 ? 'on file' : 'missing' })),
+          missingReceipts: summary.missingReceipts.length,
+          uncategorizedExpenses: summary.uncategorizedCount,
+          note:
+            'Figures come only from the Hub books. Explain in bullets: income, biggest deductions, the vehicle choice and why the larger one wins, net profit, the self-employment tax estimate (income tax comes on top), and what to fix (missing receipts, W-9s, uncategorized expenses). Say these are estimates to review with their tax professional. Never say you filed anything.',
+        },
+        isError: false,
+      };
+    }
+
+    if (name === 'get_customers') {
+      const { data, error } = await db
+        .from('pro_crm_customers')
+        .select('id, first_name, last_name, display_name, company_name')
+        .eq('owner_id', ownerId)
+        .order('display_name', { ascending: true })
+        .limit(200);
+      if (error) return { data: { error: error.message }, isError: true };
+      const rows = (data ?? []) as CustomerRow[];
+      let chosen = rows;
+      if (rows.length > 0) {
+        const { data: roleRows, error: roleError } = await db
+          .from('pro_crm_contact_roles')
+          .select('contact_id, pro_crm_roles!inner(slug)')
+          .in('contact_id', rows.map((row) => row.id))
+          .eq('pro_crm_roles.slug', 'customer');
+        if (!roleError && roleRows) {
+          const ids = new Set(roleRows.map((row) => row.contact_id));
+          chosen = rows.filter((row) => ids.has(row.id));
+        }
+      }
+      const names = chosen.map((row) => contactDisplayName(row));
+      const listed = names.slice(0, 40);
+      return {
+        data: {
+          count: chosen.length,
+          customers: listed,
+          ...(names.length > listed.length ? { more: names.length - listed.length } : {}),
+          note: 'count is every contact with the Customer role. Say the count. Do not list the names. A Contacts button is added under your reply.',
+        },
+        isError: false,
+      };
+    }
+
     if (name === 'get_open_invoices') {
       const filter = await customerFilter(db, ownerId, args.customer);
       if (filter.ids && filter.ids.length === 0) return { data: { today, error: `No customer matches "${String(args.customer)}".` }, isError: false };
@@ -378,10 +561,6 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
           more: Math.max(0, rows.length - 15),
         },
         isError: false,
-        links: rows.slice(0, 3).map((row) => ({
-          label: `${row.invoice_number || row.display_id} · ${names.get(row.customer_id) ?? 'Invoice'}`,
-          href: `/crm/invoices/${row.id}`,
-        })),
       };
     }
 
@@ -471,7 +650,6 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
           })),
         },
         isError: false,
-        links: rows.slice(0, 3).map((row) => ({ label: row.name, href: `/crm/projects/${row.id}` })),
       };
     }
 

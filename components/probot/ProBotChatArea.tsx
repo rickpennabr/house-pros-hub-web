@@ -1,5 +1,6 @@
 'use client';
 
+import { currentProbotVoice } from '@/lib/chat/probot-voice-store';
 import { useAccountSwitch } from '@/contexts/AccountSwitchContext';
 import { ensureProbotChat, loadProbotChats, touchProbotChat, useProbotChats } from '@/lib/chat/probot-chats-store';
 import { ProBotStart } from '@/components/probot/ProBotStart';
@@ -224,7 +225,7 @@ export default function ProBotChatArea({
   const [confirmingStepId, setConfirmingStepId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [agentStatus, setAgentStatus] = useState<string | null>(null);
-  /** A voice note is being answered: keep the construction words until the spoken answer is ready. */
+  /** A voice note is being answered. The reply stays hidden until its audio file is ready. */
   const [voiceAnswering, setVoiceAnswering] = useState(false);
   /** An answer is streaming in: background refreshes must not replace the thread (they would drop
    *  the "Nailing…" draft and show a voice answer before its voice is ready). */
@@ -378,6 +379,8 @@ export default function ProBotChatArea({
       setMessagesLoadedOnce(true);
       setLoadedChatKey(requestedChat);
     }
+    // A voice reply is already on the open stream. Polling here only repeats the chat_id fallback.
+    if (answeringRef.current) return;
     try {
       const data = await getMessages(conversationId, {
         visitorId,
@@ -739,7 +742,7 @@ export default function ProBotChatArea({
         // ProBot chats: the open chat, or a new one made by this first message.
         const voiceTurn = (extra?.attachments ?? []).some((att) => att.name.startsWith('voice-note'));
         if (voiceTurn) setVoiceAnswering(true);
-        /** Voice turn: the text answer waits here until its voice arrives. */
+        /** Voice turn: the reply stays hidden until its audio file is ready. */
         let heldBot: ChatMessage | null = null;
         const wasNewChat = useHubStream && probotChats.ready && probotChats.activeChatId === null;
         if (wasNewChat) skipChatReloadRef.current = true;
@@ -767,6 +770,7 @@ export default function ProBotChatArea({
             ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
             ...(useHubStream ? { stream: true } : {}),
             ...(chatId ? { chatId } : {}),
+            voice: currentProbotVoice(),
             ...(isAuthenticated && activeAccount
               ? {
                   actingAs: activeAccount.type,
@@ -832,7 +836,7 @@ export default function ProBotChatArea({
                   });
                 },
                 onToken: (text) => {
-                  // Voice turn: no typing; the words keep turning until the voice is ready.
+                  // Voice turn: keep the working words until the audio file is ready.
                   if (!draftBotId || voiceTurn) return;
                   setMessages((prev) =>
                     prev.map((row) =>
@@ -843,7 +847,6 @@ export default function ProBotChatArea({
                 onBot: (bot) => {
                   setAgentStatus(null);
                   const spoken = bot.attachments?.find((att) => att.contentType.startsWith('audio/'));
-                  if (voiceTurn && spoken) autoPlayVoiceUrls.add(spoken.url);
                   const isEstimateReply = bot.body === t('replyAccountEstimate');
                   if (voiceTurn && !spoken) {
                     heldBot = {
@@ -856,6 +859,7 @@ export default function ProBotChatArea({
                     };
                     return;
                   }
+                  if (voiceTurn && spoken) autoPlayVoiceUrls.add(spoken.url);
                   setMessages((prev) => {
                     const withoutDraft = draftBotId
                       ? prev.filter((row) => row.id !== draftBotId)
@@ -2420,16 +2424,86 @@ export default function ProBotChatArea({
                   </button>
                 </div>
               </div>
+            ) : showProbotStart && probotCrmView ? (
+              <div className="flex min-h-0 w-full flex-1 flex-col items-center px-2 pt-4 pb-4">
+                <div className="flex min-h-0 w-full max-w-[90%] flex-1 flex-col">
+                  <ProBotCrmViews
+                    view={probotCrmView}
+                    onBack={() => setProbotCrmView(null)}
+                    onOpenAddCustomer={() => {
+                      setUserChoice('add_customer');
+                      setProbotCrmView(null);
+                      setHasChosenThisVisit(true);
+                      markProBotWelcomeSeen();
+                      onWelcomeChoiceMade?.();
+                    }}
+                    onAddTaskSuccess={() => {}}
+                  />
+                </div>
+                <div className="mt-4 w-full max-w-[960px] shrink-0 mx-auto">
+                  <ChatCamFrame>
+                    <form
+                      onSubmit={handleSubmit}
+                      className="w-full rounded-2xl border-2 border-black bg-gray-50/80 py-1.5 pl-1.5 pr-1.5 transition-all hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/10"
+                    >
+                      <ChatInputBar
+                        attachments={pendingAttachmentsView}
+                        wrapperClassName="flex items-center gap-0 w-full"
+                        replyPreview={replyPreview}
+                        onCancelReply={() => setReplyTarget(null)}
+                        onRecorderError={setError}
+                        onSendVoice={handleSendVoice}
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        placeholder="Ask ProBot"
+                        disabled={sending}
+                        maxLength={2000}
+                        inputRef={messageInputRef}
+                        fileInputRef={fileInputRef}
+                        onFileSelect={handleFileSelect}
+                        attachMenuOpen={attachMenuOpen}
+                        setAttachMenuOpen={setAttachMenuOpen}
+                        attachDisabled={uploadingAttach || pendingAttachments.length >= 10}
+                        sendDisabled={(!inputValue.trim() && pendingAttachments.length === 0) || sending}
+                        hasText={!!(inputValue.trim() || pendingAttachments.length > 0)}
+                        labels={chatInputLabels}
+                        crmActions={crmActions}
+                      />
+                    </form>
+                  </ChatCamFrame>
+                </div>
+              </div>
             ) : showProbotStart ? (
               <ProBotStart
                 firstName={user?.firstName ?? ''}
-                business={activeAccount?.type === 'business'}
-                onPick={(text) => void sendMessage(text)}
+                crmButtons={
+                  activeAccount?.type === 'business'
+                    ? [
+                        { id: 'calendar', label: tBot('crmCalendar'), onClick: () => setProbotCrmView('calendar') },
+                        { id: 'customers', label: tBot('crmCustomers'), onClick: () => setProbotCrmView('customers') },
+                        { id: 'estimates', label: tBot('crmEstimates'), onClick: () => setProbotCrmView('estimates') },
+                        { id: 'invoices', label: tBot('crmInvoices'), onClick: () => setProbotCrmView('invoices') },
+                        { id: 'projects', label: tBot('crmProjects'), onClick: () => setProbotCrmView('projects') },
+                        { id: 'expenses', label: tBot('crmExpenses'), onClick: () => setProbotCrmView('expenses') },
+                        { id: 'add_task', label: tBot('addTask'), onClick: () => setProbotCrmView('add_task') },
+                        {
+                          id: 'add_customer',
+                          label: tBot('addCustomer'),
+                          onClick: () => {
+                            setHasChosenThisVisit(true);
+                            markProBotWelcomeSeen();
+                            setUserChoice('add_customer');
+                            onWelcomeChoiceMade?.();
+                          },
+                        },
+                      ]
+                    : undefined
+                }
               >
                 <ChatCamFrame className="w-full max-w-[960px] mx-auto">
                   <form
                     onSubmit={handleSubmit}
-                    className="w-full rounded-2xl border-2 border-black bg-white focus-within:ring-2 focus-within:ring-black/10 transition-all py-1.5 pl-1.5 pr-1.5 shadow-sm"
+                    className="w-full rounded-2xl border-2 border-black bg-white py-1.5 pl-1.5 pr-1.5 shadow-sm transition-all focus-within:ring-2 focus-within:ring-black/10"
                   >
                     <ChatInputBar
                       attachments={pendingAttachmentsView}
@@ -2729,7 +2803,7 @@ export default function ProBotChatArea({
               )}
               <form
                 onSubmit={handleSubmit}
-                className="probot-chat-footer shrink-0 w-full px-2 md:px-4 pt-3 pb-[calc(0.625rem+env(safe-area-inset-bottom,0px))] md:pb-[max(1rem,env(safe-area-inset-bottom,0px))] bg-white md:bg-transparent border-t border-gray-200/90 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] md:shadow-none"
+                className="probot-chat-footer shrink-0 w-full px-2 md:px-4 pt-3 pb-[calc(0.625rem+env(safe-area-inset-bottom,0px))] md:pb-[calc(max(1rem,env(safe-area-inset-bottom,0px))+50px)] bg-white md:bg-transparent border-t border-gray-200/90 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] md:shadow-none"
               >
               {/* Same centered column as the messages (ProBotMessageList). */}
               <ChatCamFrame className="w-full md:mx-auto md:max-w-3xl">

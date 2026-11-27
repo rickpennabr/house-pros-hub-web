@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { CrmStatCards, type CrmStatCard } from '@/components/crm/CrmStatCards';
+import type { ProjectSummary } from '@/lib/crm/list-summaries';
 import { projectDurationText } from '@/lib/crm/project-duration';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -226,6 +228,7 @@ export default function CRMProjectsPage() {
     handleSearchSubmit,
     chart,
     search,
+    statusSummary,
   } = useCrmListQuery<ProjectRow>({
     endpoint: '/api/crm/projects',
     rowsKey: 'projects',
@@ -237,6 +240,19 @@ export default function CRMProjectsPage() {
     loadError: 'Failed to load projects',
   });
   const rowActions = useCrmRowActions();
+  const projectCards = useMemo<CrmStatCard[]>(() => {
+    const sum = statusSummary as ProjectSummary | null;
+    if (!sum) return [];
+    const n = (count: number) => `${count} ${count === 1 ? 'project' : 'projects'}`;
+    const day = (iso: string | null, prefix: string) =>
+      iso ? `${prefix} ${new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : '—';
+    return [
+      { key: 'planned', label: 'Coming up', value: n(sum.planned.count), sub: day(sum.planned.next, 'Next starts') },
+      { key: 'in_progress', label: 'In progress', value: n(sum.in_progress.count), sub: day(sum.in_progress.next, 'Next finish') },
+      { key: 'on_hold', label: 'On hold', value: n(sum.on_hold.count), sub: sum.on_hold.count ? 'Waiting' : '—', alert: sum.on_hold.count > 0 },
+      { key: 'completed', label: 'Completed', value: n(sum.completed.count), sub: 'All time' },
+    ];
+  }, [statusSummary]);
 
   const [customers, setCustomers] = useState<{ id: string; first_name: string; last_name: string; display_name?: string | null; company_name?: string | null }[]>([]);
   const [estimates, setEstimates] = useState<{ id: string; customer_id: string; amount_cents: number }[]>([]);
@@ -457,6 +473,11 @@ export default function CRMProjectsPage() {
               New Project
             </Button>
           </div>
+          {projectCards.length ? (
+            <div className={`mt-2 ${crmChrome?.searchOpen ? 'max-md:hidden' : ''}`}>
+              <CrmStatCards cards={projectCards} active={statusFilter} onSelect={applyStatusFilter} />
+            </div>
+          ) : null}
           <MobileGridActionsModal
             isOpen={filtersOpen}
             onClose={() => setFiltersOpen(false)}
