@@ -34,6 +34,7 @@ export function ProjectPhotos({ projectId, embedded = false }: { projectId: stri
   const [error, setError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [quota, setQuota] = useState<DriveUsage | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/crm/projects/${projectId}/photos`, { credentials: 'include' });
@@ -43,6 +44,7 @@ export function ProjectPhotos({ projectId, embedded = false }: { projectId: stri
       businessId?: string | null;
       photos?: JobPhoto[];
     };
+    setLoaded(true);
     if (!response.ok) {
       setError(body.error || t('loadFailed'));
       return;
@@ -119,9 +121,10 @@ export function ProjectPhotos({ projectId, embedded = false }: { projectId: stri
         )}
         <Button type="button" onClick={() => { primeLiveCamera('environment'); setSheetOpen(true); }} disabled={!businessId}>{t('addPhoto')}</Button>
       </div>
-      {!businessId && <p className="text-sm">{t('noBusiness')}</p>}
+      {loaded && !businessId && <p className="text-sm">{t('noBusiness')}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {photos.length === 0 && <p className="text-sm">{t('empty')}</p>}
+      {!loaded && !error ? <div className="h-40 animate-pulse rounded-lg bg-gray-100" aria-busy="true" /> : null}
+      {loaded && !error && photos.length === 0 && <p className="text-sm">{t('empty')}</p>}
       {[...groups.entries()].map(([day, dayPhotos]) => (
         <section key={day} className="space-y-2">
           <h2 className="font-bold">{day}</h2>

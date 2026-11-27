@@ -139,14 +139,15 @@ export function contactActivityAt(
   return best;
 }
 
-/** ProBot pinned first, then newest chat first; contacts without chats keep their original order. */
+/** ProBot pinned first, then pinned contacts (the pro's own personal account), then newest chat first. */
 export function sortContactsByActivity<
-  T extends { id: string; isProBot?: boolean; businessId?: string; conversationId?: string; lastActivityAt?: string },
+  T extends { id: string; isProBot?: boolean; pinned?: boolean; businessId?: string; conversationId?: string; lastActivityAt?: string },
 >(contacts: T[], latest: Record<string, string> = {}): T[] {
   return contacts
     .map((contact, index) => ({ contact, index, at: contactActivityAt(contact, latest) }))
     .sort((a, b) => {
       if (a.contact.isProBot !== b.contact.isProBot) return a.contact.isProBot ? -1 : 1;
+      if (Boolean(a.contact.pinned) !== Boolean(b.contact.pinned)) return a.contact.pinned ? -1 : 1;
       if (a.at !== b.at) return b.at - a.at;
       return a.index - b.index;
     })

@@ -14,6 +14,9 @@ export default function ManagePartnersPage() {
   const [userBusinesses, setUserBusinesses] = useState<ProCardData[]>([]);
   const [knownBusinesses, setKnownBusinesses] = useState<ProCardData[]>([]);
   const [refresh, setRefresh] = useState(0);
+  /** The user whose businesses have loaded. Until then the lists show placeholders, not "No …". */
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const ready = Boolean(userId) && loadedFor === userId;
 
   useEffect(() => {
     if (!userId) {
@@ -24,10 +27,16 @@ export default function ManagePartnersPage() {
     fetch('/api/me/businesses/list', { credentials: 'include' })
       .then((res) => (res.ok ? res.json() : { businesses: [] }))
       .then((data) => {
-        if (!cancelled) setUserBusinesses(data.businesses ?? []);
+        if (!cancelled) {
+          setUserBusinesses(data.businesses ?? []);
+          setLoadedFor(userId);
+        }
       })
       .catch(() => {
-        if (!cancelled) setUserBusinesses([]);
+        if (!cancelled) {
+          setUserBusinesses([]);
+          setLoadedFor(userId);
+        }
       });
     return () => {
       cancelled = true;
@@ -202,7 +211,9 @@ export default function ManagePartnersPage() {
             )}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {requests.length === 0 ? (
+            {!ready ? (
+              <div className="col-span-full space-y-3" aria-busy="true">{[0, 1].map((n) => <div key={n} className="h-20 animate-pulse rounded-lg bg-gray-100" />)}</div>
+            ) : requests.length === 0 ? (
               <div className="col-span-full border-2 border-dashed border-gray-200 rounded-lg p-8 text-center text-gray-500">
                 No pending requests
               </div>
@@ -267,7 +278,9 @@ export default function ManagePartnersPage() {
             )}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {activePartners.length === 0 ? (
+            {!ready ? (
+              <div className="col-span-full space-y-3" aria-busy="true">{[0, 1].map((n) => <div key={n} className="h-20 animate-pulse rounded-lg bg-gray-100" />)}</div>
+            ) : activePartners.length === 0 ? (
               <div className="col-span-full border-2 border-dashed border-gray-200 rounded-lg p-8 text-center text-gray-500">
                 You don&apos;t have any partners yet
               </div>

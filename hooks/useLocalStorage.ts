@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback } from 'react';
+
+/** Layout effect in the browser (runs before paint), plain effect on the server (no warning). */
+const useBeforePaint = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 /**
  * Generic typed localStorage hook
@@ -14,11 +17,11 @@ export function useLocalStorage<T>(
   initialValue: T
 ): [T, (value: T | ((val: T) => T)) => void] {
   // Always start with initialValue so server and client first render match (avoids hydration mismatch).
-  // We sync from localStorage in useEffect after mount.
+  // The saved value is read before the browser paints, so the default never flashes (e.g. table, then chart).
   const [storedValue, setStoredValue] = useState<T>(initialValue);
 
-  // After mount, read from localStorage and sync state (client-only).
-  useEffect(() => {
+  // After mount, before paint: read from localStorage and sync state (client-only).
+  useBeforePaint(() => {
     if (typeof window === 'undefined') return;
     try {
       const item = window.localStorage.getItem(key);

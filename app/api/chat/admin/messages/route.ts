@@ -64,14 +64,18 @@ export async function POST(request: NextRequest) {
       if (!userBusinessId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
-      const { data: msgRow } = await supabase
-        .from('probot_messages')
-        .select('id')
-        .eq('conversation_id', conversationId)
-        .eq('business_id', userBusinessId)
-        .limit(1)
-        .maybeSingle();
-      if (!msgRow) {
+      const [{ data: msgRow }, { data: convOwner }] = await Promise.all([
+        supabase
+          .from('probot_messages')
+          .select('id')
+          .eq('conversation_id', conversationId)
+          .eq('business_id', userBusinessId)
+          .limit(1)
+          .maybeSingle(),
+        supabase.from('probot_conversations').select('user_id').eq('id', conversationId).maybeSingle(),
+      ]);
+      // First message to the pro's own personal account: the thread may still be empty.
+      if (!msgRow && convOwner?.user_id !== user.id) {
         return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
       }
       sentAs = { businessId: userBusinessId };

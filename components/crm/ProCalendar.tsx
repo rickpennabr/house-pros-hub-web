@@ -164,7 +164,7 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [storedBlocks, setBlocks] = useState<Block[]>([]);
-  const { blocks: recurringBlocks, reload: reloadRecurring } = useRecurringBlocks();
+  const { blocks: recurringBlocks, reload: reloadRecurring, loaded: recurringLoaded } = useRecurringBlocks();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -716,7 +716,7 @@ export default function ProCalendar({ initialBusinessId }: ProCalendarProps) {
                     {savingHours ? t('saving') : t('saveHours')}
                   </Button>
                 </div>
-                <RecurringBusyTimes blocks={recurringBlocks} onChanged={() => void reloadRecurring()} />
+                <RecurringBusyTimes blocks={recurringBlocks} loaded={recurringLoaded} onChanged={() => void reloadRecurring()} />
                 </div>
                 </Accordion>
               </>

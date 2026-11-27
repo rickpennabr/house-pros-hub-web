@@ -37,6 +37,7 @@ import type { ProBotContact, ProBotRecentConversation } from './ProBotSidebar';
 import type { ChatMessage, ChatAttachment } from '@/lib/types/chat';
 import { chatReplyFromMessage } from '@/lib/types/chat';
 import { ChatPendingAttachments, type JobProjectOption } from './ChatPendingAttachments';
+import { ForwardMessageModal } from './ForwardMessageModal';
 import { uploadProDriveFile } from '@/lib/drive/upload-client';
 import { requestCurrentLocation } from '@/lib/media/capture-location';
 import {
@@ -93,6 +94,8 @@ interface ProBotChatAreaProps {
   messagesRefreshKey?: number;
   /** A message was sent in the open chat, so the page can move it to the top of the contact list. */
   onThreadActivity?: () => void;
+  /** Chats a message can be forwarded into (the sidebar list for this profile). */
+  contacts?: ProBotContact[];
   /** Back from the CRM editor with a saved document: post it in this chat as a card. */
   autoShareDoc?: { kind: QuickDocKind; id: string } | null;
   onAutoShareDone?: () => void;
@@ -175,6 +178,7 @@ export default function ProBotChatArea({
   onConversationDeleted,
   messagesRefreshKey = 0,
   onThreadActivity,
+  contacts = [],
   autoShareDoc = null,
   onAutoShareDone,
   onOpenSidebar,
@@ -183,6 +187,16 @@ export default function ProBotChatArea({
   onWelcomeChoiceMade,
 }: ProBotChatAreaProps) {
   const t = useTranslations('probot');
+  /**
+   * Contractor/admin has a customer or visitor inbox contact selected. Never load the visitor
+   * ProBot thread for that contact — a late visitor fetch was wiping the customer messages
+   * after they flashed on screen.
+   */
+  const customerInboxSelected = Boolean(
+    (isAdmin || isContractor) && selectedContact && !selectedContact.isProBot && selectedContact.conversationId
+  );
+  /** Bumped on every messages fetch / inbox switch so stale responses cannot call setMessages. */
+  const messagesLoadGenRef = useRef(0);
   // Phones: contact chats show "← Chats" on the left with the name centered.
   const backWithChats = !selectedContact?.isProBot && Boolean(onOpenSidebar);
   const tPlaces = useTranslations('places');
@@ -194,6 +208,7 @@ export default function ProBotChatArea({
   const { visitorId, conversationId, setConversationId } = useChat();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null);
+  const [pendingForward, setPendingForward] = useState<ChatMessage | null>(null);
   /** Admin: the ProBot plant answer being corrected. */
   const [plantFix, setPlantFix] = useState<ChatMessage | null>(null);
   const [confirmDeleteChat, setConfirmDeleteChat] = useState(false);
@@ -364,14 +379,22 @@ export default function ProBotChatArea({
   }, [signedInUserId]);
 
   useEffect(() => {
-    if (adminViewingConversation) return;
+    if (adminViewingConversation || customerInboxSelected) return;
     loadConversation();
-  }, [loadConversation, adminViewingConversation]);
+  }, [loadConversation, adminViewingConversation, customerInboxSelected]);
+
+  // Opening a customer inbox: kill any in-flight visitor message fetch immediately.
+  useEffect(() => {
+    if (!customerInboxSelected) return;
+    messagesLoadGenRef.current += 1;
+  }, [customerInboxSelected, selectedContact?.id]);
 
   const loadMessages = useCallback(async () => {
+    if (customerInboxSelected) return;
     if (!conversationId || !visitorId) return;
     const requestedChat = activeChatRef.current ?? 'none';
     const threadKey = `${conversationId}:${requestedChat}`;
+    const gen = ++messagesLoadGenRef.current;
     const cachedThread = threadCache.get(threadKey);
     if (cachedThread) {
       setMessages((prev) => (prev.length ? prev : cachedThread.messages));
@@ -388,6 +411,7 @@ export default function ProBotChatArea({
         ...(activeChatRef.current ? { chatId: activeChatRef.current } : {}),
         ...((locale === 'en' || locale === 'pt' || locale === 'es') ? { locale } : {}),
       });
+      if (gen !== messagesLoadGenRef.current) return;
       const msgs = (data.messages ?? []) as ChatMessage[];
       const estimateBody = t('replyAccountEstimate');
       const withLink = msgs.map((m) =>
@@ -401,6 +425,7 @@ export default function ProBotChatArea({
       );
       const fresh = dedupeMessagesById(withLink);
       if (answeringRef.current) return;
+      if (gen !== messagesLoadGenRef.current) return;
       threadCache.set(threadKey, { messages: fresh, hubAgent: data.hubAgent ?? null });
       setMessages(fresh);
       setHubAgent(data.hubAgent ?? null);
@@ -408,13 +433,14 @@ export default function ProBotChatArea({
       setLoadedChatKey(requestedChat);
       setError(null);
     } catch (e) {
+      if (gen !== messagesLoadGenRef.current) return;
       if (!cachedThread) setMessages([]);
       if (!cachedThread) setHubAgent(null);
       setMessagesLoadedOnce(true);
       setLoadedChatKey(requestedChat);
       setError(e instanceof Error ? e.message : t('sendUnavailable'));
     }
-  }, [conversationId, visitorId, t, locale]);
+  }, [conversationId, visitorId, t, locale, customerInboxSelected]);
 
   const confirmEstimate = useCallback(async (stepId: string) => {
     if (!visitorId || !conversationId || confirmingStepId) return;
@@ -446,13 +472,17 @@ export default function ProBotChatArea({
 
   const loadAdminViewMessages = useCallback(async () => {
     if (!adminViewingConversation?.id) return;
+    const convId = adminViewingConversation.id;
+    const gen = ++messagesLoadGenRef.current;
     try {
-      const data = await getMessages(adminViewingConversation.id, { credentials: 'include' });
+      const data = await getMessages(convId, { credentials: 'include' });
+      if (gen !== messagesLoadGenRef.current) return;
       const msgs = (data.messages ?? []) as ChatMessage[];
       setMessages(dedupeMessagesById(msgs));
       setHubAgent(null);
       setMessagesLoadedOnce(true);
     } catch {
+      if (gen !== messagesLoadGenRef.current) return;
       setMessages([]);
       setHubAgent(null);
       setMessagesLoadedOnce(true);
@@ -461,6 +491,8 @@ export default function ProBotChatArea({
 
   useEffect(() => {
     if (adminViewingConversation) {
+      // Invalidate any in-flight visitor loadMessages before clearing.
+      messagesLoadGenRef.current += 1;
       setMessages([]);
       setLoading(false);
     }
@@ -469,18 +501,19 @@ export default function ProBotChatArea({
   useEffect(() => {
     if (adminViewingConversation) {
       loadAdminViewMessages();
-    } else {
+    } else if (!customerInboxSelected) {
       loadMessages();
     }
-  }, [adminViewingConversation, loadMessages, loadAdminViewMessages, messagesRefreshKey]);
+    // customerInboxSelected with no adminViewingConversation yet: page is still fetching the thread.
+  }, [adminViewingConversation, loadMessages, loadAdminViewMessages, messagesRefreshKey, customerInboxSelected]);
 
   const refreshOpenThread = useCallback(() => {
     if (adminViewingConversation?.id) {
       void loadAdminViewMessages();
-    } else {
+    } else if (!customerInboxSelected) {
       void loadMessages();
     }
-  }, [adminViewingConversation?.id, loadAdminViewMessages, loadMessages]);
+  }, [adminViewingConversation?.id, loadAdminViewMessages, loadMessages, customerInboxSelected]);
 
   useChatThreadRefresh(
     adminViewingConversation?.id ?? conversationId,
@@ -523,7 +556,8 @@ export default function ProBotChatArea({
       setLoadedChatKey(probotChats.activeChatId ?? 'none');
       return;
     }
-    if (!probotChats.ready || isAdminView) return;
+    // Customer inbox and admin view never use the visitor ProBot chat switcher reload.
+    if (!probotChats.ready || isAdminView || customerInboxSelected) return;
     setMessages((prev) => prev.filter((m) => m.business_id));
     void loadMessages();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on a chat switch
@@ -988,6 +1022,34 @@ export default function ProBotChatArea({
     autoSentRef.current = autoSendMessage;
     void sendMessage(autoSendMessage, autoSendPlaceId ? { placeShareId: autoSendPlaceId } : undefined).finally(() => onAutoSent?.());
   }, [autoSendMessage, autoSendPlaceId, visitorId, businessId, sending, sendMessage, onAutoSent]);
+
+  const canForwardMessage = useCallback((msg: ChatMessage) => {
+    if (msg.id.startsWith('stream-') || msg.id.startsWith('temp-') || msg.id.startsWith('local-')) return false;
+    const text = typeof msg.body === 'string' ? msg.body.trim() : '';
+    return text.length > 0 || (msg.attachments?.length ?? 0) > 0;
+  }, []);
+
+  const forwardMessage = useCallback(
+    async (contactIds: string[]) => {
+      if (!pendingForward) return;
+      const res = await fetch('/api/chat/messages/forward', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageId: pendingForward.id,
+          contactIds,
+          ...(visitorId ? { visitorId } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data.error === 'string' ? data.error : t('forwardFailed'));
+        throw new Error(typeof data.error === 'string' ? data.error : t('forwardFailed'));
+      }
+    },
+    [pendingForward, visitorId, t]
+  );
 
   const canDeleteMessage = useCallback(
     (msg: ChatMessage) => {
@@ -1695,9 +1757,16 @@ export default function ProBotChatArea({
   }
 
   return (
-    <div className={`flex flex-col min-h-0 overflow-hidden h-full ${PROBOT_CHAT_BG} probot-chat-area-pc-transparent`}>
+    <div className={`relative flex flex-col min-h-0 overflow-hidden h-full ${PROBOT_CHAT_BG} probot-chat-area-pc-transparent`}>
       {((!showWelcome && !showAdminInitialWelcome) || isAdminView) && (
-        <div className="probot-chat-header sticky top-0 z-10 border-b border-gray-200 px-2 md:px-4 py-2 shrink-0 bg-white md:bg-transparent flex items-center justify-between gap-2">
+        <div
+          className={`probot-chat-header z-10 px-2 md:px-4 py-2 shrink-0 flex items-center justify-between gap-2 ${
+            // Start screen: the bar floats over the smoke, see-through and without a line.
+            showProbotStart
+              ? 'absolute inset-x-0 top-0 border-b border-transparent bg-transparent'
+              : 'sticky top-0 border-b border-gray-200 bg-white md:bg-transparent'
+          }`}
+        >
           {isAdminView && adminViewingConversation && onExitAdminConversation ? (
             <>
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -2662,6 +2731,8 @@ export default function ProBotChatArea({
                   onCrmEstimateApproved={handleCrmEstimateApproved}
                   canDelete={canDeleteMessage}
                   onDelete={setPendingDelete}
+                  canForward={canForwardMessage}
+                  onForward={setPendingForward}
                   onReact={(msg, emoji) => void reactToMessage(msg, emoji)}
                   onAddPlaceToCrm={isProReplying ? addPlaceToCrm : undefined}
                   onCrmQuickAction={isAdminView && isContractor ? (kind) => setComposerKind(kind) : undefined}
@@ -2760,6 +2831,13 @@ export default function ProBotChatArea({
                     />
                   ) : null}
                 </Modal>
+                <ForwardMessageModal
+                  isOpen={Boolean(pendingForward)}
+                  contacts={contacts}
+                  currentContactId={selectedContact?.id}
+                  onClose={() => setPendingForward(null)}
+                  onForward={forwardMessage}
+                />
                 <SimpleConfirmDialog
                   isOpen={confirmDeleteChat}
                   onClose={() => setConfirmDeleteChat(false)}

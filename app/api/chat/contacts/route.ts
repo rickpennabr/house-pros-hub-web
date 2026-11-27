@@ -4,6 +4,7 @@ import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import { ADMIN_EMAIL } from '@/lib/constants/admin';
 import { getOwnedBusinessId } from '@/lib/auth/ownedBusiness';
 import { contactActivityAt, loadContactActivity, sortContactsByActivity } from '@/lib/chat/contact-activity';
+import { ensureOwnerConversation } from '@/lib/chat/owner-thread';
 
 /**
  * GET /api/chat/contacts
@@ -50,6 +51,10 @@ export async function GET(request: NextRequest) {
       conversationId?: string;
       visitorId?: string;
       profile_user_picture?: string | null;
+      /** Stays directly under ProBot (the pro's own personal account). */
+      pinned?: boolean;
+      /** This contact is the signed-in pro's personal account. */
+      self?: boolean;
     }> = [
       {
         id: 'probot',
@@ -205,6 +210,7 @@ export async function GET(request: NextRequest) {
         for (const c of list) {
           const lastActivityAt = lastActivityByConv.get(c.id) ?? '';
           if (c.user_id) {
+            if (c.user_id === user.id) continue; // The pro's own account is pinned under ProBot below.
             if (adminUserIdsSet.has(c.user_id)) continue; // Admin/hub agent: show only as ProBot, not as separate contact
             const profile = profileByUserId[c.user_id];
             if (seenUserIds.has(c.user_id)) {
@@ -217,6 +223,8 @@ export async function GET(request: NextRequest) {
               continue;
             }
             seenUserIds.add(c.user_id);
+            // Same person must not also appear as visitor-* (guest thread before they signed in).
+            seenVisitorIds.add(c.visitor_id);
             const profileName =
               profile?.first_name || profile?.last_name
                 ? [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
@@ -237,10 +245,16 @@ export async function GET(request: NextRequest) {
           } else {
             // Anonymous visitors who messaged this business: show so contractor can receive and reply
             if (seenVisitorIds.has(c.visitor_id)) {
-              const existing = chatContacts.find((item) => item.id === `visitor-${c.visitor_id}`);
-              if (existing && lastActivityAt > existing.lastActivityAt) {
-                existing.conversationId = c.id;
-                existing.lastActivityAt = lastActivityAt;
+              const existingVisitor = chatContacts.find((item) => item.id === `visitor-${c.visitor_id}`);
+              if (existingVisitor && lastActivityAt > existingVisitor.lastActivityAt) {
+                existingVisitor.conversationId = c.id;
+                existingVisitor.lastActivityAt = lastActivityAt;
+              }
+              const existingCustomer = chatContacts.find(
+                (item) => item.id.startsWith('customer-') && item.visitorId === c.visitor_id
+              );
+              if (existingCustomer && lastActivityAt > existingCustomer.lastActivityAt) {
+                existingCustomer.lastActivityAt = lastActivityAt;
               }
               continue;
             }
@@ -256,12 +270,19 @@ export async function GET(request: NextRequest) {
             });
           }
         }
-        chatContacts.sort((a, b) => {
+        // Visitor-first rows: drop visitor-* once a customer-* owns the same visitor_id.
+        const customerVisitorIds = new Set(
+          chatContacts.filter((item) => item.id.startsWith('customer-')).map((item) => item.visitorId)
+        );
+        const uniqueContacts = chatContacts.filter(
+          (item) => !item.id.startsWith('visitor-') || !customerVisitorIds.has(item.visitorId)
+        );
+        uniqueContacts.sort((a, b) => {
           const at = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
           const bt = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
           return bt - at;
         });
-        for (const item of chatContacts) {
+        for (const item of uniqueContacts) {
           const { lastActivityAt: _lastActivityAt, ...contact } = item;
           contacts.push(contact);
         }
@@ -286,6 +307,30 @@ export async function GET(request: NextRequest) {
           online: false,
         });
       }
+      // The pro's own personal account is always the second contact, right under ProBot.
+      const [profileRes, thread] = await Promise.all([
+        supabase.from('profiles').select('first_name, last_name, user_picture').eq('id', user.id).maybeSingle(),
+        ensureOwnerConversation(supabase, user.id).catch((err) => {
+          console.error('ProBot self contact thread:', err);
+          return null;
+        }),
+      ]);
+      const profile = profileRes.data as {
+        first_name?: string | null;
+        last_name?: string | null;
+        user_picture?: string | null;
+      } | null;
+      const profileName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim();
+      contacts.push({
+        id: `customer-${user.id}`,
+        name: profileName || 'Personal account',
+        isProBot: false,
+        conversationId: thread?.id,
+        visitorId: thread?.visitorId,
+        profile_user_picture: profile?.user_picture ?? null,
+        pinned: true,
+        self: true,
+      });
     } else {
       // Customer / visitor: ProBot + all businesses (current behavior)
       const { data: businesses } = await supabase

@@ -556,6 +556,8 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceRoleClient();
 
     let contractorReadBusinessId: string | null = null;
+    /** This thread belongs to the pro themselves, so only this business's messages are shown. */
+    let ownThread = false;
     if (!isAdmin && !hasVisitorId) {
       if (!supabaseServer || !user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -565,14 +567,19 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'visitorId required for visitor' }, { status: 400 });
       }
       contractorReadBusinessId = userBusinessId;
-      const { data: msgRow } = await supabase
-        .from('probot_messages')
-        .select('id')
-        .eq('conversation_id', parsed.data.conversationId)
-        .eq('business_id', userBusinessId)
-        .limit(1)
-        .maybeSingle();
-      if (!msgRow) {
+      const [{ data: msgRow }, { data: convOwner }] = await Promise.all([
+        supabase
+          .from('probot_messages')
+          .select('id')
+          .eq('conversation_id', parsed.data.conversationId)
+          .eq('business_id', userBusinessId)
+          .limit(1)
+          .maybeSingle(),
+        supabase.from('probot_conversations').select('user_id').eq('id', parsed.data.conversationId).maybeSingle(),
+      ]);
+      // The pro can open their own personal thread before the first message.
+      ownThread = convOwner?.user_id === user.id;
+      if (!msgRow && !ownThread) {
         return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
       }
     }
@@ -668,8 +675,10 @@ export async function GET(request: NextRequest) {
 
     let rows = rawMessages ?? [];
     if (contractorReadBusinessId) {
-      rows = rows.filter(
-        (m) => m.sender === 'admin' || m.business_id === contractorReadBusinessId
+      rows = rows.filter((m) =>
+        ownThread
+          ? m.business_id === contractorReadBusinessId
+          : m.sender === 'admin' || m.business_id === contractorReadBusinessId
       );
     }
 

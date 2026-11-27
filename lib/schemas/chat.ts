@@ -39,6 +39,13 @@ export const sendMessageSchema = z.object({
   path: ['body'],
 });
 
+/** Copy one message into up to five other chats. */
+export const forwardMessageSchema = z.object({
+  messageId: z.string().uuid(),
+  visitorId: z.string().trim().max(100).optional(),
+  contactIds: z.array(z.string().trim().min(1).max(80)).min(1).max(5),
+});
+
 export const getMessagesSchema = z.object({
   conversationId: z.string().uuid(),
   visitorId: z.string().trim().max(100).optional(), // for visitor verification

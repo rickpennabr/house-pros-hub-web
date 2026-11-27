@@ -1,12 +1,16 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useLayoutEffect, useRef, ReactNode, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { signOutSession } from '@/lib/auth/signOutSession';
 import { isValidEmail, isValidPassword, isNotEmpty } from '@/lib/validation';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import type { Profile } from '@/lib/types/supabase';
+import { clearSessionSnapshot, readSessionSnapshot, writeSessionSnapshot } from '@/lib/auth/session-snapshot';
+
+/** Layout effect in the browser (before paint), plain effect on the server. */
+const useBeforePaint = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 export interface User {
   id: string;
@@ -42,6 +46,11 @@ interface AuthContextType {
   isAdmin: boolean;
   roles: UserRole[];
   isLoading: boolean;
+  /**
+   * The server has confirmed the session. Before that, a signed-in screen may be drawn from this
+   * device's session snapshot. Wait for this before redirecting or acting on who the person is.
+   */
+  isVerified: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (userData: SignupData) => Promise<User>;
   logout: () => Promise<void>;
@@ -193,7 +202,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isVerified, setIsVerified] = useState(false);
   const router = useRouter();
+  /** The user drawn from the snapshot, until the server confirms (or replaces) them. */
+  const snapshotUserIdRef = useRef<string | null>(null);
+
+  // Before the first paint: draw the signed-in screen from this device's snapshot (only when the
+  // session cookie is there). checkAuth below confirms it, or clears it, a moment later.
+  useBeforePaint(() => {
+    const snapshot = readSessionSnapshot();
+    if (!snapshot) return;
+    snapshotUserIdRef.current = snapshot.user.id;
+    setUser({ email: '', ...snapshot.user });
+    setIsAdmin(snapshot.isAdmin);
+    setRoles(snapshot.roles as UserRole[]);
+    setIsLoading(false);
+  }, []);
+
+  /** Signed out, confirmed: forget the snapshot too. */
+  const markSignedOut = useCallback(() => {
+    snapshotUserIdRef.current = null;
+    clearSessionSnapshot();
+    setIsVerified(true);
+  }, []);
   const supabase = useMemo(() => createClient(), []);
   /** Prevents onAuthStateChange from calling loadUserFromSession while login() is doing it (avoids duplicate /api/auth/me). */
   const loginInProgressRef = useRef(false);
@@ -218,7 +249,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsAdmin(false);
         setRoles([]);
         setIsLoading(false);
+        markSignedOut();
         return;
+      }
+
+      // A different person than the snapshot showed: drop its admin flag and roles until /api/auth/me.
+      if (snapshotUserIdRef.current && snapshotUserIdRef.current !== session.user.id) {
+        setIsAdmin(false);
+        setRoles([]);
       }
 
       // Fetch profile from database
@@ -251,6 +289,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Map Supabase user and profile to our User interface
       const mappedUser = mapSupabaseUserToUser(session.user, profile, companyName, personalAddress);
       setUser(mappedUser);
+      snapshotUserIdRef.current = mappedUser.id;
+      setIsVerified(true);
       // Complete loading immediately so login/sign-in can resolve (avoids timeout when
       // cookies aren't yet updated after sign-in and /api/auth/me would hang or take 5s).
       setIsLoading(false);
@@ -267,6 +307,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(null);
             setIsAdmin(false);
             setRoles([]);
+            markSignedOut();
             void supabase.auth.signOut({ scope: 'local' }).finally(() => {
               loggingOutRef.current = false;
             });
@@ -289,7 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoles([]);
       setIsLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, markSignedOut]);
 
   const checkAuth = useCallback(async () => {
     const epoch = authEpochRef.current;
@@ -297,7 +338,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       if (stale()) return;
-      setIsLoading(true);
+      // A snapshot is on screen: keep it while we check, rather than going back to "loading".
+      if (!snapshotUserIdRef.current) setIsLoading(true);
 
       if (typeof window === 'undefined') {
         setIsLoading(false);
@@ -360,6 +402,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsAdmin(!!apiIsAdmin);
             setRoles(Array.isArray(userRoles) ? userRoles : []);
             setIsLoading(false);
+            snapshotUserIdRef.current = apiUser.id;
+            setIsVerified(true);
             return;
           }
         }
@@ -374,6 +418,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAdmin(false);
       setRoles([]);
       setIsLoading(false);
+      markSignedOut();
     } catch (error) {
       console.error('Error checking auth:', error);
       if (stale()) return;
@@ -381,8 +426,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAdmin(false);
       setRoles([]);
       setIsLoading(false);
+      markSignedOut();
     }
-  }, [supabase, loadUserFromSession]);
+  }, [supabase, loadUserFromSession, markSignedOut]);
 
   // Initialize auth state from Supabase session on mount
   useEffect(() => {
@@ -412,13 +458,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsAdmin(false);
         setRoles([]);
         setIsLoading(false);
+        markSignedOut();
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [checkAuth, loadUserFromSession, supabase]);
+  }, [checkAuth, loadUserFromSession, supabase, markSignedOut]);
 
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -667,6 +714,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(false);
     setRoles([]);
     setIsLoading(false);
+    markSignedOut();
 
     // Mark offline while the session cookie is still valid. Do not block sign-out on it.
     const presence = fetch('/api/chat/presence', {
@@ -688,7 +736,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loggingOutRef.current = false;
       router.refresh();
     }
-  }, [router, supabase]);
+  }, [router, supabase, markSignedOut]);
 
   const updateUser = useCallback(async (updates: Partial<User>): Promise<void> => {
     if (!user) {
@@ -860,12 +908,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  useEffect(() => {
+    if (!isVerified || !user) return;
+    writeSessionSnapshot(user as User & Record<string, unknown>, isAdmin, roles);
+  }, [isVerified, user, isAdmin, roles]);
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
     isAdmin,
     roles,
     isLoading,
+    isVerified,
     login,
     signup,
     logout,

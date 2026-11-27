@@ -73,7 +73,8 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   /** Group being hovered: it opens while the pointer is on it; a click keeps it open. */
   const [hoverGroup, setHoverGroup] = useState<string | null>(null);
-  useEffect(() => {
+  // Before paint, so saved settings never jump into place after the page shows.
+  useLayoutEffect(() => {
     try {
       const raw = localStorage.getItem(NAV_GROUPS_KEY);
       const parsed = raw ? JSON.parse(raw) : null;
@@ -159,9 +160,10 @@ export function CRMSidebar({ locale, mobileCollapsed = false }: CRMSidebarProps)
   ] as NavItem[]
   ).filter((item) => !realtorCalendarOnly || item.href.endsWith('/calendar') || item.href.endsWith('/qrcode'));
 
-  useEffect(() => setMounted(true), []);
+  useLayoutEffect(() => setMounted(true), []);
 
-  useEffect(() => {
+  // Before paint, so saved settings never jump into place after the page shows.
+  useLayoutEffect(() => {
     try {
       const raw = localStorage.getItem(NAV_ORDER_KEY);
       const parsed = raw ? JSON.parse(raw) : null;

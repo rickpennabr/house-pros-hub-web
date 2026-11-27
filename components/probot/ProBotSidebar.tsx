@@ -26,6 +26,10 @@ export interface ProBotContact {
   profile_user_picture?: string | null;
   /** Newest message in this chat (ISO). Drives the WhatsApp-style order: newest chat first under ProBot. */
   lastActivityAt?: string;
+  /** Stays directly under ProBot. Used for the pro's own personal account. */
+  pinned?: boolean;
+  /** The signed-in pro's personal account. */
+  self?: boolean;
 }
 
 /** One entry in a contact's ⋮ menu. */
@@ -412,7 +416,9 @@ export default function ProBotSidebar({
                     ? preview.voice && !preview.body
                       ? tList('voice')
                       : preview.body || (preview.attachments > 0 ? tList('photo') : tList('attachment'))
-                    : tList('tapToChat');
+                    : contact.self
+                      ? t('selfContactHint')
+                      : tList('tapToChat');
                   return (
                     <div key={contact.id} className="relative">
                     <button

@@ -3,7 +3,7 @@
 /* Hub is light-only. Never follow system/incognito dark mode — dark: utilities
    only apply under an explicit .dark ancestor, which we do not set. */
 @custom-variant dark (&:where(.dark, .dark *));
-@custom-variant phland (@media (orientation: landscape) and (max-height: 520px));
+@custom-variant phland (@media (orientation: landscape) and (min-aspect-ratio: 5/4));
 
 :root {
   color-scheme: light only;
@@ -2243,7 +2243,7 @@ input[type='search']::-webkit-search-decoration {
 }
 
 /* ProBot start screen: the cloud drifts gently. */
-@keyframes probot-cloud-drift { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-48%,-52%) scale(1.06); } }
+@keyframes probot-cloud-drift { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.08); } }
 .probot-cloud { animation: probot-cloud-drift 14s ease-in-out infinite; }
 .probot-cloud-slow { animation: probot-cloud-drift 22s ease-in-out infinite reverse; }
 

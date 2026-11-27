@@ -258,6 +258,8 @@ export default function CRMProjectsPage() {
   const [estimates, setEstimates] = useState<{ id: string; customer_id: string; amount_cents: number }[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** The record whose data is in the edit form. Until it matches editingId, show a placeholder, not empty fields. */
+  const [editLoadedId, setEditLoadedId] = useState<string | null>(null);
   const [formCustomerId, setFormCustomerId] = useState('');
   const [formEstimateId, setFormEstimateId] = useState('');
   const [formName, setFormName] = useState('');
@@ -322,6 +324,7 @@ export default function CRMProjectsPage() {
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
+        setEditLoadedId(editingId);
         setFormCustomerId(data.customerId ?? '');
         setFormEstimateId(data.estimateId ?? '');
         setFormName(data.name ?? '');
@@ -330,7 +333,8 @@ export default function CRMProjectsPage() {
         setFormEndDate(data.endDate ? data.endDate.slice(0, 10) : '');
         setFormNote(data.note ?? '');
       })
-      .catch(() => { if (!cancelled) setFormName(''); });
+      .catch(() => {
+        setEditLoadedId(editingId); if (!cancelled) setFormName(''); });
     return () => { cancelled = true; };
   }, [viewMode, editingId]);
 
@@ -638,6 +642,16 @@ export default function CRMProjectsPage() {
             </button>
             <span className="text-lg font-semibold text-gray-900">{viewMode === 'add' ? 'New Project' : 'Edit Project'}</span>
           </div>
+          {viewMode === 'edit' && editLoadedId !== editingId ? (
+            <div className="space-y-4" aria-busy="true">
+              {[0, 1, 2, 3].map((n) => (
+                <div key={n} className="space-y-2">
+                  <div className="h-4 w-28 animate-pulse rounded-md bg-gray-200" />
+                  <div className="h-11 animate-pulse rounded-lg bg-gray-100" />
+                </div>
+              ))}
+            </div>
+          ) : (
           <form onSubmit={viewMode === 'add' ? handleSubmitAdd : handleSubmitEdit} className="space-y-4">
             {formError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{formError}</div>}
             <FormField label="Customer" required>
@@ -682,6 +696,7 @@ export default function CRMProjectsPage() {
               <Button type="submit" variant="primary" size="sm" disabled={saving}>{saving ? 'Saving…' : viewMode === 'add' ? 'Create Project' : 'Save changes'}</Button>
             </div>
           </form>
+          )}
         </div>
       )}
 

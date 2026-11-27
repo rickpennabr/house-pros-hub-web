@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { Mic, RotateCcw, ThumbsDown, ThumbsUp, Building2, User, Check, CheckCheck, ChevronDown, Copy, Download, ImageIcon, Reply, Trash2, UserPlus, CalendarDays, Home as HomeIcon, FileText, Receipt, Sprout } from 'lucide-react';
+import { Mic, RotateCcw, ThumbsDown, ThumbsUp, Building2, User, Check, CheckCheck, ChevronDown, Copy, Download, Forward, ImageIcon, Reply, Trash2, UserPlus, CalendarDays, Home as HomeIcon, FileText, Receipt, Sprout } from 'lucide-react';
 import { ChatMediaAttachment } from '@/components/chat/ChatMediaAttachment';
 import { ProbotWorkWord } from '@/components/probot/ProbotWorkWord';
 import { ExpenseDraftCard } from '@/components/probot/ExpenseDraftCard';
@@ -16,6 +16,7 @@ import ChatDocCard, { CHAT_DOC_BUBBLE_WIDTH } from '@/components/chat/ChatDocCar
 import { LeadOfferCard } from '@/components/probot/LeadOfferCard';
 import { ProbotFollowupCard } from '@/components/probot/ProbotFollowupCard';
 import { PROBOT_ASSETS } from '@/lib/constants/probot';
+import { downloadFile } from '@/lib/media/download-file';
 import type { ChatCrmEstimateShare, ChatMessage } from '@/lib/types/chat';
 import ProAgentCards from './ProAgentCards';
 import { MessageActionsMenu, type MessageAction } from './MessageActionsMenu';
@@ -37,6 +38,8 @@ interface ProBotMessageBubbleProps {
   onCrmEstimateApproved?: (messageId: string, next: ChatCrmEstimateShare) => void;
   /** Shown on the viewer's own messages. Deletes for everyone. */
   onDelete?: (msg: ChatMessage) => void;
+  /** Copy this message into other chats. */
+  onForward?: (msg: ChatMessage) => void;
   /** Set or clear the viewer's emoji reaction (null clears). */
   onReact?: (msg: ChatMessage, emoji: string | null) => void;
   /** Pro side: add the customer who shared a place to the CRM. */
@@ -73,6 +76,7 @@ export default function ProBotMessageBubble({
   onReply,
   onCrmEstimateApproved,
   onDelete,
+  onForward,
   onReact,
   onAddPlaceToCrm,
   onPickTime,
@@ -201,17 +205,9 @@ export default function ProBotMessageBubble({
 
   const downloadAttachment = async (url: string, name: string) => {
     try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const href = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = href;
-      link.download = name || 'file';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(href), 1000);
+      await downloadFile(url, name || 'file');
     } catch {
+      // CORS can block a direct save; open only as a last resort.
       window.open(url, '_blank', 'noopener');
     }
   };
@@ -230,6 +226,9 @@ export default function ProBotMessageBubble({
       label: attachmentsToSave.length > 1 ? `${t('downloadFile')} ${index + 1}` : t('downloadFile'),
       onClick: () => void downloadAttachment(att.url, att.name),
     })),
+    ...(onForward
+      ? [{ key: 'forward', icon: <Forward className="h-4 w-4" />, label: t('forwardMessage'), onClick: () => onForward(msg) }]
+      : []),
     ...(onDelete
       ? [{ key: 'delete', icon: <Trash2 className="h-4 w-4" />, label: t('deleteMessageShort'), onClick: () => onDelete(msg), danger: true }]
       : []),
@@ -314,6 +313,12 @@ export default function ProBotMessageBubble({
                   : 'ProBot'}
             </p>
           )}
+          {msg.payload?.forwarded ? (
+            <p className="mb-0.5 flex items-center gap-1 text-xs italic text-gray-500">
+              <Forward className="h-3 w-3" aria-hidden />
+              {t('forwardedLabel')}
+            </p>
+          ) : null}
           {msg.replyTo ? (
             <p className="mb-1 truncate border-l-2 border-current/40 pl-2 text-xs opacity-80">
               {msg.replyTo.kind === 'photo'

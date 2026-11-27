@@ -73,8 +73,9 @@ export async function GET(
         .eq('conversation_id', conversationId)
         .eq('business_id', userBusinessId)
         .limit(1)
-        .single();
-      if (!msgRow) {
+        .maybeSingle();
+      // The pro's own personal account can be opened before anyone has written.
+      if (!msgRow && row.user_id !== user.id) {
         return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
       }
     }
@@ -176,18 +177,38 @@ export async function GET(
     const unreadCount = (unreadRes.data ?? []) as UnreadRow[];
 
     const bid = businessIdByConv.get(row.id);
+    // The pro opened their own personal account: this thread is with their business, not another pro they messaged.
+    const ownThread = !isAdmin && Boolean(userBusinessId) && row.user_id === user.id;
+    let ownBusiness: { business_name: string | null; business_logo: string | null } | null = null;
+    if (ownThread && userBusinessId) {
+      const { data: biz } = await supabase
+        .from('businesses')
+        .select('business_name, business_logo')
+        .eq('id', userBusinessId)
+        .maybeSingle();
+      ownBusiness = biz;
+    }
     // business_id on messages means the visitor messaged a pro — they are still the customer.
     // participant_type=contractor only when the other party is a pro in a hub (non-business) thread.
     const visitorMessagedABusiness = messagesList.some(
       (m) => m.sender === 'visitor' && Boolean(m.business_id)
     );
-    const participant_type =
-      visitorMessagedABusiness || !visitorOwnsABusiness
+    const participant_type = ownThread
+      ? ('customer' as const)
+      : visitorMessagedABusiness || !visitorOwnsABusiness
         ? ('customer' as const)
         : ('contractor' as const);
-    const business_name = bid ? businessNames[bid] : undefined;
-    const business_logo = bid ? (businessLogos[bid] ?? undefined) : undefined;
-    const business_id = bid ?? undefined;
+    const business_name = ownBusiness
+      ? (ownBusiness.business_name ?? userBusinessId ?? undefined)
+      : bid
+        ? businessNames[bid]
+        : undefined;
+    const business_logo = ownBusiness
+      ? (ownBusiness.business_logo ?? undefined)
+      : bid
+        ? (businessLogos[bid] ?? undefined)
+        : undefined;
+    const business_id = ownThread ? (userBusinessId ?? undefined) : (bid ?? undefined);
     const profile = row.user_id ? profileByUserId[row.user_id] : undefined;
     // When the "visitor" is any admin, show as ProBot only (one bot in History/header, never personal name/photo)
     const display_as_probot = row.user_id != null && adminUserIdsSet.has(row.user_id);

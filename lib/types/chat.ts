@@ -170,6 +170,8 @@ export interface ProAgentPayload {
   followup?: ChatProbotFollowup;
   /** This message is the pro's morning brief (shows a link to its settings). */
   morningBrief?: { date: string; locale?: 'en' | 'es' | 'pt' };
+  /** Copied from another chat. The bubble shows a Forwarded line; cards are not copied. */
+  forwarded?: boolean;
 }
 
 export interface ChatProbotFollowup {

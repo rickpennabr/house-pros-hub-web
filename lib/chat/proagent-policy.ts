@@ -270,7 +270,8 @@ export function parseAgentPayload(value: unknown): ProAgentPayload | null {
     const suggestions = row.suggestions.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 3);
     if (suggestions.length) payload.suggestions = suggestions.map((item) => item.slice(0, 120));
   }
-  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.crmInvoice && !payload.placeShare && !payload.leadOffer && !payload.bookingInvite && !payload.placeLinked && !payload.plantId && !payload.feedback && !payload.suggestions && !payload.expenseDraft && !payload.proAction && !payload.links) return null;
+  if (row.forwarded === true) payload.forwarded = true;
+  if (!payload.pros && !payload.confirm && !payload.confirmed && !payload.crmEstimate && !payload.crmInvoice && !payload.placeShare && !payload.leadOffer && !payload.bookingInvite && !payload.placeLinked && !payload.plantId && !payload.feedback && !payload.suggestions && !payload.expenseDraft && !payload.proAction && !payload.links && !payload.forwarded) return null;
   return payload;
 }
 

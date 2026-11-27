@@ -19,9 +19,13 @@ const PHONE_NUMBER = '702-232-0411';
 const PROBOT_BLACKOUT_MS = 500;
 
 interface BusinessListMobileBottomBarProps {
+  /** The session is still loading: spots 4 and 5 stay blank instead of flashing Sign in / Estimate. */
+  authPending?: boolean;
   /** Signed-in contractor, realtor, installer or handyman: Job cam on the far left. */
   showProAdd?: boolean;
   signedIn?: boolean;
+  /** PC: the same bar, floating and centered over the page instead of across the screen bottom. */
+  desktop?: boolean;
   addOpen?: boolean;
   /** Opens the Add menu (CRM creates on a business profile, places and requests on a personal one). */
   onAdd?: () => void;
@@ -42,8 +46,9 @@ interface BusinessListMobileBottomBarProps {
  * Mobile is card view only, so there are no view buttons. Settings is in the profile menu.
  */
 /** The notch: 63px opening (53px house + 5px gap each side), 44px deep (5px under the house); corners follow the house (8px + 5px gap = 13px) and the top edges curve in smoothly. */
-const NOTCH_SVG = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="75" height="44"><path d="M0 0H75A6 6 0 0 0 69 6V31A13 13 0 0 1 56 44H19A13 13 0 0 1 6 31V6A6 6 0 0 0 0 0Z"/></svg>');
-export const NOTCHED_BAR_MASK: import('react').CSSProperties = {
+const NOTCH_PATH = 'M0 0H75A6 6 0 0 0 69 6V31A13 13 0 0 1 56 44H19A13 13 0 0 1 6 31V6A6 6 0 0 0 0 0Z';
+const NOTCH_SVG = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="75" height="44"><path d="${NOTCH_PATH}"/></svg>`);
+const NOTCHED_BAR_MASK: import('react').CSSProperties = {
   WebkitMaskImage: `url("data:image/svg+xml,${NOTCH_SVG}"), linear-gradient(#000, #000)`,
   maskImage: `url("data:image/svg+xml,${NOTCH_SVG}"), linear-gradient(#000, #000)`,
   WebkitMaskRepeat: 'no-repeat',
@@ -56,9 +61,34 @@ export const NOTCHED_BAR_MASK: import('react').CSSProperties = {
   maskComposite: 'exclude',
 };
 
+/**
+ * Black bar whose top-center notch hugs the raised house.
+ * The cutout is filled white so the page never shows through the gap around the center button.
+ */
+export function NotchedBarBg({ rounded = false }: { rounded?: boolean }) {
+  return (
+    <>
+      <svg
+        aria-hidden
+        viewBox="0 0 75 44"
+        className="pointer-events-none absolute left-1/2 top-0 -z-20 h-[44px] w-[75px] -translate-x-1/2"
+      >
+        <path fill="#ffffff" d={NOTCH_PATH} />
+      </svg>
+      <div
+        aria-hidden
+        className={`pointer-events-none absolute inset-0 -z-10 bg-black ${rounded ? 'rounded-lg' : ''}`}
+        style={NOTCHED_BAR_MASK}
+      />
+    </>
+  );
+}
+
 export default function BusinessListMobileBottomBar({
   showProAdd = false,
   signedIn = false,
+  desktop = false,
+  authPending = false,
   addOpen = false,
   onAdd,
   addLabel = 'Add',
@@ -91,7 +121,7 @@ export default function BusinessListMobileBottomBar({
       Beta
     </span>
   );
-  /** The thin white square the side icons sit in (the center house has the thick one). */
+  /** The thin white square the side icons sit in (the center house sits on the black tab). */
   const box = (children: ReactNode, extra = '') => (
     <span className={`flex h-9 w-9 items-center justify-center rounded-lg border-2 border-white ${extra}`}>{children}</span>
   );
@@ -140,7 +170,7 @@ export default function BusinessListMobileBottomBar({
     : `/signup?role=customer&returnUrl=${encodeURIComponent(`/${locale}/myplaces`)}`;
   const center = (
     <button type="button" onClick={() => go(homeTarget)} className={item.replace('relative ', '')} aria-label={homeLabel}>
-      {/* Raised above the other icons' line. */}
+      {/* Raised above the other icons' line, on the black tab. */}
       <span className="relative z-10 -mt-[46px] -translate-y-3 flex h-[53px] w-[53px] items-center justify-center rounded-lg bg-black">
         <HouseMark variant="plain" tone="light" className="h-10 w-10" />
         {signedIn ? <NotificationCount count={home.count} className="pointer-events-none absolute -right-3 -top-3 z-10" /> : null}
@@ -184,19 +214,31 @@ export default function BusinessListMobileBottomBar({
     </button>
   );
 
+  /** Same size as a spot, nothing in it, while we find out who is signed in. */
+  const placeholder = (
+    <span className={item} aria-hidden>
+      {box(null, 'opacity-30')}
+      <span className="invisible">.</span>
+    </span>
+  );
+
   const bar = (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[100] flex items-end px-1 pt-1.5"
+      className={
+        desktop
+          ? 'fixed bottom-[75px] left-1/2 z-[100] flex w-[440px] -translate-x-1/2 items-end rounded-lg px-1 pt-1.5 shadow-lg'
+          : 'fixed bottom-0 left-0 right-0 z-[100] flex items-end px-1 pt-1.5'
+      }
       aria-label="Main menu"
       style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom, 0px))' }}
     >
-      {/* Black background with a see-through notch around the raised center house (like a cut-out). */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-black" style={NOTCHED_BAR_MASK} />
+      {/* Black bar. The notch is white behind the house so the page does not show through the gap. */}
+      <NotchedBarBg rounded={desktop} />
       {first}
       {probot}
       {center}
-      {fourth}
-      {fifth}
+      {authPending ? placeholder : fourth}
+      {authPending ? placeholder : fifth}
     </nav>
   );
 

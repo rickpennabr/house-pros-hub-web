@@ -331,6 +331,8 @@ export default function CRMExpensesPage() {
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** The record whose data is in the edit form. Until it matches editingId, show a placeholder, not empty fields. */
+  const [editLoadedId, setEditLoadedId] = useState<string | null>(null);
   const [formProjectId, setFormProjectId] = useState('');
   const [projectName, setProjectName] = useState('');
   /** Maintenance houses (plans): a job cost can go on one instead of a project. */
@@ -506,6 +508,7 @@ export default function CRMExpensesPage() {
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
+        setEditLoadedId(editingId);
         setFormProjectId(data.projectId ?? '');
         setOriginalPlanId(data.maintenancePlanId ?? null);
         if (!data.projectId && data.maintenancePlanId) {
@@ -534,7 +537,8 @@ export default function CRMExpensesPage() {
           ));
         }
       })
-      .catch(() => { if (!cancelled) setFormAmountDollars(''); });
+      .catch(() => {
+        setEditLoadedId(editingId); if (!cancelled) setFormAmountDollars(''); });
     return () => { cancelled = true; };
   }, [viewMode, editingId]);
 
@@ -925,6 +929,16 @@ export default function CRMExpensesPage() {
             </button>
             <span className="text-lg font-semibold text-gray-900">{viewMode === 'add' ? 'New Expense' : 'Edit Expense'}</span>
           </div>
+          {viewMode === 'edit' && editLoadedId !== editingId ? (
+            <div className="space-y-4" aria-busy="true">
+              {[0, 1, 2, 3].map((n) => (
+                <div key={n} className="space-y-2">
+                  <div className="h-4 w-28 animate-pulse rounded-md bg-gray-200" />
+                  <div className="h-11 animate-pulse rounded-lg bg-gray-100" />
+                </div>
+              ))}
+            </div>
+          ) : (
           <form onSubmit={viewMode === 'add' ? handleSubmitAdd : handleSubmitEdit} className="space-y-4">
             {formError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">{formError}</div>}
             <div>
@@ -1105,6 +1119,7 @@ export default function CRMExpensesPage() {
               <Button type="submit" variant="primary" size="sm" disabled={saving}>{saving ? 'Saving…' : viewMode === 'add' ? 'Create Expense' : 'Save changes'}</Button>
             </div>
           </form>
+          )}
         </div>
       )}
 

@@ -5,9 +5,9 @@
 
 ## Look
 - Solid black bar, full width, five equal spots, a small white label under each icon (like Venmo).
-- Side icons sit in a thin white square: `rounded-lg border-2 border-white`, 32px.
-- The center button is the raised house: 48px square, `border-[5px] border-white`, black inside, raised over the bar, with the notification counter on its corner.
-- House icons come from `HouseMark` (`components/icons/HouseMark.tsx`): red roof, white walls on the black bar (`tone="light"`). Variants: `plain` (person, center), `business` (briefcase, CRM), `plus` (Add).
+- Side icons sit in a thin outlined square: `rounded-lg border-2 border-white` (open on the bar).
+- The center button is the raised house: 53px black square (`rounded-lg bg-black`), sitting in a rounded notch so the bar rises as a black tab around it. The gap between that tab and the house is solid white, never a see-through hole. The notification counter sits on its corner.
+- House icons use `HouseMark` with `tone="light"` (white walls on the black bar), including the center house. Variants: `plain` (person, center), `business` (briefcase, CRM), `plus` (Add), `gear` (Accounts).
 - Bottom padding uses `env(safe-area-inset-bottom)` so labels clear the iPhone home bar.
 - Mobile is card view only, so the bar has no view buttons. Settings lives in the profile menu.
 

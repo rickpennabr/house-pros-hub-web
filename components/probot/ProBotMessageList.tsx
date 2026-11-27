@@ -32,6 +32,8 @@ interface ProBotMessageListProps {
   onCrmEstimateApproved?: (messageId: string, next: ChatCrmEstimateShare) => void;
   canDelete?: (msg: ChatMessage) => boolean;
   onDelete?: (msg: ChatMessage) => void;
+  canForward?: (msg: ChatMessage) => boolean;
+  onForward?: (msg: ChatMessage) => void;
   onReact?: (msg: ChatMessage, emoji: string | null) => void;
   onAddPlaceToCrm?: (msg: ChatMessage) => Promise<void>;
   onPickTime?: (msg: ChatMessage) => void;
@@ -64,6 +66,8 @@ export default function ProBotMessageList({
   onCrmEstimateApproved,
   canDelete,
   onDelete,
+  canForward,
+  onForward,
   onReact,
   onAddPlaceToCrm,
   onPickTime,
@@ -151,6 +155,7 @@ export default function ProBotMessageList({
           onReply={onReply}
           onCrmEstimateApproved={onCrmEstimateApproved}
           onDelete={onDelete && canDelete?.(msg) ? onDelete : undefined}
+          onForward={onForward && (!canForward || canForward(msg)) ? onForward : undefined}
           onReact={onReact}
           onAddPlaceToCrm={onAddPlaceToCrm}
           onPickTime={onPickTime}

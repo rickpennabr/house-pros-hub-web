@@ -320,7 +320,8 @@ export function AdminDataTable<T>({
     if (internalPage > pages) setInternalPage(pages);
   }, [clientSide, filteredRows.length, internalPage, pageSize]);
 
-  useEffect(() => {
+  // Before paint, so saved settings never jump into place after the page shows.
+  useLayoutEffect(() => {
     if (!columnOrderKey) return;
     try {
       const storedOrder = localStorage.getItem(columnOrderKey);

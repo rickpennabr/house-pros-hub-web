@@ -51,6 +51,7 @@ export function LogHoursModal({
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [entriesLoaded, setEntriesLoaded] = useState(false);
   const [personId, setPersonId] = useState('');
   const [personName, setPersonName] = useState('');
   const [workDate, setWorkDate] = useState(todayKey);
@@ -68,8 +69,9 @@ export function LogHoursModal({
       .then((body: { entries?: TimeEntry[]; setupError?: string }) => {
         setEntries(body.entries ?? []);
         setSetupError(body.setupError ?? null);
+        setEntriesLoaded(true);
       })
-      .catch(() => undefined);
+      .catch(() => setEntriesLoaded(true));
 
   useEffect(() => {
     void loadEntries();
@@ -228,7 +230,9 @@ export function LogHoursModal({
               {totalHours} h · {money(totalCost)}
             </span>
           </div>
-          {entries.length === 0 ? (
+          {!entriesLoaded ? (
+            <div className="h-10 animate-pulse rounded-lg bg-gray-100" aria-busy="true" />
+          ) : entries.length === 0 ? (
             <p className="text-sm text-gray-500">No hours logged yet.</p>
           ) : (
             <ul className="max-h-64 space-y-1 overflow-y-auto">

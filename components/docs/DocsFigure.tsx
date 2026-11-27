@@ -31,16 +31,17 @@ interface DocsFigureProps {
   className?: string;
 }
 
-/** Flat ProBot figure with a simple trade costume — no 3D, just the Hub bot + props. */
+/** Flat ProBot figure — face stays clear; trade prop sits in the corner. */
 export function DocsFigure({ role, label, size = 'md', className = '' }: DocsFigureProps) {
   const px = size === 'lg' ? 96 : size === 'sm' ? 56 : 72;
+  const box = px + 16;
   const caption = label ?? ROLE_LABEL[role];
 
   return (
     <div className={`flex flex-col items-center gap-1.5 ${className}`}>
       <div
         className={`relative flex items-center justify-center overflow-hidden rounded-lg border-2 border-black ${ROLE_TINT[role]}`}
-        style={{ width: px + 16, height: px + 16 }}
+        style={{ width: box, height: box }}
       >
         <Image
           src={PROBOT_ASSETS.avatar}
@@ -49,68 +50,52 @@ export function DocsFigure({ role, label, size = 'md', className = '' }: DocsFig
           height={px}
           className="object-contain"
         />
-        <Costume role={role} />
+        {role !== 'guide' ? <RoleBadge role={role} /> : null}
       </div>
       <p className="max-w-[7.5rem] text-center text-xs font-medium leading-tight text-gray-800">{caption}</p>
     </div>
   );
 }
 
-function Costume({ role }: { role: DocsFigureRole }) {
-  if (role === 'guide') return null;
-
+/** Small prop in the bottom-right — never draws over the face. */
+function RoleBadge({ role }: { role: Exclude<DocsFigureRole, 'guide'> }) {
   return (
-    <svg
+    <span
+      className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-md border-2 border-black bg-white shadow-sm"
       aria-hidden
-      viewBox="0 0 64 64"
-      className="pointer-events-none absolute inset-0 h-full w-full"
     >
-      {role === 'business' ? (
-        <>
-          <rect x="22" y="8" width="20" height="6" rx="1" fill="#111" />
-          <path d="M28 14h8l2 10H26l2-10Z" fill="#1f2937" />
-          <rect x="38" y="36" width="14" height="10" rx="1" fill="#78350f" stroke="#111" strokeWidth="1.5" />
-        </>
-      ) : null}
-      {role === 'customer' ? (
-        <>
-          <path d="M12 28 L22 20 L32 28 V38 H12 Z" fill="#059669" stroke="#111" strokeWidth="1.5" />
-          <rect x="18" y="30" width="5" height="8" fill="#fff" stroke="#111" strokeWidth="1" />
-        </>
-      ) : null}
-      {role === 'plumber' ? (
-        <>
-          <path d="M18 10 h28 l-4 8 H22 Z" fill="#f59e0b" stroke="#111" strokeWidth="1.5" />
-          <rect x="26" y="6" width="12" height="5" rx="1" fill="#b45309" />
-          <path d="M40 34 h14 v3 h-6 v10 h-3 v-10 h-5 Z" fill="#64748b" stroke="#111" strokeWidth="1.2" />
-        </>
-      ) : null}
-      {role === 'landscaper' ? (
-        <>
-          <ellipse cx="48" cy="22" rx="10" ry="7" fill="#65a30d" stroke="#111" strokeWidth="1.2" />
-          <path d="M48 28 v12" stroke="#166534" strokeWidth="2" />
-          <path d="M14 40 h16 l-2 8 H16 Z" fill="#854d0e" stroke="#111" strokeWidth="1.2" />
-        </>
-      ) : null}
-      {role === 'electrician' ? (
-        <>
-          <path d="M18 10 h28 l-4 8 H22 Z" fill="#eab308" stroke="#111" strokeWidth="1.5" />
-          <path d="M44 30 l8 10 h-6 l4 12 -10-14 h6 Z" fill="#facc15" stroke="#111" strokeWidth="1.2" />
-        </>
-      ) : null}
-      {role === 'painter' ? (
-        <>
-          <rect x="40" y="28" width="14" height="10" rx="1" fill="#e11d48" stroke="#111" strokeWidth="1.2" />
-          <path d="M44 38 v12" stroke="#111" strokeWidth="2" />
-          <circle cx="20" cy="18" r="6" fill="#fb7185" stroke="#111" strokeWidth="1.2" />
-        </>
-      ) : null}
-      {role === 'crew' ? (
-        <>
-          <path d="M18 10 h28 l-4 8 H22 Z" fill="#ea580c" stroke="#111" strokeWidth="1.5" />
-          <rect x="40" y="34" width="12" height="8" rx="1" fill="#9a3412" stroke="#111" strokeWidth="1.2" />
-        </>
-      ) : null}
-    </svg>
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
+        {role === 'business' ? (
+          <>
+            <rect x="4" y="8" width="16" height="11" rx="1.5" fill="#78350f" stroke="#111" strokeWidth="1.4" />
+            <path d="M9 8V7a3 3 0 0 1 6 0v1" stroke="#111" strokeWidth="1.4" />
+          </>
+        ) : null}
+        {role === 'customer' ? (
+          <path d="M4 11 L12 5 L20 11 V19 H4 Z" fill="#059669" stroke="#111" strokeWidth="1.4" />
+        ) : null}
+        {role === 'plumber' ? (
+          <path d="M7 6h10v2H7zm3 2h4v3h3v2h-3v5h-2v-5H8v-2h3z" fill="#64748b" stroke="#111" strokeWidth="1" />
+        ) : null}
+        {role === 'landscaper' ? (
+          <>
+            <ellipse cx="12" cy="10" rx="7" ry="5" fill="#65a30d" stroke="#111" strokeWidth="1.3" />
+            <path d="M12 14v5" stroke="#166534" strokeWidth="2" />
+          </>
+        ) : null}
+        {role === 'electrician' ? (
+          <path d="M11 3 L7 13 h4 l-1 8 7-12 h-4 l2-6 Z" fill="#eab308" stroke="#111" strokeWidth="1.2" />
+        ) : null}
+        {role === 'painter' ? (
+          <>
+            <rect x="5" y="5" width="10" height="8" rx="1" fill="#e11d48" stroke="#111" strokeWidth="1.2" />
+            <path d="M10 13v7" stroke="#111" strokeWidth="2" />
+          </>
+        ) : null}
+        {role === 'crew' ? (
+          <path d="M4 9h16l-3 5H7Z" fill="#ea580c" stroke="#111" strokeWidth="1.3" />
+        ) : null}
+      </svg>
+    </span>
   );
 }

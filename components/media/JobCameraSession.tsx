@@ -11,6 +11,11 @@ import { autoFocusTrack, canUseLiveCamera, clearPrimedCamera, openLiveCamera, re
 import { playCameraShutter, primeCameraShutter } from '@/lib/media/camera-shutter';
 import { revealVideoDuration, webmWithDuration } from '@/lib/media/webm-duration';
 
+/** Close, gallery, flip, and video toggle — one size everywhere. */
+const CAM_ICON_BTN =
+  'relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white/15 disabled:opacity-40';
+const CAM_ICON = 'h-5 w-5';
+
 interface Shot {
   id: string;
   file: File;
@@ -178,7 +183,8 @@ function RecordedPreview({ url, durationMs }: { url: string; durationMs?: number
 /**
  * Shared ProCam frame for Job and Fix.
  * Both fill the same bordered frame and save the crop you see.
- * The shutter stays centered. Video mode turns that center red.
+ * The shutter stays centered with a camera or video icon. Video mode turns that center red.
+ * Gallery sits bottom-left on the frame. In landscape, flip is above the shutter and video below.
  * Job still adds a caption and can pick from ProDrive. Fix stops at a few clips.
  */
 export function JobCameraSession({
@@ -609,8 +615,8 @@ export function JobCameraSession({
   if (!open || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex flex-col overflow-hidden bg-black text-white phland:grid phland:grid-cols-[minmax(0,1fr)_auto] phland:grid-rows-[auto_minmax(0,1fr)]">
-      <div className="relative flex items-center justify-between gap-3 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))] phland:col-start-1 phland:row-start-1 phland:py-1">
+    <div className="fixed inset-0 z-[120] flex flex-col overflow-hidden bg-black text-white phland:grid phland:grid-cols-[auto_minmax(0,1fr)_auto] phland:grid-rows-[minmax(0,1fr)]">
+      <div className="relative flex items-center justify-between gap-3 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))] phland:col-start-1 phland:row-start-1 phland:h-full phland:flex-col phland:items-center phland:justify-between phland:gap-3 phland:py-3 phland:pl-[max(0.75rem,env(safe-area-inset-left))]">
         <button
           type="button"
           onClick={() => {
@@ -621,44 +627,99 @@ export function JobCameraSession({
               setCaption('');
             } else onBack();
           }}
-          className="relative z-10 flex h-12 w-12 items-center justify-center rounded-lg bg-white/15"
+          className={CAM_ICON_BTN}
           aria-label={t('back')}
         >
-          <X className="h-5 w-5" />
+          <X className={CAM_ICON} />
         </button>
         {isFix ? (
-          <div className="pointer-events-none absolute inset-x-14 flex flex-col items-center justify-center">
-            <div className="flex items-center gap-2">
-              <span className="block h-6 w-[1.8rem] shrink-0 sm:h-7 sm:w-8">
-                <RepairCameraMark line="white" />
-              </span>
-              <p className="truncate text-base font-bold leading-none tracking-tight sm:text-2xl">{title}</p>
+          <div className="pointer-events-none absolute inset-x-14 flex flex-col items-center justify-center phland:static phland:flex phland:h-56 phland:w-14 phland:shrink phland:items-center phland:justify-center">
+            <div className="flex flex-col items-center whitespace-nowrap phland:-rotate-90">
+              <div className="flex items-center gap-2">
+                <span className="block h-6 w-[1.8rem] shrink-0 sm:h-7 sm:w-8">
+                  <RepairCameraMark line="white" />
+                </span>
+                <p className="text-base font-bold leading-none tracking-tight sm:text-2xl">{title}</p>
+              </div>
+              {subtitle ? (
+                <p className="mt-0.5 whitespace-nowrap text-xs text-white/80 phland:mt-2 phland:text-center">
+                  {subtitle}
+                </p>
+              ) : null}
             </div>
-            {subtitle ? <p className="mt-0.5 max-w-full truncate text-xs text-white/80">{subtitle}</p> : null}
           </div>
         ) : (
-          <div className="min-w-0 flex-1 text-center">
+          <div className="min-w-0 flex-1 text-center phland:hidden">
             <p className="truncate font-bold">{title}</p>
             {subtitle ? <p className="truncate text-xs text-white/70">{subtitle}</p> : null}
           </div>
+        )}
+        {/* Gallery — same size/style as the X; bottom of the left rail in landscape. */}
+        {!draft && !saved ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (isFix) {
+                libraryInputRef.current?.click();
+                return;
+              }
+              setAddOpen(true);
+            }}
+            disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
+            className={`${CAM_ICON_BTN} hidden overflow-visible phland:flex`}
+            aria-label={t('photosFromLibrary')}
+          >
+            {shots.length === 0 ? (
+              <ImagePlus className={CAM_ICON} />
+            ) : (
+              shots.slice(-5).map((shot, index, stack) => {
+                const fromNewest = stack.length - 1 - index;
+                const step = Math.ceil(fromNewest / 2);
+                const side = fromNewest === 0 ? 0 : (fromNewest % 2 === 1 ? -1 : 1);
+                return (
+                  <span
+                    key={shot.id}
+                    className="absolute bottom-1 overflow-hidden rounded-md border-2 border-white bg-black shadow-md"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      left: 8,
+                      transform: `translateX(${side * step * 6}px) rotate(${side * step * 8}deg)`,
+                      transformOrigin: 'center bottom',
+                      zIndex: stack.length - fromNewest,
+                    }}
+                  >
+                    {shot.video ? (
+                      <video src={shot.url} muted playsInline className="h-full w-full object-cover" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={shot.url} alt="" className="h-full w-full object-cover" />
+                    )}
+                  </span>
+                );
+              })
+            )}
+          </button>
+        ) : (
+          <span className="hidden h-12 w-12 shrink-0 phland:block" aria-hidden />
         )}
         {live ? (
           <button
             type="button"
             onClick={() => void startLive(facingRef.current === 'environment' ? 'user' : 'environment')}
             disabled={recording}
-            className="relative z-10 flex h-12 w-12 items-center justify-center rounded-lg bg-white/15 disabled:opacity-40"
+            className={`${CAM_ICON_BTN} phland:hidden`}
             aria-label={t('flipCamera')}
           >
-            <SwitchCamera className="h-5 w-5" />
+            <SwitchCamera className={CAM_ICON} />
           </button>
         ) : (
-          <span className="h-12 w-12" />
+          <span className="h-12 w-12 shrink-0 phland:hidden" aria-hidden />
         )}
       </div>
 
       <div
-        className="relative mx-2 my-2 flex min-h-0 flex-1 items-center justify-center md:mx-auto md:w-[80%] phland:col-start-1 phland:row-start-2 phland:mx-2 phland:mt-0 phland:w-auto"
+        className="relative mx-2 my-2 flex min-h-0 flex-1 items-center justify-center md:mx-auto md:w-[80%] phland:col-start-2 phland:row-start-1 phland:!mx-1 phland:!my-2 phland:!w-auto"
         style={{ containerType: 'size' }}
       >
       <div
@@ -701,12 +762,59 @@ export function JobCameraSession({
             {`${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`}
           </p>
         ) : null}
-        {error ? <p className="absolute inset-x-4 top-14 rounded-lg bg-red-600 px-3 py-2 text-sm">{error}</p> : null}
+        {error ? <p className="absolute inset-x-4 top-14 z-10 rounded-lg bg-red-600 px-3 py-2 text-sm">{error}</p> : null}
+        {/* Portrait: gallery bottom-left on the frame, same size as the X. */}
+        {!draft && !saved ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (isFix) {
+                libraryInputRef.current?.click();
+                return;
+              }
+              setAddOpen(true);
+            }}
+            disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
+            className={`${CAM_ICON_BTN} absolute bottom-3 left-3 overflow-visible phland:hidden`}
+            aria-label={t('photosFromLibrary')}
+          >
+            {shots.length === 0 ? (
+              <ImagePlus className={CAM_ICON} />
+            ) : (
+              shots.slice(-5).map((shot, index, stack) => {
+                const fromNewest = stack.length - 1 - index;
+                const step = Math.ceil(fromNewest / 2);
+                const side = fromNewest === 0 ? 0 : (fromNewest % 2 === 1 ? -1 : 1);
+                return (
+                  <span
+                    key={shot.id}
+                    className="absolute bottom-1 overflow-hidden rounded-md border-2 border-white bg-black shadow-md"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      left: 8,
+                      transform: `translateX(${side * step * 6}px) rotate(${side * step * 8}deg)`,
+                      transformOrigin: 'center bottom',
+                      zIndex: stack.length - fromNewest,
+                    }}
+                  >
+                    {shot.video ? (
+                      <video src={shot.url} muted playsInline className="h-full w-full object-cover" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={shot.url} alt="" className="h-full w-full object-cover" />
+                    )}
+                  </span>
+                );
+              })
+            )}
+          </button>
+        ) : null}
       </div>
       </div>
 
       {saved ? (
-        <div className="rounded-t-3xl bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 text-black phland:col-start-2 phland:row-span-2 phland:row-start-1 phland:w-72 phland:overflow-y-auto phland:rounded-none">
+        <div className="rounded-t-3xl bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 text-black phland:col-start-3 phland:row-start-1 phland:w-72 phland:overflow-y-auto phland:rounded-none">
           <p className="text-center text-sm text-gray-600">{t('savedCount', { count: shots.length })}</p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {shots.map((shot) => shot.video ? (
@@ -725,7 +833,7 @@ export function JobCameraSession({
           </button>
         </div>
       ) : draft ? (
-        <div className="bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 text-black phland:col-start-2 phland:row-span-2 phland:row-start-1 phland:w-72 phland:overflow-y-auto">
+        <div className="bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 text-black phland:col-start-3 phland:row-start-1 phland:w-72 phland:overflow-y-auto">
           {isFix ? null : (
             <textarea
               ref={captionRef}
@@ -746,9 +854,9 @@ export function JobCameraSession({
           </button>
         </div>
       ) : (
-        <div className="shrink-0 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 phland:col-start-2 phland:row-span-2 phland:row-start-1 phland:flex phland:flex-col phland:justify-center phland:px-3 phland:py-3 phland:pr-[max(0.75rem,env(safe-area-inset-right))]">
+        <div className="shrink-0 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 phland:col-start-3 phland:row-start-1 phland:flex phland:h-full phland:flex-col phland:items-center phland:justify-between phland:px-3 phland:py-3 phland:pr-[max(0.75rem,env(safe-area-inset-right))]">
           {shots.length > 0 ? (
-            <div className="mb-2 flex items-center justify-center gap-3 text-[11px] font-bold uppercase tracking-wide">
+            <div className="mb-2 flex items-center justify-center gap-3 text-[11px] font-bold uppercase tracking-wide phland:mb-0">
               <button
                 type="button"
                 onClick={() => setCaptureMode('video')}
@@ -767,55 +875,22 @@ export function JobCameraSession({
               </button>
             </div>
           ) : null}
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 phland:grid-cols-1 phland:justify-items-center phland:gap-5">
-          <div className="relative justify-self-start phland:justify-self-center" style={{ width: 48, height: 48 }}>
-          <button
-            type="button"
-            onClick={() => {
-              if (isFix) {
-                libraryInputRef.current?.click();
-                return;
-              }
-              setAddOpen(true);
-            }}
-            disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
-            className="relative flex h-full w-full items-center justify-center overflow-visible rounded-lg disabled:opacity-50"
-            aria-label={t('photosFromLibrary')}
-          >
-            {shots.length === 0 ? (
-              <span className="flex h-full w-full items-center justify-center rounded-lg bg-white/15">
-                <ImagePlus className="h-5 w-5" />
-              </span>
-            ) : (
-              shots.slice(-5).map((shot, index, stack) => {
-                const fromNewest = stack.length - 1 - index;
-                const step = Math.ceil(fromNewest / 2);
-                const side = fromNewest === 0 ? 0 : (fromNewest % 2 === 1 ? -1 : 1);
-                return (
-                  <span
-                    key={shot.id}
-                    className="absolute bottom-0 overflow-hidden rounded-md border-2 border-white bg-black shadow-md"
-                    style={{
-                      width: 40,
-                      height: 40,
-                      left: 4,
-                      transform: `translateX(${side * step * 8}px) rotate(${side * step * 8}deg)`,
-                      transformOrigin: 'center bottom',
-                      zIndex: stack.length - fromNewest,
-                    }}
-                  >
-                    {shot.video ? (
-                      <video src={shot.url} muted playsInline className="h-full w-full object-cover" />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={shot.url} alt="" className="h-full w-full object-cover" />
-                    )}
-                  </span>
-                );
-              })
-            )}
-          </button>
-          </div>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 phland:flex phland:h-full phland:flex-col phland:items-center phland:justify-between">
+          {/* Flip — top, same chrome as the X. */}
+          {live ? (
+            <button
+              type="button"
+              onClick={() => void startLive(facingRef.current === 'environment' ? 'user' : 'environment')}
+              disabled={recording}
+              className={`${CAM_ICON_BTN} hidden phland:flex`}
+              aria-label={t('flipCamera')}
+            >
+              <SwitchCamera className={CAM_ICON} />
+            </button>
+          ) : (
+            <span className="hidden h-12 w-12 shrink-0 phland:block" aria-hidden />
+          )}
+          <span className="h-12 w-12 justify-self-start phland:hidden" aria-hidden />
           <button
             type="button"
             onClick={() => {
@@ -828,37 +903,48 @@ export function JobCameraSession({
             }}
             disabled={saving || (maxShots != null && shots.length >= maxShots && !recording)}
             aria-label={captureMode === 'video' ? (recording ? t('stopVideo') : t('video')) : t('shutter')}
-            className="flex shrink-0 items-center justify-center rounded-lg border-4 border-white disabled:opacity-50"
-            style={{ width: 76, height: 76 }}
+            className="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-lg border-4 border-white disabled:opacity-50"
           >
             <span
-              className={`block rounded-lg transition-transform duration-150 ${captureMode === 'video' ? 'bg-red-600' : 'bg-white'}`}
+              className={`flex h-[60px] w-[60px] items-center justify-center rounded-lg transition-transform duration-150 ${
+                captureMode === 'video' ? 'bg-red-600 text-white' : 'bg-white text-black'
+              }`}
               style={{
-                width: 60,
-                height: 60,
                 transform: captureMode === 'video' && recording ? 'scale(0.72)' : 'scale(1)',
               }}
-            />
-          </button>
-          <div className="flex shrink-0 flex-col items-end gap-2 justify-self-end phland:items-center phland:justify-self-center">
-            {shots.length > 0 ? null : (
-            <button
-              type="button"
-              onClick={() => setCaptureMode((mode) => (mode === 'video' ? 'photo' : 'video'))}
-              disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
-              className="flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/15 disabled:opacity-50"
-              style={{ width: 48, height: 48 }}
-              aria-label={captureMode === 'video' ? t('shutter') : t('video')}
             >
-              {captureMode === 'video' ? <Camera className="h-5 w-5" /> : <Video className="h-5 w-5" />}
-            </button>
+              {captureMode === 'video' ? (
+                recording ? (
+                  <span className="h-5 w-5 rounded-sm bg-white" aria-hidden />
+                ) : (
+                  <Video className="h-7 w-7" aria-hidden />
+                )
+              ) : (
+                <Camera className="h-7 w-7" aria-hidden />
+              )}
+            </span>
+          </button>
+          {/* Video toggle / Done — bottom, same size as the X. */}
+          <div className="flex shrink-0 flex-col items-end gap-2 justify-self-end phland:items-center">
+            {shots.length > 0 ? null : (
+              <button
+                type="button"
+                onClick={() => setCaptureMode((mode) => (mode === 'video' ? 'photo' : 'video'))}
+                disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
+                className={`${CAM_ICON_BTN} overflow-hidden ${
+                  captureMode === 'video' ? '!bg-red-600 text-white' : 'text-white'
+                }`}
+                aria-label={captureMode === 'video' ? t('shutter') : t('video')}
+              >
+                {captureMode === 'video' ? <Camera className={CAM_ICON} /> : <Video className={CAM_ICON} />}
+              </button>
             )}
             {shots.length === 0 ? null : (
               <button
                 type="button"
                 onClick={() => void finish()}
                 disabled={saving || recording || shots.length === 0}
-                className="flex h-12 items-center justify-center rounded-lg bg-white/15 px-3 text-sm font-bold uppercase text-white disabled:opacity-40"
+                className={`${CAM_ICON_BTN} px-3 text-sm font-bold uppercase text-white`}
               >
                 {saving ? t('saving') : t('done')}
               </button>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -80,9 +80,10 @@ export function AdminSidebar() {
   const [navOrder, setNavOrder] = useState<string[] | null>(null);
 
   // Avoid hydration mismatch: pathname can differ server vs client (e.g. locale); compute active only after mount.
-  useEffect(() => setMounted(true), []);
+  useLayoutEffect(() => setMounted(true), []);
 
-  useEffect(() => {
+  // Before paint, so saved settings never jump into place after the page shows.
+  useLayoutEffect(() => {
     try {
       const raw = localStorage.getItem(NAV_ORDER_KEY);
       const parsed = raw ? JSON.parse(raw) : null;

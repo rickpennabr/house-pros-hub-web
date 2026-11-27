@@ -38,16 +38,16 @@ export function ProBotStart({
   }, [gifStep, showStatic]);
 
   return (
-    <div className="relative flex min-h-0 w-full flex-1 flex-col items-center overflow-hidden bg-[#f8f9fb] px-4 pb-10 pt-6">
-      {/* Soft smoke: drifts and holds one rainbow color at a time. */}
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="probot-cloud probot-start-smoke absolute left-1/2 top-[40%] h-[560px] w-[900px] max-w-[160vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" />
-        <div className="probot-cloud-slow probot-start-smoke-soft absolute left-[58%] top-[48%] h-[360px] w-[520px] max-w-[110vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" />
-        <div className="probot-cloud-slow probot-start-smoke-soft absolute left-[40%] top-[36%] h-[300px] w-[460px] max-w-[100vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" />
-      </div>
+    <div className="relative flex min-h-0 w-full flex-1 flex-col items-center overflow-hidden bg-[#f8f9fb] px-4 pb-10 pt-[130px]">
 
       <div className="relative z-[1] flex w-full max-w-2xl shrink-0 flex-col items-center">
-        <div className="mb-4 flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm">
+        {/* Soft smoke centered behind ProBot: drifts and holds one rainbow color at a time. */}
+        <div aria-hidden className="pointer-events-none absolute left-1/2 top-12 z-0 h-0 w-0">
+          <div className="probot-cloud probot-start-smoke absolute left-0 top-0 h-[460px] w-[760px] max-w-[160vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" />
+          <div className="probot-cloud-slow probot-start-smoke-soft absolute left-0 top-0 h-[320px] w-[480px] max-w-[110vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" />
+          <div className="probot-cloud-slow probot-start-smoke-soft absolute left-0 top-0 h-[220px] w-[320px] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" />
+        </div>
+        <div className="relative z-[1] mb-4 flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm">
           {showStatic ? (
             <img src="/pro-bot-solo.png" alt="ProBot" width={96} height={96} className="h-full w-full object-contain" />
           ) : (

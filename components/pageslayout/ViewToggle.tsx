@@ -12,7 +12,7 @@ import { RepairCameraMark } from '@/components/pageslayout/PagesMenu';
 import { useCRMChrome } from '@/components/crm/CRMChromeContext';
 import { HouseMark } from '@/components/icons/HouseMark';
 import { HomeShortcutButton, useHomeShortcut } from '@/components/pageslayout/HomeShortcutButton';
-import { NOTCHED_BAR_MASK } from '@/components/pageslayout/BusinessListMobileBottomBar';
+import { NotchedBarBg } from '@/components/pageslayout/BusinessListMobileBottomBar';
 import { NotificationCount } from '@/components/ui/NotificationCount';
 
 export type ViewType = 'card' | 'list' | 'table' | 'map' | 'chart';
@@ -343,7 +343,7 @@ export default function ViewToggle({
       // Two equal sides keep the house exactly in the middle, whatever the item count.
       className="relative hidden grid-cols-[1fr_auto_1fr] items-end gap-1 rounded-lg px-3 pb-1.5 pt-2 shadow-lg md:grid"
     >
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 rounded-lg bg-black" style={NOTCHED_BAR_MASK} />
+      <NotchedBarBg rounded />
       <div className="flex items-end justify-end gap-1">{deskLeft}</div>
       <button type="button" onClick={() => router.push(homeTarget)} className={`${deskItem} w-[5.5rem]`} aria-label={home.signedIn ? home.label : t('account.myPlaces')}>
         <span className="relative z-10 -mt-[46px] -translate-y-3 flex h-[53px] w-[53px] items-center justify-center rounded-lg bg-black">

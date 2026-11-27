@@ -19,7 +19,9 @@ const EVERY_OPTIONS = [1, 2, 3, 4] as const;
 export function RecurringBusyTimes({
   blocks,
   onChanged,
+  loaded = true,
 }: {
+  loaded?: boolean;
   blocks: RecurringBlock[];
   /** Called after an add or remove so the calendar reloads. */
   onChanged: () => void;
@@ -87,7 +89,9 @@ export function RecurringBusyTimes({
       </p>
       <p className="text-sm text-gray-600">{t('repeatHelp')}</p>
 
-      {blocks.length === 0 ? (
+      {!loaded ? (
+        <div className="h-10 animate-pulse rounded-lg bg-gray-100" aria-busy="true" />
+      ) : blocks.length === 0 ? (
         <p className="text-sm text-gray-500">{t('repeatEmpty')}</p>
       ) : (
         <ul className="space-y-2">
@@ -189,17 +193,22 @@ async function fetchRecurringBlocks(): Promise<RecurringBlock[]> {
 /** Loads the pro's repeating busy times. */
 export function useRecurringBlocks() {
   const [blocks, setBlocks] = useState<RecurringBlock[]>([]);
+  /** False until the first load, so the list does not say "none" before it knows. */
+  const [loaded, setLoaded] = useState(false);
   const reload = useCallback(async () => {
     setBlocks(await fetchRecurringBlocks());
   }, []);
   useEffect(() => {
     let cancelled = false;
     void fetchRecurringBlocks().then((rows) => {
-      if (!cancelled) setBlocks(rows);
+      if (!cancelled) {
+        setBlocks(rows);
+        setLoaded(true);
+      }
     });
     return () => {
       cancelled = true;
     };
   }, []);
-  return { blocks, reload };
+  return { blocks, reload, loaded };
 }

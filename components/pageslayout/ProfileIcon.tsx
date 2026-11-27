@@ -42,7 +42,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
   const pathname = usePathname();
   const locale = useLocale() as Locale;
   const t = useTranslations('common.account');
-  const { isAuthenticated, isAdmin, logout, user, roles } = useAuth();
+  const { isAuthenticated, isAdmin, logout, user, roles, isLoading: authLoading } = useAuth();
   const { activeAccount, activeAccountId, accounts, businesses } = useAccountSwitch();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isAccountListOpen, setIsAccountListOpen] = useState(false);
@@ -162,7 +162,8 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
         aria-expanded={isDropdownOpen}
         aria-haspopup="menu"
       >
-        {isAuthenticated ? (
+        {/* Still checking the session: an empty square, not the guest icon, so a signed-in person never sees it flash. */}
+        {authLoading && !isAuthenticated ? null : isAuthenticated ? (
           <AccountAvatar
             src={displayPicture}
             name={displayName}

@@ -40,7 +40,7 @@ export default function BusinessListClient({
   const t = useTranslations('businessList');
   const tCommon = useTranslations('common');
   const tJob = useTranslations('jobsite');
-  const { isAuthenticated, roles } = useAuth();
+  const { isAuthenticated, roles, isLoading: authLoading } = useAuth();
   const isPro = isAuthenticated && isHubPro(roles as readonly string[]);
   const [addOpen, setAddOpen] = useState(false);
   // Add follows the active profile: CRM creates on the business profile, places and requests on the personal one.
@@ -51,8 +51,8 @@ export default function BusinessListClient({
   const city = sanitizeDirectoryCity(searchParams.get('city')) || initialCity;
   const { searchQuery, setActiveCategory } = useCategory();
   const [savedView, setSavedView] = useLocalStorage<string>('businessListView', 'card');
-  // Pros see cards only (no Card/List toggle on phone or PC).
-  const view = isPro ? 'card' : (savedView === 'card' || savedView === 'list') ? (savedView as ViewType) : 'card';
+  // Phone stays card-only; PC Card/List lives in the bottom bar (left of Jobsite for pros).
+  const view = savedView === 'card' || savedView === 'list' ? (savedView as ViewType) : 'card';
   const setView = (newView: ViewType) => setSavedView(newView);
   const filterKey = `${category}|${city}|${searchQuery ?? ''}|${view}`;
   const [pagination, setPagination] = useState<{ key: string; page: number }>(() => ({
@@ -150,6 +150,7 @@ export default function BusinessListClient({
         <BusinessListMobileBottomBar
           showProAdd={isPro}
           signedIn={isAuthenticated}
+          authPending={authLoading && !isAuthenticated}
           addOpen={addOpen}
           onAdd={() => setAddOpen(true)}
           addLabel={tCommon('view.add')}
@@ -157,11 +158,14 @@ export default function BusinessListClient({
           jobCameraLabel={tJob('title')}
         />
       )}
-      {pageCards.length > 0 && !isMobileSafe && (
+      {/* PC guests: the same bar as on phones (Help, ProBot, My Places, Sign in, Estimate). */}
+      {pageCards.length > 0 && !isMobileSafe && mounted && !isAuthenticated && !authLoading && (
+        <BusinessListMobileBottomBar desktop signedIn={false} />
+      )}
+      {pageCards.length > 0 && !isMobileSafe && (isAuthenticated || authLoading) && (
         <ViewToggle
           currentView={view}
           onViewChange={setView}
-          views={isPro ? [] : undefined}
           // Same as the mobile bar: signed-in customers get Add too (their menu opens CustomerAddModal).
           onAdd={isAuthenticated ? () => setAddOpen(true) : undefined}
           addLabel={tCommon('view.add')}

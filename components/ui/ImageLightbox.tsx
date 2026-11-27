@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react';
+import { downloadFile } from '@/lib/media/download-file';
 
 export interface LightboxImage {
   url: string;
@@ -23,9 +24,23 @@ export function ImageLightbox({
   onClose: () => void;
 }) {
   const [at, setAt] = useState(index);
+  const [saving, setSaving] = useState(false);
   const count = images.length;
   const current = images[Math.min(Math.max(at, 0), count - 1)];
   const stripRef = useRef<HTMLDivElement>(null);
+
+  const savePhoto = async () => {
+    if (!current?.url || saving) return;
+    setSaving(true);
+    try {
+      await downloadFile(current.url, current.name || 'photo.jpg');
+    } catch {
+      // Last resort only if CORS blocks the blob download.
+      window.open(current.url, '_blank', 'noopener,noreferrer');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     stripRef.current?.querySelector<HTMLElement>(`[data-thumb="${at}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
@@ -58,9 +73,15 @@ export function ImageLightbox({
           {count > 1 ? <span className="ml-2 text-white/50">{at + 1} / {count}</span> : null}
         </p>
         <div className="flex shrink-0 items-center gap-1">
-          <a href={current.url} download={current.name || true} className={iconButton} aria-label="Download">
+          <button
+            type="button"
+            onClick={() => void savePhoto()}
+            disabled={saving}
+            className={`${iconButton} disabled:opacity-40`}
+            aria-label="Download"
+          >
             <Download className="h-5 w-5" />
-          </a>
+          </button>
           <button type="button" onClick={onClose} className={iconButton} aria-label="Close">
             <X className="h-6 w-6" />
           </button>

@@ -849,6 +849,7 @@ function ProBotPageContent() {
             router.replace(pathname, { scroll: false });
           }}
           onThreadActivity={bumpSelectedContactActivity}
+          contacts={contacts}
           autoShareDoc={pendingDocShare}
           onAutoShareDone={() => {
             setPendingDocShare(null);
