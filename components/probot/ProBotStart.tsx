@@ -35,18 +35,27 @@ export function ProBotStart({
       ];
 
   return (
-    <div className="relative flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden px-4 py-10">
-      {/* Soft glow behind the input, like Gemini's start screen. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[820px] max-w-[140vw] -translate-x-1/2 -translate-y-1/2 opacity-70"
-        style={{ background: 'radial-gradient(closest-side, rgba(56,189,248,0.22), rgba(56,189,248,0.08) 55%, transparent)' }}
-      />
+    <div className="relative flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden bg-[#f8f9fb] px-4 py-10">
+      {/* A soft blue cloud around the input, like Gemini's start screen: a few blurred, slowly drifting layers. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div
+          className="probot-cloud absolute left-1/2 top-1/2 h-[560px] w-[900px] max-w-[160vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(closest-side, rgba(147,197,253,0.55), rgba(191,219,254,0.35) 45%, rgba(255,255,255,0) 100%)' }}
+        />
+        <div
+          className="probot-cloud-slow absolute left-[58%] top-[56%] h-[360px] w-[520px] max-w-[110vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(closest-side, rgba(96,165,250,0.35), rgba(255,255,255,0))' }}
+        />
+        <div
+          className="probot-cloud-slow absolute left-[40%] top-[44%] h-[300px] w-[460px] max-w-[100vw] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(closest-side, rgba(255,255,255,0.9), rgba(255,255,255,0))' }}
+        />
+      </div>
       <div className="relative flex w-full max-w-2xl flex-col items-center">
         <h2 className="mb-6 text-center text-2xl font-normal text-gray-900 sm:text-3xl">
           {name ? `Hi ${name}, where should we start?` : 'Where should we start?'}
         </h2>
-        <div className="w-full">{children}</div>
+        <div className="w-full rounded-lg shadow-[0_8px_40px_rgba(59,130,246,0.18)]">{children}</div>
         <ul className="mt-5 w-full max-w-md space-y-1 self-center">
           {suggestions.map(({ icon: Icon, text }) => (
             <li key={text}>

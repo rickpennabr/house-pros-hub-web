@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Building2, FolderOpen, Loader2, Trash2, UserPlus } from 'lucide-react';
+import { Building2, FolderOpen, Loader2, SquarePen, Trash2, UserPlus } from 'lucide-react';
+import { startNewProbotChat, useProbotChats } from '@/lib/chat/probot-chats-store';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { deleteConversation, getVisitorDeleteToken } from '@/lib/api/chat';
 import { createLocalePath } from '@/lib/redirect';
@@ -648,9 +649,31 @@ function ProBotPageContent() {
     }
   };
 
+  const probotChatsState = useProbotChats();
+
   /** ⋮ menu on each contact. Pros act on customer threads; customers on pros and ProBot. */
   const getContactActions = (contact: ProBotContact): ProBotContactAction[] => {
     const actions: ProBotContactAction[] = [];
+    // ProBot: a fresh chat. With chat history (migration 180) the old chat stays in the list;
+    // without it there is one ProBot thread, so a new chat means clearing it first.
+    if (contact.isProBot && conversationId && visitorId) {
+      actions.push({
+        id: 'new-chat',
+        label: tChat('contactNewProBotChat'),
+        icon: <SquarePen className="h-4 w-4" />,
+        onSelect: () => {
+          if (probotChatsState.ready) {
+            startNewProbotChat();
+            setSelectedContact(PROBOT_CONTACT);
+            rememberContact('probot');
+            setSidebarOpen(false);
+            return;
+          }
+          setContactActionError(null);
+          setPendingContactDelete(contact);
+        },
+      });
+    }
     const isCustomerThread = Boolean(contact.conversationId);
     if (isCustomerThread && isContractor) {
       actions.push({

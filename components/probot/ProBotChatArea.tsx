@@ -224,6 +224,14 @@ export default function ProBotChatArea({
   const [confirmingStepId, setConfirmingStepId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [agentStatus, setAgentStatus] = useState<string | null>(null);
+  /** A voice note is being answered: keep the construction words until the spoken answer is ready. */
+  const [voiceAnswering, setVoiceAnswering] = useState(false);
+  /** An answer is streaming in: background refreshes must not replace the thread (they would drop
+   *  the "Nailing…" draft and show a voice answer before its voice is ready). */
+  const answeringRef = useRef(false);
+  /** "OK Rick, checking your books…" while ProBot looks something up. */
+  const okLead = (text: string) =>
+    user?.firstName ? `OK ${user.firstName}, ${text.charAt(0).toLowerCase()}${text.slice(1)}` : text;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hiTypedLength, setHiTypedLength] = useState(0);
@@ -389,6 +397,7 @@ export default function ProBotChatArea({
           : m
       );
       const fresh = dedupeMessagesById(withLink);
+      if (answeringRef.current) return;
       threadCache.set(threadKey, { messages: fresh, hubAgent: data.hubAgent ?? null });
       setMessages(fresh);
       setHubAgent(data.hubAgent ?? null);
@@ -588,7 +597,7 @@ export default function ProBotChatArea({
       (!probotChats.loaded || loadedChatKey !== (probotChats.ready ? probotChats.activeChatId ?? 'none' : loadedChatKey ?? 'none'))
   );
   const showProbotStart = Boolean(
-    !probotDeciding && assistantLayout && probotChats.ready && filteredMessages.length === 0 && !sending && !forceWelcomeView && !loading
+    !probotDeciding && assistantLayout && filteredMessages.length === 0 && !sending && !loading
   );
 
   // Notify parent so History Chat only shows ProBot when this conversation has at least one message
@@ -723,11 +732,15 @@ export default function ProBotChatArea({
       setSending(true);
       setError(null);
       setAgentStatus(null);
+      answeringRef.current = true;
       const useHubStream = Boolean(selectedContact?.isProBot && !businessId);
       const draftBotId = useHubStream ? `stream-${Date.now()}` : null;
       try {
         // ProBot chats: the open chat, or a new one made by this first message.
         const voiceTurn = (extra?.attachments ?? []).some((att) => att.name.startsWith('voice-note'));
+        if (voiceTurn) setVoiceAnswering(true);
+        /** Voice turn: the text answer waits here until its voice arrives. */
+        let heldBot: ChatMessage | null = null;
         const wasNewChat = useHubStream && probotChats.ready && probotChats.activeChatId === null;
         if (wasNewChat) skipChatReloadRef.current = true;
         const chatId = useHubStream && isAuthenticated ? await ensureProbotChat() : undefined;
@@ -805,7 +818,21 @@ export default function ProBotChatArea({
                     );
                   }
                 },
+                onTranscript: (id, text) => {
+                  setMessages((prev) => prev.map((row) => (row.id === id ? { ...row, body: text } : row)));
+                },
+                onVoice: (id, attachment) => {
+                  autoPlayVoiceUrls.add(attachment.url);
+                  const held = heldBot && heldBot.id === id ? { ...heldBot, attachments: [attachment] } : null;
+                  heldBot = null;
+                  setVoiceAnswering(false);
+                  setMessages((prev) => {
+                    if (!held) return prev.map((row) => (row.id === id ? { ...row, attachments: [attachment] } : row));
+                    return [...prev.filter((row) => row.id !== draftBotId && row.id !== id), held];
+                  });
+                },
                 onToken: (text) => {
+                  // Voice turn: no typing; the words keep turning until the voice is ready.
                   if (!draftBotId || voiceTurn) return;
                   setMessages((prev) =>
                     prev.map((row) =>
@@ -818,6 +845,17 @@ export default function ProBotChatArea({
                   const spoken = bot.attachments?.find((att) => att.contentType.startsWith('audio/'));
                   if (voiceTurn && spoken) autoPlayVoiceUrls.add(spoken.url);
                   const isEstimateReply = bot.body === t('replyAccountEstimate');
+                  if (voiceTurn && !spoken) {
+                    heldBot = {
+                      id: bot.id,
+                      sender: 'admin',
+                      body: bot.body,
+                      created_at: bot.created_at,
+                      admin_sent_as: 'probot',
+                      ...(bot.payload ? { payload: bot.payload } : {}),
+                    };
+                    return;
+                  }
                   setMessages((prev) => {
                     const withoutDraft = draftBotId
                       ? prev.filter((row) => row.id !== draftBotId)
@@ -900,6 +938,7 @@ export default function ProBotChatArea({
         }
         if (pendingAttachments.length > 0) setPendingAttachments([]);
         setReplyTarget(null);
+        answeringRef.current = false;
         loadMessages();
         onThreadActivity?.();
         if (selectedContact?.isProBot && !businessId) {
@@ -912,8 +951,10 @@ export default function ProBotChatArea({
           setMessages((prev) => prev.filter((row) => row.id !== draftBotId));
         }
       } finally {
+        answeringRef.current = false;
         setSending(false);
         setAgentStatus(null);
+        setVoiceAnswering(false);
       }
     },
     [
@@ -2478,7 +2519,9 @@ export default function ProBotChatArea({
                   // Shown inside ProBot's draft bubble, next to its animated avatar.
                   draftStatus={
                     sending && selectedContact?.isProBot && !businessId
-                      ? agentStatus === 'recording'
+                      ? voiceAnswering
+                        ? null
+                        : agentStatus === 'recording'
                         ? 'ProBot is recording audio…'
                         : agentStatus === 'listening'
                         ? 'Listening…'
@@ -2487,7 +2530,7 @@ export default function ProBotChatArea({
                       : agentStatus === 'reading_photo'
                         ? 'Looking at your photo…'
                         : agentStatus === 'searching_pros'
-                          ? 'Searching pros…'
+                          ? okLead('Let me find pros for you…')
                           : agentStatus === 'listing_categories'
                             ? 'Listing categories…'
                             : agentStatus === 'drafting_estimate'
@@ -2495,15 +2538,15 @@ export default function ProBotChatArea({
                               : agentStatus === 'reading_pro'
                                 ? 'Opening pro profile…'
                                 : agentStatus === 'reading_places'
-                                  ? 'Checking your places…'
+                                  ? okLead('Let me check your places…')
                                   : agentStatus === 'searching_places'
-                                    ? 'Searching your places…'
+                                    ? okLead('Let me search your places…')
                                     : agentStatus === 'opening_estimate'
                                       ? 'Opening the estimate…'
                                       : agentStatus === 'reading_books'
-                                        ? 'Checking your books…'
+                                        ? okLead('Let me check your books…')
                                         : agentStatus === 'reading_schedule'
-                                          ? 'Checking your schedule…'
+                                          ? okLead('Let me check your schedule…')
                                       : agentStatus === 'writing'
                                         ? 'Writing…'
                                         : 'Thinking…'

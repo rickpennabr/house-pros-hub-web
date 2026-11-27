@@ -23,6 +23,7 @@ import { redactForModel } from '@/lib/chat/probot-redact'
 import {
   completeChat,
   configuredChatEndpoints,
+  smartChatEndpoints,
   createProbotReply,
   jobPlaybookFor,
   parseModelReply,
@@ -111,12 +112,26 @@ function proPrompt(today: string, timeZone: string): string {
   const dayName = new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
   return `
 
-This person is a pro and owns a CRM on House Pros Hub. Today is ${dayName} (${today}, ${timeZone}).
-- For their business (open invoices, who owes money, estimates waiting, projects and when they finish, maintenance, their day): call get_open_invoices, get_estimates_waiting, get_projects, get_maintenance_on, or get_day_schedule. Answer only from what these tools return.
-- For a day, pass the words the pro used ("the 26th", "tomorrow", "monday") as day. Do not work out the date yourself. Say the day back from the tool result, e.g. "tomorrow, Thursday the 26th".
-- You may repeat amounts, dates and names from tool results. Never add amounts up yourself; use totalOwed. If a tool says several customers match, ask which one.
-- These tools only read. If they ask you to send, mark paid or change something, tell them where to do it in the CRM.
-- Talk like a helpful office manager: short, warm, the most important fact first. For a voice-style question, write the way you would say it out loud.`
+This person is a pro who runs their business on House Pros Hub. Today is ${dayName} (${today}, ${timeZone}).
+
+Who you are for them: their office manager. You know the books, you think one step ahead, and you talk like a person on their crew, not like a report. Warm, quick, a little personality. Lead with what matters, then stop. If you notice something useful next to the answer (an estimate going cold, a job starting tomorrow, someone who owes money), mention it in one line and offer to help with it.
+
+How you get facts: look them up with your tools before you answer: get_open_invoices (who owes them), get_estimates_waiting (quotes sent, no answer yet), get_projects (set "when" from the question: upcoming, in_progress, finishing or all), get_maintenance_on, get_day_schedule (pass their words for the day, like "tomorrow" or "the 26th"). You may call several tools for one question and put the answer together. "Invoice", "estimate", "project" and "customer" mean their business records unless they say "my house" or "my place". Voice questions get misheard: "any voice open" means "any invoice open".
+
+Three rules you never break:
+1. Facts only from tool results. Never make up a name, date, project or amount, and never add amounts yourself (use totalOwed). If a tool returns nothing, say so plainly.
+2. Answer the question they asked. "Coming up" means not started yet; do not pad it with jobs already running.
+3. Actions (remind_invoice, mark_invoice_paid, schedule_visit, log_hours) only show a Confirm card; say they can review and tap Confirm.
+
+How it should sound (examples of tone only; the facts always come from the tools):
+Pro: projects coming up?
+You: Just one on deck: Phill Doctor starts Tuesday, December 1. Want me to put it on your schedule reminders?
+Pro: any invoice open?
+You: Yep, two still out, $1,850 total. Denise Gray's $700.50 is the oldest, 12 days now. Want me to nudge her?
+Pro: how's my week?
+You: Pretty full. Rick Penna's residence wraps up today, Phill Doctor kicks off Tuesday, and Denise still hasn't answered your estimate from last week.
+Pro: thanks!
+You: Anytime, go get 'em.`
 }
 
 export interface ProAgentPersona {
@@ -132,7 +147,13 @@ function cleanName(value: string | undefined, max: number): string {
 
 /** Greets them by first name and keeps the talk on the profile they picked. */
 function personaPrompt(persona: ProAgentPersona | undefined, signedIn: boolean): string {
-  if (!persona || !signedIn) return ''
+  if (!signedIn) return ''
+  const access = '\n- Never say you cannot see or do not have access to their account, invoices or schedule. If one of your tools can look it up, use it. If none can, say what you can check instead.'
+  if (!persona) return access
+  return access + personaPromptFor(persona)
+}
+
+function personaPromptFor(persona: ProAgentPersona): string {
   const name = cleanName(persona.firstName, 40)
   const greet = name
     ? `\n- Their first name is ${name}. Start your reply with "Hi ${name}!" (in their language) when they greet you or it is the first message of the chat, then answer. Use their name now and then, not in every sentence.`
@@ -141,7 +162,7 @@ function personaPrompt(persona: ProAgentPersona | undefined, signedIn: boolean):
     const business = cleanName(persona.businessName, 80)
     return `\n\nThey are on their business profile${business ? ` (${business})` : ''}. Talk to them as the owner running that business: their jobs, customers, estimates, invoices, schedule and crew. Offer business help, not homeowner help.${greet}`
   }
-  return `\n\nThey are on their personal profile, as a homeowner. Talk about their home, their places, and finding or hiring a pro. Do not bring up their business, CRM, invoices to customers or crew.${greet}`
+  return `\n\nThey are on their personal profile, as a homeowner. Talk about their home, their places, and finding or hiring a pro. Do not bring up their business unprompted; but if they ask about it (customers who owe them, their jobs, estimates, schedule), check it with the business tools when you have them. Bills they owe as a homeowner are on their places.${greet}`
 }
 
 function agentPrompt(locale: string | undefined, playbook: string, portalBrief: string, signedIn: boolean, pro: string = ''): string {
@@ -188,9 +209,20 @@ function rememberPros(found: ProAgentProCard[], data: unknown, locale: string): 
 
 function priceIsOnPlaceRecord(body: string, brief: string): boolean {
   if (!brief || /\bper\s+square\s+foot\b/i.test(body)) return false
-  const amounts = body.match(/\$\s?\d[\d,]*(?:\.\d+)?|\b\d+(?:\.\d+)?\s*(?:dollars|usd)\b/gi) ?? []
+  const amounts = body.match(/\$\s?\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s*(?:dollars|usd)\b/gi) ?? []
   if (amounts.length === 0) return false
-  return amounts.every((amount) => brief.includes(amount.replace(/[^\d.]/g, '')))
+  // Compare values, not text: the reply says "$1,250.00" while tool data says 1250, "1250.00" or 125000 cents.
+  const known = new Set<number>()
+  for (const raw of brief.match(/\d[\d,]*(?:\.\d+)?/g) ?? []) {
+    const n = Number(raw.replace(/,/g, ''))
+    if (!Number.isFinite(n)) continue
+    known.add(Math.round(n * 100))
+    if (Number.isInteger(n)) known.add(n) // a whole number of cents: 125000 is $1,250.00
+  }
+  return amounts.every((amount) => {
+    const value = Number(amount.replace(/[^\d.]/g, ''))
+    return Number.isFinite(value) && known.has(Math.round(value * 100))
+  })
 }
 
 function finish(input: {
@@ -209,7 +241,10 @@ function finish(input: {
 }): ProAgentTurnResult {
   let body = input.body.trim()
   if (!body) body = input.confirm ? CONFIRM_COPY[input.locale] ?? CONFIRM_COPY.en : input.fallback
-  if (replyInventsPrice(body) && !priceIsOnPlaceRecord(body, input.portalBrief ?? '')) body = input.fallback
+  if (replyInventsPrice(body) && !priceIsOnPlaceRecord(body, input.portalBrief ?? '')) {
+    console.warn('[probot] reply replaced: an amount not found in the tool results', body.slice(0, 120))
+    body = input.fallback
+  }
   const payload: ProAgentPayload = {}
   if (input.pros.length) payload.pros = input.pros
   if (input.confirm) payload.confirm = input.confirm
@@ -321,10 +356,9 @@ async function runProAgentTurnInner(input: {
   const smallTalk = isSmallTalk(trimmed, input.persona?.firstName)
   const playbook = smallTalk ? '' : jobPlaybookFor(safeBody, safeHistory)
   const signedIn = Boolean(input.userId)
-  // CRM tools only for the CRM owner. Crew members do not see the books.
-  // On the personal profile a pro is a homeowner here: no business tools.
-  const isPro =
-    !smallTalk && input.userId && input.persona?.mode !== 'personal' ? await userOwnsCrm(input.userId).catch(() => false) : false
+  // CRM tools only for the CRM owner (crew members do not see the books), on either profile:
+  // a pro on the personal side who asks "who owes me?" gets a real answer, not "no access".
+  const isPro = !smallTalk && input.userId ? await userOwnsCrm(input.userId).catch(() => false) : false
   const timeZone = validTimeZone(input.timeZone) ?? DEFAULT_PRO_TIME_ZONE
   const tools = smallTalk
     ? []
@@ -360,14 +394,16 @@ async function runProAgentTurnInner(input: {
   let crmEstimate: ChatCrmEstimateShare | undefined
   // Figures the model may repeat: the place summary plus what place tools returned.
   let grounding = input.portalBrief ?? ''
-  let lastEndpoint = configured[0]
+  // A pro on their business side gets the smart model; everyone else the quick one.
+  const endpoints = isPro && input.persona?.mode !== 'personal' ? smartChatEndpoints() : configured
+  let lastEndpoint = endpoints[0]
   progress?.({ type: 'status', label: 'thinking' })
 
   try {
     for (let step = 0; step < PROAGENT_MAX_STEPS; step += 1) {
       let completion: Awaited<ReturnType<typeof completeChat>> | null = null
       let streamedText = ''
-      for (const endpoint of configured) {
+      for (const endpoint of endpoints) {
         try {
           streamedText = ''
           completion = await completeChat(endpoint, messages, tools, {
@@ -387,7 +423,19 @@ async function runProAgentTurnInner(input: {
       if (!completion) break
 
       if (completion.toolCalls.length === 0) {
-        const reply = completion.content ? parseModelReply(completion.content) : null
+        let reply = completion.content ? parseModelReply(completion.content) : null
+        if (!reply && steps.some((item) => item.status === 'ok')) {
+          const again = await completeChat(lastEndpoint, [
+            ...messages,
+            { role: 'user', content: 'Answer my last question now, from the tool results above, in one to three short sentences.' },
+          ]).catch(() => null)
+          reply = again?.content ? parseModelReply(again.content) : null
+          if (reply && progress) {
+            progress({ type: 'status', label: 'writing' })
+            progress({ type: 'token', text: reply })
+            streamedText = reply
+          }
+        }
         if (!reply) break
         // If the model wrapped JSON and we streamed raw tokens, replace with the clean reply.
         if (progress && streamedText && streamedText.trim() !== reply) {
@@ -590,6 +638,7 @@ ${output}`
   } catch (error) {
     console.error('ProAgent loop failed:', error instanceof Error ? error.message : error)
   }
+  console.warn('[probot] no model answer; using the plain reply. Tools run:', steps.map((step) => `${step.toolName}:${step.status}`).join(', ') || 'none')
 
   const body = await createProbotReply({
     body: input.body,
@@ -597,7 +646,7 @@ ${output}`
     history: input.history,
   })
   return {
-    body: replyInventsPrice(body) ? fallback : body,
+    body: replyInventsPrice(body) && !priceIsOnPlaceRecord(body, grounding) ? fallback : body,
     payload:
       pros.length || crmEstimate
         ? { ...(pros.length ? { pros } : {}), ...(crmEstimate ? { crmEstimate } : {}) }

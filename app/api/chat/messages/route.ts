@@ -65,7 +65,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
     const { conversationId: providedConvId, visitorId, body: messageBody, businessId, displayName, userId, attachments: rawAttachments, replyToId, placeShareId, locale, actingAs, actingFirstName, actingBusinessName, chatId: rawChatId } = parsed.data;
-    const persona = actingAs ? { mode: actingAs, firstName: actingFirstName, businessName: actingBusinessName } : undefined;
+    // The business profile only for someone who owns a business; anyone else talks to ProBot as personal.
+    const signedInId = actingAs === 'business' ? await sessionUserId() : null;
+    const ownsBusiness = signedInId ? Boolean(await getOwnedBusinessId(signedInId)) : false;
+    const actingAsChecked = actingAs === 'business' && !ownsBusiness ? 'personal' : actingAs;
+    const persona = actingAsChecked ? { mode: actingAsChecked, firstName: actingFirstName, businessName: actingAsChecked === 'business' ? actingBusinessName : undefined } : undefined;
     const cookieDenied = visitorCookieDenied(request, visitorId);
     if (cookieDenied) return cookieDenied;
 
@@ -213,7 +217,7 @@ export async function POST(request: NextRequest) {
      */
     const receiptContext = async (): Promise<{ body: string; extraPayload: ProAgentPayload } | null> => {
       const photo = attachments?.find((att) => att.contentType.startsWith('image/'));
-      if (!photo || overLimit || actingAs !== 'business') return null;
+      if (!photo || overLimit || actingAsChecked !== 'business') return null;
       const userId = await sessionUserId();
       if (!userId || !(await userOwnsCrm(userId).catch(() => false))) return null;
       const draft = await readReceipt(photo).catch(() => null);
@@ -322,14 +326,15 @@ export async function POST(request: NextRequest) {
           };
           try {
             send('message', visitorMessage);
-            const history = await recentHubTurns(supabase, conversationId, chatId);
-            if (attachments?.some((att) => att.contentType.startsWith('image/'))) send('status', { label: 'reading_photo' });
             if (voiceNote && !overLimit) {
               send('status', { label: 'listening' });
               await hear();
+              // Show the words under the voice note right away.
+              if (spokenBody) send('transcript', { id: (message as unknown as { id: string }).id, text: spokenBody });
             }
-            await hear();
-            if (attachments?.some((att) => att.contentType.startsWith('image/')) && actingAs === 'business') send('status', { label: 'reading_receipt' });
+            const history = await recentHubTurns(supabase, conversationId, chatId);
+            if (attachments?.some((att) => att.contentType.startsWith('image/'))) send('status', { label: 'reading_photo' });
+            if (attachments?.some((att) => att.contentType.startsWith('image/')) && actingAsChecked === 'business') send('status', { label: 'reading_receipt' });
             const receipt = await receiptContext();
             const photo = receipt ? { body: receipt.body, plantId: undefined } : await photoContext(spokenBody, attachments, locale);
             const answered = await answerHubThread({
@@ -349,13 +354,13 @@ export async function POST(request: NextRequest) {
               },
             });
             if (answered) {
-              // A voice note is answered with a voice note.
+              // The text first (already streamed word by word), then the spoken version joins it.
+              send('bot', answered);
               if (voiceNote && !overLimit) {
                 send('status', { label: 'recording' });
                 const spoken = await attachSpokenReply(supabase, answered, locale).catch(() => null);
-                if (spoken) answered.attachments = [spoken];
+                if (spoken) send('voice', { id: answered.id, attachment: spoken });
               }
-              send('bot', answered);
             }
             send('done', {});
           } catch (error) {
@@ -380,6 +385,7 @@ export async function POST(request: NextRequest) {
 
     if (!businessId && conversationId && (await claimHubReply(conversationId))) {
       try {
+        await hear();
         const history = await recentHubTurns(supabase, conversationId, chatId);
         const receipt = await receiptContext();
         const photo = receipt ? { body: receipt.body, plantId: undefined } : await photoContext(spokenBody, attachments, locale);
@@ -789,6 +795,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** ProBot answers that were wrong before the tools worked; never replayed to the model. */
+const STALE_ANSWER = /(do not|don't|cannot|can't) (have )?(access|see)|do not have (those|that) details|I can connect you with a pro\. Pick a contact/i;
+
 async function recentHubTurns(
   supabase: ReturnType<typeof createServiceRoleClient>,
   conversationId: string,
@@ -809,6 +818,7 @@ async function recentHubTurns(
   if (error) return [];
   return ((data ?? []) as { sender: string; body: string; business_id?: string | null }[])
     .filter((row) => !row.business_id && row.body.trim())
+    .filter((row) => row.sender !== 'admin' || !STALE_ANSWER.test(row.body))
     .slice(-8)
     .map((row) => ({
       sender: row.sender === 'admin' ? 'admin' : 'visitor',

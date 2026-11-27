@@ -52,6 +52,27 @@ function readStoredAccountId(userId: string): string | null {
   }
 }
 
+/** Last known business list, so a reload paints the business logo and name at once (no personal-photo flash). */
+const BUSINESSES_CACHE_KEY = 'hph_owned_businesses';
+
+function readCachedBusinesses(userId: string): OwnedBusiness[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BUSINESSES_CACHE_KEY) ?? 'null') as { userId?: string; list?: OwnedBusiness[] } | null;
+    return parsed?.userId === userId && Array.isArray(parsed.list) ? parsed.list : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedBusinesses(userId: string, list: OwnedBusiness[]) {
+  try {
+    localStorage.setItem(BUSINESSES_CACHE_KEY, JSON.stringify({ userId, list }));
+  } catch {
+    // Storage can be full or blocked; the list still loads from the server.
+  }
+}
+
 function writeStoredAccountId(userId: string, accountId: string) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, accountId }));
 }
@@ -73,6 +94,7 @@ export function AccountSwitchProvider({ children }: { children: ReactNode }) {
       if (current?.userId === userId) return current;
       return { userId, accountId: readStoredAccountId(userId) || userId };
     });
+    setBusinesses((current) => (current.some((business) => business.userId === userId) ? current : readCachedBusinesses(userId)));
   }, [userId]);
 
   useEffect(() => {
@@ -95,6 +117,7 @@ export function AccountSwitchProvider({ children }: { children: ReactNode }) {
           userId,
         }));
         setBusinesses(list);
+        writeCachedBusinesses(userId, list);
       })
       .catch((error) => {
         console.error('Error loading accounts:', error);

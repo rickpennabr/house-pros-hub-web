@@ -113,7 +113,9 @@ export async function readAttachment(att: ChatAttachment, question: string, prom
   const kind = READABLE.get(servedType);
   if (!kind) return null;
 
-  const models = [env('PROBOT_AI_READER_MODEL') || env('PROBOT_AI_VISION_MODEL') || 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+  const main = env('PROBOT_AI_READER_MODEL') || env('PROBOT_AI_VISION_MODEL') || 'gemini-3.5-flash';
+  // Voice: the light model is fast and plenty for words; the bigger one is the fallback.
+  const models = asAudio ? ['gemini-3.5-flash-lite', main] : [main, 'gemini-3.5-flash-lite'];
   const request = {
     systemInstruction: { parts: [{ text: prompt }] },
     contents: [
@@ -163,7 +165,7 @@ const TRANSCRIBE_PROMPT = [
 
 /** The words said in a voice note (so ProBot can answer them), or null when it cannot be heard. */
 export async function transcribeVoiceNote(att: ChatAttachment): Promise<string | null> {
-  const reading = await readAttachment(att, '', TRANSCRIBE_PROMPT, true, 25000);
+  const reading = await readAttachment(att, '', TRANSCRIBE_PROMPT, true, 12000);
   if (!reading) console.error('transcribeVoiceNote: could not read', att.contentType, att.name);
   const text = reading?.text.trim() ?? '';
   if (!text || /^\(?unclear\)?\.?$/i.test(text)) return null;

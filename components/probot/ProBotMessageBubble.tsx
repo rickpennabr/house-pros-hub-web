@@ -102,7 +102,7 @@ export default function ProBotMessageBubble({
   /** Place cards replace their plain-text body. */
   const draftRecording = /recording/i.test(draftStatus ?? '');
   const isVoiceNote = Boolean(msg.attachments?.some((att) => att.name.startsWith('voice-note')));
-  const showBody = Boolean(body.trim()) && !isVoiceNote && !msg.payload?.placeShare && !msg.payload?.placeLinked && !msg.payload?.leadOffer && !msg.payload?.followup;
+  const showBody = Boolean(body.trim()) && !msg.payload?.placeShare && !msg.payload?.placeLinked && !msg.payload?.leadOffer && !msg.payload?.followup;
   /** Document cards share one width, whatever the caption length. */
   const hasDocCard = Boolean(
     msg.payload?.crmEstimate ||
@@ -611,7 +611,7 @@ export default function ProBotMessageBubble({
                     <RotateCcw className="h-4 w-4" />
                   </button>
                 ) : null}
-                {body.trim() && !isVoiceNote ? (
+                {body.trim() ? (
                   <button
                     type="button"
                     onClick={() => {

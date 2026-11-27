@@ -59,12 +59,13 @@ export function proOpenAiTools(): OpenAiTool[] {
       function: {
         name: 'get_projects',
         description:
-          'Projects with status, start date, end date (when it should finish) and days left. Use for "when does Daniel\'s project finish" or "what jobs are running". By default only planned, in progress and on hold.',
+          'Projects with status, start date, end date (when it should finish) and days left. Pick "when" from the question: "coming up", "next", "starting", "upcoming" -> upcoming (not started yet). "in progress", "running", "working on" -> in_progress. "finishing", "ending", "due" -> finishing (ends in the next 14 days). Otherwise all. Answer only with the projects returned, and use the count given.',
         parameters: {
           type: 'object',
           additionalProperties: false,
           properties: {
             customer: customerParam,
+            when: { type: 'string', enum: ['upcoming', 'in_progress', 'finishing', 'all'], description: 'Which projects to list. Default all open ones.' },
             includeFinished: { type: 'boolean', description: 'Also list completed and cancelled projects.' },
           },
         },
@@ -428,18 +429,41 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
       if (filter.ids) query = query.in('customer_id', filter.ids);
       const { data, error } = await query;
       if (error) return { data: { error: error.message }, isError: true };
-      const names = await customerNames(db, ownerId, (data ?? []).map((row) => row.customer_id));
-      const customersFound = [...new Set((data ?? []).map((row) => names.get(row.customer_id)).filter(Boolean))];
+      // Sort each project into one phase, then keep only the phase the question asked about.
+      const phaseOf = (row: { status: string; start_date: string | null; end_date: string | null }) => {
+        if (row.status === 'completed' || row.status === 'cancelled') return row.status;
+        if (row.status === 'on_hold') return 'on_hold';
+        // Dates decide: a start in the future is upcoming; a "planned" job whose start has passed is under way.
+        if (row.start_date && row.start_date > today) return 'upcoming';
+        if (row.status === 'planned' && !row.start_date) return 'upcoming';
+        return 'in_progress';
+      };
+      const when = typeof args.when === 'string' ? args.when : 'all';
+      const rows = (data ?? []).filter((row) => {
+        const phase = phaseOf(row);
+        if (when === 'upcoming') return phase === 'upcoming';
+        if (when === 'in_progress') return phase === 'in_progress';
+        if (when === 'finishing') return phase !== 'completed' && phase !== 'cancelled' && Boolean(row.end_date) && daysBetween(today, row.end_date!) <= 14;
+        return true;
+      });
+      if (when === 'upcoming') rows.sort((a, b) => (a.start_date ?? '9999').localeCompare(b.start_date ?? '9999'));
+      const names = await customerNames(db, ownerId, rows.map((row) => row.customer_id));
+      const customersFound = [...new Set(rows.map((row) => names.get(row.customer_id)).filter(Boolean))];
       return {
         data: {
           today,
           ...(filter.ids && customersFound.length > 1
             ? { note: `Several customers match "${String(args.customer)}": ${customersFound.join(', ')}. Ask which one if it matters.` }
             : {}),
-          projects: (data ?? []).map((row) => ({
+          when,
+          count: rows.length,
+          ...(rows.length === 0 ? { note: when === 'upcoming' ? 'No projects coming up.' : when === 'in_progress' ? 'No projects in progress.' : 'No projects found.' } : {}),
+          projects: rows.map((row) => ({
             name: row.name,
             customer: names.get(row.customer_id) ?? 'Unknown customer',
+            phase: phaseOf(row),
             status: row.status,
+            daysUntilStart: row.start_date && row.start_date > today ? daysBetween(today, row.start_date) : null,
             start: row.start_date,
             finish: row.end_date,
             daysLeft: row.end_date ? daysBetween(today, row.end_date) : null,
@@ -447,7 +471,7 @@ export async function runProTool(name: ProToolName, args: Record<string, unknown
           })),
         },
         isError: false,
-        links: (data ?? []).slice(0, 3).map((row) => ({ label: row.name, href: `/crm/projects/${row.id}` })),
+        links: rows.slice(0, 3).map((row) => ({ label: row.name, href: `/crm/projects/${row.id}` })),
       };
     }
 

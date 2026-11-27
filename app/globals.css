@@ -2241,3 +2241,9 @@ input[type='search']::-webkit-search-decoration {
 @media (prefers-reduced-motion: reduce) {
   .animate-feed-in { animation: none; }
 }
+
+/* ProBot start screen: the cloud drifts gently. */
+@keyframes probot-cloud-drift { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-48%,-52%) scale(1.06); } }
+.probot-cloud { animation: probot-cloud-drift 14s ease-in-out infinite; }
+.probot-cloud-slow { animation: probot-cloud-drift 22s ease-in-out infinite reverse; }
+@media (prefers-reduced-motion: reduce) { .probot-cloud, .probot-cloud-slow { animation: none; } }

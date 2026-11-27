@@ -10,6 +10,12 @@ interface ChatEndpoint {
   baseUrl: string
   apiKey: string
   model: string
+  /** Smart turns: warmer wording and a little thinking before answering. */
+  temperature?: number
+  reasoningEffort?: "low" | "medium"
+  maxTokens?: number
+  /** Give up on this model after this long and try the next one. */
+  timeoutMs?: number
 }
 
 export interface ProbotTurn {
@@ -83,6 +89,34 @@ function endpointFor(name: ProviderName): ChatEndpoint | null {
   }
 }
 
+/**
+ * For a pro asking about their business: the full Gemini Flash with light thinking, so it reasons over
+ * several results and talks naturally. Falls back to the usual list (Lite, then Groq) when it fails or
+ * the free quota runs out.
+ */
+export function smartChatEndpoints(): ChatEndpoint[] {
+  const base = configuredChatEndpoints()
+  const gemini = base.find((endpoint) => endpoint.name === "gemini")
+  if (!gemini || envTrim("PROBOT_AI_SMART") === "off") return base
+  const smart: ChatEndpoint = {
+    ...gemini,
+    model: envTrim("PROBOT_AI_GEMINI_SMART_MODEL") || "gemini-3.5-flash",
+    temperature: 0.7,
+    reasoningEffort: "low",
+    maxTokens: 1600,
+    // When Gemini is busy the smart model can hang; move on quickly instead of waiting 45s.
+    timeoutMs: 20000,
+  }
+  // A second Gemini model with its own capacity, tried right after Lite when Lite is overloaded (503).
+  const backup: ChatEndpoint = {
+    ...gemini,
+    model: envTrim("PROBOT_AI_GEMINI_BACKUP_MODEL") || "gemini-2.5-flash",
+    timeoutMs: 25000,
+  }
+  const at = base.indexOf(gemini)
+  return [smart, ...base.slice(0, at + 1), backup, ...base.slice(at + 1)]
+}
+
 export function configuredChatEndpoints(): ChatEndpoint[] {
   const preferred = envTrim("PROBOT_AI_PROVIDER").toLowerCase()
   const names: ProviderName[] = []
@@ -144,6 +178,7 @@ export interface ModelToolCall {
   id: string
   name: string
   arguments: string
+  extra_content?: unknown
 }
 
 export interface ChatCompletionMessage {
@@ -153,6 +188,8 @@ export interface ChatCompletionMessage {
     id: string
     type: "function"
     function: { name: string; arguments: string }
+    /** Gemini 3: the thought signature must come back with the call, or the next turn fails (400). */
+    extra_content?: unknown
   }>
   tool_call_id?: string
 }
@@ -168,7 +205,7 @@ function readToolCalls(message: { tool_calls?: unknown }): ModelToolCall[] {
   const calls: ModelToolCall[] = []
   for (const call of message.tool_calls) {
     if (!call || typeof call !== "object") continue
-    const row = call as { id?: unknown; function?: { name?: unknown; arguments?: unknown } }
+    const row = call as { id?: unknown; function?: { name?: unknown; arguments?: unknown }; extra_content?: unknown }
     const name = typeof row.function?.name === "string" ? row.function.name : ""
     if (!name) continue
     const args = row.function?.arguments
@@ -176,6 +213,7 @@ function readToolCalls(message: { tool_calls?: unknown }): ModelToolCall[] {
       id: typeof row.id === "string" && row.id ? row.id : `call_${calls.length}`,
       name,
       arguments: typeof args === "string" ? args : JSON.stringify(args ?? {}),
+      ...(row.extra_content ? { extra_content: row.extra_content } : {}),
     })
   }
   return calls
@@ -196,10 +234,32 @@ function buildAssistantMessage(content: string | null, toolCalls: ModelToolCall[
             id: call.id,
             type: "function" as const,
             function: { name: call.name, arguments: call.arguments },
+            ...(call.extra_content ? { extra_content: call.extra_content } : {}),
           })),
         }
       : {}),
   }
+}
+
+/** Gemini 3 requires a thought signature on every earlier tool call; fill a missing one. */
+function forProvider(endpoint: ChatEndpoint, messages: ChatCompletionMessage[]): ChatCompletionMessage[] {
+  if (!/gemini/i.test(`${endpoint.name} ${endpoint.model}`)) {
+    return messages.map((message) =>
+      message.tool_calls
+        ? { ...message, tool_calls: message.tool_calls.map((call) => ({ id: call.id, type: call.type, function: call.function })) }
+        : message
+    )
+  }
+  return messages.map((message) =>
+    message.tool_calls
+      ? {
+          ...message,
+          tool_calls: message.tool_calls.map((call) =>
+            call.extra_content ? call : { ...call, extra_content: { google: { thought_signature: "skip_thought_signature_validator" } } }
+          ),
+        }
+      : message
+  )
 }
 
 async function completeChatStream(
@@ -216,13 +276,14 @@ async function completeChatStream(
     },
     body: JSON.stringify({
       model: endpoint.model,
-      temperature: 0.4,
-      max_tokens: tools?.length ? 700 : 500,
-      messages,
+      temperature: endpoint.temperature ?? 0.4,
+      max_tokens: endpoint.maxTokens ?? (tools?.length ? 700 : 500),
+      ...(endpoint.reasoningEffort ? { reasoning_effort: endpoint.reasoningEffort } : {}),
+      messages: forProvider(endpoint, messages),
       stream: true,
       ...(tools?.length ? { tools, tool_choice: "auto" } : {}),
     }),
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(endpoint.timeoutMs ?? 45000),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => "")
@@ -234,7 +295,7 @@ async function completeChatStream(
   const decoder = new TextDecoder()
   let buffer = ""
   let content = ""
-  const toolAcc = new Map<number, { id: string; name: string; arguments: string }>()
+  const toolAcc = new Map<number, { id: string; name: string; arguments: string; extra_content?: unknown }>()
   let sawToolCall = false
 
   while (true) {
@@ -256,6 +317,7 @@ async function completeChatStream(
               index?: number
               id?: string
               function?: { name?: string; arguments?: string }
+              extra_content?: unknown
             }>
           }
         }>
@@ -274,11 +336,18 @@ async function completeChatStream(
       if (Array.isArray(delta.tool_calls)) {
         sawToolCall = true
         for (const call of delta.tool_calls) {
-          const index = typeof call.index === "number" ? call.index : 0
+          let index = typeof call.index === "number" ? call.index : 0
+          // Gemini streams parallel calls whole, all at index 0. A new id there is a new call, not more of the
+          // last one (otherwise names glue together: "get_estimates_waitingget_projects").
+          const existing = toolAcc.get(index)
+          if (existing && typeof call.id === "string" && call.id && existing.id && call.id !== existing.id) {
+            index = Math.max(...toolAcc.keys()) + 1
+          }
           const current = toolAcc.get(index) ?? { id: "", name: "", arguments: "" }
           if (typeof call.id === "string" && call.id) current.id = call.id
           if (typeof call.function?.name === "string" && call.function.name) current.name += call.function.name
           if (typeof call.function?.arguments === "string") current.arguments += call.function.arguments
+          if (call.extra_content) current.extra_content = call.extra_content
           toolAcc.set(index, current)
         }
       }
@@ -291,6 +360,7 @@ async function completeChatStream(
       id: call.id || `call_${index}`,
       name: call.name,
       arguments: call.arguments || "{}",
+      ...(call.extra_content ? { extra_content: call.extra_content } : {}),
     }))
     .filter((call) => call.name.length > 0)
 
@@ -320,12 +390,13 @@ export async function completeChat(
     },
     body: JSON.stringify({
       model: endpoint.model,
-      temperature: 0.4,
-      max_tokens: tools?.length ? 700 : 500,
-      messages,
+      temperature: endpoint.temperature ?? 0.4,
+      max_tokens: endpoint.maxTokens ?? (tools?.length ? 700 : 500),
+      ...(endpoint.reasoningEffort ? { reasoning_effort: endpoint.reasoningEffort } : {}),
+      messages: forProvider(endpoint, messages),
       ...(tools?.length ? { tools, tool_choice: "auto" } : {}),
     }),
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(Math.min(endpoint.timeoutMs ?? 20000, 20000)),
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => "")

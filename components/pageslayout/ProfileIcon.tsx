@@ -82,7 +82,12 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
 
   const personalName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
   const displayName = activeAccount?.name || personalName || 'User';
-  const displayPicture = activeAccount ? activeAccount.avatar : user?.userPicture;
+  // A business is active but its details are not loaded yet: show no photo rather than the personal one.
+  const displayPicture = activeAccount
+    ? activeAccount.avatar
+    : user?.id && activeAccountId && activeAccountId !== user.id
+      ? undefined
+      : user?.userPicture;
   const displaySubtitle =
     activeAccount?.type === 'business' ? t('businessAccount') : user?.email;
   const isContractor = !!user?.businessId;

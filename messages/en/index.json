@@ -393,6 +393,7 @@
     "contactViewProfile": "View profile",
     "contactOpenCrm": "Open my CRM",
     "contactClearProBot": "Clear ProBot chat",
+    "contactNewProBotChat": "New chat",
     "contactClearProBotConfirm": "Clear your ProBot messages? Your chats with pros stay.",
     "contactDeleteConfirm": "Delete your chat with {name}? The messages are removed for both of you.",
     "contactCrmAdded": "{name} is now in your CRM.",

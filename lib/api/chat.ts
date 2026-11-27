@@ -1,3 +1,4 @@
+import type { ChatAttachment } from '@/lib/types/chat';
 /**
  * Thin API layer for chat endpoints. Keeps route URLs and response shapes in one place.
  */
@@ -97,6 +98,10 @@ export type SendMessageStreamHandlers = {
   onStatus?: (label: string) => void;
   onToken?: (text: string) => void;
   onBot?: (bot: SendMessageBot) => void;
+  /** The words of the voice note just sent. */
+  onTranscript?: (id: string, text: string) => void;
+  /** ProBot's spoken reply, ready after its text. */
+  onVoice?: (id: string, attachment: ChatAttachment) => void;
 };
 
 async function readSendMessageSse(
@@ -135,6 +140,19 @@ async function readSendMessageSse(
     if (event === 'bot' && data && typeof data === 'object') {
       result.botMessage = data as SendMessageBot;
       handlers.onBot?.(result.botMessage);
+      return;
+    }
+    if (event === 'transcript' && data && typeof data === 'object') {
+      const row = data as { id?: unknown; text?: unknown };
+      if (typeof row.id === 'string' && typeof row.text === 'string') handlers.onTranscript?.(row.id, row.text);
+      return;
+    }
+    if (event === 'voice' && data && typeof data === 'object') {
+      const row = data as { id?: unknown; attachment?: ChatAttachment };
+      if (typeof row.id === 'string' && row.attachment?.url) {
+        if (result.botMessage?.id === row.id) result.botMessage = { ...result.botMessage, attachments: [row.attachment] };
+        handlers.onVoice?.(row.id, row.attachment);
+      }
       return;
     }
     if (event === 'error' && data && typeof data === 'object' && 'error' in data) {
