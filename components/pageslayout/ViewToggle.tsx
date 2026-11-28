@@ -72,7 +72,7 @@ export default function ViewToggle({
   addLabel = 'Add',
   addOpen = false,
   showAddOnDesktop = false,
-  onJobCamera,
+  onJobCamera: onJobCameraProp,
   jobCameraLabel = 'JOB',
   showAccount = false,
   showCrm = false,
@@ -84,6 +84,8 @@ export default function ViewToggle({
   // In the CRM the 256px sidebar (md and up) takes the left side: center on the content beside it.
   const inCrm = useCRMChrome() !== null;
   const home = useHomeShortcut();
+  // The job camera is for work: only on a business profile, not the personal one.
+  const onJobCamera = home.business ? onJobCameraProp : undefined;
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -261,10 +263,10 @@ export default function ViewToggle({
   /** Shared look of a bar item; the width is added per item so the center can be wider. */
   const deskItemBase =
     'relative flex shrink-0 flex-col items-center justify-center gap-1 py-1 text-[11px] font-semibold leading-none text-white cursor-pointer active:scale-95 transition-transform';
-  const deskItem = `${deskItemBase} w-[4.75rem]`;
+  const deskItem = `${deskItemBase} w-[4rem]`;
   const deskBox = (children: React.ReactNode, active = false) => (
     <span
-      className={`flex h-10 w-10 items-center justify-center rounded-lg border-2 border-white transition-colors ${
+      className={`flex h-9 w-9 items-center justify-center rounded-lg border-2 border-white transition-colors ${
         active ? 'bg-white text-black' : 'text-white hover:bg-gray-800'
       }`}
     >
@@ -292,7 +294,7 @@ export default function ViewToggle({
           className={deskItem}
           aria-label={isDynamic ? t('view.bgToggleDynamic') : t('view.bgToggleRegular')}
         >
-          <span className={`h-10 w-10 rounded-lg border-2 border-white ${isDynamic ? 'bg-white' : 'bg-toggle-sky-preview'}`} />
+          <span className={`h-9 w-9 rounded-lg border-2 border-white ${isDynamic ? 'bg-white' : 'bg-toggle-sky-preview'}`} />
           {deskLabel('Sky')}
         </button>
       )}
@@ -301,7 +303,7 @@ export default function ViewToggle({
           <span className="beta-badge-dynamic absolute -top-2 right-1 z-10 rounded border border-black px-0.5 text-[8px] font-bold text-black" aria-hidden>
             Beta
           </span>
-          <span className="relative block h-10 w-[3.25rem] overflow-hidden">
+          <span className="relative block h-9 w-[3rem] overflow-hidden">
             <RepairCameraMark label="JOB" line="white" />
           </span>
           {deskLabel(jobCameraLabel)}
@@ -343,16 +345,16 @@ export default function ViewToggle({
     <nav
       aria-label="Main menu"
       // Two equal sides keep the house exactly in the middle, whatever the item count.
-      className="relative hidden grid-cols-[minmax(0,1fr)_6rem_minmax(0,1fr)] items-end gap-1 rounded-lg px-3 pb-1.5 pt-2 shadow-lg md:grid"
+      className="relative hidden grid-cols-[minmax(0,1fr)_5.5rem_minmax(0,1fr)] items-end gap-0.5 rounded-lg px-2 pb-1 pt-1.5 shadow-lg md:grid"
     >
       <NotchedBarBg rounded />
       <div className="flex items-end justify-end gap-1">{deskLeft}</div>
-      <button type="button" onClick={() => router.push(homeTarget)} className={`${deskItemBase} w-[6rem]`} aria-label={home.signedIn ? home.label : t('account.myPlaces')}>
-        <span className="relative z-10 -mt-[46px] -translate-y-3 flex h-[53px] w-[53px] items-center justify-center rounded-lg bg-black">
+      <button type="button" onClick={() => router.push(homeTarget)} className={`${deskItemBase} w-[5.5rem]`} aria-label={home.signedIn ? home.label : t('account.myPlaces')}>
+        <span className="relative z-10 -mt-[46px] -translate-y-[9px] flex h-[53px] w-[53px] items-center justify-center rounded-lg bg-black">
           <HouseMark variant="plain" tone="light" className="h-10 w-10" />
           {home.signedIn ? <NotificationCount count={home.count} className="pointer-events-none absolute -right-3 -top-3 z-10" /> : null}
         </span>
-        <span className="max-w-full -translate-y-1 truncate whitespace-nowrap">{home.signedIn ? home.label : t('account.myPlaces')}</span>
+        <span className="max-w-full -translate-y-0.5 truncate whitespace-nowrap">{home.signedIn ? home.label : t('account.myPlaces')}</span>
       </button>
       <div className="flex items-end justify-start gap-1">{deskRight}</div>
     </nav>

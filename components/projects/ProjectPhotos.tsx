@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { JobCameraSession } from '@/components/media/JobCameraSession';
+import { CaptureMoreModal, type CaptureShot } from '@/components/media/CaptureMoreModal';
 import { ProDriveQuotaModal } from '@/components/drive/ProDriveQuotaModal';
 import { Button } from '@/components/ui/Button';
 import { uploadProDriveFile, ProDriveQuotaClientError } from '@/lib/drive/upload-client';
@@ -35,6 +36,12 @@ export function ProjectPhotos({ projectId, embedded = false }: { projectId: stri
   const [sheetOpen, setSheetOpen] = useState(false);
   const [quota, setQuota] = useState<DriveUsage | null>(null);
   const [loaded, setLoaded] = useState(false);
+  /** Phones: Add photo opens the phone's own camera (no Hub camera screen, no browser bars). */
+  const phoneCamRef = useRef<HTMLInputElement>(null);
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  const [captureMoreOpen, setCaptureMoreOpen] = useState(false);
+  /** Phone shots taken since the camera was opened (previews for the Take another window). */
+  const [phoneShots, setPhoneShots] = useState<CaptureShot[]>([]);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/crm/projects/${projectId}/photos`, { credentials: 'include' });
@@ -119,7 +126,14 @@ export function ProjectPhotos({ projectId, embedded = false }: { projectId: stri
             <h1 className="text-xl font-bold">{projectName || t('title')}</h1>
           </div>
         )}
-        <Button type="button" onClick={() => { primeLiveCamera('environment'); setSheetOpen(true); }} disabled={!businessId}>{t('addPhoto')}</Button>
+        <Button type="button" onClick={() => {
+          if (window.matchMedia('(pointer: coarse) and (hover: none)').matches) {
+            phoneCamRef.current?.click();
+            return;
+          }
+          primeLiveCamera('environment');
+          setSheetOpen(true);
+        }} disabled={!businessId || phoneSaving}>{t('addPhoto')}</Button>
       </div>
       {loaded && !businessId && <p className="text-sm">{t('noBusiness')}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -158,6 +172,41 @@ export function ProjectPhotos({ projectId, embedded = false }: { projectId: stri
           </div>
         </section>
       ))}
+      <input
+        ref={phoneCamRef}
+        type="file"
+        accept="image/*,video/*"
+        capture="environment"
+        className="hidden"
+        onChange={(event) => {
+          const files = [...(event.target.files ?? [])];
+          event.target.value = '';
+          if (files.length === 0) return;
+          setPhoneShots((current) => [...current, ...files.map((file, index) => ({ key: `${Date.now()}-${index}-${file.name}`, url: URL.createObjectURL(file), video: file.type.startsWith('video/') }))]);
+          setCaptureMoreOpen(true);
+          setPhoneSaving(true);
+          setError(null);
+          void saveCaptured(files.map((file) => ({ file, caption: '' })))
+            .then(() => load())
+            .catch((saveError: unknown) => setError(saveError instanceof Error ? saveError.message : t('saveFailed')))
+            .finally(() => setPhoneSaving(false));
+        }}
+      />
+      <CaptureMoreModal
+        open={captureMoreOpen}
+        onAnother={() => {
+          setCaptureMoreOpen(false);
+          phoneCamRef.current?.click();
+        }}
+        shots={phoneShots}
+        onDone={() => {
+          setCaptureMoreOpen(false);
+          setPhoneShots((current) => {
+            current.forEach((shot) => URL.revokeObjectURL(shot.url));
+            return [];
+          });
+        }}
+      />
       <JobCameraSession
         open={sheetOpen}
         mode="job"

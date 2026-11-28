@@ -1,5 +1,6 @@
 'use client';
 
+import { randomId } from '@/lib/utils/randomId';
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -277,7 +278,7 @@ export function ProductEditor({ open, initial, terms, onClose, onSaved, onTermsC
               <button
                 type="button"
                 className="inline-flex items-center gap-1 text-sm font-medium"
-                onClick={() => setSpecs((current) => [...current, { key: crypto.randomUUID(), name: '', value: '' }])}
+                onClick={() => setSpecs((current) => [...current, { key: randomId(), name: '', value: '' }])}
               >
                 <Plus className="h-4 w-4" />
                 Add spec

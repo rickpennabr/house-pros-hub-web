@@ -1,5 +1,13 @@
 {
   "common": {
+    "captureMore": {
+      "taken": "Tomadas hasta ahora: {count}",
+      "title": "Guardado",
+      "body": "Toma otra foto o video, o termina.",
+      "full": "Llegaste al límite.",
+      "another": "Tomar otra",
+      "done": "Terminé"
+    },
     "notifications": {
       "title": "Notificaciones",
       "messageSound": "Sonido de mensajes",
@@ -2673,6 +2681,7 @@
     "needBeforeMedia": "Primero captura el antes con ProCam.",
     "needServices": "Elige al menos un servicio.",
     "mediaFailed": "No se pudo guardar el medio en el paquete.",
+    "phoneSaving": "Guardando…",
     "noBusiness": "Agrega un negocio antes de guardar medios de mantenimiento en ProDrive.",
     "reportReady": "Informe de mantenimiento listo",
     "downloadPdf": "Descargar PDF",

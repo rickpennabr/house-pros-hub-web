@@ -305,7 +305,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
                     onClick={() => handleMenuItemClick('/probot')}
                     className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-3 font-medium text-black cursor-pointer"
                   >
-                    <Image src="/hph-pro-bot.jpg" alt="" width={20} height={20} className="h-5 w-5 rounded-md bg-black object-contain" />
+                    <Image src="/hph-pro-bot-icon.webp" alt="" width={20} height={20} unoptimized className="h-5 w-5 rounded-md bg-black object-contain" />
                     <span>{t('probot')}</span>
                   </button>
                 )}

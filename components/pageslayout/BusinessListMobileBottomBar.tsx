@@ -45,7 +45,9 @@ interface BusinessListMobileBottomBarProps {
  *
  * Mobile is card view only, so there are no view buttons. Settings is in the profile menu.
  */
-/** The notch: 63px opening (53px house + 5px gap each side), 44px deep (5px under the house); corners follow the house (8px + 5px gap = 13px) and the top edges curve in smoothly. */
+/** The notch, in CSS pixels: 63px opening (53px house + 5px each side), 44px deep (5px under the house).
+ *  Corners follow the house (8px + 5px gap = 13px) and the top edges curve in smoothly.
+ *  Drawn 1:1 with the viewBox. A stretched width sits on a half pixel and one side rounds a pixel wider. */
 const NOTCH_PATH = 'M0 0H75A6 6 0 0 0 69 6V31A13 13 0 0 1 56 44H19A13 13 0 0 1 6 31V6A6 6 0 0 0 0 0Z';
 
 /**
@@ -58,10 +60,9 @@ export function NotchedBarBg({ rounded = false }: { rounded?: boolean }) {
       aria-hidden
       className={`pointer-events-none absolute inset-0 -z-10 bg-black ${rounded ? 'rounded-lg' : ''}`}
     >
-      {/* 1px past the curve so the corner stays white. Width is 1px tighter each side so the side gap matches the bottom gap. */}
       <svg
         viewBox="0 0 75 44"
-        className="absolute left-1/2 -top-0.5 h-[46px] w-[77px] -translate-x-1/2"
+        className="absolute left-1/2 top-0 h-[44px] w-[75px] -translate-x-1/2"
       >
         <path fill="#ffffff" d={NOTCH_PATH} />
       </svg>
@@ -157,7 +158,7 @@ export default function BusinessListMobileBottomBar({
     <button type="button" onClick={handleProBotClick} className={item} aria-label={probotUnread > 0 ? `Open ProBot, ${probotUnread} new messages` : 'Open ProBot (online)'}>
       {beta}
       <span className="relative block h-9 w-9">
-        <Image src="/hph-pro-bot.jpg" alt="" width={36} height={36} className="h-9 w-9 rounded-md bg-black object-contain" />
+        <Image src="/hph-pro-bot-icon.webp" alt="" width={36} height={36} unoptimized loading="eager" className="h-9 w-9 rounded-md bg-black object-contain" />
         <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-black bg-green-500" aria-hidden />
         <NotificationCount count={probotUnread} className="pointer-events-none absolute -left-2 -top-2 z-10" />
       </span>
@@ -228,8 +229,8 @@ export default function BusinessListMobileBottomBar({
     <nav
       className={
         desktop
-          ? 'fixed bottom-[75px] left-1/2 z-[100] flex w-[440px] -translate-x-1/2 items-end rounded-lg px-1 pt-1.5 shadow-lg'
-          : 'fixed bottom-0 left-0 right-0 z-[100] flex items-end px-1 pt-1.5'
+          ? 'fixed bottom-[75px] left-1/2 z-[100] grid w-[440px] -translate-x-1/2 grid-cols-5 items-end rounded-lg px-1 pt-1.5 shadow-lg'
+          : 'fixed bottom-0 left-0 right-0 z-[100] grid grid-cols-5 items-end px-1 pt-1.5'
       }
       aria-label="Main menu"
       style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom, 0px))' }}

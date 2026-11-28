@@ -1,5 +1,13 @@
 {
   "common": {
+    "captureMore": {
+      "taken": "Taken so far: {count}",
+      "title": "Saved",
+      "body": "Take another photo or video, or finish.",
+      "full": "You reached the limit.",
+      "another": "Take another",
+      "done": "I'm done"
+    },
     "notifications": {
       "title": "Notifications",
       "messageSound": "Message sounds",
@@ -2922,6 +2930,7 @@
     "needBeforeMedia": "Capture before media with ProCam first.",
     "needServices": "Pick at least one service.",
     "mediaFailed": "Could not save media to the visit package.",
+    "phoneSaving": "Saving…",
     "noBusiness": "Add a business before saving maintenance media to ProDrive.",
     "reportReady": "Maintenance report ready",
     "downloadPdf": "Download PDF",

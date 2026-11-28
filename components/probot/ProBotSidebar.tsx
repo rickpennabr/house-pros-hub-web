@@ -76,8 +76,6 @@ const COLLAPSED_WIDTH = 52;
 const EXPANDED_WIDTH = 320;
 /** Phones: the chat list fills the screen under the ProBot header, like WhatsApp. */
 const MOBILE_WIDTH = '100vw';
-/** Layout top padding (clock area) + the 60px ProBot header and its border. */
-const MOBILE_TOP = 'calc(max(0.5rem, env(safe-area-inset-top, 0px)) + 62px)';
 
 /** Format ISO date as WhatsApp-style time (e.g. "6:43 PM") or relative day for older. */
 function formatMessageTime(iso: string): string {
@@ -300,13 +298,14 @@ export default function ProBotSidebar({
         } ${
           isMobile && !sidebarOpen ? 'w-0 min-w-0 overflow-hidden' : ''
         } ${
-          isMobile && sidebarOpen ? 'fixed left-0 bottom-0 z-50 border-t-2' : ''
+          // Phones: the list sits in the page right under the header (full width), no top gap.
+          isMobile && sidebarOpen ? 'z-50' : ''
         }`}
         style={
           !isMobile
             ? { width: sidebarOpen ? EXPANDED_WIDTH : COLLAPSED_WIDTH }
             : isMobile && sidebarOpen
-              ? { width: MOBILE_WIDTH, top: MOBILE_TOP }
+              ? { width: MOBILE_WIDTH }
               : { width: 0 }
         }
         onPointerEnter={handlePointerEnter}
@@ -364,7 +363,7 @@ export default function ProBotSidebar({
       {sidebarOpen && (
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Search bar at top - mobile and PC when sidebar is expanded */}
-          <div className="shrink-0 min-h-[60px] w-full pl-2 pr-2 pt-3 pb-2 flex items-center justify-center border-b-2 border-black bg-white">
+          <div className="shrink-0 min-h-[60px] w-full px-2 py-2 flex items-center justify-center border-b-2 border-black bg-white">
             <TypingSearchInput
               value={sidebarSearchQuery}
               onChange={setSidebarSearchQuery}
@@ -378,15 +377,15 @@ export default function ProBotSidebar({
           </div>
 
           {/* WhatsApp-style filters */}
-          <div className="flex shrink-0 gap-2 border-b border-gray-200 px-3 py-2">
+          <div className="flex shrink-0 gap-2 border-b border-gray-300 px-3 py-2">
             {(['all', 'unread'] as const).map((key) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setFilter(key)}
                 aria-pressed={filter === key}
-                className={`rounded-lg px-3 py-1 text-sm font-medium transition-colors ${
-                  filter === key ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                className={`rounded-lg border-2 border-black px-3 py-1 text-sm font-medium transition-colors ${
+                  filter === key ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-100'
                 }`}
               >
                 {tList(key)}

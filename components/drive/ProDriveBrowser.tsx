@@ -1,5 +1,6 @@
 'use client';
 
+import { randomId } from '@/lib/utils/randomId';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Folder, FileText, Upload, Trash2, Download, FolderPlus, HardDrive } from 'lucide-react';
@@ -81,7 +82,7 @@ export function ProDriveBrowser({
   const uploadFiles = async (files: FileList | File[]) => {
     setError(null);
     const batch = Array.from(files).map((file) => ({
-      id: crypto.randomUUID(),
+      id: randomId(),
       name: file.name || 'file',
       file,
     }));

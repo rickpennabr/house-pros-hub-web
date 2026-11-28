@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Camera, Check, Download, EyeOff, FileText, FolderInput, HardDrive, ImagePlus, MoreHorizontal, Plus, Share2, SlidersHorizontal, Tag, Trash2, Upload, Video, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
+import { CaptureMoreModal, type CaptureShot } from '@/components/media/CaptureMoreModal';
 import { ProDrivePicker } from '@/components/drive/ProDrivePicker';
 import { JobPhotoViewer, type JobPhoto } from '@/components/media/JobPhotoViewer';
 import type { DriveFile } from '@/lib/drive/types';
@@ -19,7 +20,8 @@ interface JobCustomerAlbumProps {
   onCamera: () => void;
   onWalkthrough: () => void;
   onTakeAfter: (photoId: string) => void;
-  onUpload: (files: File[]) => Promise<void>;
+  /** pairWith: the "before" photo an "after" shot belongs to. */
+  onUpload: (files: File[], pairWith?: string | null) => Promise<void>;
 }
 
 const BULK_TAGS = ['Front Side', 'Back Side', 'Left Side', 'Right Side', 'Before and After', 'Finished', 'Document'];
@@ -59,6 +61,31 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
+  /** Phones: the camera buttons open the phone's own camera (photo or video), like the Fix cam. */
+  const photoCamRef = useRef<HTMLInputElement>(null);
+  const videoCamRef = useRef<HTMLInputElement>(null);
+  const pairRef = useRef<string | null>(null);
+  /** After a phone shot: "Take another" (same camera) or "I'm done". */
+  const [captureMore, setCaptureMore] = useState<'photo' | 'video' | null>(null);
+  /** Phone shots taken since the camera was opened (previews for the Take another window). */
+  const [phoneShots, setPhoneShots] = useState<CaptureShot[]>([]);
+
+  const runUpload = (files: File[], pairWith: string | null = null) => {
+    if (files.length === 0) return;
+    setUploading(true);
+    setSheet(null);
+    void onUpload(files, pairWith).then(() => setRefresh((value) => value + 1)).catch((uploadError: unknown) => {
+      setError(uploadError instanceof Error ? uploadError.message : t('saveFailed'));
+    }).finally(() => setUploading(false));
+  };
+
+  /** True when the phone camera was opened (so the full-screen Job camera is skipped). */
+  const shootOnPhone = (kind: 'photo' | 'video', pairWith: string | null = null): boolean => {
+    if (!window.matchMedia('(pointer: coarse) and (hover: none)').matches) return false;
+    pairRef.current = pairWith;
+    (kind === 'video' ? videoCamRef : photoCamRef).current?.click();
+    return true;
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -439,7 +466,9 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
         <div className="flex justify-center border-t-2 border-black py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
-            onClick={onCamera}
+            onClick={() => {
+              if (!shootOnPhone('photo')) onCamera();
+            }}
             aria-label={t('openCamera')}
             className="flex items-center justify-center rounded-xl border-2 border-black bg-black text-white"
             style={{ width: 72, height: 72 }}
@@ -551,8 +580,9 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
                 <button type="button" onClick={() => {
                   const before = selectedIds.length === 1 ? selectedIds[0] : null;
                   setSheet(null);
-                  if (before) onTakeAfter(before);
-                  else {
+                  if (before) {
+                    if (!shootOnPhone('photo', before)) onTakeAfter(before);
+                  } else {
                     setSelecting(true);
                     setError(t('selectBefore'));
                   }
@@ -560,7 +590,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
                   <ImagePlus className="h-5 w-5" />
                   {t('beforeAfter')}
                 </button>
-                <button type="button" onClick={() => { setSheet(null); onWalkthrough(); }} className="flex w-full items-center gap-3 py-3 text-left font-medium">
+                <button type="button" onClick={() => { setSheet(null); if (!shootOnPhone('video')) onWalkthrough(); }} className="flex w-full items-center gap-3 py-3 text-left font-medium">
                   <Video className="h-5 w-5" />
                   {t('walkthrough')}
                 </button>
@@ -578,12 +608,55 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
         onChange={(event) => {
           const files = [...(event.target.files ?? [])];
           event.target.value = '';
-          if (files.length === 0) return;
-          setUploading(true);
-          setSheet(null);
-          void onUpload(files).then(() => setRefresh((value) => value + 1)).catch((uploadError: unknown) => {
-            setError(uploadError instanceof Error ? uploadError.message : t('saveFailed'));
-          }).finally(() => setUploading(false));
+          runUpload(files);
+        }}
+      />
+      {/* Phones: the phone's own camera, then the shot uploads to this job. */}
+      <input
+        ref={photoCamRef}
+        type="file"
+        accept="image/*,video/*"
+        capture="environment"
+        className="hidden"
+        onChange={(event) => {
+          const files = [...(event.target.files ?? [])];
+          event.target.value = '';
+          runUpload(files, pairRef.current);
+          pairRef.current = null;
+          setPhoneShots((current) => [...current, ...files.map((file, index) => ({ key: `${Date.now()}-${index}-${file.name}`, url: URL.createObjectURL(file), video: file.type.startsWith('video/') }))]);
+          if (files.length > 0) setCaptureMore('photo');
+        }}
+      />
+      <input
+        ref={videoCamRef}
+        type="file"
+        accept="video/*"
+        capture="environment"
+        className="hidden"
+        onChange={(event) => {
+          const files = [...(event.target.files ?? [])];
+          event.target.value = '';
+          runUpload(files);
+          setPhoneShots((current) => [...current, ...files.map((file, index) => ({ key: `${Date.now()}-${index}-${file.name}`, url: URL.createObjectURL(file), video: file.type.startsWith('video/') }))]);
+          if (files.length > 0) setCaptureMore('video');
+        }}
+      />
+      <CaptureMoreModal
+        open={captureMore !== null}
+        zIndex={320}
+        shots={phoneShots}
+        onAnother={() => {
+          const kind = captureMore ?? 'photo';
+          setCaptureMore(null);
+          pairRef.current = null;
+          (kind === 'video' ? videoCamRef : photoCamRef).current?.click();
+        }}
+        onDone={() => {
+          setCaptureMore(null);
+          setPhoneShots((current) => {
+            current.forEach((shot) => URL.revokeObjectURL(shot.url));
+            return [];
+          });
         }}
       />
 
@@ -622,7 +695,7 @@ export function JobCustomerAlbum({ open, projectId, name, address, customerId, o
           }}
           onTakeAfter={(photoId) => {
             setViewingId(null);
-            onTakeAfter(photoId);
+            if (!shootOnPhone('photo', photoId)) onTakeAfter(photoId);
           }}
         />
       ) : null}

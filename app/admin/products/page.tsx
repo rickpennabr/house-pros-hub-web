@@ -1,5 +1,6 @@
 'use client';
 
+import { randomId } from '@/lib/utils/randomId';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
@@ -169,7 +170,7 @@ export default function AdminProductsPage() {
     setEditingId(product.id);
     setForm(productToForm(product));
     setVariantForm(emptyVariant);
-    setSpecs(product.specs.map((spec) => ({ key: crypto.randomUUID(), name: spec.name, value: spec.value })));
+    setSpecs(product.specs.map((spec) => ({ key: randomId(), name: spec.name, value: spec.value })));
     setError(null);
     setEditorOpen(true);
   };
@@ -470,7 +471,7 @@ export default function AdminProductsPage() {
               <button
                 type="button"
                 className="text-sm font-bold"
-                onClick={() => setSpecs((current) => [...current, { key: crypto.randomUUID(), name: '', value: '' }])}
+                onClick={() => setSpecs((current) => [...current, { key: randomId(), name: '', value: '' }])}
               >
                 Add spec
               </button>

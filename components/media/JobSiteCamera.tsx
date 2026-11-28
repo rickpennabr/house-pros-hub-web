@@ -276,7 +276,9 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
         zip: draft.zip,
         projectId: createdBody.id,
       });
-      setShooting(true);
+      // PC: straight into the camera. Phones: the new job's album; its camera button opens the phone camera
+      // (a phone only opens its camera from a tap, not after this save).
+      if (!window.matchMedia('(pointer: coarse) and (hover: none)').matches) setShooting(true);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : t('saveFailed'));
     } finally {
@@ -336,7 +338,7 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
     }
   };
 
-  const saveFiles = async (items: { file: File; caption: string }[]) => {
+  const saveFiles = async (items: { file: File; caption: string }[], pairWith: string | null = afterOf) => {
     if (!selected || items.length === 0) return;
     const infoResponse = await fetch(`/api/crm/projects/${selected.projectId}/photos`, { credentials: 'include' });
     const info = (await infoResponse.json()) as {
@@ -376,7 +378,7 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
           longitude: spot?.longitude ?? null,
           accuracyM: spot?.accuracyM ?? null,
           headingDeg: spot?.headingDeg ?? null,
-          pairedPhotoId: !linkedAfter ? afterOf : null,
+          pairedPhotoId: !linkedAfter ? pairWith : null,
         }),
       });
       linkedAfter = true;
@@ -556,8 +558,8 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
             setAfterOf(photoId);
             setShooting(true);
           }}
-          onUpload={async (files) => {
-            await saveFiles(files.map((file) => ({ file, caption: '' })));
+          onUpload={async (files, pairWith) => {
+            await saveFiles(files.map((file) => ({ file, caption: '' })), pairWith ?? null);
           }}
         />
       ) : null}

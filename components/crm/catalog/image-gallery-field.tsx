@@ -1,5 +1,6 @@
 'use client';
 
+import { randomId } from '@/lib/utils/randomId';
 import { useRef } from 'react';
 import { ChevronLeft, ChevronRight, GripVertical, ImagePlus, Star, X } from 'lucide-react';
 import { FileDropTarget } from '@/components/ui/FileDropTarget';
@@ -62,7 +63,7 @@ export function ImageGalleryField({ images, max, onChange }: ImageGalleryFieldPr
       .slice(0, remaining)
       .forEach((file) => {
         next.push({
-          key: crypto.randomUUID(),
+          key: randomId(),
           previewUrl: URL.createObjectURL(file),
           file,
           isThumbnail: next.length === 0,

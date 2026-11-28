@@ -1,5 +1,6 @@
 'use client';
 
+import { randomId } from '@/lib/utils/randomId';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
@@ -29,6 +30,7 @@ import { startGoogleOAuth } from '@/lib/auth/googleOAuth';
 import type { DriveFile, DriveUsage } from '@/lib/drive/types';
 import type { Locale } from '@/i18n';
 import { FileDropTarget } from '@/components/ui/FileDropTarget';
+import { CaptureMoreModal } from '@/components/media/CaptureMoreModal';
 
 /** Scroll parent for the progress bar. Null means the page itself scrolls. */
 function scrollParent(node: HTMLElement): HTMLElement | null {
@@ -126,6 +128,9 @@ export default function QuickRepairPage() {
   const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  /** Phones: after each shot, "Take another" or "I'm done". */
+  const [captureMoreOpen, setCaptureMoreOpen] = useState(false);
   const located = useRef(false);
   const uploadedIds = useRef<Map<string, string>>(new Map());
   const finished = useRef(false);
@@ -346,7 +351,7 @@ export default function QuickRepairPage() {
         URL.revokeObjectURL(previewUrl);
         return current;
       }
-      return [...current, { key: crypto.randomUUID(), name: file.name, file, driveId: null, previewUrl }];
+      return [...current, { key: randomId(), name: file.name, file, driveId: null, previewUrl }];
     });
   };
   addFileRef.current = addLocalFile;
@@ -584,7 +589,11 @@ export default function QuickRepairPage() {
               <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap">
                 <div className="flex w-full gap-2 md:contents">
                   {/* Take photo opens the Fix cam (full-screen ProCam). Photos come back through QUICK_REPAIR_PHOTO_EVENT. */}
-                  <Button type="button" variant={photos.length === 0 ? 'primary' : 'secondary'} disabled={photos.length >= MAX_PHOTOS} className="max-md:!inline-flex max-md:h-10 max-md:flex-1 max-md:items-center max-md:justify-center max-md:whitespace-nowrap max-md:px-2 max-md:!py-0 max-md:text-base" onClick={() => openFixCam(photos.length)}>
+                  <Button type="button" variant={photos.length === 0 ? 'primary' : 'secondary'} disabled={photos.length >= MAX_PHOTOS} className="max-md:!inline-flex max-md:h-10 max-md:flex-1 max-md:items-center max-md:justify-center max-md:whitespace-nowrap max-md:px-2 max-md:!py-0 max-md:text-base" onClick={() => {
+                    // Phones: the phone's own camera. PC: the Fix cam (full-screen ProCam).
+                    if (window.matchMedia('(pointer: coarse) and (hover: none)').matches) cameraRef.current?.click();
+                    else openFixCam(photos.length);
+                  }}>
                     <Camera className="w-4 h-4 inline mr-2" />
                     {photos.length === 0 ? t('snap') : t('takeAnother')}
                   </Button>
@@ -609,6 +618,32 @@ export default function QuickRepairPage() {
                 multiple
                 className="hidden"
                 onChange={(event) => void onPickFiles(event.target.files)}
+              />
+              {/* Phones: Take photo opens the native camera; the picture comes back to this step. */}
+              <input
+                ref={cameraRef}
+                type="file"
+                accept="image/*,video/*"
+                capture="environment"
+                className="hidden"
+                onChange={(event) => {
+                  const took = (event.target.files?.length ?? 0) > 0;
+                  void onPickFiles(event.target.files);
+                  event.target.value = '';
+                  if (took) setCaptureMoreOpen(true);
+                }}
+              />
+              <CaptureMoreModal
+                open={captureMoreOpen}
+                canTakeMore={photos.length < MAX_PHOTOS}
+                shots={photos
+                  .filter((photo) => photo.previewUrl)
+                  .map((photo) => ({ key: photo.key, url: photo.previewUrl as string, video: Boolean(photo.file?.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(photo.name)) }))}
+                onAnother={() => {
+                  setCaptureMoreOpen(false);
+                  cameraRef.current?.click();
+                }}
+                onDone={() => setCaptureMoreOpen(false)}
               />
               <Button type="button" className="max-md:!inline-flex max-md:h-10 max-md:items-center max-md:justify-center max-md:self-start max-md:whitespace-nowrap max-md:px-3 max-md:!py-0 max-md:text-base" onClick={() => {
                 void rememberPlace();
@@ -751,7 +786,7 @@ function photosFromDraft(draft: QuickRepairDraft): LocalPhoto[] {
       ? new File([photo.blob], photo.name, { type: photo.type || 'image/jpeg' })
       : null;
     return {
-      key: photo.driveId || crypto.randomUUID(),
+      key: photo.driveId || randomId(),
       name: photo.name,
       file,
       driveId: photo.driveId,

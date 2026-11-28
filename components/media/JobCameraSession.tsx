@@ -242,6 +242,7 @@ export function JobCameraSession({
    * then come back here to review and upload. The in-page live frame is only for PC.
    */
   const [simple] = useState(() => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse) and (hover: none)').matches);
+  const [cameraStarting, setCameraStarting] = useState(false);
   const openNativeCamera = (video = captureMode === 'video') => (video ? videoInputRef : cameraInputRef).current?.click();
 
   const stopStream = () => {
@@ -353,7 +354,11 @@ export function JobCameraSession({
       return [];
     });
     // PC: the live camera starts right away. Phones use their own camera app (Take photo button).
-    if (!simple) void startLive('environment', { quiet: true });
+    if (!simple) {
+      // Dark frame while the camera starts: the Take photo / Photo Library choice shows only if it fails.
+      setCameraStarting(true);
+      void startLive('environment', { quiet: true }).finally(() => setCameraStarting(false));
+    }
     return () => {
       queueMicrotask(() => {
         if (openWatch.current !== watch) return;
@@ -758,7 +763,7 @@ export function JobCameraSession({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={draft.url} alt="" className="absolute inset-0 h-full w-full object-contain" />
           )
-        ) : !live ? (
+        ) : !live && cameraStarting ? null : !live ? (
           // Step one: take a photo (phone camera, or the live camera on PC) or upload one.
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
             <p className="text-sm text-white/80">{isFix ? fix('captureHint') : t('shutterHint')}</p>
@@ -961,9 +966,8 @@ export function JobCameraSession({
                 type="button"
                 onClick={() => setCaptureMode((mode) => (mode === 'video' ? 'photo' : 'video'))}
                 disabled={saving || recording || (maxShots != null && shots.length >= maxShots)}
-                className={`${CAM_ICON_BTN} overflow-hidden ${
-                  captureMode === 'video' ? '!bg-red-600 text-white' : 'text-white'
-                }`}
+                // Same gray square in photo and video mode (only the icon changes).
+                className={`${CAM_ICON_BTN} overflow-hidden text-white`}
                 aria-label={captureMode === 'video' ? t('shutter') : t('video')}
               >
                 {captureMode === 'video' ? <Camera className={CAM_ICON} /> : <Video className={CAM_ICON} />}

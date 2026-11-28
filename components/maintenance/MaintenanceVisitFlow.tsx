@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   Camera,
@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { JobCameraSession } from '@/components/media/JobCameraSession';
+import { CaptureMoreModal, type CaptureShot } from '@/components/media/CaptureMoreModal';
 import { scopeItems } from '@/components/maintenance/HouseAgreementForm';
 import { MaintenancePlantsPanel } from '@/components/maintenance/MaintenancePlantsPanel';
 import { uploadProDriveFile } from '@/lib/drive/upload-client';
@@ -208,11 +209,29 @@ export function MaintenanceVisitFlow({
   const [visit, setVisit] = useState<VisitState | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [mediaPhase, setMediaPhase] = useState<'before' | 'after' | null>(null);
+  /** Phones: Before/After open the phone's own camera, photo or video (no Hub camera screen, no browser bars). */
+  const phoneVideoRef = useRef<HTMLInputElement>(null);
+  const phonePhaseRef = useRef<'before' | 'after' | null>(null);
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  /** After a phone shot: take another for the same phase, or done. */
+  const [captureMorePhase, setCaptureMorePhase] = useState<'before' | 'after' | null>(null);
+  /** Phone shots taken since the camera was opened (previews for the Take another window). */
+  const [phoneShots, setPhoneShots] = useState<CaptureShot[]>([]);
   const [beforeCount, setBeforeCount] = useState(0);
   const [afterCount, setAfterCount] = useState(0);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Which button's work is running, so that button shows the spinner. */
+  const [running, setRunning] = useState<string | null>(null);
+  const runTracked = async (key: string, work: () => Promise<unknown> | unknown) => {
+    setRunning(key);
+    try {
+      await work();
+    } finally {
+      setRunning(null);
+    }
+  };
   /** Visit waiting for the delete confirmation. */
   const [deletingVisitId, setDeletingVisitId] = useState<string | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
@@ -491,8 +510,16 @@ export function MaintenanceVisitFlow({
     }
   }
 
-  async function saveCameraItems(items: { file: File; caption: string }[]) {
-    if (!visit || !mediaPhase) return;
+  /** True when the phone's own camera was opened (phones skip the Hub camera screen). */
+  function openPhoneVideo(phase: 'before' | 'after'): boolean {
+    if (!window.matchMedia('(pointer: coarse) and (hover: none)').matches) return false;
+    phonePhaseRef.current = phase;
+    phoneVideoRef.current?.click();
+    return true;
+  }
+
+  async function saveCameraItems(items: { file: File; caption: string }[], phase: 'before' | 'after' | null = mediaPhase) {
+    if (!visit || !phase) return;
     if (!businessId) throw new Error(t('noBusiness'));
     for (const item of items) {
       const orientation =
@@ -510,7 +537,7 @@ export function MaintenanceVisitFlow({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           driveFileId: saved.id,
-          phase: mediaPhase,
+          phase,
           kind,
           caption: item.caption,
           orientation,
@@ -590,10 +617,7 @@ export function MaintenanceVisitFlow({
 
   async function finishVisit() {
     if (!visit) return;
-    if (beforeCount < 1) {
-      setError(t('needBeforeMedia'));
-      return;
-    }
+    // Before/after media is optional.
     if (selectedServiceIds.length < 1) {
       setError(t('needServices'));
       return;
@@ -760,8 +784,8 @@ export function MaintenanceVisitFlow({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={busy}
-                  onClick={() => void startTrip()}
+                  disabled={busy} loading={running === 'startTrip'}
+                  onClick={() => void runTracked('startTrip', startTrip)}
                   className="rounded-lg border-2 border-black"
                 >
                   <Car className="h-4 w-4 mr-1" />
@@ -771,7 +795,7 @@ export function MaintenanceVisitFlow({
               {confirmEndDay ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm">{t('endDayConfirm')}</span>
-                  <Button type="button" disabled={busy} onClick={() => void endDay()} className="rounded-lg">
+                  <Button type="button" disabled={busy} loading={running === 'endDay'} onClick={() => void runTracked('endDay', endDay)} className="rounded-lg">
                     {t('endDay')}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => setConfirmEndDay(false)} className="rounded-lg">
@@ -951,7 +975,7 @@ export function MaintenanceVisitFlow({
             <div className="space-y-2 rounded-lg border border-black/20 p-3">
               <Input value={inviteName} onChange={(event) => setInviteName(event.target.value)} placeholder={t('crewName')} />
               <Input value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder={t('crewEmail')} />
-              <Button type="button" disabled={busy} onClick={() => void inviteCrew()}>
+              <Button type="button" disabled={busy} loading={running === 'inviteCrew'} onClick={() => void runTracked('inviteCrew', inviteCrew)}>
                 {t('sendInvite')}
               </Button>
             </div>
@@ -959,7 +983,7 @@ export function MaintenanceVisitFlow({
 
           {openTrip && <p className="text-xs text-gray-600">{t('arrivalEndsTrip')}</p>}
 
-          <Button type="button" disabled={busy} onClick={() => void startVisit()} className="w-full rounded-lg inline-flex items-center justify-center gap-2">
+          <Button type="button" disabled={busy} loading={running === 'startVisit'} onClick={() => void runTracked('startVisit', startVisit)} className="w-full rounded-lg inline-flex items-center justify-center gap-2">
             <Play className="h-4 w-4 shrink-0" />
             {t('startClock')}
           </Button>
@@ -993,8 +1017,8 @@ export function MaintenanceVisitFlow({
           <Button
             type="button"
             variant="outline"
-            disabled={busy}
-            onClick={() => void toggleBreak()}
+            disabled={busy} loading={running === 'toggleBreak'}
+            onClick={() => void runTracked('toggleBreak', toggleBreak)}
             className="w-full rounded-lg border-2 border-black"
           >
             {visit.status === 'on_break' ? (
@@ -1031,6 +1055,7 @@ export function MaintenanceVisitFlow({
               variant="outline"
               className="rounded-xl border-2 border-black"
               onClick={() => {
+                if (openPhoneVideo('before')) return;
                 void primeLiveCamera();
                 setMediaPhase('before');
               }}
@@ -1043,6 +1068,7 @@ export function MaintenanceVisitFlow({
               variant="outline"
               className="rounded-xl border-2 border-black"
               onClick={() => {
+                if (openPhoneVideo('after')) return;
                 void primeLiveCamera();
                 setMediaPhase('after');
               }}
@@ -1078,7 +1104,7 @@ export function MaintenanceVisitFlow({
                 onChange={(event) => setNewServiceName(event.target.value)}
                 placeholder={t('addServicePlaceholder')}
               />
-              <Button type="button" disabled={busy} onClick={() => void addCustomService()}>
+              <Button type="button" disabled={busy} loading={running === 'addCustomService'} onClick={() => void runTracked('addCustomService', addCustomService)}>
                 {t('addService')}
               </Button>
             </div>
@@ -1096,7 +1122,7 @@ export function MaintenanceVisitFlow({
             />
           </FormField>
 
-          <Button type="button" disabled={busy} onClick={() => void finishVisit()} className="w-full rounded-lg">
+          <Button type="button" disabled={busy} loading={running === 'finishVisit'} onClick={() => void runTracked('finishVisit', finishVisit)} className="w-full rounded-lg">
             {t('finishMaintenance')}
           </Button>
         </div>
@@ -1132,15 +1158,15 @@ export function MaintenanceVisitFlow({
           <div className="space-y-2 border-t border-black/15 pt-3">
             <p className="text-sm font-medium">{t('whatNext')}</p>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" disabled={busy} onClick={() => void startTrip()} className="rounded-lg">
+              <Button type="button" disabled={busy} loading={running === 'startTrip'} onClick={() => void runTracked('startTrip', startTrip)} className="rounded-lg">
                 <Car className="h-4 w-4 mr-1" />
                 {t('startTrip')}
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                disabled={busy}
-                onClick={() => void endDay()}
+                disabled={busy} loading={running === 'endDay'}
+                onClick={() => void runTracked('endDay', endDay)}
                 className="rounded-lg border-2 border-black"
               >
                 <Flag className="h-4 w-4 mr-1" />
@@ -1153,6 +1179,45 @@ export function MaintenanceVisitFlow({
           </div>
         </div>
       )}
+
+      <input
+        ref={phoneVideoRef}
+        type="file"
+        accept="image/*,video/*"
+        capture="environment"
+        className="hidden"
+        onChange={(event) => {
+          const files = [...(event.target.files ?? [])];
+          event.target.value = '';
+          const phase = phonePhaseRef.current;
+          phonePhaseRef.current = null;
+          if (files.length === 0 || !phase) return;
+          setPhoneShots((current) => [...current, ...files.map((file, index) => ({ key: `${Date.now()}-${index}-${file.name}`, url: URL.createObjectURL(file), video: file.type.startsWith('video/') }))]);
+          setCaptureMorePhase(phase);
+          setPhoneSaving(true);
+          setError(null);
+          void saveCameraItems(files.map((file) => ({ file, caption: '' })), phase)
+            .catch((saveError: unknown) => setError(saveError instanceof Error ? saveError.message : t('mediaFailed')))
+            .finally(() => setPhoneSaving(false));
+        }}
+      />
+      <CaptureMoreModal
+        open={captureMorePhase !== null}
+        onAnother={() => {
+          const phase = captureMorePhase;
+          setCaptureMorePhase(null);
+          if (phase) openPhoneVideo(phase);
+        }}
+        shots={phoneShots}
+        onDone={() => {
+          setCaptureMorePhase(null);
+          setPhoneShots((current) => {
+            current.forEach((shot) => URL.revokeObjectURL(shot.url));
+            return [];
+          });
+        }}
+      />
+      {phoneSaving ? <p className="text-sm text-gray-600" aria-live="polite">{t('phoneSaving')}</p> : null}
 
       {mediaPhase && visit && (
         <JobCameraSession

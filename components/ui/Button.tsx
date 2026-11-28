@@ -1,13 +1,14 @@
 'use client';
 
 import { ButtonHTMLAttributes, ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
 
 interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   children: ReactNode;
   className?: string;
-  /** When true, button is disabled. Not passed to DOM (invalid on <button>). */
+  /** Working: shows a spinner and disables the button. Not passed to DOM. */
   loading?: boolean;
 }
 
@@ -42,9 +43,10 @@ export function Button({
   return (
     <button
       {...props}
-      disabled={disabled ?? loading}
+      disabled={disabled || loading}
       className={`${baseClasses} ${layoutClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
     >
+      {loading ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" aria-hidden /> : null}
       {children}
     </button>
   );

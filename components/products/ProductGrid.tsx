@@ -7,6 +7,10 @@ import { Filter } from 'lucide-react';
 import { TypingSearchInput } from '@/components/common/TypingSearchInput';
 import ViewToggle, { type ViewType } from '@/components/pageslayout/ViewToggle';
 import Modal from '@/components/ui/Modal';
+import { CustomerAddModal, isHubPro, ProAddModal } from '@/components/pageslayout/ProAddChooser';
+import { useBusinessProfileActive } from '@/components/pageslayout/HomeShortcutButton';
+import { JobSiteCamera } from '@/components/media/JobSiteCamera';
+import { useAuth } from '@/contexts/AuthContext';
 import { useCategory } from '@/contexts/CategoryContext';
 import {
   PRODUCT_TRADES,
@@ -33,6 +37,14 @@ const EMPTY_HARDSCAPE_FILTERS = {
 
 export function ProductGrid({ products }: ProductGridProps) {
   const t = useTranslations('proProducts');
+  const tCommon = useTranslations('common');
+  const tJob = useTranslations('jobsite');
+  // Same bar buttons as the directory: Job cam, Add, CRM and Accounts.
+  const { isAuthenticated, roles } = useAuth();
+  const isPro = isAuthenticated && isHubPro(roles as readonly string[]);
+  const businessActive = useBusinessProfileActive();
+  const [addOpen, setAddOpen] = useState(false);
+  const [jobCamOpen, setJobCamOpen] = useState(false);
   const locale = useLocale();
   const { setIsSearchOpen } = useCategory();
   const [search, setSearch] = useState('');
@@ -259,7 +271,20 @@ export function ProductGrid({ products }: ProductGridProps) {
         onViewChange={handleViewChange}
         views={['card', 'list']}
         hideBackgroundToggle
+        onAdd={isAuthenticated ? () => setAddOpen(true) : undefined}
+        addLabel={tCommon('view.add')}
+        addOpen={addOpen}
+        showAddOnDesktop
+        onJobCamera={isPro ? () => setJobCamOpen(true) : undefined}
+        jobCameraLabel={tJob('title')}
+        showAccount={isAuthenticated}
+        showCrm={isPro && businessActive}
       />
+      {isPro && businessActive && <ProAddModal isOpen={addOpen} onClose={() => setAddOpen(false)} />}
+      {isAuthenticated && !(isPro && businessActive) && (
+        <CustomerAddModal isOpen={addOpen} onClose={() => setAddOpen(false)} />
+      )}
+      {isPro && <JobSiteCamera open={jobCamOpen} onClose={() => setJobCamOpen(false)} />}
     </div>
   );
 }
