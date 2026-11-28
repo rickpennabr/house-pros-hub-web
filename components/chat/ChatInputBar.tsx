@@ -1,6 +1,7 @@
 'use client';
 
 import { type ChangeEvent, type ClipboardEvent, type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
+import { WebcamCapture } from '@/components/media/WebcamCapture';
 import { dropFilesIntoInput, fileMatchesAccept, useFileDrop } from '@/hooks/useFileDrop';
 import { CHAT_ATTACHMENT_ACCEPT } from '@/lib/utils/chatAttachmentAccept';
 import { FileUp, Camera, Cloud, ImageIcon, Mic, Pause, Paperclip, Play, Plus, Send, Trash2 } from 'lucide-react';
@@ -124,6 +125,8 @@ export default function ChatInputBar({
   const chunksRef = useRef<Blob[]>([]);
   // WhatsApp-style voice note: record, pause to listen, resume, then delete or send.
   const [voiceState, setVoiceState] = useState<'idle' | 'recording' | 'paused'>('idle');
+  /** PC: Camera opens the webcam (a phone uses its own camera app through the file input). */
+  const [webcamOpen, setWebcamOpen] = useState(false);
   const recording = voiceState !== 'idle';
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [levels, setLevels] = useState<number[]>([]);
@@ -436,7 +439,8 @@ export default function ChatInputBar({
                 <button
                   type="button"
                   onClick={() => {
-                    openPicker(fileInputRef.current, 'image/*,video/*', true);
+                    if (window.matchMedia('(pointer: coarse) and (hover: none)').matches) openPicker(fileInputRef.current, 'image/*,video/*', true);
+                    else setWebcamOpen(true);
                     setAttachMenuOpen(false);
                   }}
                   className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
@@ -550,6 +554,14 @@ export default function ChatInputBar({
         </button>
       </div>
     </div>
+    <WebcamCapture
+      open={webcamOpen}
+      onClose={() => setWebcamOpen(false)}
+      onPhoto={(file) => {
+        const input = fileInputRef.current;
+        if (input && !input.disabled) dropFilesIntoInput(input, [file]);
+      }}
+    />
     </div>
   );
 }

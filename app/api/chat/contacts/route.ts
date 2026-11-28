@@ -356,7 +356,7 @@ export async function GET(request: NextRequest) {
 
     if (isAdmin) return NextResponse.json({ contacts }, { status: 200 });
 
-    // WhatsApp order: ProBot pinned, then the chat with the newest message, then everyone else.
+    // ProBot first, then the pro's personal account, then the newest chat.
     const latest = await loadContactActivity(supabase, user.id, ownedBusinessId);
     const withActivity = contacts.map((contact) => {
       const at = contactActivityAt(contact, latest);

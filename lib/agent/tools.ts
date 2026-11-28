@@ -2,6 +2,7 @@ import { AGENT_RULE } from '@/lib/agent/constants';
 import { presentPro, type AgentPro } from '@/lib/agent/present';
 import {
   clampDirectoryPage,
+  findProfileMentions,
   getCachedDirectoryCategories,
   getPublicBusiness,
   searchBusinessesForAgents,
@@ -165,16 +166,30 @@ export async function runDirectoryTool(
     const requestedLimit = typeof args.limit === 'number' ? args.limit : 12;
     const requestedOffset = typeof args.offset === 'number' ? args.offset : 0;
     const { limit, offset } = clampDirectoryPage(requestedLimit, requestedOffset);
-    const page = await searchBusinessesForAgents({
-      limit,
-      offset,
-      search: typeof args.search === 'string' ? args.search : '',
-      category: typeof args.category === 'string' ? args.category : '',
-      city: typeof args.city === 'string' ? args.city : '',
-    });
+    const search = typeof args.search === 'string' ? args.search : '';
+    const category = typeof args.category === 'string' ? args.category : '';
+    const city = typeof args.city === 'string' ? args.city : '';
+    const [page, profile] = await Promise.all([
+      searchBusinessesForAgents({ limit, offset, search, category, city }),
+      // A trade the Hub may not list (plumbing): pros of another trade who mention it on their profile.
+      offset === 0 && (search || category)
+        ? findProfileMentions(search || category, city).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+    const mentionIds = new Set((profile?.mentions ?? []).map((card) => card.id));
+    // Listed pros for the trade only: a handyman who mentions plumbing is not a plumber.
+    const pros = page.businesses.filter((business) => !mentionIds.has(business.id));
+    const profileMentions = (profile?.trade.length ?? 0) === 0 ? (profile?.mentions ?? []).slice(0, 3) : [];
     return {
       data: {
-        pros: page.businesses.map((business) => presentPro(business, origin)),
+        pros: pros.map((business) => presentPro(business, origin)),
+        ...(profileMentions.length > 0
+          ? {
+              profileMentions: profileMentions.map((business) => presentPro(business, origin)),
+              profileMentionsNote:
+                'No pro is listed for this trade at the Hub. These pros are another trade, but their own profile mentions it. Do not call them a pro of this trade. Say they mention it on their profile: for a small repair the homeowner can call them; for a bigger job, offer a free estimate so the Hub finds a pro.',
+            }
+          : {}),
         rules: AGENT_RULE,
         pagination: {
           limit,
@@ -202,9 +217,10 @@ export async function runDirectoryTool(
 
 export function prosFromToolData(data: unknown): AgentPro[] {
   if (!data || typeof data !== 'object') return [];
-  const record = data as { pros?: unknown; pro?: unknown };
+  const record = data as { pros?: unknown; pro?: unknown; profileMentions?: unknown };
   if (Array.isArray(record.pros)) {
-    return record.pros.filter((pro): pro is AgentPro => Boolean(pro) && typeof pro === 'object' && 'id' in pro && 'name' in pro);
+    const mentions = Array.isArray(record.profileMentions) ? record.profileMentions : [];
+    return [...record.pros, ...mentions].filter((pro): pro is AgentPro => Boolean(pro) && typeof pro === 'object' && 'id' in pro && 'name' in pro);
   }
   if (record.pro && typeof record.pro === 'object' && 'id' in record.pro && 'name' in record.pro) {
     return [record.pro as AgentPro];

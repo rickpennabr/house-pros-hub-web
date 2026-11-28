@@ -463,17 +463,6 @@ export function JobSiteCamera({ open, onClose }: JobSiteCameraProps) {
                   </span>
                   <ChevronRight className="h-5 w-5 shrink-0" aria-hidden />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError(null);
-                    setProjectCustomer(customer);
-                    setStep('map');
-                  }}
-                  className="shrink-0 cursor-pointer self-center rounded-md border-2 border-black bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800"
-                >
-                  {t('createProject')}
-                </button>
               </li>
               );
             })}

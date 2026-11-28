@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -33,6 +33,8 @@ import {
 
 const HUB_PHONE_NUMBER = '702-232-0411';
 
+const subscribeNever = () => () => {};
+
 interface ProfileIconProps {
   className?: string;
 }
@@ -47,6 +49,9 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isAccountListOpen, setIsAccountListOpen] = useState(false);
   const [shareAccount, setShareAccount] = useState<SwitchAccount | null>(null);
+  // False while hydrating, even in a part of the page that hydrates after the saved session loads,
+  // so the first draw matches the server's empty button (no hydration error).
+  const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -163,7 +168,7 @@ export default function ProfileIcon({ className = '' }: ProfileIconProps) {
         aria-haspopup="menu"
       >
         {/* Still checking the session: an empty square, not the guest icon, so a signed-in person never sees it flash. */}
-        {authLoading && !isAuthenticated ? null : isAuthenticated ? (
+        {!hydrated || (authLoading && !isAuthenticated) ? null : isAuthenticated ? (
           <AccountAvatar
             src={displayPicture}
             name={displayName}

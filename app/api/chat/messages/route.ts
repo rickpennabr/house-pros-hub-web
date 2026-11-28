@@ -642,10 +642,11 @@ export async function GET(request: NextRequest) {
       : columnSets;
     let lastSelectError: { code?: string; message?: string } | null = null;
     for (const cols of selectOrder) {
-      const result = await supabase
-        .from('probot_messages')
-        .select(cols)
-        .in('conversation_id', conversationIds)
+      // The pro's own personal thread shares their ProBot conversation. Load only this business's messages
+      // so hub history is not mixed in, and the newest 300 are from this chat.
+      let query = supabase.from('probot_messages').select(cols).in('conversation_id', conversationIds);
+      if (ownThread && contractorReadBusinessId) query = query.eq('business_id', contractorReadBusinessId);
+      const result = await query
         // The newest 300, shown oldest first (ascending + limit used to return the oldest 300 and drop new ones).
         .order('created_at', { ascending: false })
         .limit(300);

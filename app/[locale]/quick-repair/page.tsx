@@ -22,7 +22,7 @@ import {
   saveQuickRepairDraft,
   type QuickRepairDraft,
 } from '@/lib/media/quick-repair-draft';
-import { QUICK_REPAIR_PHOTO_EVENT, openQuickRepairCamera, type QuickRepairPhotoRequest } from '@/lib/media/quick-repair-camera';
+import { QUICK_REPAIR_PHOTO_EVENT, openFixCam, type QuickRepairPhotoRequest } from '@/lib/media/quick-repair-camera';
 import { uploadProDriveFile, ProDriveQuotaClientError } from '@/lib/drive/upload-client';
 import { estimateSchema } from '@/lib/schemas/estimate';
 import { startGoogleOAuth } from '@/lib/auth/googleOAuth';
@@ -583,7 +583,8 @@ export default function QuickRepairPage() {
               <PhotoGrid photos={photos} onRemove={removePhoto} removeLabel={t('remove')} />
               <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap">
                 <div className="flex w-full gap-2 md:contents">
-                  <Button type="button" variant={photos.length === 0 ? 'primary' : 'secondary'} disabled={photos.length >= MAX_PHOTOS} className="max-md:!inline-flex max-md:h-10 max-md:flex-1 max-md:items-center max-md:justify-center max-md:whitespace-nowrap max-md:px-2 max-md:!py-0 max-md:text-base" onClick={() => openQuickRepairCamera(photos.length)}>
+                  {/* Take photo opens the Fix cam (full-screen ProCam). Photos come back through QUICK_REPAIR_PHOTO_EVENT. */}
+                  <Button type="button" variant={photos.length === 0 ? 'primary' : 'secondary'} disabled={photos.length >= MAX_PHOTOS} className="max-md:!inline-flex max-md:h-10 max-md:flex-1 max-md:items-center max-md:justify-center max-md:whitespace-nowrap max-md:px-2 max-md:!py-0 max-md:text-base" onClick={() => openFixCam(photos.length)}>
                     <Camera className="w-4 h-4 inline mr-2" />
                     {photos.length === 0 ? t('snap') : t('takeAnother')}
                   </Button>

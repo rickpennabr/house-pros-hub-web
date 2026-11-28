@@ -13,8 +13,16 @@ export interface QuickRepairPhotoRequest {
   rejectReason?: 'full';
 }
 
-/** The camera icon opens the shared ProCam. Pass how many photos are already chosen. */
-export function openQuickRepairCamera(existingCount?: number) {
+/** Quick FIX (header, menu, a place): opens the Quick Repair page, step 1 (take or upload a photo). No camera frame. */
+export function openQuickRepairCamera(_existingCount?: number) {
+  if (typeof window === 'undefined') return;
+  if (window.location.pathname.includes('/quick-repair')) return;
+  const locale = window.location.pathname.split('/')[1] || 'en';
+  window.location.assign(`/${locale}/quick-repair`);
+}
+
+/** Quick FIX step 1, Take photo: opens the Fix cam (full-screen ProCam). Pass how many photos are already chosen. */
+export function openFixCam(existingCount?: number) {
   if (typeof window === 'undefined') return;
   // Must run in this click. A later effect is too late for the phone camera.
   primeLiveCamera('environment');

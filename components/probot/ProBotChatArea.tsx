@@ -21,7 +21,9 @@ const ChatCrmDocEditor = dynamic(() => import('@/components/chat/ChatCrmDocEdito
 const AddCustomerForm = dynamic(() => import('@/components/chat/AddCustomerForm'), { ssr: false });
 const ProEstimateBookingFlow = dynamic(() => import('@/components/probot/ProEstimateBookingFlow'), { ssr: false });
 const ProBotCrmViews = dynamic(() => import('./ProBotCrmViews').then((m) => m.ProBotCrmViews), { ssr: false });
-import { Building2, CreditCard, FileText, FolderOpen, Receipt, Trash2, ArrowLeft, User, CalendarDays, Check, UserPlus, Home as HomeIcon, Loader2 } from 'lucide-react';
+import { ChatMediaComposer } from '@/components/chat/ChatMediaComposer';
+import { ProBotUsageIndicator } from '@/components/probot/ProBotUsageIndicator';
+import { Building2, CreditCard, FileText, FolderOpen, Receipt, Trash2, ArrowLeft, User, CalendarDays, Check, UserPlus, Home as HomeIcon, Loader2, Volume2, X } from 'lucide-react';
 import { useChat } from '@/contexts/ChatContext';
 import { SimpleConfirmDialog } from '@/components/ui/SimpleConfirmDialog';
 import Modal from '@/components/ui/Modal';
@@ -199,7 +201,7 @@ export default function ProBotChatArea({
   /** Bumped on every messages fetch / inbox switch so stale responses cannot call setMessages. */
   const messagesLoadGenRef = useRef(0);
   // Phones: contact chats show "← Chats" on the left with the name centered.
-  const backWithChats = !selectedContact?.isProBot && Boolean(onOpenSidebar);
+  const backWithChats = Boolean(onOpenSidebar);
   const tPlaces = useTranslations('places');
   const tBot = useTranslations('bot');
   const tSuccess = useTranslations('estimate.success');
@@ -234,6 +236,8 @@ export default function ProBotChatArea({
   /** In-chat quick estimate / invoice / payment request form. */
   const [composerKind, setComposerKind] = useState<QuickDocKind | null>(null);
   const [uploadingAttach, setUploadingAttach] = useState(false);
+  /** WhatsApp-style send screen, opened when photos or videos are added. */
+  const [mediaComposerOpen, setMediaComposerOpen] = useState(false);
   /** Picked files shown at once from the device, each with a progress ring, until they finish uploading. */
   const [attachUploads, setAttachUploads] = useState<UploadingAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -245,6 +249,8 @@ export default function ProBotChatArea({
   const [agentStatus, setAgentStatus] = useState<string | null>(null);
   /** A voice note is being answered. The reply stays hidden until its audio file is ready. */
   const [voiceAnswering, setVoiceAnswering] = useState(false);
+  /** Set when ProBot's own voice was not available (daily voice limit) and the device voice read the answer. */
+  const [deviceVoiceNote, setDeviceVoiceNote] = useState(false);
   /** An answer is streaming in: background refreshes must not replace the thread (they would drop
    *  the "Nailing…" draft and show a voice answer before its voice is ready). */
   const answeringRef = useRef(false);
@@ -924,6 +930,19 @@ export default function ProBotChatArea({
               }
             : undefined
         );
+        // Voice turn but the Hub voice was not available (e.g. the free daily voice limit):
+        // say the answer with the browser's own voice, so a voice question still gets a spoken reply.
+        if (voiceTurn && heldBot) {
+          const text = (heldBot as ChatMessage).body.replace(/https?:\/\/\S+/g, '').replace(/[*_#>`]/g, '').trim();
+          if (text && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = locale === 'es' ? 'es-US' : locale === 'pt' ? 'pt-BR' : 'en-US';
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+            setDeviceVoiceNote(true);
+          }
+          heldBot = null;
+        }
         if (data.message) {
           const msg = data.message as {
             id: string;
@@ -1294,6 +1313,7 @@ export default function ProBotChatArea({
       }
       setUploadingAttach(true);
       setError(null);
+      if (Array.from(files).some((file) => file.type.startsWith('image/') || file.type.startsWith('video/'))) setMediaComposerOpen(true);
       // WhatsApp-style: the files show now, from the device, and a ring closes as they upload.
       const batchId = `up-${Date.now()}`;
       const local: UploadingAttachment[] = Array.from(files).map((file, index) => ({
@@ -1536,6 +1556,25 @@ export default function ProBotChatArea({
     if (!conversationId || !visitorId || clearingMessages) return;
     setShowClearModal(true);
   }, [conversationId, visitorId, clearingMessages]);
+
+  const mediaComposer = (
+    <ChatMediaComposer
+      open={mediaComposerOpen}
+      attachments={pendingAttachments}
+      uploads={attachUploads}
+      caption={inputValue}
+      onCaptionChange={setInputValue}
+      onRemove={removePendingAttachment}
+      onAddMore={() => fileInputRef.current?.click()}
+      onSend={() => {
+        setMediaComposerOpen(false);
+        void handleSubmit({ preventDefault: () => undefined } as React.FormEvent);
+      }}
+      onClose={() => setMediaComposerOpen(false)}
+      sending={sending}
+      canAddMore={pendingAttachments.length + attachUploads.length < 10}
+    />
+  );
 
   const pendingAttachmentsView = (
     <ChatPendingAttachments
@@ -1786,6 +1825,7 @@ export default function ProBotChatArea({
 
   return (
     <div className={`relative flex flex-col min-h-0 overflow-hidden h-full ${PROBOT_CHAT_BG} probot-chat-area-pc-transparent`}>
+      {mediaComposer}
       {((!showWelcome && !showAdminInitialWelcome) || isAdminView) && (
         <div
           className={`probot-chat-header z-10 px-2 md:px-4 py-2 shrink-0 flex items-center justify-between gap-2 ${
@@ -1849,7 +1889,13 @@ export default function ProBotChatArea({
                   <Trash2 className="h-4 w-4" />
                 </button>
               ) : null}
-              {isProReplying && adminViewingConversation.participant_type !== 'contractor' ? (
+              {isProReplying &&
+              adminViewingConversation.participant_type !== 'contractor' &&
+              // Chatting with yourself (your own customer account): never add yourself to your CRM.
+              !(
+                signedInUserId &&
+                (adminViewingConversation.user_id === signedInUserId || selectedContact?.id === `customer-${signedInUserId}`)
+              ) ? (
                 crmCustomerId || (crmAdd.status === 'done' && crmAdd.conversationId === adminViewingConversation.id) ? (
                   <a
                     href={`/${locale}/crm/customers`}
@@ -1877,7 +1923,7 @@ export default function ProBotChatArea({
           <>
           {/* Phones: ← Chats on the left, the contact's logo and name centered (WhatsApp style). */}
           <div className={`flex items-center gap-2 min-w-0 flex-1 ${backWithChats ? 'max-md:justify-center max-md:pl-[76px] max-md:pr-2' : ''}`}>
-            {!selectedContact?.isProBot && onOpenSidebar && (
+            {onOpenSidebar && (
               <button
                 type="button"
                 onClick={onOpenSidebar}
@@ -1960,29 +2006,10 @@ export default function ProBotChatArea({
                 </p>
               )}
             </div>
-            {selectedContact?.isProBot && (
-              <>
-                <span
-                  className="hidden md:block w-2 h-2 rounded-full shrink-0 bg-green-500"
-                  title={t('online')}
-                  aria-hidden
-                />
-                <span className="text-xs text-gray-500">{t('online')}</span>
-              </>
-            )}
-            {!selectedContact?.isProBot && (
-              <>
-                <span
-                  className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${selectedContact.online ? 'bg-green-500' : 'bg-gray-400'}`}
-                  title={selectedContact.online ? t('online') : t('offline')}
-                  aria-hidden
-                />
-                <span className="text-xs text-gray-500">
-                  {selectedContact.online ? t('online') : t('offline')}
-                </span>
-              </>
-            )}
           </div>
+          {!isAdminView && selectedContact?.isProBot && !businessId ? (
+            <ProBotUsageIndicator conversationId={conversationId} locale={locale} refreshKey={messages.length} />
+          ) : null}
           {!isAdminView && conversationId && (
             <button
               type="button"
@@ -2905,6 +2932,22 @@ export default function ProBotChatArea({
                   >
                     Dismiss
                   </button>
+                </div>
+              )}
+              {deviceVoiceNote && (
+                <div className="shrink-0 w-full px-2 md:px-4 pt-2" role="status">
+                  <div className="md:mx-auto md:max-w-3xl flex items-start gap-2 rounded-lg border-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    <Volume2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                    <p className="min-w-0 flex-1">
+                      {"ProBot's voice is resting for today (daily voice limit reached). Your device's voice read the answer out loud instead. ProBot's own voice comes back tomorrow."}
+                    </p>
+                    <a href={`/${locale}/subscription`} className="shrink-0 rounded-md bg-red-600 px-2 py-1 text-xs font-semibold text-white hover:bg-red-700">
+                      Subscribe
+                    </a>
+                    <button type="button" onClick={() => setDeviceVoiceNote(false)} className="shrink-0 rounded-md px-1 text-amber-900 hover:bg-amber-100" aria-label="Dismiss">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               )}
               <form

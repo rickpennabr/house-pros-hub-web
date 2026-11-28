@@ -58,10 +58,10 @@ export function NotchedBarBg({ rounded = false }: { rounded?: boolean }) {
       aria-hidden
       className={`pointer-events-none absolute inset-0 -z-10 bg-black ${rounded ? 'rounded-lg' : ''}`}
     >
-      {/* A couple of pixels past the curve so the corner fringe stays white, not the page. */}
+      {/* 1px past the curve so the corner stays white. Width is 1px tighter each side so the side gap matches the bottom gap. */}
       <svg
         viewBox="0 0 75 44"
-        className="absolute left-1/2 -top-0.5 h-[46px] w-[79px] -translate-x-1/2"
+        className="absolute left-1/2 -top-0.5 h-[46px] w-[77px] -translate-x-1/2"
       >
         <path fill="#ffffff" d={NOTCH_PATH} />
       </svg>

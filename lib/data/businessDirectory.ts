@@ -512,6 +512,89 @@ export interface AgentDirectoryPage extends DirectoryPage {
   cityMatchTruncated: boolean;
 }
 
+/** Words in a trade question that are not the trade itself. */
+const TRADE_STOPWORDS = new Set([
+  'repair', 'repairs', 'service', 'services', 'work', 'works', 'guy', 'guys', 'pro', 'pros', 'company', 'companies',
+  'small', 'big', 'fix', 'fixing', 'help', 'near', 'need', 'house', 'home', 'hub', 'job', 'jobs', 'someone', 'person',
+  'contractor', 'contractors', 'local', 'good', 'best', 'cheap',
+]);
+
+/**
+ * Word stems for a trade term, so "plumbing", "plumber" and "plumbers" all meet at "plumb".
+ * Short words and filler words ("repair", "guy") are dropped.
+ */
+export function tradeStems(term: string): string[] {
+  const words = term
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .split(/[^a-z]+/)
+    .filter((word) => word.length >= 4 && !TRADE_STOPWORDS.has(word));
+  return [...new Set(words.map((word) => word.slice(0, Math.max(4, word.length - 3))))];
+}
+
+function textHasStem(text: string, stems: string[]): boolean {
+  const normalized = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return stems.some((stem) => new RegExp(`\\b${stem}`).test(normalized));
+}
+
+export interface ProfileMentionResult {
+  /** Pros listed under the trade (category, type or license). */
+  trade: ProCardData[];
+  /** Pros of another trade whose own profile text or services mention the trade. */
+  mentions: ProCardData[];
+}
+
+/**
+ * Active pros whose profile mentions a trade the Hub may not list as a category. A handyman who
+ * writes "plumbing" in their description is a mention, not a plumber.
+ */
+export async function findProfileMentions(term: string, city?: string): Promise<ProfileMentionResult> {
+  const stems = tradeStems(term);
+  if (stems.length === 0) return { trade: [], mentions: [] };
+  const cityName = sanitizeDirectoryCity(city);
+  const supabase = createServiceRoleClient();
+  const licenseCategories = await getCachedLicenseCategories();
+  const select = cityName ? LIST_SELECT.replace('addresses (', 'addresses!inner (') : LIST_SELECT;
+  let query = supabase.from('businesses').select(select).eq('is_active', true);
+  if (cityName) query = query.ilike('addresses.city', cityName);
+  const { data, error } = await query
+    .order('display_order', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(AGENT_CITY_SCAN);
+  if (error) throw new Error(error.message);
+
+  const seen = new Set<string>();
+  const rows = ((data ?? []) as unknown as DbBusinessRow[]).filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+  const cards = await toCardsWithRoles(rows, licenseCategories);
+  const trade: ProCardData[] = [];
+  const mentions: ProCardData[] = [];
+  for (const card of cards) {
+    const tradeText = [
+      card.category,
+      card.contractorType,
+      ...(card.licenses ?? []).map((license) => {
+        const named = license as { tradeName?: string; trade?: string };
+        return `${named.tradeName ?? ''} ${named.trade ?? ''}`;
+      }),
+    ]
+      .filter(Boolean)
+      .join(' ');
+    if (textHasStem(tradeText, stems)) {
+      trade.push(card);
+      continue;
+    }
+    // A match on the business name is not a profile mention ("Plumb Line Landscaping").
+    const profileText = [card.companyDescription, ...(card.services ?? [])].filter(Boolean).join(' ');
+    if (textHasStem(profileText, stems)) mentions.push(card);
+  }
+  return { trade, mentions };
+}
+
 function matchesAgentSearch(card: ProCardData, search: string): boolean {
   const needle = search.toLowerCase();
   const haystack = [

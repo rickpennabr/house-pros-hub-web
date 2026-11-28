@@ -96,6 +96,9 @@ export async function POST(request: NextRequest) {
     if (!customerUserId) {
       return NextResponse.json({ error: 'This customer has no account yet, so they cannot be linked.' }, { status: 404 });
     }
+    if (customerUserId === scope.user.id) {
+      return NextResponse.json({ error: 'You cannot add yourself to your own CRM.' }, { status: 400 });
+    }
 
     let place: { id: string; street: string | null; city: string | null; state: string | null; zip_code: string | null } | null = null;
     if (share) {

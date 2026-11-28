@@ -675,7 +675,9 @@ function ProBotPageContent() {
       });
     }
     const isCustomerThread = Boolean(contact.conversationId);
-    if (isCustomerThread && isContractor) {
+    // Chatting with yourself (your own customer account): never add yourself to your CRM.
+    const isSelfChat = Boolean(user?.id) && contact.id === `customer-${user?.id}`;
+    if (isCustomerThread && isContractor && !isSelfChat) {
       actions.push({
         id: 'crm',
         label: tChat('crmAddCustomer'),
@@ -839,7 +841,19 @@ function ProBotPageContent() {
           roleKnown={roleKnown && lastContactReady}
           contractorBusinessId={isContractor ? user?.businessId ?? undefined : undefined}
           adminViewingConversation={adminViewingConversation}
-          onExitAdminConversation={() => setAdminViewingConversation(null)}
+          onExitAdminConversation={() => {
+            // Phones: back goes to the chat list (WhatsApp style), the thread stays loaded behind it.
+            if (window.matchMedia('(max-width: 767px)').matches) {
+              setSidebarOpen(true);
+              return;
+            }
+            // PC: leave the customer's thread. Clearing only the thread left the customer contact
+            // selected, so the same chat reopened in the customer view.
+            setAdminViewingConversation(null);
+            setSelectedContact(PROBOT_CONTACT);
+            rememberContact('probot');
+            router.replace(pathname, { scroll: false });
+          }}
           messagesRefreshKey={chatRefreshKey}
           onConversationDeleted={(deletedId) => {
             setContacts((current) => current.filter((contact) => contact.conversationId !== deletedId));
