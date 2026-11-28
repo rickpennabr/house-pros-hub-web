@@ -1452,6 +1452,25 @@ export default function ProBotChatArea({
     [visitorId, conversationId, isAdminView, sendAdminReply, sendMessage, setConversationId, t]
   );
 
+  /** Send screen photo edit: upload the edited copy and put it in place of the original. */
+  const replacePendingAttachment = useCallback(
+    async (index: number, file: File) => {
+      if (!visitorId || !conversationId) throw new Error(t('sendUnavailable'));
+      const formData = new FormData();
+      formData.set('conversationId', conversationId);
+      formData.set('visitorId', visitorId);
+      formData.append('file', file);
+      const res = await uploadWithProgress('/api/storage/upload-chat-attachment', { method: 'POST', body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Upload failed');
+      const saved = ((data.attachments ?? []) as ChatAttachment[])[0];
+      if (!saved) throw new Error('Upload failed');
+      fileByUrl.current.set(saved.url, file);
+      setPendingAttachments((prev) => prev.map((item, i) => (i === index ? saved : item)));
+    },
+    [conversationId, visitorId, t]
+  );
+
   const removePendingAttachment = useCallback((index: number) => {
     setPendingAttachments((prev) => prev.filter((_, i) => i !== index));
   }, []);
@@ -1573,6 +1592,8 @@ export default function ProBotChatArea({
       onClose={() => setMediaComposerOpen(false)}
       sending={sending}
       canAddMore={pendingAttachments.length + attachUploads.length < 10}
+      onReplace={replacePendingAttachment}
+      localFile={(url) => fileByUrl.current.get(url)}
     />
   );
 

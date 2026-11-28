@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { FileText, Plus, SendHorizontal, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { FileText, Loader2, Plus, SendHorizontal, Trash2, X } from 'lucide-react';
 import type { ChatAttachment } from '@/lib/types/chat';
 import { UploadProgressRing, type UploadingAttachment } from '@/components/probot/ChatPendingAttachments';
+import { ChatImageEditor, type ChatImageEditorHandle } from '@/components/chat/ChatImageEditor';
 
 /**
- * WhatsApp-style send screen for photos and videos: big preview, caption, a strip of thumbnails
- * (tap to see, remove, + to add more) and Send with the count.
+ * WhatsApp-style send screen for photos and videos, inside the chat window (the parent is
+ * `relative`): big preview with edit tools on photos, caption, a strip of thumbnails
+ * (tap to see, remove, + to add more) and Send with the count. An edited photo is uploaded
+ * again and replaces the original before moving to another one or sending.
  */
 interface Item {
   key: string;
@@ -33,7 +35,13 @@ export function ChatMediaComposer({
   sending,
   canAddMore,
   placeholder = 'Add a caption',
+  onReplace,
+  localFile,
 }: {
+  /** Upload the edited photo and put it in place of attachment `index`. */
+  onReplace?: (index: number, file: File) => Promise<void>;
+  /** The picked file for an attachment URL, so the editor needs no download. */
+  localFile?: (url: string) => File | undefined;
   open: boolean;
   attachments: ChatAttachment[];
   uploads: UploadingAttachment[];
@@ -55,6 +63,47 @@ export function ChatMediaComposer({
   const shown = Math.min(selected, items.length - 1);
   const current = items[shown];
   const uploading = uploads.length > 0;
+  const editorRef = useRef<ChatImageEditorHandle>(null);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  /** Send waits one render after a replace, so the parent sends the edited photo. */
+  const sendQueued = useRef(false);
+  const [sendTick, setSendTick] = useState(0);
+  useEffect(() => {
+    if (!sendQueued.current) return;
+    sendQueued.current = false;
+    onSend();
+  }, [sendTick, onSend]);
+
+  /** Save the current photo's edits (upload and replace). */
+  const flushEdits = async (): Promise<'none' | 'replaced' | 'failed'> => {
+    if (!current || current.index === null || !editorRef.current || !onReplace) return 'none';
+    setEditError(null);
+    try {
+      const edited = await editorRef.current.exportIfEdited();
+      if (!edited) return 'none';
+      setSaving(true);
+      await onReplace(current.index, edited);
+      return 'replaced';
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Could not save the edit');
+      return 'failed';
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const send = async () => {
+    if (uploading || sending || saving) return;
+    const result = await flushEdits();
+    if (result === 'failed') return;
+    if (result === 'none') {
+      onSend();
+      return;
+    }
+    sendQueued.current = true;
+    setSendTick((tick) => tick + 1);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +114,7 @@ export function ChatMediaComposer({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  if (!open || items.length === 0 || typeof document === 'undefined') return null;
+  if (!open || items.length === 0) return null;
 
   const preview = (item: Item) =>
     item.contentType.startsWith('image/') ? (
@@ -80,8 +129,10 @@ export function ChatMediaComposer({
       </div>
     );
 
-  return createPortal(
-    <div className="fixed inset-0 z-[400] flex flex-col bg-white text-black" role="dialog" aria-modal="true" aria-label="Send photos">
+  const editable = Boolean(onReplace && current && current.index !== null && current.contentType.startsWith('image/'));
+
+  return (
+    <div className="absolute inset-0 z-[60] flex flex-col bg-white text-black" role="dialog" aria-modal="true" aria-label="Send photos">
       <div className="flex shrink-0 items-center justify-between px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100" aria-label="Close">
           <X className="h-6 w-6" />
@@ -105,13 +156,23 @@ export function ChatMediaComposer({
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 py-2">
-        {current ? preview(current) : null}
+        {editable && current ? (
+          <ChatImageEditor key={current.key} ref={editorRef} url={current.url} name={current.name} file={localFile?.(current.url)} />
+        ) : current ? (
+          preview(current)
+        ) : null}
         {current && current.index === null ? (
           <span className="absolute inset-0 flex items-center justify-center">
             <UploadProgressRing percent={current.percent ?? 0} size={64} />
           </span>
         ) : null}
+        {saving ? (
+          <span className="absolute inset-0 flex items-center justify-center bg-white/60">
+            <Loader2 className="h-8 w-8 animate-spin text-gray-700" />
+          </span>
+        ) : null}
       </div>
+      {editError ? <p className="shrink-0 px-4 pb-1 text-center text-sm text-red-600">{editError}</p> : null}
 
       <div className="shrink-0 px-4 pb-3">
         <input
@@ -120,7 +181,7 @@ export function ChatMediaComposer({
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !uploading && !sending) {
               event.preventDefault();
-              onSend();
+              void send();
             }
           }}
           placeholder={placeholder}
@@ -136,7 +197,12 @@ export function ChatMediaComposer({
               <button
                 key={item.key}
                 type="button"
-                onClick={() => setSelected(i)}
+                onClick={() => {
+                  if (i === shown || saving) return;
+                  void flushEdits().then((result) => {
+                    if (result !== 'failed') setSelected(i);
+                  });
+                }}
                 className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 ${i === shown ? 'border-green-600' : 'border-gray-200'}`}
                 aria-label={`See ${item.name}`}
               >
@@ -171,8 +237,8 @@ export function ChatMediaComposer({
         </div>
         <button
           type="button"
-          onClick={onSend}
-          disabled={uploading || sending}
+          onClick={() => void send()}
+          disabled={uploading || sending || saving}
           className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-black text-white hover:bg-gray-800 disabled:opacity-50"
           aria-label={`Send ${items.length}`}
         >
@@ -182,7 +248,6 @@ export function ChatMediaComposer({
           </span>
         </button>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }
